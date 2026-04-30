@@ -1,40 +1,130 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Button } from "@/components/ui/button";
+import Link from "next/link";
 import { toast } from "sonner";
+import {
+  Btn,
+  Card,
+  Icons,
+  EditorialInput,
+  LabeledField,
+} from "@/components/homix/primitives";
+import { tone, fmtMoney } from "@/components/homix/tokens";
+import { ScaledInvoiceDoc } from "@/components/homix/invoice-doc";
 import type { Building, LineItem } from "@/db/schema";
 
 export default function NewInvoicePage() {
   const router = useRouter();
   const [buildings, setBuildings] = useState<Building[]>([]);
+  const [settings, setSettings] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
 
   const [buildingId, setBuildingId] = useState<number | null>(null);
   const [unit, setUnit] = useState("");
   const [tenantName, setTenantName] = useState("");
-  const [agentEmail, setAgentEmail] = useState("");
   const [agentName, setAgentName] = useState("");
-  const [licensedCompany, setLicensedCompany] = useState("");
+  const [agentEmail, setAgentEmail] = useState("");
+  const [agentPhone, setAgentPhone] = useState("");
+  const [apartmentAddress, setApartmentAddress] = useState("");
+  const [moveInDate, setMoveInDate] = useState("");
+  const [licensedCompany, setLicensedCompany] = useState("Homix Living");
   const [year, setYear] = useState(2026);
   const [notes, setNotes] = useState("");
   const [lineItems, setLineItems] = useState<LineItem[]>([
-    { description: "", quantity: 1, unitPrice: 0, amount: 0 },
+    { description: "Rental Commission — 12 month lease", quantity: 1, unitPrice: 5000, amount: 5000 },
   ]);
 
-  const selectedBuilding = buildings.find((b) => b.id === buildingId);
+  const selectedBuilding = useMemo(
+    () => buildings.find((b) => b.id === buildingId) || null,
+    [buildings, buildingId]
+  );
 
   useEffect(() => {
     fetch("/api/buildings")
       .then((r) => r.json())
       .then(setBuildings);
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then(setSettings);
   }, []);
+
+  const totalAmount = useMemo(
+    () => lineItems.reduce((sum, item) => sum + Number(item.amount || 0), 0),
+    [lineItems]
+  );
+
+  // Auto-fill apartment address from building bill-to when building changes
+  useEffect(() => {
+    if (selectedBuilding && !apartmentAddress) {
+      setApartmentAddress(selectedBuilding.billToAddress || "");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedBuilding?.id]);
+
+  const previewInvoiceNumber = useMemo(() => {
+    if (!unit || !selectedBuilding) return "—";
+    if (selectedBuilding.invoiceNumberFormat) {
+      return selectedBuilding.invoiceNumberFormat
+        .replace("Unit", unit)
+        .replace("{year}", String(year));
+    }
+    const key = selectedBuilding.name.toUpperCase().replace(/\s+/g, " ");
+    return `${unit}-${key}-${year}`;
+  }, [unit, selectedBuilding, year]);
+
+  const previewFileName = useMemo(() => {
+    if (!unit || !selectedBuilding) return "—";
+    return `${unit}-${selectedBuilding.name}-Invoice-${licensedCompany || "Homix Living"}`;
+  }, [unit, selectedBuilding, licensedCompany]);
+
+  const previewInvoice = useMemo(
+    () => ({
+      invoiceNumber: previewInvoiceNumber,
+      unit: unit || "—",
+      tenantName: tenantName || "Tenant Name",
+      agentName: agentName || undefined,
+      agentEmail: agentEmail || undefined,
+      agentPhone: agentPhone || undefined,
+      apartmentAddress: apartmentAddress || (selectedBuilding?.billToAddress || ""),
+      moveInDate: moveInDate || undefined,
+      licensedCompany: licensedCompany || "Homix Living",
+      lineItems,
+      totalAmount,
+      createdAt: new Date().toISOString(),
+      fileName: previewFileName,
+    }),
+    [
+      previewInvoiceNumber,
+      previewFileName,
+      unit,
+      tenantName,
+      agentName,
+      agentEmail,
+      agentPhone,
+      apartmentAddress,
+      moveInDate,
+      licensedCompany,
+      lineItems,
+      totalAmount,
+      selectedBuilding,
+    ]
+  );
+
+  const settingsForDoc = {
+    companyName: settings.company_name,
+    companyAddress: settings.company_address,
+    fromEmail: settings.from_email,
+    payableTo: settings.payable_to,
+    taxId: settings.tax_id,
+    mailCheckAddress: settings.mail_check_address,
+    achBankName: settings.ach_bank_name,
+    achRoutingNumber: settings.ach_routing_number,
+    achAccountNumber: settings.ach_account_number,
+    achAccountName: settings.ach_account_name,
+  };
 
   const updateLineItem = (
     index: number,
@@ -51,10 +141,7 @@ export default function NewInvoicePage() {
   };
 
   const addLineItem = () => {
-    setLineItems([
-      ...lineItems,
-      { description: "", quantity: 1, unitPrice: 0, amount: 0 },
-    ]);
+    setLineItems([...lineItems, { description: "", quantity: 1, unitPrice: 0, amount: 0 }]);
   };
 
   const removeLineItem = (index: number) => {
@@ -63,18 +150,11 @@ export default function NewInvoicePage() {
     }
   };
 
-  const totalAmount = lineItems.reduce((sum, item) => sum + item.amount, 0);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!buildingId) {
-      toast.error("请选择大楼");
-      return;
-    }
-    if (!unit || !tenantName || !licensedCompany) {
-      toast.error("请填写所有必填字段");
-      return;
-    }
+    if (!buildingId) return toast.error("Please select a building");
+    if (!unit || !tenantName || !licensedCompany)
+      return toast.error("Please fill out all required fields");
 
     setLoading(true);
     try {
@@ -85,8 +165,11 @@ export default function NewInvoicePage() {
           buildingId,
           unit,
           tenantName,
-          agentEmail,
           agentName,
+          agentEmail,
+          agentPhone,
+          apartmentAddress,
+          moveInDate,
           licensedCompany,
           year,
           lineItems,
@@ -94,304 +177,430 @@ export default function NewInvoicePage() {
           notes,
         }),
       });
-
       if (!res.ok) throw new Error("Failed to create invoice");
       const invoice = await res.json();
-      toast.success("Invoice 创建成功");
+      toast.success("Invoice created");
       router.push(`/invoices/${invoice.id}`);
     } catch {
-      toast.error("创建失败，请重试");
+      toast.error("Creation failed, please try again");
     } finally {
       setLoading(false);
     }
   };
 
-  const filteredBuildings = buildings.filter(
-    (b) =>
-      b.name.toLowerCase().includes(search.toLowerCase()) ||
-      b.region.toLowerCase().includes(search.toLowerCase())
-  );
-
-  const grouped = filteredBuildings.reduce<Record<string, Building[]>>(
-    (acc, b) => {
-      if (!acc[b.region]) acc[b.region] = [];
-      acc[b.region].push(b);
-      return acc;
-    },
-    {}
-  );
+  const filteredBuildings = useMemo(() => {
+    if (!search) return buildings;
+    const q = search.toLowerCase();
+    return buildings.filter(
+      (b) =>
+        b.name.toLowerCase().includes(q) ||
+        b.region.toLowerCase().includes(q) ||
+        (b.managementCompany || "").toLowerCase().includes(q)
+    );
+  }, [buildings, search]);
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 max-w-4xl">
-      <div>
-        <h1 className="text-3xl font-bold text-slate-900">创建 Invoice</h1>
-        <p className="mt-1 text-slate-500">填写信息生成 OP Invoice</p>
+    <form onSubmit={handleSubmit}>
+      {/* Header */}
+      <div className="flex items-start justify-between mb-8">
+        <div>
+          <Link
+            href="/invoices"
+            className="flex items-center gap-1.5 text-[12.5px] mb-4"
+            style={{ color: tone.ink50 }}
+          >
+            <Icons.Back /> Back
+          </Link>
+          <div
+            className="text-[11px] uppercase tracking-[0.16em] mb-2"
+            style={{ color: tone.ink50 }}
+          >
+            Create
+          </div>
+          <h1
+            className="font-serif"
+            style={{
+              fontSize: 52,
+              lineHeight: 0.95,
+              letterSpacing: "-0.02em",
+              color: tone.ink,
+            }}
+          >
+            New invoice
+          </h1>
+        </div>
+        <div className="flex gap-2 shrink-0">
+          <Btn variant="outline" onClick={() => router.back()}>
+            Cancel
+          </Btn>
+          <Btn variant="primary" icon={<Icons.Send />} type="submit" disabled={loading}>
+            {loading ? "Creating…" : "Create Invoice"}
+          </Btn>
+        </div>
       </div>
 
-      {/* Building Selection */}
-      <Card>
-        <CardHeader>
-          <CardTitle>选择大楼</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Input
-            placeholder="搜索大楼..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          {selectedBuilding ? (
-            <div className="flex items-center justify-between rounded-lg border-2 border-blue-500 bg-blue-50 p-3">
-              <div>
-                <p className="font-medium">{selectedBuilding.name}</p>
-                <p className="text-sm text-slate-500">
-                  {selectedBuilding.region}
-                  {selectedBuilding.managementCompany &&
-                    ` · ${selectedBuilding.managementCompany}`}
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setBuildingId(null)}
+      {/* Split layout */}
+      <div className="grid gap-8" style={{ gridTemplateColumns: "minmax(0, 1fr) 560px" }}>
+        <div className="space-y-6">
+          {/* Building */}
+          <Card>
+            <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
+              <div
+                className="font-serif"
+                style={{
+                  fontSize: 20,
+                  color: tone.ink,
+                  letterSpacing: "-0.01em",
+                }}
               >
-                更换
-              </Button>
+                Building
+              </div>
             </div>
-          ) : (
-            <div className="max-h-60 overflow-y-auto rounded-lg border">
-              {Object.entries(grouped).map(([region, rBuildings]) => (
-                <div key={region}>
-                  <div className="sticky top-0 bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-500 uppercase">
-                    {region} ({rBuildings.length})
-                  </div>
-                  {rBuildings.map((b) => (
-                    <button
-                      key={b.id}
-                      type="button"
-                      className="w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors border-b last:border-0"
-                      onClick={() => {
-                        setBuildingId(b.id);
-                        setSearch("");
-                      }}
+            <div className="p-6 space-y-4">
+              {selectedBuilding ? (
+                <div
+                  className="flex items-center justify-between rounded-lg p-4"
+                  style={{
+                    background: tone.accentSoft,
+                    border: `1px solid ${tone.accent}`,
+                  }}
+                >
+                  <div>
+                    <div
+                      className="font-serif"
+                      style={{ fontSize: 20, color: tone.ink, letterSpacing: "-0.01em" }}
                     >
-                      <p className="font-medium text-sm">{b.name}</p>
-                      {b.managementCompany && (
-                        <p className="text-xs text-slate-400">
-                          {b.managementCompany}
-                        </p>
-                      )}
+                      {selectedBuilding.name}
+                    </div>
+                    <div className="text-[12px] mt-1" style={{ color: tone.ink70 }}>
+                      {selectedBuilding.region}
+                      {selectedBuilding.managementCompany && ` · ${selectedBuilding.managementCompany}`}
+                    </div>
+                    {selectedBuilding.billToCompany && (
+                      <div className="text-[11.5px] mt-1 font-mono" style={{ color: tone.ink50 }}>
+                        Bill to: {selectedBuilding.billToCompany}
+                      </div>
+                    )}
+                  </div>
+                  <Btn variant="ghost" size="sm" onClick={() => setBuildingId(null)}>
+                    Change
+                  </Btn>
+                </div>
+              ) : (
+                <>
+                  <div
+                    className="flex items-center gap-2 h-10 px-3 rounded-lg"
+                    style={{ background: tone.card, border: `1px solid ${tone.line}` }}
+                  >
+                    <span style={{ color: tone.ink30 }}>
+                      <Icons.Search />
+                    </span>
+                    <input
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder="Search buildings…"
+                      className="flex-1 bg-transparent outline-none text-[13.5px]"
+                      style={{ color: tone.ink }}
+                    />
+                  </div>
+                  <div
+                    className="max-h-72 overflow-y-auto rounded-lg"
+                    style={{ border: `1px solid ${tone.line}` }}
+                  >
+                    {filteredBuildings.slice(0, 50).map((b) => (
+                      <button
+                        key={b.id}
+                        type="button"
+                        onClick={() => setBuildingId(b.id)}
+                        className="w-full text-left px-4 py-2.5 transition-colors hover:bg-[#FAF7F0]"
+                        style={{ borderBottom: `1px solid ${tone.lineSoft}` }}
+                      >
+                        <div className="text-[13px]" style={{ color: tone.ink }}>
+                          {b.name}
+                        </div>
+                        <div className="text-[11px] mt-0.5" style={{ color: tone.ink50 }}>
+                          {b.region}
+                          {b.managementCompany && ` · ${b.managementCompany}`}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {selectedBuilding?.specialNotes && (
+                <div
+                  className="rounded-lg p-3 text-[12.5px]"
+                  style={{ background: tone.roseSoft, color: tone.rose }}
+                >
+                  <strong>Special requirement: </strong>
+                  {selectedBuilding.specialNotes}
+                </div>
+              )}
+              {selectedBuilding?.submissionNotes && (
+                <div
+                  className="rounded-lg p-3 text-[12.5px]"
+                  style={{ background: tone.amberSoft, color: tone.amber }}
+                >
+                  <strong>Submission: </strong>
+                  {selectedBuilding.submissionNotes}
+                </div>
+              )}
+            </div>
+          </Card>
+
+          {/* Tenant & Unit */}
+          <Card>
+            <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
+              <div
+                className="font-serif"
+                style={{
+                  fontSize: 20,
+                  color: tone.ink,
+                  letterSpacing: "-0.01em",
+                }}
+              >
+                Tenant & Unit
+              </div>
+            </div>
+            <div className="p-6 grid grid-cols-2 gap-4">
+              <LabeledField label="Unit *">
+                <EditorialInput value={unit} onChange={setUnit} placeholder="e.g. 12F" />
+              </LabeledField>
+              <LabeledField label="Move-in Date">
+                <EditorialInput
+                  value={moveInDate}
+                  onChange={setMoveInDate}
+                  type="date"
+                />
+              </LabeledField>
+              <LabeledField label="Tenant Name *" wide>
+                <EditorialInput
+                  value={tenantName}
+                  onChange={setTenantName}
+                  placeholder="Full name(s)"
+                />
+              </LabeledField>
+              <LabeledField label="Apartment Address" wide>
+                <EditorialInput
+                  value={apartmentAddress}
+                  onChange={setApartmentAddress}
+                  placeholder="e.g. 888 Main St, Apt 12F, New York, NY"
+                />
+              </LabeledField>
+            </div>
+          </Card>
+
+          {/* Agent */}
+          <Card>
+            <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
+              <div
+                className="font-serif"
+                style={{
+                  fontSize: 20,
+                  color: tone.ink,
+                  letterSpacing: "-0.01em",
+                }}
+              >
+                Agent
+              </div>
+            </div>
+            <div className="p-6 grid grid-cols-2 gap-4">
+              <LabeledField label="Name">
+                <EditorialInput value={agentName} onChange={setAgentName} placeholder="e.g. Sarah Kim" />
+              </LabeledField>
+              <LabeledField label="Phone">
+                <EditorialInput
+                  value={agentPhone}
+                  onChange={setAgentPhone}
+                  placeholder="(917) 555-0134"
+                  mono
+                />
+              </LabeledField>
+              <LabeledField label="Email (Reply-To)">
+                <EditorialInput
+                  value={agentEmail}
+                  onChange={setAgentEmail}
+                  placeholder="agent@homixny.com"
+                  mono
+                />
+              </LabeledField>
+              <LabeledField label="Licensed Company *">
+                <EditorialInput
+                  value={licensedCompany}
+                  onChange={setLicensedCompany}
+                  placeholder="Homix Living"
+                />
+              </LabeledField>
+            </div>
+          </Card>
+
+          {/* Commission line items */}
+          <Card>
+            <div
+              className="px-6 py-5 flex items-center justify-between"
+              style={{ borderBottom: `1px solid ${tone.lineSoft}` }}
+            >
+              <div
+                className="font-serif"
+                style={{
+                  fontSize: 20,
+                  color: tone.ink,
+                  letterSpacing: "-0.01em",
+                }}
+              >
+                Commission
+              </div>
+              <Btn variant="ghost" size="sm" icon={<Icons.Plus />} onClick={addLineItem}>
+                Add line
+              </Btn>
+            </div>
+            <div className="p-6 space-y-3">
+              {lineItems.map((item, index) => (
+                <div key={index} className="grid grid-cols-12 gap-2 items-center">
+                  <div className="col-span-5">
+                    <EditorialInput
+                      value={item.description}
+                      onChange={(v) => updateLineItem(index, "description", v)}
+                      placeholder="Description"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <EditorialInput
+                      value={item.quantity}
+                      onChange={(v) => updateLineItem(index, "quantity", Number(v))}
+                      type="number"
+                      mono
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <EditorialInput
+                      value={item.unitPrice}
+                      onChange={(v) => updateLineItem(index, "unitPrice", Number(v))}
+                      type="number"
+                      mono
+                      prefix="$"
+                    />
+                  </div>
+                  <div
+                    className="col-span-2 text-right font-mono text-[13.5px]"
+                    style={{ color: tone.ink }}
+                  >
+                    ${fmtMoney(Number(item.amount || 0))}
+                  </div>
+                  <div className="col-span-1 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => removeLineItem(index)}
+                      disabled={lineItems.length === 1}
+                      className="h-8 w-8 flex items-center justify-center rounded disabled:opacity-30"
+                      style={{ color: tone.ink50 }}
+                    >
+                      <Icons.Trash size={14} />
                     </button>
-                  ))}
+                  </div>
                 </div>
               ))}
-            </div>
-          )}
 
-          {selectedBuilding?.specialNotes && (
-            <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">
-              <strong>特殊要求：</strong> {selectedBuilding.specialNotes}
-            </div>
-          )}
-          {selectedBuilding?.submissionNotes && (
-            <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-700">
-              <strong>提交方式：</strong> {selectedBuilding.submissionNotes}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Tenant Info */}
-      <Card>
-        <CardHeader>
-          <CardTitle>租户信息</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="unit">Unit 号 *</Label>
-            <Input
-              id="unit"
-              value={unit}
-              onChange={(e) => setUnit(e.target.value)}
-              placeholder="e.g. 1201"
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="tenantName">租户姓名 *</Label>
-            <Input
-              id="tenantName"
-              value={tenantName}
-              onChange={(e) => setTenantName(e.target.value)}
-              placeholder="e.g. John Smith"
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="licensedCompany">持证公司 *</Label>
-            <Input
-              id="licensedCompany"
-              value={licensedCompany}
-              onChange={(e) => setLicensedCompany(e.target.value)}
-              placeholder="e.g. Homix Realty"
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="year">年份</Label>
-            <Input
-              id="year"
-              type="number"
-              value={year}
-              onChange={(e) => setYear(Number(e.target.value))}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="agentName">经纪人姓名</Label>
-            <Input
-              id="agentName"
-              value={agentName}
-              onChange={(e) => setAgentName(e.target.value)}
-              placeholder="e.g. Agent Zhang"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="agentEmail">经纪人邮箱 (Reply-To)</Label>
-            <Input
-              id="agentEmail"
-              type="email"
-              value={agentEmail}
-              onChange={(e) => setAgentEmail(e.target.value)}
-              placeholder="agent@example.com"
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Line Items */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>费用明细</CardTitle>
-            <Button type="button" variant="outline" size="sm" onClick={addLineItem}>
-              + 添加行
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid grid-cols-12 gap-2 text-xs font-semibold text-slate-500 uppercase px-1">
-            <div className="col-span-5">描述</div>
-            <div className="col-span-2">数量</div>
-            <div className="col-span-2">单价</div>
-            <div className="col-span-2">金额</div>
-            <div className="col-span-1"></div>
-          </div>
-          {lineItems.map((item, index) => (
-            <div key={index} className="grid grid-cols-12 gap-2 items-center">
-              <Input
-                className="col-span-5"
-                value={item.description}
-                onChange={(e) =>
-                  updateLineItem(index, "description", e.target.value)
-                }
-                placeholder="服务项目描述"
-              />
-              <Input
-                className="col-span-2"
-                type="number"
-                value={item.quantity}
-                onChange={(e) =>
-                  updateLineItem(index, "quantity", Number(e.target.value))
-                }
-                min={1}
-              />
-              <Input
-                className="col-span-2"
-                type="number"
-                value={item.unitPrice || ""}
-                onChange={(e) =>
-                  updateLineItem(index, "unitPrice", Number(e.target.value))
-                }
-                min={0}
-                step={0.01}
-                placeholder="0.00"
-              />
-              <div className="col-span-2 text-right font-medium">
-                ${item.amount.toFixed(2)}
-              </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="col-span-1"
-                onClick={() => removeLineItem(index)}
-                disabled={lineItems.length === 1}
+              <div
+                className="rounded-lg p-4 flex items-center justify-between mt-4"
+                style={{ background: tone.paper }}
               >
-                ×
-              </Button>
+                <div>
+                  <div
+                    className="text-[11px] uppercase tracking-[0.12em]"
+                    style={{ color: tone.ink50 }}
+                  >
+                    Invoice № preview
+                  </div>
+                  <div className="mt-1 font-mono text-[14px]" style={{ color: tone.ink }}>
+                    {previewInvoiceNumber}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div
+                    className="text-[11px] uppercase tracking-[0.12em]"
+                    style={{ color: tone.ink50 }}
+                  >
+                    Total
+                  </div>
+                  <div
+                    className="font-serif"
+                    style={{
+                      fontSize: 26,
+                      color: tone.ink,
+                      letterSpacing: "-0.01em",
+                    }}
+                  >
+                    ${fmtMoney(totalAmount)}
+                  </div>
+                </div>
+              </div>
             </div>
-          ))}
-          <div className="flex justify-end border-t pt-3">
-            <div className="text-lg font-bold">
-              总计: ${totalAmount.toFixed(2)}
+          </Card>
+
+          {/* Notes */}
+          <Card>
+            <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
+              <div
+                className="font-serif"
+                style={{
+                  fontSize: 20,
+                  color: tone.ink,
+                  letterSpacing: "-0.01em",
+                }}
+              >
+                Notes
+              </div>
+            </div>
+            <div className="p-6">
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Optional notes for this invoice…"
+                rows={3}
+                className="w-full rounded-lg p-3 text-[13.5px] outline-none"
+                style={{
+                  background: tone.card,
+                  border: `1px solid ${tone.line}`,
+                  color: tone.ink,
+                  resize: "vertical",
+                }}
+              />
+            </div>
+          </Card>
+        </div>
+
+        {/* RIGHT: Live preview */}
+        <div>
+          <div className="sticky top-24">
+            <div
+              className="text-[11px] uppercase tracking-[0.14em] mb-3"
+              style={{ color: tone.ink50 }}
+            >
+              Live Preview
+            </div>
+            <div style={{ background: tone.paperDeep, padding: 16, borderRadius: 12 }}>
+              <ScaledInvoiceDoc
+                invoice={previewInvoice}
+                building={selectedBuilding}
+                settings={settingsForDoc}
+                targetWidth={528}
+              />
+            </div>
+            <div
+              className="mt-3 font-mono text-[10.5px] text-center"
+              style={{ color: tone.ink50 }}
+            >
+              {previewFileName}.pdf
             </div>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Notes */}
-      <Card>
-        <CardHeader>
-          <CardTitle>备注</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="可选备注信息..."
-            rows={3}
-          />
-        </CardContent>
-      </Card>
-
-      {/* Preview */}
-      {buildingId && unit && (
-        <Card>
-          <CardHeader>
-            <CardTitle>预览</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <p>
-              <strong>Invoice Number:</strong>{" "}
-              {selectedBuilding?.invoiceNumberFormat
-                ?.replace("Unit", unit)
-                .replace("{year}", String(year)) ||
-                `${unit}-${selectedBuilding?.name}-${year}`}
-            </p>
-            <p>
-              <strong>文件名:</strong> {unit}-{selectedBuilding?.name}-Invoice-
-              {licensedCompany || "???"}
-            </p>
-            <p>
-              <strong>邮件标题:</strong> {unit}-{selectedBuilding?.name}-OP
-              Invoice-{licensedCompany || "???"}
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
-      <div className="flex gap-3">
-        <Button type="submit" disabled={loading} className="px-8">
-          {loading ? "创建中..." : "创建 Invoice"}
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => router.back()}
-        >
-          取消
-        </Button>
+        </div>
       </div>
+
+      <input type="hidden" name="year" value={year} />
+      {/* Hidden year input for accessibility */}
+      <div style={{ display: "none" }}>{year}</div>
     </form>
   );
 }

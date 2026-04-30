@@ -19,7 +19,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { buildingId, unit, tenantName, agentEmail, agentName, licensedCompany, year, lineItems, totalAmount, notes } = body;
+  const { buildingId, unit, tenantName, agentEmail, agentName, agentPhone, apartmentAddress, moveInDate, licensedCompany, year, lineItems, totalAmount, notes } = body;
 
   const building = await db.select().from(buildings).where(eq(buildings.id, buildingId)).get();
   if (!building) {
@@ -39,9 +39,12 @@ export async function POST(req: NextRequest) {
     tenantName,
     agentEmail,
     agentName,
+    agentPhone,
+    apartmentAddress,
+    moveInDate,
     licensedCompany,
     year: year || 2026,
-    lineItems: JSON.stringify(lineItems),
+    lineItems,
     totalAmount,
     notes,
     status: "draft",

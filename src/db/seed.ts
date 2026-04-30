@@ -3154,6 +3154,13 @@ const defaultSettings = [
   { key: "company_name", value: "Homix Living" },
   { key: "company_address", value: "" },
   { key: "default_year", value: "2026" },
+  { key: "payable_to", value: "Homix Living Inc." },
+  { key: "tax_id", value: "" },
+  { key: "mail_check_address", value: "Homix Living Inc." },
+  { key: "ach_bank_name", value: "" },
+  { key: "ach_routing_number", value: "" },
+  { key: "ach_account_number", value: "" },
+  { key: "ach_account_name", value: "" },
 ];
 
 async function seed() {
@@ -3189,6 +3196,9 @@ async function seed() {
       tenant_name TEXT NOT NULL,
       agent_email TEXT,
       agent_name TEXT,
+      agent_phone TEXT,
+      apartment_address TEXT,
+      move_in_date TEXT,
       licensed_company TEXT NOT NULL,
       year INTEGER NOT NULL DEFAULT 2026,
       line_items TEXT,

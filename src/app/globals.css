@@ -7,9 +7,29 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
+  --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-serif: var(--font-instrument-serif);
+  --font-heading: var(--font-instrument-serif);
+
+  /* Homix editorial tokens */
+  --color-paper: #F7F4EE;
+  --color-paper-deep: #EFEAE1;
+  --color-ink: #1A1814;
+  --color-ink-70: #4A4640;
+  --color-ink-50: #7A756C;
+  --color-ink-30: #B5AFA4;
+  --color-line: #E4DED2;
+  --color-line-soft: #EDE8DD;
+  --color-homix-accent: #5C6B3A;
+  --color-homix-accent-soft: #E9ECDD;
+  --color-homix-amber: #A76A1F;
+  --color-homix-amber-soft: #F4E6CE;
+  --color-homix-rose: #9B3C3C;
+  --color-homix-rose-soft: #F1D9D6;
+  --color-homix-green: #3E6B4D;
+  --color-homix-green-soft: #DBE7DC;
+
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -49,82 +69,75 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  /* Keep shadcn tokens mapped to our warm palette */
+  --background: #F7F4EE;
+  --foreground: #1A1814;
+  --card: #FFFFFF;
+  --card-foreground: #1A1814;
+  --popover: #FFFFFF;
+  --popover-foreground: #1A1814;
+  --primary: #1A1814;
+  --primary-foreground: #FFFFFF;
+  --secondary: #EFEAE1;
+  --secondary-foreground: #1A1814;
+  --muted: #EFEAE1;
+  --muted-foreground: #7A756C;
+  --accent: #EFEAE1;
+  --accent-foreground: #1A1814;
+  --destructive: #9B3C3C;
+  --border: #E4DED2;
+  --input: #E4DED2;
+  --ring: #B5AFA4;
+  --chart-1: #5C6B3A;
+  --chart-2: #A76A1F;
+  --chart-3: #9B3C3C;
+  --chart-4: #3E6B4D;
+  --chart-5: #7A756C;
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-}
-
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --sidebar: #FFFFFF;
+  --sidebar-foreground: #1A1814;
+  --sidebar-primary: #1A1814;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #EFEAE1;
+  --sidebar-accent-foreground: #1A1814;
+  --sidebar-border: #E4DED2;
+  --sidebar-ring: #B5AFA4;
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
-  body {
-    @apply bg-background text-foreground;
+  html, body {
+    background: #F7F4EE;
+    color: #1A1814;
+    font-family: var(--font-geist-sans), -apple-system, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
-  html {
-    @apply font-sans;
+  ::selection {
+    background: #E9ECDD;
+    color: #1A1814;
+  }
+}
+
+/* Utility font classes */
+.font-serif {
+  font-family: var(--font-instrument-serif), 'Times New Roman', Georgia, serif;
+}
+.font-sans {
+  font-family: var(--font-geist-sans), -apple-system, system-ui, sans-serif;
+}
+.font-mono {
+  font-family: var(--font-geist-mono), 'SF Mono', Menlo, monospace;
+}
+
+/* Print style for invoice */
+@media print {
+  body {
+    background: white;
+  }
+  .no-print {
+    display: none !important;
   }
 }

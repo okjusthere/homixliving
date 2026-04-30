@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
 import "./globals.css";
 import { Nav } from "@/components/nav";
 import { Toaster } from "@/components/ui/sonner";
@@ -14,9 +14,16 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const instrumentSerif = Instrument_Serif({
+  variable: "--font-instrument-serif",
+  subsets: ["latin"],
+  weight: ["400"],
+  style: ["normal", "italic"],
+});
+
 export const metadata: Metadata = {
-  title: "Homix Invoice - OP Invoice 管理工具",
-  description: "OP Invoice 生成及发送管理工具",
+  title: "Homix Invoice Suite",
+  description: "OP Invoice generation and sending for Homix Living",
 };
 
 export default function RootLayout({
@@ -27,15 +34,22 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-slate-50">
+      <body className="min-h-full flex flex-col" style={{ background: "#F7F4EE", color: "#1A1814" }}>
         <Nav />
         <main className="flex-1">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+          <div className="mx-auto max-w-[1280px] px-8 py-10">
             {children}
           </div>
         </main>
+        <footer
+          className="mx-auto max-w-[1280px] px-8 py-10 flex items-center justify-between text-[11px] w-full"
+          style={{ color: "#7A756C" }}
+        >
+          <div className="font-mono">homix-invoice v2.0</div>
+          <div>© 2026 Homix Living · Made with care in NYC</div>
+        </footer>
         <Toaster />
       </body>
     </html>

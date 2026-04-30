@@ -6,10 +6,12 @@ import { generateInvoicePDF } from "@/lib/pdf-generator";
 import { sendInvoiceEmail } from "@/lib/email-sender";
 
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  const body = await req.json().catch(() => ({}));
+
   const result = await db
     .select({ invoice: invoices, building: buildings })
     .from(invoices)
@@ -23,9 +25,15 @@ export async function POST(
 
   const { invoice, building } = result;
 
-  if (!building.contactEmail) {
+  // Allow custom recipients from request body, fallback to building config
+  const toEmails: string = body.to || building.contactEmail || "";
+  const ccEmails: string = body.cc || "";
+  const replyTo: string = body.replyTo || invoice.agentEmail || "";
+  const subject: string = body.subject || invoice.emailSubject || invoice.invoiceNumber;
+
+  if (!toEmails.trim()) {
     return NextResponse.json(
-      { error: "Building has no contact email configured. Please update the building settings first." },
+      { error: "没有收件人邮箱。请填写收件邮箱后再发送。" },
       { status: 400 }
     );
   }
@@ -44,20 +52,35 @@ export async function POST(
     unit: invoice.unit,
     tenantName: invoice.tenantName,
     licensedCompany: invoice.licensedCompany,
+    agentName: invoice.agentName || undefined,
+    agentPhone: invoice.agentPhone || undefined,
+    agentEmail: invoice.agentEmail || undefined,
+    apartmentAddress: invoice.apartmentAddress || undefined,
+    moveInDate: invoice.moveInDate || undefined,
     lineItems,
     totalAmount: invoice.totalAmount,
     notes: invoice.notes || undefined,
     companyName: settingsMap.company_name || "Homix Living",
-    companyAddress: settingsMap.company_address || "",
+    companyAddress: settingsMap.company_address || "5 West 37th Street, Floor 2\nNew York, NY 10018",
+    fromEmail: settingsMap.from_email || "invoice@homixny.com",
+    payableTo: settingsMap.payable_to || undefined,
+    taxId: settingsMap.tax_id || undefined,
+    mailCheckAddress: settingsMap.mail_check_address || undefined,
+    achBankName: settingsMap.ach_bank_name || undefined,
+    achRoutingNumber: settingsMap.ach_routing_number || undefined,
+    achAccountNumber: settingsMap.ach_account_number || undefined,
+    achAccountName: settingsMap.ach_account_name || undefined,
   });
 
   try {
-    const to = building.contactEmail.split(",").map((e) => e.trim());
+    const to = toEmails.split(",").map((e) => e.trim()).filter(Boolean);
+    const extraCc = ccEmails ? ccEmails.split(",").map((e) => e.trim()).filter(Boolean) : [];
 
     await sendInvoiceEmail({
       to,
-      replyTo: invoice.agentEmail || undefined,
-      subject: invoice.emailSubject || invoice.invoiceNumber,
+      cc: extraCc.length > 0 ? extraCc : undefined,
+      replyTo: replyTo || undefined,
+      subject,
       fileName: invoice.fileName,
       pdfBuffer,
       buildingName: building.name,

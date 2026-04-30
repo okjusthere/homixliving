@@ -20,3 +20,9 @@ export async function PUT(req: NextRequest) {
   const result = await db.update(buildings).set({ ...data, updatedAt: new Date().toISOString() }).where(eq(buildings.id, id)).returning();
   return NextResponse.json(result[0]);
 }
+
+export async function DELETE(req: NextRequest) {
+  const { id } = await req.json();
+  await db.delete(buildings).where(eq(buildings.id, id));
+  return NextResponse.json({ success: true });
+}

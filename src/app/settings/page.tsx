@@ -1,11 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import {
+  Btn,
+  Card,
+  EditorialInput,
+  LabeledField,
+} from "@/components/homix/primitives";
+import { tone } from "@/components/homix/tokens";
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<Record<string, string>>({});
@@ -30,9 +33,9 @@ export default function SettingsPage() {
         body: JSON.stringify(settings),
       });
       if (!res.ok) throw new Error();
-      toast.success("设置已保存");
+      toast.success("Settings saved");
     } catch {
-      toast.error("保存失败");
+      toast.error("Save failed");
     } finally {
       setSaving(false);
     }
@@ -42,80 +45,224 @@ export default function SettingsPage() {
     setSettings((prev) => ({ ...prev, [key]: value }));
   };
 
-  if (loading) return <p className="text-slate-500">加载中...</p>;
+  if (loading) {
+    return (
+      <p className="py-24 text-center text-[13px]" style={{ color: tone.ink50 }}>
+        Loading…
+      </p>
+    );
+  }
 
   return (
-    <div className="space-y-6 max-w-2xl">
-      <div>
-        <h1 className="text-3xl font-bold text-slate-900">设置</h1>
-        <p className="mt-1 text-slate-500">配置邮件发送和公司信息</p>
+    <div className="space-y-8">
+      {/* Header */}
+      <div className="flex items-end justify-between">
+        <div>
+          <div
+            className="text-[11px] uppercase tracking-[0.16em] mb-2"
+            style={{ color: tone.ink50 }}
+          >
+            Configuration
+          </div>
+          <h1
+            className="font-serif"
+            style={{
+              fontSize: 52,
+              lineHeight: 0.95,
+              letterSpacing: "-0.02em",
+              color: tone.ink,
+            }}
+          >
+            Settings
+          </h1>
+          <p className="mt-3 text-[14px]" style={{ color: tone.ink70 }}>
+            Email delivery, company details, and payment options.
+          </p>
+        </div>
+        <Btn variant="primary" onClick={handleSave} disabled={saving}>
+          {saving ? "Saving…" : "Save Changes"}
+        </Btn>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>邮件设置</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label>发件人邮箱 (From)</Label>
-            <Input
-              value={settings.from_email || ""}
-              onChange={(e) => update("from_email", e.target.value)}
-              placeholder="invoice@homixny.com"
-            />
-            <p className="text-xs text-slate-400">
-              需要在 Resend 中验证此域名
+      <div className="grid grid-cols-2 gap-6">
+        {/* Email */}
+        <Card>
+          <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
+            <div
+              className="font-serif"
+              style={{ fontSize: 20, color: tone.ink, letterSpacing: "-0.01em" }}
+            >
+              Email
+            </div>
+            <div className="text-[12px] mt-0.5" style={{ color: tone.ink50 }}>
+              How invoices are delivered
+            </div>
+          </div>
+          <div className="p-6 space-y-4">
+            <LabeledField label="From email">
+              <EditorialInput
+                value={settings.from_email || ""}
+                onChange={(v) => update("from_email", v)}
+                placeholder="invoice@homixny.com"
+                mono
+              />
+            </LabeledField>
+            <LabeledField label="CC email (always)">
+              <EditorialInput
+                value={settings.cc_email || ""}
+                onChange={(v) => update("cc_email", v)}
+                placeholder="homix@homixny.com"
+                mono
+              />
+            </LabeledField>
+            <p className="text-[11.5px]" style={{ color: tone.ink50 }}>
+              Verify the sending domain with Resend before sending.
             </p>
           </div>
-          <div className="space-y-2">
-            <Label>CC 邮箱</Label>
-            <Input
-              value={settings.cc_email || ""}
-              onChange={(e) => update("cc_email", e.target.value)}
-              placeholder="homix@homixny.com"
-            />
-            <p className="text-xs text-slate-400">
-              所有发送的 Invoice 邮件都会抄送此邮箱
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+        </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>公司信息</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label>公司名称</Label>
-            <Input
-              value={settings.company_name || ""}
-              onChange={(e) => update("company_name", e.target.value)}
-              placeholder="Homix Living"
-            />
+        {/* Company */}
+        <Card>
+          <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
+            <div
+              className="font-serif"
+              style={{ fontSize: 20, color: tone.ink, letterSpacing: "-0.01em" }}
+            >
+              Company
+            </div>
+            <div className="text-[12px] mt-0.5" style={{ color: tone.ink50 }}>
+              Shown on every invoice
+            </div>
           </div>
-          <div className="space-y-2">
-            <Label>公司地址</Label>
-            <Input
-              value={settings.company_address || ""}
-              onChange={(e) => update("company_address", e.target.value)}
-              placeholder="123 Main St, New York, NY 10001"
-            />
+          <div className="p-6 space-y-4">
+            <LabeledField label="Company name">
+              <EditorialInput
+                value={settings.company_name || ""}
+                onChange={(v) => update("company_name", v)}
+                placeholder="Homix Living"
+              />
+            </LabeledField>
+            <LabeledField label="Company address">
+              <EditorialInput
+                value={settings.company_address || ""}
+                onChange={(v) => update("company_address", v)}
+                placeholder="5 West 37th Street, Floor 2, New York, NY 10018"
+              />
+            </LabeledField>
+            <LabeledField label="Default year">
+              <EditorialInput
+                value={settings.default_year || ""}
+                onChange={(v) => update("default_year", v)}
+                placeholder="2026"
+                mono
+              />
+            </LabeledField>
           </div>
-          <div className="space-y-2">
-            <Label>默认年份</Label>
-            <Input
-              value={settings.default_year || ""}
-              onChange={(e) => update("default_year", e.target.value)}
-              placeholder="2026"
-            />
-          </div>
-        </CardContent>
-      </Card>
+        </Card>
 
-      <Button onClick={handleSave} disabled={saving} className="px-8">
-        {saving ? "保存中..." : "保存设置"}
-      </Button>
+        {/* Payment — Check */}
+        <Card>
+          <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
+            <div
+              className="font-serif"
+              style={{ fontSize: 20, color: tone.ink, letterSpacing: "-0.01em" }}
+            >
+              Payment · Check
+            </div>
+            <div className="text-[12px] mt-0.5" style={{ color: tone.ink50 }}>
+              Appears in the Payment Methods block
+            </div>
+          </div>
+          <div className="p-6 space-y-4">
+            <LabeledField label="Payable to">
+              <EditorialInput
+                value={settings.payable_to || ""}
+                onChange={(v) => update("payable_to", v)}
+                placeholder="Homix Living Inc."
+              />
+            </LabeledField>
+            <LabeledField label="Tax ID">
+              <EditorialInput
+                value={settings.tax_id || ""}
+                onChange={(v) => update("tax_id", v)}
+                placeholder="XX-XXXXXXX"
+                mono
+              />
+            </LabeledField>
+            <LabeledField label="Mail check to">
+              <textarea
+                value={settings.mail_check_address || ""}
+                onChange={(e) => update("mail_check_address", e.target.value)}
+                rows={4}
+                placeholder="Homix Living Inc.&#10;5 West 37th Street, Floor 2&#10;New York, NY 10018"
+                className="w-full rounded-lg p-3 text-[13.5px] outline-none"
+                style={{
+                  background: tone.card,
+                  border: `1px solid ${tone.line}`,
+                  color: tone.ink,
+                  resize: "vertical",
+                  fontFamily: "var(--font-geist-mono), monospace",
+                }}
+              />
+            </LabeledField>
+          </div>
+        </Card>
+
+        {/* Payment — ACH */}
+        <Card>
+          <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
+            <div
+              className="font-serif"
+              style={{ fontSize: 20, color: tone.ink, letterSpacing: "-0.01em" }}
+            >
+              Payment · ACH / Wire
+            </div>
+            <div className="text-[12px] mt-0.5" style={{ color: tone.ink50 }}>
+              Bank transfer details
+            </div>
+          </div>
+          <div className="p-6 space-y-4">
+            <LabeledField label="Account name">
+              <EditorialInput
+                value={settings.ach_account_name || ""}
+                onChange={(v) => update("ach_account_name", v)}
+                placeholder="Homix Living Inc."
+              />
+            </LabeledField>
+            <LabeledField label="Bank name">
+              <EditorialInput
+                value={settings.ach_bank_name || ""}
+                onChange={(v) => update("ach_bank_name", v)}
+                placeholder="Chase Bank"
+              />
+            </LabeledField>
+            <div className="grid grid-cols-2 gap-3">
+              <LabeledField label="Routing">
+                <EditorialInput
+                  value={settings.ach_routing_number || ""}
+                  onChange={(v) => update("ach_routing_number", v)}
+                  placeholder="021000021"
+                  mono
+                />
+              </LabeledField>
+              <LabeledField label="Account №">
+                <EditorialInput
+                  value={settings.ach_account_number || ""}
+                  onChange={(v) => update("ach_account_number", v)}
+                  placeholder="••••••4823"
+                  mono
+                />
+              </LabeledField>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      <div className="flex justify-end">
+        <Btn variant="primary" onClick={handleSave} disabled={saving}>
+          {saving ? "Saving…" : "Save Changes"}
+        </Btn>
+      </div>
     </div>
   );
 }

@@ -1,288 +1,483 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
+import Link from "next/link";
 import { toast } from "sonner";
+import { Pill, Btn, Card, SoftField, Icons } from "@/components/homix/primitives";
+import { tone, fmtMoney, fmtDate } from "@/components/homix/tokens";
+import { ScaledInvoiceDoc } from "@/components/homix/invoice-doc";
+import { SendDialog } from "@/components/homix/send-dialog";
 import type { Building, Invoice, LineItem } from "@/db/schema";
+
+type Settings = Record<string, string>;
+
+function settingsForDoc(s: Settings) {
+  return {
+    companyName: s.company_name,
+    companyAddress: s.company_address,
+    fromEmail: s.from_email,
+    ccEmail: s.cc_email,
+    payableTo: s.payable_to,
+    taxId: s.tax_id,
+    mailCheckAddress: s.mail_check_address,
+    achBankName: s.ach_bank_name,
+    achRoutingNumber: s.ach_routing_number,
+    achAccountNumber: s.ach_account_number,
+    achAccountName: s.ach_account_name,
+  };
+}
 
 export default function InvoiceDetailPage() {
   const params = useParams();
   const router = useRouter();
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [building, setBuilding] = useState<Building | null>(null);
+  const [settings, setSettings] = useState<Settings>({});
   const [loading, setLoading] = useState(true);
-  const [sending, setSending] = useState(false);
+  const [showSend, setShowSend] = useState(false);
+
+  const previewRef = useRef<HTMLDivElement>(null);
+  const [previewWidth, setPreviewWidth] = useState(520);
 
   useEffect(() => {
-    fetch(`/api/invoices/${params.id}`)
-      .then((r) => r.json())
-      .then((data) => {
-        setInvoice(data.invoice);
-        setBuilding(data.building);
-        setLoading(false);
-      });
+    Promise.all([
+      fetch(`/api/invoices/${params.id}`).then((r) => r.json()),
+      fetch("/api/settings").then((r) => r.json()),
+    ]).then(([invoiceData, settingsData]) => {
+      setInvoice(invoiceData.invoice);
+      setBuilding(invoiceData.building);
+      setSettings(settingsData);
+      setLoading(false);
+    });
   }, [params.id]);
+
+  useEffect(() => {
+    const update = () => {
+      if (previewRef.current) {
+        setPreviewWidth(Math.min(previewRef.current.clientWidth, 720));
+      }
+    };
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, [loading]);
 
   const handleDownloadPDF = () => {
     window.open(`/api/invoices/${params.id}/pdf`, "_blank");
   };
 
-  const handleSendEmail = async () => {
-    if (!building?.contactEmail) {
-      toast.error("该大楼未配置收件邮箱，请先在大楼管理中添加邮箱地址");
-      return;
-    }
-
-    setSending(true);
-    try {
-      const res = await fetch(`/api/invoices/${params.id}/send`, {
-        method: "POST",
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      toast.success("Invoice 已发送！");
-      // Refresh
-      const updated = await fetch(`/api/invoices/${params.id}`).then((r) =>
-        r.json()
-      );
-      setInvoice(updated.invoice);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "发送失败";
-      toast.error(message);
-    } finally {
-      setSending(false);
-    }
-  };
-
   const handleDelete = async () => {
-    if (!confirm("确定要删除这个 Invoice 吗？")) return;
+    if (!confirm("Delete this invoice? This cannot be undone.")) return;
     await fetch(`/api/invoices/${params.id}`, { method: "DELETE" });
-    toast.success("Invoice 已删除");
+    toast.success("Invoice deleted");
     router.push("/invoices");
   };
 
-  if (loading) return <p className="text-slate-500">加载中...</p>;
-  if (!invoice || !building)
-    return <p className="text-slate-500">Invoice 未找到</p>;
+  const refreshInvoice = async () => {
+    const updated = await fetch(`/api/invoices/${params.id}`).then((r) => r.json());
+    setInvoice(updated.invoice);
+    setBuilding(updated.building);
+  };
+
+  if (loading) {
+    return (
+      <div className="py-24 text-center text-[13px]" style={{ color: tone.ink50 }}>
+        Loading…
+      </div>
+    );
+  }
+  if (!invoice || !building) {
+    return (
+      <div className="py-24 text-center">
+        <div className="font-serif text-2xl" style={{ color: tone.ink }}>
+          Invoice not found
+        </div>
+        <Link href="/invoices" className="mt-4 inline-block text-[13px] underline" style={{ color: tone.accent }}>
+          Back to invoices
+        </Link>
+      </div>
+    );
+  }
 
   const lineItems: LineItem[] =
     typeof invoice.lineItems === "string"
       ? JSON.parse(invoice.lineItems)
       : invoice.lineItems || [];
 
+  const issueDate = invoice.createdAt || new Date().toISOString();
+  const dueDate = new Date(new Date(issueDate).getTime() + 30 * 86400000).toISOString();
+
+  const invoiceForDoc = {
+    invoiceNumber: invoice.invoiceNumber,
+    unit: invoice.unit,
+    tenantName: invoice.tenantName,
+    agentName: invoice.agentName,
+    agentEmail: invoice.agentEmail,
+    agentPhone: invoice.agentPhone,
+    apartmentAddress: invoice.apartmentAddress,
+    moveInDate: invoice.moveInDate,
+    licensedCompany: invoice.licensedCompany,
+    lineItems,
+    totalAmount: invoice.totalAmount,
+    createdAt: invoice.createdAt,
+    fileName: invoice.fileName,
+  };
+
   return (
-    <div className="space-y-6 max-w-4xl">
-      <div className="flex items-center justify-between">
+    <div>
+      {/* Header */}
+      <div className="flex items-start justify-between mb-8 gap-6">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">
+          <Link
+            href="/invoices"
+            className="flex items-center gap-1.5 text-[12.5px] mb-4"
+            style={{ color: tone.ink50 }}
+          >
+            <Icons.Back /> Back to invoices
+          </Link>
+          <div className="flex items-center gap-3 mb-2">
+            <Pill
+              tone={
+                invoice.status === "sent"
+                  ? "sent"
+                  : invoice.status === "failed"
+                  ? "failed"
+                  : "draft"
+              }
+            >
+              {invoice.status === "sent"
+                ? "Sent"
+                : invoice.status === "failed"
+                ? "Failed"
+                : "Draft"}
+            </Pill>
+            {invoice.status === "sent" && invoice.sentAt && (
+              <span className="text-[12px]" style={{ color: tone.ink50 }}>
+                Sent {fmtDate(invoice.sentAt)} at{" "}
+                {new Date(invoice.sentAt).toLocaleTimeString("en-US", {
+                  hour: "numeric",
+                  minute: "2-digit",
+                })}
+              </span>
+            )}
+          </div>
+          <h1
+            className="font-serif"
+            style={{
+              fontSize: 44,
+              lineHeight: 1,
+              letterSpacing: "-0.02em",
+              color: tone.ink,
+              wordBreak: "break-all",
+            }}
+          >
             {invoice.invoiceNumber}
           </h1>
-          <p className="mt-1 text-slate-500">
-            {building.name} · Unit {invoice.unit}
-          </p>
+          <div className="mt-3 text-[14px]" style={{ color: tone.ink70 }}>
+            {building.name} · Unit {invoice.unit} · {invoice.tenantName}
+          </div>
         </div>
-        <Badge
-          variant={
-            invoice.status === "sent"
-              ? "default"
-              : invoice.status === "failed"
-              ? "destructive"
-              : "secondary"
-          }
-          className="text-base px-4 py-1"
-        >
-          {invoice.status === "sent"
-            ? "已发送"
-            : invoice.status === "failed"
-            ? "失败"
-            : "草稿"}
-        </Badge>
+        <div className="flex items-center gap-2 shrink-0">
+          <Btn variant="outline" icon={<Icons.Download />} onClick={handleDownloadPDF}>
+            Download PDF
+          </Btn>
+          <Btn variant="danger" icon={<Icons.Trash />} onClick={handleDelete}>
+            Delete
+          </Btn>
+          <Btn variant="primary" icon={<Icons.Send />} onClick={() => setShowSend(true)}>
+            {invoice.status === "sent" ? "Resend" : "Send Invoice"}
+          </Btn>
+        </div>
       </div>
 
-      <div className="flex gap-3">
-        <Button onClick={handleDownloadPDF}>下载 PDF</Button>
-        <Button
-          onClick={handleSendEmail}
-          disabled={sending || invoice.status === "sent"}
-          variant={invoice.status === "sent" ? "outline" : "default"}
-        >
-          {sending
-            ? "发送中..."
-            : invoice.status === "sent"
-            ? "已发送"
-            : "发送邮件"}
-        </Button>
-        <Button variant="destructive" onClick={handleDelete}>
-          删除
-        </Button>
-        <Button variant="outline" onClick={() => router.back()}>
-          返回
-        </Button>
-      </div>
-
+      {/* Special notes alert */}
       {building.specialNotes && (
-        <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">
-          <strong>特殊要求：</strong> {building.specialNotes}
+        <div
+          className="rounded-lg p-4 text-[13px] mb-6"
+          style={{ background: tone.roseSoft, color: tone.rose, border: `1px solid ${tone.rose}20` }}
+        >
+          <strong>Special requirement: </strong>
+          {building.specialNotes}
         </div>
       )}
 
-      <div className="grid gap-6 sm:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Invoice 信息</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-slate-500">Invoice Number</span>
-              <span className="font-medium">{invoice.invoiceNumber}</span>
+      {/* Split layout */}
+      <div className="grid gap-8" style={{ gridTemplateColumns: "minmax(0, 1fr) 560px" }}>
+        {/* LEFT: details */}
+        <div className="space-y-6">
+          {/* Amount hero */}
+          <Card>
+            <div className="p-8">
+              <div
+                className="text-[11px] uppercase tracking-[0.14em]"
+                style={{ color: tone.ink50 }}
+              >
+                Total Due
+              </div>
+              <div
+                className="font-serif"
+                style={{
+                  fontSize: 76,
+                  lineHeight: 0.9,
+                  letterSpacing: "-0.03em",
+                  color: tone.ink,
+                  marginTop: 8,
+                }}
+              >
+                <span style={{ fontSize: 32, color: tone.ink50, marginRight: 6 }}>$</span>
+                {fmtMoney(invoice.totalAmount)}
+              </div>
+              <div
+                className="mt-4 flex items-center gap-6 text-[12.5px]"
+                style={{ color: tone.ink70 }}
+              >
+                <span>
+                  Due <span className="font-mono">{fmtDate(dueDate)}</span>
+                </span>
+                <span>·</span>
+                <span>Net 30</span>
+                <span>·</span>
+                <span>USD</span>
+              </div>
             </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">文件名</span>
-              <span className="font-medium">{invoice.fileName}</span>
+          </Card>
+
+          {/* Two-column info */}
+          <div className="grid grid-cols-2 gap-4">
+            <Card>
+              <div className="p-6">
+                <div
+                  className="text-[11px] uppercase tracking-[0.12em] mb-4"
+                  style={{ color: tone.ink50 }}
+                >
+                  Billed To
+                </div>
+                <div
+                  className="font-serif"
+                  style={{
+                    fontSize: 20,
+                    color: tone.ink,
+                    letterSpacing: "-0.01em",
+                  }}
+                >
+                  {building.billToCompany || building.name}
+                </div>
+                <div
+                  className="mt-3 text-[12.5px] leading-relaxed"
+                  style={{ color: tone.ink70 }}
+                >
+                  {building.billToAddress || "—"}
+                </div>
+                {building.managementCompany && (
+                  <div
+                    className="mt-3 font-mono text-[11.5px]"
+                    style={{ color: tone.ink50 }}
+                  >
+                    c/o {building.managementCompany}
+                  </div>
+                )}
+              </div>
+            </Card>
+            <Card>
+              <div className="p-6">
+                <div
+                  className="text-[11px] uppercase tracking-[0.12em] mb-4"
+                  style={{ color: tone.ink50 }}
+                >
+                  Tenant & Unit
+                </div>
+                <div
+                  className="font-serif"
+                  style={{
+                    fontSize: 20,
+                    color: tone.ink,
+                    letterSpacing: "-0.01em",
+                  }}
+                >
+                  {invoice.tenantName}
+                </div>
+                <div
+                  className="mt-3 text-[12.5px] leading-relaxed"
+                  style={{ color: tone.ink70 }}
+                >
+                  {invoice.apartmentAddress || `Unit ${invoice.unit} · ${building.name}`}
+                </div>
+                {invoice.moveInDate && (
+                  <div
+                    className="mt-3 font-mono text-[11.5px]"
+                    style={{ color: tone.ink50 }}
+                  >
+                    Move-in {fmtDate(invoice.moveInDate)}
+                  </div>
+                )}
+              </div>
+            </Card>
+          </div>
+
+          {/* Line items */}
+          <Card>
+            <div
+              className="px-6 py-5"
+              style={{ borderBottom: `1px solid ${tone.lineSoft}` }}
+            >
+              <div
+                className="font-serif"
+                style={{
+                  fontSize: 18,
+                  color: tone.ink,
+                  letterSpacing: "-0.01em",
+                }}
+              >
+                Line items
+              </div>
             </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">邮件标题</span>
-              <span className="font-medium">{invoice.emailSubject}</span>
+            <div className="px-6 py-2">
+              {lineItems.map((it, i) => (
+                <div
+                  key={i}
+                  className="py-4 flex items-start justify-between gap-6"
+                  style={{
+                    borderBottom:
+                      i < lineItems.length - 1 ? `1px solid ${tone.lineSoft}` : "none",
+                  }}
+                >
+                  <div className="flex-1">
+                    <div className="text-[13.5px]" style={{ color: tone.ink }}>
+                      {it.description}
+                    </div>
+                    <div
+                      className="mt-1 font-mono text-[11.5px]"
+                      style={{ color: tone.ink50 }}
+                    >
+                      {it.quantity} × ${fmtMoney(it.unitPrice)}
+                    </div>
+                  </div>
+                  <div
+                    className="font-serif"
+                    style={{
+                      fontSize: 20,
+                      color: tone.ink,
+                      letterSpacing: "-0.01em",
+                    }}
+                  >
+                    ${fmtMoney(it.amount)}
+                  </div>
+                </div>
+              ))}
             </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">年份</span>
-              <span className="font-medium">{invoice.year}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">创建时间</span>
-              <span className="font-medium">
-                {invoice.createdAt
-                  ? new Date(invoice.createdAt).toLocaleString()
-                  : "-"}
+            <div
+              className="px-6 py-4 flex items-center justify-between"
+              style={{ background: tone.paper, borderTop: `1px solid ${tone.lineSoft}` }}
+            >
+              <span
+                className="text-[11px] uppercase tracking-[0.12em]"
+                style={{ color: tone.ink50 }}
+              >
+                Total
+              </span>
+              <span
+                className="font-serif"
+                style={{
+                  fontSize: 22,
+                  color: tone.ink,
+                  letterSpacing: "-0.01em",
+                }}
+              >
+                ${fmtMoney(invoice.totalAmount)}
               </span>
             </div>
-            {invoice.sentAt && (
-              <div className="flex justify-between">
-                <span className="text-slate-500">发送时间</span>
-                <span className="font-medium">
-                  {new Date(invoice.sentAt).toLocaleString()}
-                </span>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+          </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">租户 & 经纪人</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-slate-500">租户</span>
-              <span className="font-medium">{invoice.tenantName}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">Unit</span>
-              <span className="font-medium">{invoice.unit}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">持证公司</span>
-              <span className="font-medium">{invoice.licensedCompany}</span>
-            </div>
-            {invoice.agentName && (
-              <div className="flex justify-between">
-                <span className="text-slate-500">经纪人</span>
-                <span className="font-medium">{invoice.agentName}</span>
+          {/* Agent + Building meta */}
+          <div className="grid grid-cols-2 gap-4">
+            <Card>
+              <div className="p-6 space-y-4">
+                <div
+                  className="text-[11px] uppercase tracking-[0.12em]"
+                  style={{ color: tone.ink50 }}
+                >
+                  Agent
+                </div>
+                <SoftField label="Name" value={invoice.agentName || "—"} />
+                <SoftField label="Email" value={invoice.agentEmail || "—"} mono />
+                <SoftField label="Phone" value={invoice.agentPhone || "—"} mono />
+                <SoftField label="Licensed Company" value={invoice.licensedCompany} />
               </div>
-            )}
-            {invoice.agentEmail && (
-              <div className="flex justify-between">
-                <span className="text-slate-500">经纪人邮箱</span>
-                <span className="font-medium">{invoice.agentEmail}</span>
+            </Card>
+            <Card>
+              <div className="p-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div
+                    className="text-[11px] uppercase tracking-[0.12em]"
+                    style={{ color: tone.ink50 }}
+                  >
+                    Submission
+                  </div>
+                  {building.contactEmail && <Pill tone="accent">Email</Pill>}
+                </div>
+                <SoftField label="Contact Email" value={building.contactEmail || "Not configured"} mono />
+                <SoftField
+                  label="Region"
+                  value={`${building.region}${building.isOutOfState ? " · Out of state" : ""}`}
+                />
+                <SoftField label="Management" value={building.managementCompany || "—"} />
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </Card>
+          </div>
+        </div>
+
+        {/* RIGHT: PDF preview */}
+        <div>
+          <div className="sticky top-24">
+            <div className="flex items-center justify-between mb-3">
+              <div
+                className="text-[11px] uppercase tracking-[0.14em]"
+                style={{ color: tone.ink50 }}
+              >
+                PDF Preview
+              </div>
+              <button
+                onClick={handleDownloadPDF}
+                className="h-7 px-2 rounded flex items-center gap-1 text-[11px]"
+                style={{ color: tone.ink70 }}
+              >
+                <Icons.Download /> Download
+              </button>
+            </div>
+            <div
+              ref={previewRef}
+              style={{ background: tone.paperDeep, padding: 16, borderRadius: 12 }}
+            >
+              <ScaledInvoiceDoc
+                invoice={invoiceForDoc}
+                building={building}
+                settings={settingsForDoc(settings)}
+                targetWidth={Math.max(320, previewWidth - 32)}
+              />
+            </div>
+            <div
+              className="mt-3 font-mono text-[10.5px] text-center"
+              style={{ color: tone.ink50 }}
+            >
+              {invoice.fileName}.pdf · Letter · 1 page
+            </div>
+          </div>
+        </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">费用明细</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            <div className="grid grid-cols-12 gap-2 text-xs font-semibold text-slate-500 uppercase">
-              <div className="col-span-6">描述</div>
-              <div className="col-span-2 text-center">数量</div>
-              <div className="col-span-2 text-right">单价</div>
-              <div className="col-span-2 text-right">金额</div>
-            </div>
-            <Separator />
-            {lineItems.map((item, index) => (
-              <div key={index} className="grid grid-cols-12 gap-2 py-1">
-                <div className="col-span-6">{item.description}</div>
-                <div className="col-span-2 text-center">{item.quantity}</div>
-                <div className="col-span-2 text-right">
-                  ${item.unitPrice.toFixed(2)}
-                </div>
-                <div className="col-span-2 text-right font-medium">
-                  ${item.amount.toFixed(2)}
-                </div>
-              </div>
-            ))}
-            <Separator />
-            <div className="flex justify-end text-lg font-bold pt-2">
-              总计: ${invoice.totalAmount.toFixed(2)}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {invoice.notes && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">备注</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-slate-600">{invoice.notes}</p>
-          </CardContent>
-        </Card>
+      {showSend && (
+        <SendDialog
+          invoice={invoice}
+          building={building}
+          settings={settings}
+          onClose={() => setShowSend(false)}
+          onSent={() => {
+            setShowSend(false);
+            refreshInvoice();
+          }}
+        />
       )}
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">大楼信息</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm">
-          <div className="flex justify-between">
-            <span className="text-slate-500">大楼</span>
-            <span className="font-medium">{building.name}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-slate-500">区域</span>
-            <span className="font-medium">{building.region}</span>
-          </div>
-          {building.managementCompany && (
-            <div className="flex justify-between">
-              <span className="text-slate-500">管理公司</span>
-              <span className="font-medium">{building.managementCompany}</span>
-            </div>
-          )}
-          <div className="flex justify-between">
-            <span className="text-slate-500">Bill To</span>
-            <span className="font-medium">{building.billToCompany}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-slate-500">提交方式</span>
-            <span className="font-medium">{building.submissionNotes}</span>
-          </div>
-          {building.contactEmail && (
-            <div className="flex justify-between">
-              <span className="text-slate-500">收件邮箱</span>
-              <span className="font-medium">{building.contactEmail}</span>
-            </div>
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }

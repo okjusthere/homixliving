@@ -27,6 +27,9 @@ export const invoices = sqliteTable("invoices", {
   tenantName: text("tenant_name").notNull(),
   agentEmail: text("agent_email"), // 经纪人邮箱 (Reply-To)
   agentName: text("agent_name"),
+  agentPhone: text("agent_phone"), // 经纪人电话
+  apartmentAddress: text("apartment_address"), // 客人入住的完整公寓地址
+  moveInDate: text("move_in_date"), // 入住日期
   licensedCompany: text("licensed_company").notNull(), // 持证公司
   year: integer("year").notNull().default(2026),
   lineItems: text("line_items", { mode: "json" }).$type<LineItem[]>(),

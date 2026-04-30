@@ -1,6 +1,17 @@
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Lazy init so build doesn't fail when RESEND_API_KEY isn't set.
+let _resend: Resend | null = null;
+function getResend(): Resend {
+  if (!_resend) {
+    const key = process.env.RESEND_API_KEY;
+    if (!key) {
+      throw new Error("RESEND_API_KEY is not set. Add it in your environment to enable email sending.");
+    }
+    _resend = new Resend(key);
+  }
+  return _resend;
+}
 
 type SendInvoiceEmailParams = {
   to: string[];
@@ -33,7 +44,7 @@ export async function sendInvoiceEmail({
     allCc.push(ccEmail);
   }
 
-  const { data, error } = await resend.emails.send({
+  const { data, error } = await getResend().emails.send({
     from: `Homix Invoice <${fromEmail}>`,
     to,
     cc: allCc.length > 0 ? allCc : undefined,

@@ -36,14 +36,27 @@ export async function GET(
     unit: invoice.unit,
     tenantName: invoice.tenantName,
     licensedCompany: invoice.licensedCompany,
+    agentName: invoice.agentName || undefined,
+    agentPhone: invoice.agentPhone || undefined,
+    agentEmail: invoice.agentEmail || undefined,
+    apartmentAddress: invoice.apartmentAddress || undefined,
+    moveInDate: invoice.moveInDate || undefined,
     lineItems,
     totalAmount: invoice.totalAmount,
     notes: invoice.notes || undefined,
     companyName: settingsMap.company_name || "Homix Living",
-    companyAddress: settingsMap.company_address || "",
+    companyAddress: settingsMap.company_address || "5 West 37th Street, Floor 2\nNew York, NY 10018",
+    fromEmail: settingsMap.from_email || "invoice@homixny.com",
+    payableTo: settingsMap.payable_to || undefined,
+    taxId: settingsMap.tax_id || undefined,
+    mailCheckAddress: settingsMap.mail_check_address || undefined,
+    achBankName: settingsMap.ach_bank_name || undefined,
+    achRoutingNumber: settingsMap.ach_routing_number || undefined,
+    achAccountNumber: settingsMap.ach_account_number || undefined,
+    achAccountName: settingsMap.ach_account_name || undefined,
   });
 
-  return new NextResponse(pdfBuffer, {
+  return new NextResponse(new Uint8Array(pdfBuffer), {
     headers: {
       "Content-Type": "application/pdf",
       "Content-Disposition": `inline; filename="${invoice.fileName}.pdf"`,

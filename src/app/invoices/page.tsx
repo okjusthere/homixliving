@@ -1,11 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Pill, Btn, Card, Icons } from "@/components/homix/primitives";
+import { tone, fmtMoney, fmtDate } from "@/components/homix/tokens";
 
 type InvoiceRow = {
   invoice: {
@@ -13,18 +11,20 @@ type InvoiceRow = {
     invoiceNumber: string;
     unit: string;
     tenantName: string;
+    agentName: string | null;
     totalAmount: number;
     status: string;
     createdAt: string;
     licensedCompany: string;
   };
-  buildingName: string;
-  buildingRegion: string;
+  buildingName: string | null;
+  buildingRegion: string | null;
 };
 
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
   const [search, setSearch] = useState("");
+  const [status, setStatus] = useState<"all" | "draft" | "sent" | "failed">("all");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -36,107 +36,215 @@ export default function InvoicesPage() {
       });
   }, []);
 
-  const filtered = invoices.filter(
-    (row) =>
-      row.invoice.invoiceNumber.toLowerCase().includes(search.toLowerCase()) ||
-      row.invoice.tenantName.toLowerCase().includes(search.toLowerCase()) ||
-      (row.buildingName || "").toLowerCase().includes(search.toLowerCase()) ||
-      row.invoice.unit.toLowerCase().includes(search.toLowerCase())
-  );
+  const counts = useMemo(() => {
+    const c = { all: invoices.length, draft: 0, sent: 0, failed: 0 };
+    for (const row of invoices) {
+      const s = row.invoice.status as keyof typeof c;
+      if (s in c) c[s]++;
+    }
+    return c;
+  }, [invoices]);
+
+  const filtered = useMemo(() => {
+    return invoices.filter((row) => {
+      if (status !== "all" && row.invoice.status !== status) return false;
+      if (!search) return true;
+      const q = search.toLowerCase();
+      return (
+        row.invoice.invoiceNumber.toLowerCase().includes(q) ||
+        row.invoice.tenantName.toLowerCase().includes(q) ||
+        (row.buildingName || "").toLowerCase().includes(q) ||
+        row.invoice.unit.toLowerCase().includes(q)
+      );
+    });
+  }, [invoices, status, search]);
+
+  const statuses: { id: "all" | "draft" | "sent" | "failed"; label: string; count: number }[] = [
+    { id: "all", label: "All", count: counts.all },
+    { id: "draft", label: "Draft", count: counts.draft },
+    { id: "sent", label: "Sent", count: counts.sent },
+    { id: "failed", label: "Failed", count: counts.failed },
+  ];
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-8">
+      {/* Header */}
+      <div className="flex items-end justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Invoice 列表</h1>
-          <p className="mt-1 text-slate-500">
-            共 {invoices.length} 个 Invoice
-          </p>
+          <div
+            className="text-[11px] uppercase tracking-[0.16em] mb-2"
+            style={{ color: tone.ink50 }}
+          >
+            Documents
+          </div>
+          <h1
+            className="font-serif"
+            style={{
+              fontSize: 52,
+              lineHeight: 0.95,
+              letterSpacing: "-0.02em",
+              color: tone.ink,
+            }}
+          >
+            Invoices
+          </h1>
         </div>
-        <Link href="/invoices/new">
-          <Button>+ 创建 Invoice</Button>
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link href="/invoices/new">
+            <Btn variant="primary" icon={<Icons.Plus />}>
+              New Invoice
+            </Btn>
+          </Link>
+        </div>
       </div>
 
-      <Input
-        placeholder="搜索 Invoice Number、租户、大楼..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="max-w-md"
-      />
+      {/* Filter bar */}
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div
+          className="flex items-center gap-1 p-1 rounded-lg"
+          style={{ background: tone.paperDeep }}
+        >
+          {statuses.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => setStatus(s.id)}
+              className="px-3 h-8 rounded-md text-[12.5px] font-medium transition-colors flex items-center gap-2"
+              style={{
+                background: status === s.id ? tone.card : "transparent",
+                color: status === s.id ? tone.ink : tone.ink50,
+                boxShadow: status === s.id ? "0 1px 2px rgba(0,0,0,0.04)" : "none",
+              }}
+            >
+              {s.label}
+              <span
+                className="text-[11px] font-mono"
+                style={{ color: status === s.id ? tone.ink50 : tone.ink30 }}
+              >
+                {s.count}
+              </span>
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-3">
+          <div
+            className="flex items-center gap-2 h-9 px-3 rounded-md min-w-[280px]"
+            style={{ background: tone.card, border: `1px solid ${tone.line}` }}
+          >
+            <span style={{ color: tone.ink30 }}>
+              <Icons.Search />
+            </span>
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by number, tenant, building…"
+              className="flex-1 bg-transparent outline-none text-[13px]"
+              style={{ color: tone.ink }}
+            />
+          </div>
+        </div>
+      </div>
 
-      {loading ? (
-        <p className="text-slate-500">加载中...</p>
-      ) : filtered.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center text-slate-500">
+      {/* Table */}
+      <Card>
+        <div
+          className="grid text-[11px] uppercase tracking-[0.1em] px-6 py-3"
+          style={{
+            gridTemplateColumns: "1.5fr 2fr 1fr 1fr 1fr 0.6fr",
+            color: tone.ink50,
+            borderBottom: `1px solid ${tone.lineSoft}`,
+          }}
+        >
+          <div>Invoice</div>
+          <div>Building / Tenant</div>
+          <div>Agent</div>
+          <div>Issued</div>
+          <div className="text-right">Amount</div>
+          <div className="text-right">Status</div>
+        </div>
+        {loading ? (
+          <div className="px-6 py-12 text-center text-[13px]" style={{ color: tone.ink50 }}>
+            Loading…
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="px-6 py-16 text-center" style={{ color: tone.ink50 }}>
             {invoices.length === 0 ? (
-              <p>
-                暂无 Invoice。
-                <Link
-                  href="/invoices/new"
-                  className="text-blue-600 hover:underline ml-1"
+              <>
+                <div
+                  className="font-serif mb-2"
+                  style={{ fontSize: 22, color: tone.ink, letterSpacing: "-0.01em" }}
                 >
-                  创建第一个
-                </Link>
-              </p>
+                  No invoices yet
+                </div>
+                <p className="text-[13px]">
+                  <Link href="/invoices/new" style={{ color: tone.accent }} className="underline">
+                    Create your first invoice
+                  </Link>
+                </p>
+              </>
             ) : (
-              "没有匹配的结果"
+              <p className="text-[13px]">No results match your filters.</p>
             )}
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-2">
-          {filtered.map(({ invoice, buildingName }) => (
+          </div>
+        ) : (
+          filtered.map(({ invoice, buildingName }, i) => (
             <Link
               key={invoice.id}
               href={`/invoices/${invoice.id}`}
-              className="block"
+              className="grid w-full text-left px-6 py-4 transition-colors items-center hover:bg-[#FAF7F0]"
+              style={{
+                gridTemplateColumns: "1.5fr 2fr 1fr 1fr 1fr 0.6fr",
+                borderBottom: i < filtered.length - 1 ? `1px solid ${tone.lineSoft}` : "none",
+              }}
             >
-              <Card className="hover:bg-slate-50 transition-colors cursor-pointer">
-                <CardContent className="py-4">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-1">
-                      <p className="font-semibold">
-                        {invoice.invoiceNumber}
-                      </p>
-                      <p className="text-sm text-slate-500">
-                        {buildingName} · Unit {invoice.unit} ·{" "}
-                        {invoice.tenantName} · {invoice.licensedCompany}
-                      </p>
-                      <p className="text-xs text-slate-400">
-                        {invoice.createdAt
-                          ? new Date(invoice.createdAt).toLocaleDateString()
-                          : ""}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <span className="font-medium">
-                        ${invoice.totalAmount.toFixed(2)}
-                      </span>
-                      <Badge
-                        variant={
-                          invoice.status === "sent"
-                            ? "default"
-                            : invoice.status === "failed"
-                            ? "destructive"
-                            : "secondary"
-                        }
-                      >
-                        {invoice.status === "sent"
-                          ? "已发送"
-                          : invoice.status === "failed"
-                          ? "失败"
-                          : "草稿"}
-                      </Badge>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              <div>
+                <div className="font-mono text-[12.5px]" style={{ color: tone.ink }}>
+                  {invoice.invoiceNumber}
+                </div>
+                <div className="text-[11.5px] mt-0.5" style={{ color: tone.ink50 }}>
+                  Unit {invoice.unit}
+                </div>
+              </div>
+              <div>
+                <div className="text-[13px]" style={{ color: tone.ink }}>
+                  {buildingName || "—"}
+                </div>
+                <div className="text-[11.5px] mt-0.5" style={{ color: tone.ink50 }}>
+                  {invoice.tenantName}
+                </div>
+              </div>
+              <div className="text-[12.5px]" style={{ color: tone.ink70 }}>
+                {invoice.agentName || "—"}
+              </div>
+              <div className="text-[12.5px] font-mono" style={{ color: tone.ink70 }}>
+                {invoice.createdAt ? fmtDate(invoice.createdAt) : "—"}
+              </div>
+              <div
+                className="text-right font-serif"
+                style={{ fontSize: 18, color: tone.ink, letterSpacing: "-0.01em" }}
+              >
+                ${fmtMoney(invoice.totalAmount)}
+              </div>
+              <div className="text-right">
+                <Pill
+                  tone={
+                    invoice.status === "sent"
+                      ? "sent"
+                      : invoice.status === "failed"
+                      ? "failed"
+                      : "draft"
+                  }
+                >
+                  {invoice.status === "sent"
+                    ? "Sent"
+                    : invoice.status === "failed"
+                    ? "Failed"
+                    : "Draft"}
+                </Pill>
+              </div>
             </Link>
-          ))}
-        </div>
-      )}
+          ))
+        )}
+      </Card>
     </div>
   );
 }
