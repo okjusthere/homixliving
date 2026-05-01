@@ -30,6 +30,57 @@ export default function NewDealPage() {
   const [buildingSearch, setBuildingSearch] = useState("");
 
   const [buildingId, setBuildingId] = useState<number | null>(null);
+  const [showAddBuilding, setShowAddBuilding] = useState(false);
+  const [addingBuilding, setAddingBuilding] = useState(false);
+  const [newBuildingName, setNewBuildingName] = useState("");
+  const [newBuildingRegion, setNewBuildingRegion] = useState("");
+  const [newBuildingMgmt, setNewBuildingMgmt] = useState("");
+  const [newBuildingBillTo, setNewBuildingBillTo] = useState("");
+  const [newBuildingBillToAddress, setNewBuildingBillToAddress] = useState("");
+  const [newBuildingContactEmail, setNewBuildingContactEmail] = useState("");
+
+  const resetAddBuilding = () => {
+    setNewBuildingName("");
+    setNewBuildingRegion("");
+    setNewBuildingMgmt("");
+    setNewBuildingBillTo("");
+    setNewBuildingBillToAddress("");
+    setNewBuildingContactEmail("");
+  };
+
+  const handleAddBuilding = async () => {
+    if (!newBuildingName.trim() || !newBuildingRegion.trim()) {
+      toast.error("Name and region are required");
+      return;
+    }
+    setAddingBuilding(true);
+    try {
+      const res = await fetch("/api/buildings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newBuildingName.trim(),
+          region: newBuildingRegion.trim(),
+          managementCompany: newBuildingMgmt.trim() || null,
+          billToCompany: newBuildingBillTo.trim() || null,
+          billToAddress: newBuildingBillToAddress.trim() || null,
+          contactEmail: newBuildingContactEmail.trim() || null,
+          submissionType: "email",
+        }),
+      });
+      if (!res.ok) throw new Error();
+      const created = (await res.json()) as Building;
+      setBuildings((prev) => [...prev, created]);
+      setBuildingId(created.id);
+      toast.success(`${created.name} added`);
+      setShowAddBuilding(false);
+      resetAddBuilding();
+    } catch {
+      toast.error("Could not add building");
+    } finally {
+      setAddingBuilding(false);
+    }
+  };
   const [unit, setUnit] = useState("");
   const [tenantName, setTenantName] = useState("");
   const [tenantEmail, setTenantEmail] = useState("");
@@ -231,36 +282,58 @@ export default function NewDealPage() {
                 </div>
               ) : (
                 <>
-                  <div className="flex items-center gap-2 h-10 px-3 rounded-lg" style={{ background: tone.card, border: `1px solid ${tone.line}` }}>
-                    <span style={{ color: tone.ink30 }}>
-                      <Icons.Search />
-                    </span>
-                    <input
-                      value={buildingSearch}
-                      onChange={(e) => setBuildingSearch(e.target.value)}
-                      placeholder="Search buildings..."
-                      className="flex-1 bg-transparent outline-none text-[13.5px]"
-                      style={{ color: tone.ink }}
-                    />
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 flex items-center gap-2 h-10 px-3 rounded-lg" style={{ background: tone.card, border: `1px solid ${tone.line}` }}>
+                      <span style={{ color: tone.ink30 }}>
+                        <Icons.Search />
+                      </span>
+                      <input
+                        value={buildingSearch}
+                        onChange={(e) => setBuildingSearch(e.target.value)}
+                        placeholder="Search buildings..."
+                        className="flex-1 bg-transparent outline-none text-[13.5px]"
+                        style={{ color: tone.ink }}
+                      />
+                    </div>
+                    <Btn variant="outline" size="sm" icon={<Icons.Plus />} onClick={() => setShowAddBuilding(true)}>
+                      Add new
+                    </Btn>
                   </div>
                   <div className="max-h-72 overflow-y-auto rounded-lg" style={{ border: `1px solid ${tone.line}` }}>
-                    {filteredBuildings.slice(0, 60).map((building) => (
-                      <button
-                        key={building.id}
-                        type="button"
-                        onClick={() => setBuildingId(building.id)}
-                        className="w-full text-left px-4 py-2.5 transition-colors hover:bg-[#FAF7F0]"
-                        style={{ borderBottom: `1px solid ${tone.lineSoft}` }}
-                      >
-                        <div className="text-[13px]" style={{ color: tone.ink }}>
-                          {building.name}
-                        </div>
-                        <div className="text-[11px] mt-0.5" style={{ color: tone.ink50 }}>
-                          {building.region}
-                          {building.managementCompany && ` · ${building.managementCompany}`}
-                        </div>
-                      </button>
-                    ))}
+                    {filteredBuildings.length === 0 ? (
+                      <div className="px-4 py-8 text-center text-[12.5px]" style={{ color: tone.ink50 }}>
+                        No matches.{" "}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setNewBuildingName(buildingSearch);
+                            setShowAddBuilding(true);
+                          }}
+                          className="underline"
+                          style={{ color: tone.accent }}
+                        >
+                          Add &ldquo;{buildingSearch}&rdquo; as a new building
+                        </button>
+                      </div>
+                    ) : (
+                      filteredBuildings.slice(0, 60).map((building) => (
+                        <button
+                          key={building.id}
+                          type="button"
+                          onClick={() => setBuildingId(building.id)}
+                          className="w-full text-left px-4 py-2.5 transition-colors hover:bg-[#FAF7F0]"
+                          style={{ borderBottom: `1px solid ${tone.lineSoft}` }}
+                        >
+                          <div className="text-[13px]" style={{ color: tone.ink }}>
+                            {building.name}
+                          </div>
+                          <div className="text-[11px] mt-0.5" style={{ color: tone.ink50 }}>
+                            {building.region}
+                            {building.managementCompany && ` · ${building.managementCompany}`}
+                          </div>
+                        </button>
+                      ))
+                    )}
                   </div>
                 </>
               )}
@@ -478,6 +551,124 @@ export default function NewDealPage() {
           </div>
         </div>
       </div>
+
+      {/* Add new building dialog */}
+      {showAddBuilding && (
+        <div
+          className="fixed inset-0 z-40 flex items-center justify-center p-4"
+          style={{ background: "rgba(26, 24, 20, 0.45)" }}
+          onClick={() => !addingBuilding && setShowAddBuilding(false)}
+        >
+          <div
+            className="rounded-2xl w-full max-w-xl flex flex-col"
+            style={{
+              background: tone.paper,
+              boxShadow: "0 30px 80px -20px rgba(0,0,0,0.3)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className="px-7 py-5 flex items-center justify-between"
+              style={{ borderBottom: `1px solid ${tone.line}` }}
+            >
+              <div>
+                <div
+                  className="text-[11px] uppercase tracking-[0.14em]"
+                  style={{ color: tone.ink50 }}
+                >
+                  New building
+                </div>
+                <div
+                  className="font-serif"
+                  style={{ fontSize: 22, color: tone.ink, letterSpacing: "-0.01em", marginTop: 2 }}
+                >
+                  Add a building
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddBuilding(false)}
+                disabled={addingBuilding}
+                className="w-8 h-8 rounded-full flex items-center justify-center"
+                style={{ background: tone.paperDeep, color: tone.ink70 }}
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="px-7 py-5 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <LabeledField label="Name *">
+                  <EditorialInput
+                    value={newBuildingName}
+                    onChange={setNewBuildingName}
+                    placeholder="e.g. The Octagon"
+                  />
+                </LabeledField>
+                <LabeledField label="Region *">
+                  <EditorialInput
+                    value={newBuildingRegion}
+                    onChange={setNewBuildingRegion}
+                    placeholder="e.g. NJ, BK, LIC"
+                  />
+                </LabeledField>
+                <LabeledField label="Management company">
+                  <EditorialInput
+                    value={newBuildingMgmt}
+                    onChange={setNewBuildingMgmt}
+                    placeholder="e.g. Greystar"
+                  />
+                </LabeledField>
+                <LabeledField label="Contact email">
+                  <EditorialInput
+                    value={newBuildingContactEmail}
+                    onChange={setNewBuildingContactEmail}
+                    placeholder="leasing@..."
+                    mono
+                  />
+                </LabeledField>
+                <LabeledField label="Bill to (company)" wide>
+                  <EditorialInput
+                    value={newBuildingBillTo}
+                    onChange={setNewBuildingBillTo}
+                    placeholder="Who the invoice is billed to"
+                  />
+                </LabeledField>
+                <LabeledField label="Bill to (address)" wide>
+                  <EditorialInput
+                    value={newBuildingBillToAddress}
+                    onChange={setNewBuildingBillToAddress}
+                    placeholder="Mailing address for invoices"
+                  />
+                </LabeledField>
+              </div>
+              <p className="text-[11.5px]" style={{ color: tone.ink50 }}>
+                You can fill the rest later in the Buildings directory.
+              </p>
+            </div>
+
+            <div
+              className="px-7 py-4 flex items-center justify-end gap-2"
+              style={{ borderTop: `1px solid ${tone.line}`, background: tone.paper }}
+            >
+              <Btn
+                variant="outline"
+                onClick={() => setShowAddBuilding(false)}
+                disabled={addingBuilding}
+              >
+                Cancel
+              </Btn>
+              <Btn
+                variant="primary"
+                onClick={handleAddBuilding}
+                disabled={addingBuilding}
+              >
+                {addingBuilding ? "Adding…" : "Add building"}
+              </Btn>
+            </div>
+          </div>
+        </div>
+      )}
     </form>
   );
 }
