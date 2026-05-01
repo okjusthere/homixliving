@@ -24,7 +24,7 @@ type InvoiceRow = {
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
   const [search, setSearch] = useState("");
-  const [status, setStatus] = useState<"all" | "draft" | "sent" | "failed">("all");
+  const [status, setStatus] = useState<"all" | "draft" | "sent" | "paid" | "failed">("all");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -37,7 +37,7 @@ export default function InvoicesPage() {
   }, []);
 
   const counts = useMemo(() => {
-    const c = { all: invoices.length, draft: 0, sent: 0, failed: 0 };
+    const c = { all: invoices.length, draft: 0, sent: 0, paid: 0, failed: 0 };
     for (const row of invoices) {
       const s = row.invoice.status as keyof typeof c;
       if (s in c) c[s]++;
@@ -59,10 +59,11 @@ export default function InvoicesPage() {
     });
   }, [invoices, status, search]);
 
-  const statuses: { id: "all" | "draft" | "sent" | "failed"; label: string; count: number }[] = [
+  const statuses: { id: "all" | "draft" | "sent" | "paid" | "failed"; label: string; count: number }[] = [
     { id: "all", label: "All", count: counts.all },
     { id: "draft", label: "Draft", count: counts.draft },
     { id: "sent", label: "Sent", count: counts.sent },
+    { id: "paid", label: "Paid", count: counts.paid },
     { id: "failed", label: "Failed", count: counts.failed },
   ];
 
@@ -227,14 +228,18 @@ export default function InvoicesPage() {
               <div className="text-right">
                 <Pill
                   tone={
-                    invoice.status === "sent"
+                    invoice.status === "paid"
                       ? "sent"
+                      : invoice.status === "sent"
+                      ? "accent"
                       : invoice.status === "failed"
                       ? "failed"
                       : "draft"
                   }
                 >
-                  {invoice.status === "sent"
+                  {invoice.status === "paid"
+                    ? "Paid"
+                    : invoice.status === "sent"
                     ? "Sent"
                     : invoice.status === "failed"
                     ? "Failed"

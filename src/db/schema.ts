@@ -45,8 +45,10 @@ export const invoices = sqliteTable("invoices", {
   lineItems: text("line_items", { mode: "json" }).$type<LineItem[]>(),
   totalAmount: real("total_amount").notNull(),
   notes: text("notes"),
-  status: text("status").notNull().default("draft"), // draft, sent, failed
+  status: text("status").notNull().default("draft"), // draft, sent, paid, failed
   sentAt: text("sent_at"),
+  paidAt: text("paid_at"), // when payment received
+  paidAmount: real("paid_amount"), // actual amount received (defaults to totalAmount)
   pdfData: text("pdf_data"), // base64 encoded PDF for storage
   createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
   updatedAt: text("updated_at").default("CURRENT_TIMESTAMP"),
@@ -123,6 +125,10 @@ export const deals = sqliteTable("deals", {
   status: text("status").notNull().default("active"),
   dealDate: text("deal_date"),
   notes: text("notes"),
+  // Renewal tracking — for upcoming lease-end follow-ups
+  renewalStatus: text("renewal_status"), // null | 'pending' | 'renewing' | 'moving_out' | 'renewed' | 'lost'
+  renewalNotedAt: text("renewal_noted_at"),
+  renewedToDealId: integer("renewed_to_deal_id"), // FK to deals.id once renewal closes
   createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
   updatedAt: text("updated_at").default("CURRENT_TIMESTAMP"),
 });

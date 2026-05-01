@@ -3344,6 +3344,8 @@ async function seed() {
       notes TEXT,
       status TEXT NOT NULL DEFAULT 'draft',
       sent_at TEXT,
+      paid_at TEXT,
+      paid_amount REAL,
       pdf_data TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
@@ -3426,6 +3428,9 @@ async function seed() {
       status TEXT NOT NULL DEFAULT 'active',
       deal_date TEXT,
       notes TEXT,
+      renewal_status TEXT,
+      renewal_noted_at TEXT,
+      renewed_to_deal_id INTEGER REFERENCES deals(id) ON DELETE SET NULL,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
@@ -3440,18 +3445,40 @@ async function seed() {
     )
   `);
 
-  try {
-    await client.execute(`
-      ALTER TABLE invoices
-      ADD COLUMN deal_id INTEGER REFERENCES deals(id) ON DELETE SET NULL
-    `);
-    console.log("Added invoices.deal_id column.");
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (!message.toLowerCase().includes("duplicate column")) {
-      throw error;
+  // Helper to add a column if it doesn't exist
+  const addColumnIfMissing = async (sql: string) => {
+    try {
+      await client.execute(sql);
+      return true;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!message.toLowerCase().includes("duplicate column")) {
+        throw error;
+      }
+      return false;
     }
-    console.log("invoices.deal_id already exists.");
+  };
+
+  if (await addColumnIfMissing(`
+    ALTER TABLE invoices
+    ADD COLUMN deal_id INTEGER REFERENCES deals(id) ON DELETE SET NULL
+  `)) {
+    console.log("Added invoices.deal_id column.");
+  }
+  if (await addColumnIfMissing(`ALTER TABLE invoices ADD COLUMN paid_at TEXT`)) {
+    console.log("Added invoices.paid_at column.");
+  }
+  if (await addColumnIfMissing(`ALTER TABLE invoices ADD COLUMN paid_amount REAL`)) {
+    console.log("Added invoices.paid_amount column.");
+  }
+  if (await addColumnIfMissing(`ALTER TABLE deals ADD COLUMN renewal_status TEXT`)) {
+    console.log("Added deals.renewal_status column.");
+  }
+  if (await addColumnIfMissing(`ALTER TABLE deals ADD COLUMN renewal_noted_at TEXT`)) {
+    console.log("Added deals.renewal_noted_at column.");
+  }
+  if (await addColumnIfMissing(`ALTER TABLE deals ADD COLUMN renewed_to_deal_id INTEGER REFERENCES deals(id) ON DELETE SET NULL`)) {
+    console.log("Added deals.renewed_to_deal_id column.");
   }
 
   console.log("Inserting buildings...");

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Btn, Card, Icons } from "@/components/homix/primitives";
 import { fmtMoney, tone } from "@/components/homix/tokens";
+import { AgingSection } from "@/components/homix/aging-section";
 import { getMonthKey } from "@/lib/reporting";
 import type { Agent, Building } from "@/db/schema";
 
@@ -181,6 +182,10 @@ export default function ReportsPage() {
               )}
             </Card>
           </div>
+
+          <div style={{ height: 1, background: tone.line, margin: "8px 0" }} />
+
+          <AgingSection />
         </>
       )}
     </div>

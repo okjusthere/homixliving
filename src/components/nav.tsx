@@ -8,6 +8,7 @@ import { tone } from "@/components/homix/tokens";
 const navItems = [
   { href: "/", label: "Overview" },
   { href: "/deals", label: "Deals" },
+  { href: "/renewals", label: "Renewals" },
   { href: "/invoices", label: "Invoices" },
   { href: "/buildings", label: "Buildings" },
   { href: "/agents", label: "Agents" },

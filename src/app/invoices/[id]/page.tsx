@@ -80,6 +80,33 @@ export default function InvoiceDetailPage() {
     setBuilding(updated.building);
   };
 
+  const handleMarkPaid = async () => {
+    try {
+      const res = await fetch(`/api/invoices/${params.id}/mark-paid`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) throw new Error();
+      toast.success("Marked as paid");
+      await refreshInvoice();
+    } catch {
+      toast.error("Could not mark as paid");
+    }
+  };
+
+  const handleUnmarkPaid = async () => {
+    if (!confirm("Mark this invoice as unpaid again?")) return;
+    try {
+      const res = await fetch(`/api/invoices/${params.id}/mark-paid`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+      toast.success("Reverted to sent");
+      await refreshInvoice();
+    } catch {
+      toast.error("Could not revert");
+    }
+  };
+
   if (loading) {
     return (
       <div className="py-24 text-center text-[13px]" style={{ color: tone.ink50 }}>
@@ -139,19 +166,31 @@ export default function InvoiceDetailPage() {
           <div className="flex items-center gap-3 mb-2">
             <Pill
               tone={
-                invoice.status === "sent"
+                invoice.status === "paid"
                   ? "sent"
+                  : invoice.status === "sent"
+                  ? "accent"
                   : invoice.status === "failed"
                   ? "failed"
                   : "draft"
               }
             >
-              {invoice.status === "sent"
+              {invoice.status === "paid"
+                ? "Paid"
+                : invoice.status === "sent"
                 ? "Sent"
                 : invoice.status === "failed"
                 ? "Failed"
                 : "Draft"}
             </Pill>
+            {invoice.status === "paid" && invoice.paidAt && (
+              <span className="text-[12px]" style={{ color: tone.green }}>
+                Paid {fmtDate(invoice.paidAt)}
+                {invoice.paidAmount !== invoice.totalAmount && invoice.paidAmount !== null && (
+                  <> · ${fmtMoney(Number(invoice.paidAmount))}</>
+                )}
+              </span>
+            )}
             {invoice.status === "sent" && invoice.sentAt && (
               <span className="text-[12px]" style={{ color: tone.ink50 }}>
                 Sent {fmtDate(invoice.sentAt)} at{" "}
@@ -185,8 +224,17 @@ export default function InvoiceDetailPage() {
           <Btn variant="danger" icon={<Icons.Trash />} onClick={handleDelete}>
             Delete
           </Btn>
+          {invoice.status === "paid" ? (
+            <Btn variant="outline" onClick={handleUnmarkPaid}>
+              Mark unpaid
+            </Btn>
+          ) : invoice.status === "sent" ? (
+            <Btn variant="primary" icon={<Icons.Check />} onClick={handleMarkPaid}>
+              Mark paid
+            </Btn>
+          ) : null}
           <Btn variant="primary" icon={<Icons.Send />} onClick={() => setShowSend(true)}>
-            {invoice.status === "sent" ? "Resend" : "Send Invoice"}
+            {invoice.status === "sent" || invoice.status === "paid" ? "Resend" : "Send Invoice"}
           </Btn>
         </div>
       </div>

@@ -8,6 +8,8 @@ import { IconChev } from "@/components/homix/icons";
 import { DashboardCTA } from "@/components/homix/dashboard-cta";
 import { computeCommission } from "@/lib/commission";
 import { activeDeal, dealInMonth, getMonthKey } from "@/lib/reporting";
+import { isUpcoming } from "@/lib/renewals";
+import { summarize, totalOutstanding } from "@/lib/aging";
 
 export const dynamic = "force-dynamic";
 
@@ -91,7 +93,24 @@ export default async function Dashboard() {
     .from(buildings)
     .where(eq(buildings.isOutOfState, true));
 
+  // Outstanding (sent, not yet paid) — used for aging rollup
+  const sentInvoiceRows = await db
+    .select({ status: invoices.status, sentAt: invoices.sentAt, totalAmount: invoices.totalAmount })
+    .from(invoices)
+    .where(eq(invoices.status, "sent"));
+  const agingSummary = summarize(sentInvoiceRows);
+  const outstanding = totalOutstanding(agingSummary);
+  const overdueAmount =
+    agingSummary["30-60"].total +
+    agingSummary["60-90"].total +
+    agingSummary["90+"].total;
+  const overdueCount =
+    agingSummary["30-60"].count +
+    agingSummary["60-90"].count +
+    agingSummary["90+"].count;
+
   const allDealRows = await db.select().from(deals);
+  const upcomingRenewals = allDealRows.filter(isUpcoming);
   const allAgentRows = await db.select().from(agents);
   const agentById = new Map(allAgentRows.map((agent) => [agent.id, agent]));
   const mtdDeals = allDealRows.filter((deal) => activeDeal(deal) && dealInMonth(deal, currentMonth));
@@ -253,18 +272,26 @@ export default async function Dashboard() {
           </div>
           <div style={{ borderRight: `1px solid ${tone.line}` }}>
             <Stat
-              label="Sent"
-              value={sentInvoicesRow.count}
-              sub={`$${fmtMoney(Number(sentAmountRow.total || 0))} collected`}
-              toneKey="green"
+              label="Outstanding"
+              value={`$${fmtMoney(outstanding.total)}`}
+              sub={
+                overdueCount > 0
+                  ? `$${fmtMoney(overdueAmount)} overdue · ${overdueCount} late`
+                  : `${outstanding.count} sent · all current`
+              }
+              toneKey={overdueAmount > 0 ? "amber" : "green"}
             />
           </div>
           <div style={{ borderRight: `1px solid ${tone.line}` }}>
             <Stat
-              label="Draft"
-              value={draftInvoicesRow.count}
-              sub={`$${fmtMoney(Number(draftAmountRow.total || 0))} pending`}
-              toneKey="amber"
+              label="Renewals 90d"
+              value={upcomingRenewals.length}
+              sub={
+                upcomingRenewals.length > 0
+                  ? "Follow-ups due"
+                  : "No upcoming leases"
+              }
+              toneKey="accent"
             />
           </div>
           <div>
