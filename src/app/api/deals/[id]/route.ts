@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { agents, buildings, dealInvoices, deals, invoices, referrers } from "@/db/schema";
 import { eq, inArray } from "drizzle-orm";
+import { auth } from "@/auth";
 
 function parseId(value: unknown) {
   const parsed = parseInt(String(value), 10);
@@ -41,11 +42,25 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const session = await auth();
+  if (!session?.user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   const { id } = await params;
   const parsedId = parseId(id);
   if (!parsedId) return NextResponse.json({ error: "Valid deal id is required" }, { status: 400 });
   const result = await serializeDeal(parsedId);
   if (!result) return NextResponse.json({ error: "Deal not found" }, { status: 404 });
+
+  // Row-level: non-admin only sees deals where they're primary or co
+  if (!session.user.isAdmin) {
+    const myAgentId = session.user.agentId;
+    if (
+      myAgentId === null ||
+      (result.deal.primaryAgentId !== myAgentId && result.deal.coAgentId !== myAgentId)
+    ) {
+      return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+    }
+  }
+
   return NextResponse.json(result);
 }
 

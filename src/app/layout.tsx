@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
 import "./globals.css";
-import { Nav } from "@/components/nav";
 import { Toaster } from "@/components/ui/sonner";
+import { SessionProvider } from "@/components/session-provider";
+import { AppShell } from "@/components/app-shell";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -37,20 +38,10 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col" style={{ background: "#F7F4EE", color: "#1A1814" }}>
-        <Nav />
-        <main className="flex-1">
-          <div className="mx-auto max-w-[1280px] px-8 py-10">
-            {children}
-          </div>
-        </main>
-        <footer
-          className="mx-auto max-w-[1280px] px-8 py-10 flex items-center justify-between text-[11px] w-full"
-          style={{ color: "#7A756C" }}
-        >
-          <div className="font-mono">homix-invoice v2.0</div>
-          <div>© 2026 Homix Living · Made with care in NYC</div>
-        </footer>
-        <Toaster />
+        <SessionProvider>
+          <AppShell>{children}</AppShell>
+          <Toaster />
+        </SessionProvider>
       </body>
     </html>
   );

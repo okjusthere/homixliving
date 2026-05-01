@@ -61,6 +61,11 @@ export default function AgentsPage() {
     fetchAgents();
   }, []);
 
+  const pending = useMemo(
+    () => agents.filter((row) => row.agent.isActive === false),
+    [agents]
+  );
+
   const filtered = useMemo(() => {
     const activeAgents = agents.filter((row) => row.agent.isActive !== false);
     if (!search) return activeAgents;
@@ -73,6 +78,29 @@ export default function AgentsPage() {
         (teamName || "").toLowerCase().includes(q)
     );
   }, [agents, search]);
+
+  const handleApprove = async (id: number) => {
+    try {
+      const res = await fetch(`/api/agents/${id}/approve`, { method: "POST" });
+      if (!res.ok) throw new Error();
+      toast.success("Agent approved");
+      fetchAgents();
+    } catch {
+      toast.error("Could not approve");
+    }
+  };
+
+  const handleRevoke = async (id: number) => {
+    if (!confirm("Revoke this agent's access?")) return;
+    try {
+      const res = await fetch(`/api/agents/${id}/approve`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+      toast.success("Access revoked");
+      fetchAgents();
+    } catch {
+      toast.error("Could not revoke");
+    }
+  };
 
   const grouped = useMemo(() => {
     return filtered.reduce<Record<string, AgentRow[]>>((acc, row) => {
@@ -147,6 +175,77 @@ export default function AgentsPage() {
           style={{ color: tone.ink }}
         />
       </div>
+
+      {/* Pending approvals */}
+      {pending.length > 0 && (
+        <Card>
+          <div
+            className="px-6 py-5 flex items-center justify-between"
+            style={{ borderBottom: `1px solid ${tone.lineSoft}` }}
+          >
+            <div>
+              <div
+                className="font-serif flex items-center gap-3"
+                style={{ fontSize: 22, color: tone.ink, letterSpacing: "-0.01em" }}
+              >
+                Pending approvals
+                <Pill tone="draft">{pending.length}</Pill>
+              </div>
+              <div className="text-[12px] mt-1" style={{ color: tone.ink50 }}>
+                New brokers awaiting activation
+              </div>
+            </div>
+          </div>
+          <div className="divide-y" style={{ borderColor: tone.lineSoft }}>
+            {pending.map(({ agent }) => (
+              <div
+                key={agent.id}
+                className="grid items-center px-6 py-4"
+                style={{
+                  gridTemplateColumns: "auto 1fr auto",
+                  gap: 16,
+                  borderBottom: `1px solid ${tone.lineSoft}`,
+                }}
+              >
+                <div
+                  className="w-10 h-10 rounded-full flex items-center justify-center font-medium"
+                  style={{ background: tone.amberSoft, color: tone.amber, fontSize: 12 }}
+                >
+                  {initials(agent.name)}
+                </div>
+                <div>
+                  <div className="text-[14px]" style={{ color: tone.ink }}>
+                    {agent.name}
+                  </div>
+                  <div className="text-[12px] mt-0.5 font-mono" style={{ color: tone.ink50 }}>
+                    {agent.email || "no email"}
+                    {agent.joinedAt && (
+                      <span> · joined {agent.joinedAt}</span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Btn
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setEditAgent(agent)}
+                  >
+                    Edit
+                  </Btn>
+                  <Btn
+                    variant="primary"
+                    size="sm"
+                    icon={<Icons.Check />}
+                    onClick={() => handleApprove(agent.id)}
+                  >
+                    Approve
+                  </Btn>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       {loading ? (
         <p className="text-[13px]" style={{ color: tone.ink50 }}>
@@ -297,13 +396,29 @@ export default function AgentsPage() {
                 />
               </LabeledField>
             </div>
-            <div className="px-8 py-5 flex items-center justify-end gap-2" style={{ borderTop: `1px solid ${tone.line}`, background: tone.paper }}>
-              <Btn variant="outline" onClick={closeDialog}>
-                Cancel
-              </Btn>
-              <Btn variant="primary" onClick={handleSave} disabled={saving}>
-                {saving ? "Saving…" : "Add agent"}
-              </Btn>
+            <div className="px-8 py-5 flex items-center justify-between gap-2" style={{ borderTop: `1px solid ${tone.line}`, background: tone.paper }}>
+              <div>
+                {editAgent.id && editAgent.isActive && (
+                  <Btn
+                    variant="danger"
+                    size="sm"
+                    onClick={() => {
+                      handleRevoke(editAgent.id!);
+                      closeDialog();
+                    }}
+                  >
+                    Revoke access
+                  </Btn>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <Btn variant="outline" onClick={closeDialog}>
+                  Cancel
+                </Btn>
+                <Btn variant="primary" onClick={handleSave} disabled={saving}>
+                  {saving ? "Saving…" : editAgent.id ? "Save" : "Add agent"}
+                </Btn>
+              </div>
             </div>
           </div>
         </div>

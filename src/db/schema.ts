@@ -70,6 +70,7 @@ export const teams = sqliteTable("teams", {
 
 export const agents = sqliteTable("agents", {
   id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: text("user_id").references((): AnySQLiteColumn => users.id, { onDelete: "set null" }),
   name: text("name").notNull(),
   email: text("email"),
   phone: text("phone"),
@@ -77,12 +78,52 @@ export const agents = sqliteTable("agents", {
   licensedCompany: text("licensed_company"),
   splitPct: real("split_pct").notNull().default(50),
   teamId: integer("team_id").references((): AnySQLiteColumn => teams.id),
-  isActive: integer("is_active", { mode: "boolean" }).default(true),
+  isActive: integer("is_active", { mode: "boolean" }).default(false), // false = pending approval
+  isAdmin: integer("is_admin", { mode: "boolean" }).default(false),
   joinedAt: text("joined_at"),
   notes: text("notes"),
   createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
   updatedAt: text("updated_at").default("CURRENT_TIMESTAMP"),
 });
+
+// ============================================================
+// Auth.js (NextAuth) tables — required by @auth/drizzle-adapter
+// ============================================================
+export const users = sqliteTable("users", {
+  id: text("id").primaryKey(),
+  name: text("name"),
+  email: text("email").unique(),
+  emailVerified: integer("emailVerified", { mode: "timestamp_ms" }),
+  image: text("image"),
+});
+
+export const accounts = sqliteTable("accounts", {
+  userId: text("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  type: text("type").notNull(),
+  provider: text("provider").notNull(),
+  providerAccountId: text("providerAccountId").notNull(),
+  refresh_token: text("refresh_token"),
+  access_token: text("access_token"),
+  expires_at: integer("expires_at"),
+  token_type: text("token_type"),
+  scope: text("scope"),
+  id_token: text("id_token"),
+  session_state: text("session_state"),
+}, (account) => [primaryKey({ columns: [account.provider, account.providerAccountId] })]);
+
+export const sessions = sqliteTable("sessions", {
+  sessionToken: text("sessionToken").primaryKey(),
+  userId: text("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+  expires: integer("expires", { mode: "timestamp_ms" }).notNull(),
+});
+
+export const verificationTokens = sqliteTable("verificationTokens", {
+  identifier: text("identifier").notNull(),
+  token: text("token").notNull(),
+  expires: integer("expires", { mode: "timestamp_ms" }).notNull(),
+}, (vt) => [primaryKey({ columns: [vt.identifier, vt.token] })]);
+
+export type User = typeof users.$inferSelect;
 
 export const referrers = sqliteTable("referrers", {
   id: integer("id").primaryKey({ autoIncrement: true }),

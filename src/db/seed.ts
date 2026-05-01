@@ -3373,6 +3373,7 @@ async function seed() {
   await client.execute(`
     CREATE TABLE IF NOT EXISTS agents (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
       name TEXT NOT NULL,
       email TEXT,
       phone TEXT,
@@ -3380,11 +3381,54 @@ async function seed() {
       licensed_company TEXT,
       split_pct REAL NOT NULL DEFAULT 50,
       team_id INTEGER REFERENCES teams(id),
-      is_active INTEGER DEFAULT 1,
+      is_active INTEGER DEFAULT 0,
+      is_admin INTEGER DEFAULT 0,
       joined_at TEXT,
       notes TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Auth.js tables
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      name TEXT,
+      email TEXT UNIQUE,
+      emailVerified INTEGER,
+      image TEXT
+    )
+  `);
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS accounts (
+      userId TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      type TEXT NOT NULL,
+      provider TEXT NOT NULL,
+      providerAccountId TEXT NOT NULL,
+      refresh_token TEXT,
+      access_token TEXT,
+      expires_at INTEGER,
+      token_type TEXT,
+      scope TEXT,
+      id_token TEXT,
+      session_state TEXT,
+      PRIMARY KEY (provider, providerAccountId)
+    )
+  `);
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS sessions (
+      sessionToken TEXT PRIMARY KEY,
+      userId TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      expires INTEGER NOT NULL
+    )
+  `);
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS verificationTokens (
+      identifier TEXT NOT NULL,
+      token TEXT NOT NULL,
+      expires INTEGER NOT NULL,
+      PRIMARY KEY (identifier, token)
     )
   `);
 
@@ -3484,6 +3528,12 @@ async function seed() {
   if (await addColumnIfMissing(`ALTER TABLE deals ADD COLUMN source TEXT`)) {
     console.log("Added deals.source column.");
   }
+  if (await addColumnIfMissing(`ALTER TABLE agents ADD COLUMN user_id TEXT REFERENCES users(id) ON DELETE SET NULL`)) {
+    console.log("Added agents.user_id column.");
+  }
+  if (await addColumnIfMissing(`ALTER TABLE agents ADD COLUMN is_admin INTEGER DEFAULT 0`)) {
+    console.log("Added agents.is_admin column.");
+  }
 
   console.log("Inserting buildings...");
   for (const building of buildingsData) {
@@ -3494,6 +3544,14 @@ async function seed() {
   console.log("Inserting settings...");
   for (const setting of defaultSettings) {
     await db.insert(settings).values(setting).onConflictDoNothing();
+  }
+
+  // Demo team/agent/referrer seeding is gated behind SEED_DEMO=1 so production
+  // databases stay clean. Brokers will self-register and admins will activate.
+  if (process.env.SEED_DEMO !== "1") {
+    console.log("Skipping demo agents/teams/referrers (set SEED_DEMO=1 to include).");
+    console.log("Seed completed!");
+    return;
   }
 
   console.log("Inserting demo teams, agents, and referrers...");

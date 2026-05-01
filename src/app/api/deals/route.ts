@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { agents, buildings, dealInvoices, deals, referrers } from "@/db/schema";
 import { desc, eq } from "drizzle-orm";
 import { getDealDate } from "@/lib/reporting";
+import { auth } from "@/auth";
 
 function parseNumber(value: unknown) {
   if (value === undefined || value === null || value === "") return null;
@@ -100,6 +101,13 @@ async function cleanDealPayload(body: Record<string, unknown>) {
 }
 
 export async function GET(req: NextRequest) {
+  const session = await auth();
+  if (!session?.user) {
+    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  }
+  const sessionAgentId = session.user.agentId;
+  const sessionIsAdmin = session.user.isAdmin;
+
   const status = req.nextUrl.searchParams.get("status");
   const agentId = req.nextUrl.searchParams.get("agentId");
   const from = req.nextUrl.searchParams.get("from");
@@ -123,6 +131,18 @@ export async function GET(req: NextRequest) {
   }, {});
 
   const filtered = dealRows.filter((deal) => {
+    // Row-level visibility: non-admin users only see deals where they are
+    // primary or co-agent.
+    if (!sessionIsAdmin) {
+      if (sessionAgentId === null) return false;
+      if (
+        deal.primaryAgentId !== sessionAgentId &&
+        deal.coAgentId !== sessionAgentId
+      ) {
+        return false;
+      }
+    }
+
     const date = getDealDate(deal).slice(0, 10);
     if (status && status !== "all" && deal.status !== status) return false;
     if (
