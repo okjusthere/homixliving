@@ -1,5 +1,6 @@
 import NextAuth from "next-auth";
 import Resend from "next-auth/providers/resend";
+import Google from "next-auth/providers/google";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
 import { db } from "@/db";
 import { agents, users, accounts, sessions, verificationTokens } from "@/db/schema";
@@ -11,13 +12,35 @@ const adminEmails = (process.env.ADMIN_EMAILS || "")
   .map((e) => e.trim().toLowerCase())
   .filter(Boolean);
 
+// Conditional providers (matches Openhouse pattern):
+// only enable a provider when its credentials are present.
+const googleEnabled =
+  !!process.env.AUTH_GOOGLE_ID && !!process.env.AUTH_GOOGLE_SECRET;
+const resendEnabled = !!process.env.RESEND_API_KEY;
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
   providers: [
-    Resend({
-      apiKey: process.env.RESEND_API_KEY,
-      from: process.env.FROM_EMAIL || "invoice@homixny.com",
-    }),
+    ...(resendEnabled
+      ? [
+          Resend({
+            apiKey: process.env.RESEND_API_KEY,
+            from: process.env.FROM_EMAIL || "homix@invoice.homixny.com",
+          }),
+        ]
+      : []),
+    ...(googleEnabled
+      ? [
+          Google({
+            clientId: process.env.AUTH_GOOGLE_ID,
+            clientSecret: process.env.AUTH_GOOGLE_SECRET,
+            // Auto-link Google account to an existing user with the same email
+            // (e.g. someone who first signed in via magic link). Safe within an
+            // org-scoped app where email is the source of truth.
+            allowDangerousEmailAccountLinking: true,
+          }),
+        ]
+      : []),
   ],
   adapter: DrizzleAdapter(db, {
     usersTable: users,

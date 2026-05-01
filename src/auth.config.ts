@@ -4,6 +4,8 @@ import type { NextAuthConfig } from "next-auth";
 
 export const authConfig: NextAuthConfig = {
   providers: [], // Real providers are added in src/auth.ts
+  // Custom domains (e.g. living.homixny.com) need explicit trust.
+  trustHost: true,
   pages: {
     signIn: "/login",
     verifyRequest: "/login/check-email",
