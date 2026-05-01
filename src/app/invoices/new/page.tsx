@@ -239,6 +239,20 @@ export default function NewInvoicePage() {
         </div>
       </div>
 
+      <Card className="mb-6">
+        <div className="px-5 py-4 flex items-center justify-between gap-4">
+          <div className="text-[13px]" style={{ color: tone.ink70 }}>
+            <span className="font-medium" style={{ color: tone.ink }}>
+              Tip
+            </span>{" "}
+            invoices are now created from a Deal.
+          </div>
+          <Link href="/deals" className="text-[13px] flex items-center gap-1" style={{ color: tone.accent }}>
+            Browse deals <Icons.Arrow />
+          </Link>
+        </div>
+      </Card>
+
       {/* Split layout */}
       <div className="grid gap-8" style={{ gridTemplateColumns: "minmax(0, 1fr) 560px" }}>
         <div className="space-y-6">

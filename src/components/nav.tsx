@@ -7,9 +7,11 @@ import { tone } from "@/components/homix/tokens";
 
 const navItems = [
   { href: "/", label: "Overview" },
+  { href: "/deals", label: "Deals" },
   { href: "/invoices", label: "Invoices" },
-  { href: "/invoices/new", label: "New Invoice" },
   { href: "/buildings", label: "Buildings" },
+  { href: "/agents", label: "Agents" },
+  { href: "/reports", label: "Reports" },
   { href: "/settings", label: "Settings" },
 ];
 
@@ -18,7 +20,9 @@ export function Nav() {
 
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/";
+    if (href === "/deals") return pathname === "/deals" || /^\/deals\/\d+/.test(pathname) || pathname === "/deals/new";
     if (href === "/invoices") return pathname === "/invoices" || /^\/invoices\/\d+/.test(pathname);
+    if (href === "/agents") return pathname === "/agents" || /^\/agents\/\d+/.test(pathname);
     return pathname === href;
   };
 

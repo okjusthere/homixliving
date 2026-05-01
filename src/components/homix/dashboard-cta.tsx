@@ -6,9 +6,9 @@ import { IconPlus } from "./icons";
 
 export function DashboardCTA() {
   return (
-    <Link href="/invoices/new">
+    <Link href="/deals/new">
       <Btn variant="primary" size="lg" icon={<IconPlus />}>
-        New Invoice
+        New Deal
       </Btn>
     </Link>
   );

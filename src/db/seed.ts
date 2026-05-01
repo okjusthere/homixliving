@@ -1,7 +1,8 @@
 import { createClient } from "@libsql/client";
+import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/libsql";
 import * as schema from "./schema";
-import { buildings, settings } from "./schema";
+import { agents, buildings, referrers, settings, teams } from "./schema";
 
 const client = createClient({
   url: process.env.TURSO_DATABASE_URL || "file:local.db",
@@ -3163,6 +3164,143 @@ const defaultSettings = [
   { key: "ach_account_name", value: "" },
 ];
 
+const demoTeams: schema.NewTeam[] = [
+  { name: "Manhattan", notes: "Core Manhattan rental team" },
+  { name: "Brooklyn & Queens", notes: "Outer-borough rental team" },
+  { name: "NJ", notes: "New Jersey rental team" },
+];
+
+const demoAgents: Array<Omit<schema.NewAgent, "teamId"> & { teamName: string }> = [
+  {
+    name: "Alice Chen",
+    email: "alice@homixny.com",
+    phone: "(917) 555-0101",
+    licenseNumber: "10401390001",
+    licensedCompany: "Homix Living Inc.",
+    splitPct: 70,
+    teamName: "Manhattan",
+    isActive: true,
+    joinedAt: "2024-01-15",
+  },
+  {
+    name: "Brian Lee",
+    email: "brian@homixny.com",
+    phone: "(917) 555-0102",
+    licenseNumber: "10401390002",
+    licensedCompany: "Homix Living Inc.",
+    splitPct: 60,
+    teamName: "Manhattan",
+    isActive: true,
+    joinedAt: "2024-03-01",
+  },
+  {
+    name: "Cindy Wang",
+    email: "cindy@homixny.com",
+    phone: "(917) 555-0103",
+    licenseNumber: "10401390003",
+    licensedCompany: "Homix Living Inc.",
+    splitPct: 80,
+    teamName: "Manhattan",
+    isActive: true,
+    joinedAt: "2023-09-10",
+  },
+  {
+    name: "David Park",
+    email: "david@homixny.com",
+    phone: "(917) 555-0104",
+    licenseNumber: "10401390004",
+    licensedCompany: "Homix Living Inc.",
+    splitPct: 50,
+    teamName: "Brooklyn & Queens",
+    isActive: true,
+    joinedAt: "2025-02-20",
+  },
+  {
+    name: "Emma Zhao",
+    email: "emma@homixny.com",
+    phone: "(917) 555-0105",
+    licenseNumber: "10401390005",
+    licensedCompany: "Homix Living Inc.",
+    splitPct: 70,
+    teamName: "Brooklyn & Queens",
+    isActive: true,
+    joinedAt: "2024-07-08",
+  },
+  {
+    name: "Frank Lin",
+    email: "frank@homixny.com",
+    phone: "(917) 555-0106",
+    licenseNumber: "10401390006",
+    licensedCompany: "AIREA LLC",
+    splitPct: 60,
+    teamName: "Brooklyn & Queens",
+    isActive: true,
+    joinedAt: "2025-05-11",
+  },
+  {
+    name: "Grace Kim",
+    email: "grace@homixny.com",
+    phone: "(201) 555-0107",
+    licenseNumber: "2333444",
+    licensedCompany: "AIREA LLC",
+    splitPct: 70,
+    teamName: "NJ",
+    isActive: true,
+    joinedAt: "2024-10-02",
+  },
+  {
+    name: "Henry Huang",
+    email: "henry@homixny.com",
+    phone: "(201) 555-0108",
+    licenseNumber: "2333445",
+    licensedCompany: "AIREA LLC",
+    splitPct: 50,
+    teamName: "NJ",
+    isActive: true,
+    joinedAt: "2025-01-18",
+  },
+];
+
+const demoReferrers: schema.NewReferrer[] = [
+  {
+    name: "Jane Referral Co.",
+    email: "jane@example.com",
+    phone: "(646) 555-0191",
+    defaultReferralType: "percent",
+    defaultReferralAmount: 15,
+    notes: "Default 15% referral partner",
+  },
+  {
+    name: "Campus Housing Desk",
+    email: "housing@example.edu",
+    phone: "(212) 555-0192",
+    defaultReferralType: "flat",
+    defaultReferralAmount: 250,
+    notes: "Flat fee per signed lease",
+  },
+];
+
+async function ensureTeam(team: schema.NewTeam) {
+  const existing = await db.select().from(teams).where(eq(teams.name, team.name)).get();
+  if (existing) return existing;
+  const [created] = await db.insert(teams).values(team).returning();
+  return created;
+}
+
+async function ensureAgent(agent: schema.NewAgent) {
+  const existing = await db.select().from(agents).where(eq(agents.name, agent.name)).get();
+  if (existing) return existing;
+  const [created] = await db.insert(agents).values(agent).returning();
+  return created;
+}
+
+async function ensureReferrer(referrer: schema.NewReferrer) {
+  const existing = await db.select().from(referrers).where(eq(referrers.name, referrer.name)).get();
+  if (existing) return existing;
+  const [created] = await db.insert(referrers).values(referrer).returning();
+  return created;
+}
+
 async function seed() {
   console.log("Creating tables...");
 
@@ -3219,6 +3357,103 @@ async function seed() {
     )
   `);
 
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS teams (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      leader_agent_id INTEGER REFERENCES agents(id),
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS agents (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      email TEXT,
+      phone TEXT,
+      license_number TEXT,
+      licensed_company TEXT,
+      split_pct REAL NOT NULL DEFAULT 50,
+      team_id INTEGER REFERENCES teams(id),
+      is_active INTEGER DEFAULT 1,
+      joined_at TEXT,
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS referrers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      email TEXT,
+      phone TEXT,
+      default_referral_type TEXT,
+      default_referral_amount REAL,
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS deals (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      building_id INTEGER NOT NULL REFERENCES buildings(id),
+      unit TEXT NOT NULL,
+      tenant_name TEXT NOT NULL,
+      tenant_email TEXT,
+      tenant_phone TEXT,
+      apartment_address TEXT,
+      move_in_date TEXT,
+      lease_start_date TEXT,
+      lease_end_date TEXT,
+      rent_amount REAL,
+      lease_length_months INTEGER,
+      total_commission REAL NOT NULL,
+      licensed_company TEXT NOT NULL,
+      primary_agent_id INTEGER NOT NULL REFERENCES agents(id),
+      primary_agent_share_pct REAL NOT NULL DEFAULT 100,
+      co_agent_id INTEGER REFERENCES agents(id),
+      co_agent_share_pct REAL,
+      referrer_id INTEGER REFERENCES referrers(id),
+      referrer_type TEXT,
+      referrer_amount REAL,
+      status TEXT NOT NULL DEFAULT 'active',
+      deal_date TEXT,
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS deal_invoices (
+      deal_id INTEGER NOT NULL REFERENCES deals(id) ON DELETE CASCADE,
+      invoice_id INTEGER NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (deal_id, invoice_id)
+    )
+  `);
+
+  try {
+    await client.execute(`
+      ALTER TABLE invoices
+      ADD COLUMN deal_id INTEGER REFERENCES deals(id) ON DELETE SET NULL
+    `);
+    console.log("Added invoices.deal_id column.");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!message.toLowerCase().includes("duplicate column")) {
+      throw error;
+    }
+    console.log("invoices.deal_id already exists.");
+  }
+
   console.log("Inserting buildings...");
   for (const building of buildingsData) {
     await db.insert(buildings).values(building);
@@ -3228,6 +3463,36 @@ async function seed() {
   console.log("Inserting settings...");
   for (const setting of defaultSettings) {
     await db.insert(settings).values(setting).onConflictDoNothing();
+  }
+
+  console.log("Inserting demo teams, agents, and referrers...");
+  const teamByName = new Map<string, schema.Team>();
+  for (const team of demoTeams) {
+    const saved = await ensureTeam(team);
+    teamByName.set(saved.name, saved);
+  }
+
+  const firstAgentByTeam = new Map<string, schema.Agent>();
+  for (const { teamName, ...agent } of demoAgents) {
+    const team = teamByName.get(teamName);
+    const saved = await ensureAgent({ ...agent, teamId: team?.id });
+    if (!firstAgentByTeam.has(teamName)) {
+      firstAgentByTeam.set(teamName, saved);
+    }
+  }
+
+  for (const [teamName, leader] of firstAgentByTeam.entries()) {
+    const team = teamByName.get(teamName);
+    if (team && !team.leaderAgentId) {
+      await db
+        .update(teams)
+        .set({ leaderAgentId: leader.id, updatedAt: new Date().toISOString() })
+        .where(eq(teams.id, team.id));
+    }
+  }
+
+  for (const referrer of demoReferrers) {
+    await ensureReferrer(referrer);
   }
 
   console.log("Seed completed!");
