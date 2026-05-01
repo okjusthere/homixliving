@@ -3490,6 +3490,26 @@ async function seed() {
     )
   `);
 
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS invoice_send_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      invoice_id INTEGER NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+      sent_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+      sent_by_email TEXT,
+      to_recipients TEXT NOT NULL,
+      cc_recipients TEXT,
+      reply_to TEXT,
+      subject TEXT NOT NULL,
+      status TEXT NOT NULL,
+      error_message TEXT,
+      sent_at TEXT NOT NULL
+    )
+  `);
+  await client.execute(`
+    CREATE INDEX IF NOT EXISTS idx_invoice_send_log_invoice
+      ON invoice_send_log(invoice_id)
+  `);
+
   // Helper to add a column if it doesn't exist
   const addColumnIfMissing = async (sql: string) => {
     try {
@@ -3535,11 +3555,24 @@ async function seed() {
     console.log("Added agents.is_admin column.");
   }
 
-  console.log("Inserting buildings...");
-  for (const building of buildingsData) {
-    await db.insert(buildings).values(building);
+  // Buildings are seeded once on initial deploy. After that, additions/edits
+  // happen through the Buildings admin UI. Re-running the seed should NOT
+  // duplicate the catalog — bail early if the table is already populated.
+  const existingBuildingsCount = await client.execute(
+    "SELECT COUNT(*) AS count FROM buildings"
+  );
+  const buildingsCount = Number(existingBuildingsCount.rows[0]?.count ?? 0);
+  if (buildingsCount > 0) {
+    console.log(
+      `Buildings table already populated (${buildingsCount} rows) — skipping building insert. Use the admin UI to add new buildings.`
+    );
+  } else {
+    console.log("Inserting buildings...");
+    for (const building of buildingsData) {
+      await db.insert(buildings).values(building);
+    }
+    console.log(`Inserted ${buildingsData.length} buildings.`);
   }
-  console.log(`Inserted ${buildingsData.length} buildings.`);
 
   console.log("Inserting settings...");
   for (const setting of defaultSettings) {

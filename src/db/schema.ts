@@ -20,8 +20,8 @@ export const buildings = sqliteTable("buildings", {
   contactEmail: text("contact_email"), // 大楼/管理公司收件邮箱
   specialNotes: text("special_notes"), // 特殊要求备注
   isOutOfState: integer("is_out_of_state", { mode: "boolean" }).default(false),
-  createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
-  updatedAt: text("updated_at").default("CURRENT_TIMESTAMP"),
+  createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
+  updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
 });
 
 export const invoices = sqliteTable("invoices", {
@@ -50,8 +50,8 @@ export const invoices = sqliteTable("invoices", {
   paidAt: text("paid_at"), // when payment received
   paidAmount: real("paid_amount"), // actual amount received (defaults to totalAmount)
   pdfData: text("pdf_data"), // base64 encoded PDF for storage
-  createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
-  updatedAt: text("updated_at").default("CURRENT_TIMESTAMP"),
+  createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
+  updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
 });
 
 export const settings = sqliteTable("settings", {
@@ -64,8 +64,8 @@ export const teams = sqliteTable("teams", {
   name: text("name").notNull(),
   leaderAgentId: integer("leader_agent_id").references((): AnySQLiteColumn => agents.id),
   notes: text("notes"),
-  createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
-  updatedAt: text("updated_at").default("CURRENT_TIMESTAMP"),
+  createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
+  updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
 });
 
 export const agents = sqliteTable("agents", {
@@ -82,8 +82,8 @@ export const agents = sqliteTable("agents", {
   isAdmin: integer("is_admin", { mode: "boolean" }).default(false),
   joinedAt: text("joined_at"),
   notes: text("notes"),
-  createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
-  updatedAt: text("updated_at").default("CURRENT_TIMESTAMP"),
+  createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
+  updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
 });
 
 // ============================================================
@@ -133,8 +133,8 @@ export const referrers = sqliteTable("referrers", {
   defaultReferralType: text("default_referral_type"),
   defaultReferralAmount: real("default_referral_amount"),
   notes: text("notes"),
-  createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
-  updatedAt: text("updated_at").default("CURRENT_TIMESTAMP"),
+  createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
+  updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
 });
 
 export const deals = sqliteTable("deals", {
@@ -171,8 +171,8 @@ export const deals = sqliteTable("deals", {
   renewalStatus: text("renewal_status"), // null | 'pending' | 'renewing' | 'moving_out' | 'renewed' | 'lost'
   renewalNotedAt: text("renewal_noted_at"),
   renewedToDealId: integer("renewed_to_deal_id"), // FK to deals.id once renewal closes
-  createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
-  updatedAt: text("updated_at").default("CURRENT_TIMESTAMP"),
+  createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
+  updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
 });
 
 export const dealInvoices = sqliteTable(
@@ -184,10 +184,32 @@ export const dealInvoices = sqliteTable(
     invoiceId: integer("invoice_id")
       .notNull()
       .references(() => invoices.id, { onDelete: "cascade" }),
-    createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
+    createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
   },
   (table) => [primaryKey({ columns: [table.dealId, table.invoiceId] })]
 );
+
+// ============================================================
+// Invoice send log — audit trail of every send attempt (success or failure).
+// Critical for "did this invoice actually go out?" + dispute reconstruction.
+// ============================================================
+export const invoiceSendLog = sqliteTable("invoice_send_log", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  invoiceId: integer("invoice_id")
+    .notNull()
+    .references(() => invoices.id, { onDelete: "cascade" }),
+  // Who initiated the send. userId may be null if cleared later; email is a snapshot.
+  sentByUserId: text("sent_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  sentByEmail: text("sent_by_email"),
+  // Recipient snapshot (comma-separated). Not normalized — captured as sent.
+  toRecipients: text("to_recipients").notNull(),
+  ccRecipients: text("cc_recipients"),
+  replyTo: text("reply_to"),
+  subject: text("subject").notNull(),
+  status: text("status").notNull(), // 'sent' | 'failed'
+  errorMessage: text("error_message"),
+  sentAt: text("sent_at").$defaultFn(() => new Date().toISOString()),
+});
 
 export type LineItem = {
   description: string;
@@ -210,3 +232,5 @@ export type Deal = typeof deals.$inferSelect;
 export type NewDeal = typeof deals.$inferInsert;
 export type DealInvoice = typeof dealInvoices.$inferSelect;
 export type NewDealInvoice = typeof dealInvoices.$inferInsert;
+export type InvoiceSendLog = typeof invoiceSendLog.$inferSelect;
+export type NewInvoiceSendLog = typeof invoiceSendLog.$inferInsert;

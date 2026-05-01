@@ -17,6 +17,18 @@ export async function POST(
   const deal = await db.select().from(deals).where(eq(deals.id, parsedId)).get();
   if (!deal) return NextResponse.json({ error: "Deal not found" }, { status: 404 });
 
+  // Guard: cancelled deals cannot generate invoices. This protects against
+  // accidentally billing a building for a deal that fell through.
+  if (deal.status === "cancelled") {
+    return NextResponse.json(
+      {
+        error:
+          "无法为已取消的 deal 生成 invoice。如果该 deal 实际上已成交，请先把状态改回 active 或 completed。",
+      },
+      { status: 409 }
+    );
+  }
+
   const [building, primaryAgent] = await Promise.all([
     db.select().from(buildings).where(eq(buildings.id, deal.buildingId)).get(),
     db.select().from(agents).where(eq(agents.id, deal.primaryAgentId)).get(),

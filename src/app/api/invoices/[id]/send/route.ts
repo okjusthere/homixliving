@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { invoices, buildings, settings } from "@/db/schema";
+import { invoices, buildings, settings, invoiceSendLog } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { generateInvoicePDF } from "@/lib/pdf-generator";
 import { sendInvoiceEmail } from "@/lib/email-sender";
+import { auth } from "@/auth";
 
 export async function POST(
   req: NextRequest,
@@ -72,10 +73,17 @@ export async function POST(
     achAccountName: settingsMap.ach_account_name || undefined,
   });
 
-  try {
-    const to = toEmails.split(",").map((e) => e.trim()).filter(Boolean);
-    const extraCc = ccEmails ? ccEmails.split(",").map((e) => e.trim()).filter(Boolean) : [];
+  // Capture identity of the sender for the audit log. The proxy enforces auth,
+  // so a session should always exist here — but be defensive in case of misconfig.
+  const session = await auth();
+  const sentByUserId = session?.user?.id || null;
+  const sentByEmail = session?.user?.email || null;
 
+  const to = toEmails.split(",").map((e) => e.trim()).filter(Boolean);
+  const extraCc = ccEmails ? ccEmails.split(",").map((e) => e.trim()).filter(Boolean) : [];
+  const now = new Date().toISOString();
+
+  try {
     await sendInvoiceEmail({
       to,
       cc: extraCc.length > 0 ? extraCc : undefined,
@@ -92,18 +100,44 @@ export async function POST(
       .update(invoices)
       .set({
         status: "sent",
-        sentAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        sentAt: now,
+        updatedAt: now,
       })
       .where(eq(invoices.id, Number(id)));
+
+    await db.insert(invoiceSendLog).values({
+      invoiceId: Number(id),
+      sentByUserId,
+      sentByEmail,
+      toRecipients: to.join(", "),
+      ccRecipients: extraCc.length > 0 ? extraCc.join(", ") : null,
+      replyTo: replyTo || null,
+      subject,
+      status: "sent",
+      errorMessage: null,
+      sentAt: now,
+    });
 
     return NextResponse.json({ success: true, message: "Invoice sent successfully" });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unknown error";
     await db
       .update(invoices)
-      .set({ status: "failed", updatedAt: new Date().toISOString() })
+      .set({ status: "failed", updatedAt: now })
       .where(eq(invoices.id, Number(id)));
+
+    await db.insert(invoiceSendLog).values({
+      invoiceId: Number(id),
+      sentByUserId,
+      sentByEmail,
+      toRecipients: to.join(", "),
+      ccRecipients: extraCc.length > 0 ? extraCc.join(", ") : null,
+      replyTo: replyTo || null,
+      subject,
+      status: "failed",
+      errorMessage: message,
+      sentAt: now,
+    });
 
     return NextResponse.json({ error: message }, { status: 500 });
   }
