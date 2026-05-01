@@ -9,6 +9,7 @@ import { DealBreakdownBar } from "@/components/homix/deal-breakdown";
 import { fmtDate, fmtLongDate, fmtMoney, tone } from "@/components/homix/tokens";
 import type { Agent, Building, Deal, Invoice, Referrer } from "@/db/schema";
 import type { CommissionBreakdown } from "@/lib/commission";
+import { sourceEmoji, sourceLabel } from "@/lib/sources";
 
 type DealPayload = {
   deal: Deal;
@@ -186,6 +187,19 @@ export default function DealDetailPage() {
                 <SoftField label="Term" value={deal.leaseLengthMonths ? `${deal.leaseLengthMonths} months` : "—"} mono />
                 <SoftField label="Monthly rent" value={deal.rentAmount ? `$${fmtMoney(Number(deal.rentAmount))}` : "—"} mono />
                 <SoftField label="Tenant contact" value={[deal.tenantEmail, deal.tenantPhone].filter(Boolean).join(" · ") || "—"} />
+                <SoftField
+                  label="Source"
+                  value={
+                    deal.source ? (
+                      <span className="inline-flex items-center gap-1.5">
+                        <span>{sourceEmoji(deal.source)}</span>
+                        <span>{sourceLabel(deal.source)}</span>
+                      </span>
+                    ) : (
+                      "—"
+                    )
+                  }
+                />
               </div>
             </Card>
           </div>

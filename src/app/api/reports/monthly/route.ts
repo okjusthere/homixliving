@@ -21,6 +21,7 @@ export async function GET(req: NextRequest) {
 
   const agentStats = new Map<number, { agent: (typeof agentRows)[number]; deals: Set<number>; take: number }>();
   const buildingStats = new Map<number, { building: (typeof buildingRows)[number]; deals: number; totalCommission: number }>();
+  const sourceStats = new Map<string, { source: string; deals: number; totalCommission: number }>();
 
   let companyPool = 0;
   let agentPayouts = 0;
@@ -66,6 +67,12 @@ export async function GET(req: NextRequest) {
       existing.totalCommission += Number(deal.totalCommission || 0);
       buildingStats.set(building.id, existing);
     }
+
+    const source = deal.source || "unknown";
+    const sourceExisting = sourceStats.get(source) || { source, deals: 0, totalCommission: 0 };
+    sourceExisting.deals += 1;
+    sourceExisting.totalCommission += Number(deal.totalCommission || 0);
+    sourceStats.set(source, sourceExisting);
   }
 
   return NextResponse.json({
@@ -81,5 +88,6 @@ export async function GET(req: NextRequest) {
       .map((row) => ({ agent: row.agent, deals: row.deals.size, take: row.take }))
       .sort((a, b) => b.take - a.take),
     perBuilding: Array.from(buildingStats.values()).sort((a, b) => b.totalCommission - a.totalCommission),
+    perSource: Array.from(sourceStats.values()).sort((a, b) => b.deals - a.deals),
   });
 }

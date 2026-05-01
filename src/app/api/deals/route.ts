@@ -92,6 +92,7 @@ async function cleanDealPayload(body: Record<string, unknown>) {
       referrerAmount: parseNumber(body.referrerAmount),
       status,
       dealDate: stringOrNull(body.dealDate) || new Date().toISOString().slice(0, 10),
+      source: stringOrNull(body.source),
       notes: stringOrNull(body.notes),
       updatedAt: new Date().toISOString(),
     },

@@ -124,6 +124,7 @@ export const deals = sqliteTable("deals", {
   referrerAmount: real("referrer_amount"),
   status: text("status").notNull().default("active"),
   dealDate: text("deal_date"),
+  source: text("source"), // 客源来源 — xiaohongshu | wechat | school_listserv | existing_client | website | other
   notes: text("notes"),
   // Renewal tracking — for upcoming lease-end follow-ups
   renewalStatus: text("renewal_status"), // null | 'pending' | 'renewing' | 'moving_out' | 'renewed' | 'lost'

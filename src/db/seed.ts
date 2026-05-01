@@ -3427,6 +3427,7 @@ async function seed() {
       referrer_amount REAL,
       status TEXT NOT NULL DEFAULT 'active',
       deal_date TEXT,
+      source TEXT,
       notes TEXT,
       renewal_status TEXT,
       renewal_noted_at TEXT,
@@ -3479,6 +3480,9 @@ async function seed() {
   }
   if (await addColumnIfMissing(`ALTER TABLE deals ADD COLUMN renewed_to_deal_id INTEGER REFERENCES deals(id) ON DELETE SET NULL`)) {
     console.log("Added deals.renewed_to_deal_id column.");
+  }
+  if (await addColumnIfMissing(`ALTER TABLE deals ADD COLUMN source TEXT`)) {
+    console.log("Added deals.source column.");
   }
 
   console.log("Inserting buildings...");

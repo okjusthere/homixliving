@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Btn, Card, Icons, Pill } from "@/components/homix/primitives";
 import { fmtDate, fmtMoney, tone } from "@/components/homix/tokens";
+import { sourceEmoji, sourceLabel } from "@/lib/sources";
 import type { Agent, Building, Deal } from "@/db/schema";
 
 type DealRow = {
@@ -166,8 +167,16 @@ export default function DealsPage() {
                 <div className="text-[13px]" style={{ color: tone.ink }}>
                   {building?.name || "—"} · Unit {deal.unit}
                 </div>
-                <div className="text-[11.5px] mt-0.5" style={{ color: tone.ink50 }}>
-                  {deal.tenantName}
+                <div
+                  className="text-[11.5px] mt-0.5 flex items-center gap-1.5"
+                  style={{ color: tone.ink50 }}
+                >
+                  <span>{deal.tenantName}</span>
+                  {deal.source && (
+                    <span title={sourceLabel(deal.source)}>
+                      · {sourceEmoji(deal.source)}
+                    </span>
+                  )}
                 </div>
               </div>
               <div>

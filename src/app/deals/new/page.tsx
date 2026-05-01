@@ -8,6 +8,7 @@ import { Btn, Card, EditorialInput, Icons, LabeledField, Pill } from "@/componen
 import { DealBreakdownBar } from "@/components/homix/deal-breakdown";
 import { fmtMoney, tone } from "@/components/homix/tokens";
 import { computeCommission } from "@/lib/commission";
+import { SOURCE_OPTIONS, type DealSource } from "@/lib/sources";
 import type { Agent, Building, Referrer } from "@/db/schema";
 
 type ReferrerRow = { referrer: Referrer };
@@ -99,6 +100,7 @@ export default function NewDealPage() {
   const [referrerAmount, setReferrerAmount] = useState("");
   const [totalCommission, setTotalCommission] = useState("");
   const [notes, setNotes] = useState("");
+  const [source, setSource] = useState<DealSource | "">("");
 
   useEffect(() => {
     Promise.all([
@@ -218,6 +220,7 @@ export default function NewDealPage() {
           referrerId: hasReferrer ? referrerId : null,
           referrerType: hasReferrer ? referrerType : null,
           referrerAmount: hasReferrer ? Number(referrerAmount || 0) : null,
+          source: source || null,
           notes,
         }),
       });
@@ -485,6 +488,40 @@ export default function NewDealPage() {
                 <span className="font-mono">${fmtMoney(breakdown.coAgentTake)}</span> · Company pool{" "}
                 <span className="font-mono">${fmtMoney(breakdown.companyPoolTotal)}</span>
               </div>
+            </div>
+          </Card>
+
+          <Card>
+            <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
+              <div className="font-serif" style={{ fontSize: 20, color: tone.ink }}>
+                Source
+              </div>
+              <div className="text-[12px] mt-0.5" style={{ color: tone.ink50 }}>
+                客源来自哪里？— 帮我们分析渠道转化
+              </div>
+            </div>
+            <div className="p-6 grid grid-cols-3 gap-2">
+              {SOURCE_OPTIONS.map((opt) => {
+                const active = source === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() =>
+                      setSource((prev) => (prev === opt.value ? "" : opt.value))
+                    }
+                    className="rounded-lg px-3 py-3 flex items-center gap-2 transition-colors text-[13px] text-left"
+                    style={{
+                      background: active ? tone.accentSoft : tone.card,
+                      border: `1px solid ${active ? tone.accent : tone.line}`,
+                      color: active ? tone.ink : tone.ink70,
+                    }}
+                  >
+                    <span style={{ fontSize: 16 }}>{opt.emoji}</span>
+                    <span className={active ? "font-medium" : ""}>{opt.label}</span>
+                  </button>
+                );
+              })}
             </div>
           </Card>
 

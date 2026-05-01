@@ -5,6 +5,7 @@ import { Btn, Card, Icons } from "@/components/homix/primitives";
 import { fmtMoney, tone } from "@/components/homix/tokens";
 import { AgingSection } from "@/components/homix/aging-section";
 import { getMonthKey } from "@/lib/reporting";
+import { sourceEmoji, sourceLabel } from "@/lib/sources";
 import type { Agent, Building } from "@/db/schema";
 
 type ReportPayload = {
@@ -18,6 +19,7 @@ type ReportPayload = {
   };
   topAgents: Array<{ agent: Agent; deals: number; take: number }>;
   perBuilding: Array<{ building: Building; deals: number; totalCommission: number }>;
+  perSource: Array<{ source: string; deals: number; totalCommission: number }>;
 };
 
 export default function ReportsPage() {
@@ -182,6 +184,67 @@ export default function ReportsPage() {
               )}
             </Card>
           </div>
+
+          {/* By source */}
+          {report.perSource && report.perSource.length > 0 && (
+            <Card>
+              <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
+                <div className="font-serif" style={{ fontSize: 22, color: tone.ink }}>
+                  By source
+                </div>
+                <div className="text-[12px] mt-0.5" style={{ color: tone.ink50 }}>
+                  Where this month&rsquo;s deals came from
+                </div>
+              </div>
+              <div className="p-6 grid grid-cols-3 gap-3">
+                {report.perSource.map((row) => {
+                  const totalDeals = report.summary.totalDeals || 1;
+                  const pct = Math.round((row.deals / totalDeals) * 100);
+                  const isUnknown = row.source === "unknown" || !row.source;
+                  return (
+                    <div
+                      key={row.source}
+                      className="rounded-xl p-4"
+                      style={{ border: `1px solid ${tone.line}`, background: tone.card }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span style={{ fontSize: 18 }}>
+                          {isUnknown ? "❓" : sourceEmoji(row.source)}
+                        </span>
+                        <span className="text-[13px] font-medium" style={{ color: tone.ink }}>
+                          {isUnknown ? "Unknown" : sourceLabel(row.source)}
+                        </span>
+                      </div>
+                      <div
+                        className="mt-3 font-serif"
+                        style={{ fontSize: 28, color: tone.ink, lineHeight: 1, letterSpacing: "-0.02em" }}
+                      >
+                        {row.deals}
+                      </div>
+                      <div className="mt-1.5 text-[11.5px]" style={{ color: tone.ink50 }}>
+                        deal{row.deals === 1 ? "" : "s"} · {pct}%
+                      </div>
+                      <div
+                        className="mt-3 h-1 rounded-full overflow-hidden"
+                        style={{ background: tone.lineSoft }}
+                      >
+                        <div
+                          style={{
+                            width: `${pct}%`,
+                            height: "100%",
+                            background: isUnknown ? tone.ink30 : tone.accent,
+                          }}
+                        />
+                      </div>
+                      <div className="mt-2 text-[12px] font-mono" style={{ color: tone.ink70 }}>
+                        ${fmtMoney(row.totalCommission)}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          )}
 
           <div style={{ height: 1, background: tone.line, margin: "8px 0" }} />
 
