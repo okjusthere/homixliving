@@ -160,9 +160,20 @@ export const deals = sqliteTable("deals", {
   primaryAgentSharePct: real("primary_agent_share_pct").notNull().default(100),
   coAgentId: integer("co_agent_id").references(() => agents.id),
   coAgentSharePct: real("co_agent_share_pct"),
+  // Legacy: referrerId is kept for old deals that linked to the referrers
+  // table. New deals capture referrer info inline below — most referrers are
+  // ad-hoc external people (parents' friends, school staff) that don't need a
+  // master record. Display logic prefers `referrerName` and falls back to the
+  // FK lookup for legacy rows.
   referrerId: integer("referrer_id").references(() => referrers.id),
+  referrerName: text("referrer_name"), // free-text name for ad-hoc referrers
   referrerType: text("referrer_type"),
   referrerAmount: real("referrer_amount"),
+  // Payment instructions for paying the referrer once Homix gets paid by the
+  // building. Free text — typical content: "Zelle 555-0102", "ACH bank XYZ
+  // routing 1234 acct 5678", "Wire to ...". Sensitive but lower stakes than
+  // tenant docs since it's the referrer's own info that they gave us.
+  referrerPaymentInfo: text("referrer_payment_info"),
   status: text("status").notNull().default("active"),
   dealDate: text("deal_date"),
   source: text("source"), // 客源来源 — xiaohongshu | wechat | school_listserv | existing_client | website | other

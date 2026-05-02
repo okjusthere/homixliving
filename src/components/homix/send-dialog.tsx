@@ -47,8 +47,27 @@ export function SendDialog({
           subject: emailSubject,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to send");
+
+      // Parse response body defensively. Vercel can occasionally truncate
+      // a serverless response (e.g. on slow Resend round-trips that hit the
+      // function timeout window) — the email itself has already been sent
+      // by Resend and the DB updated, but the JSON body never reaches the
+      // client. Treat any 2xx as success regardless of body, and only show
+      // a parse error when the HTTP status itself is non-OK.
+      let data: { error?: string; success?: boolean } = {};
+      const raw = await res.text().catch(() => "");
+      if (raw) {
+        try {
+          data = JSON.parse(raw);
+        } catch {
+          // Non-JSON body, leave `data` empty and let res.ok decide.
+        }
+      }
+
+      if (!res.ok) {
+        throw new Error(data.error || `Send failed (HTTP ${res.status})`);
+      }
+
       toast.success("Invoice sent");
       onSent();
     } catch (err) {

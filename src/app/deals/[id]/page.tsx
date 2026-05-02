@@ -107,6 +107,10 @@ export default function DealDetailPage() {
   }
 
   const { deal, building, primaryAgent, coAgent, referrer, linkedInvoices } = payload;
+  // New deals capture referrer info inline on the deal row; legacy deals point
+  // to the `referrers` table via referrerId. Display prefers the inline value
+  // and falls back to the FK lookup so old deals still render correctly.
+  const referrerDisplayName = deal.referrerName || referrer?.name || null;
   const referrerLabel =
     deal.referrerType === "percent"
       ? `${deal.referrerAmount || 0}%`
@@ -263,9 +267,9 @@ export default function DealDetailPage() {
                     <span>Total Commission</span>
                     <span className="font-mono">${fmtMoney(breakdown.totalCommission)}</span>
                   </div>
-                  {referrer && (
+                  {referrerDisplayName && (
                     <div className="flex justify-between" style={{ color: tone.amber }}>
-                      <span>Referrer ({referrer.name}, {referrerLabel})</span>
+                      <span>Referrer ({referrerDisplayName}, {referrerLabel})</span>
                       <span className="font-mono">-${fmtMoney(breakdown.referrerCut)}</span>
                     </div>
                   )}
@@ -304,6 +308,25 @@ export default function DealDetailPage() {
                     <span className="font-mono">${fmtMoney(breakdown.referrerCut)}</span>
                   </div>
                 </div>
+                {deal.referrerPaymentInfo && (
+                  <div
+                    className="mt-6 rounded-lg p-4"
+                    style={{ background: tone.amberSoft }}
+                  >
+                    <div
+                      className="text-[10.5px] uppercase tracking-[0.14em] mb-1.5"
+                      style={{ color: tone.amber }}
+                    >
+                      Pay referrer via
+                    </div>
+                    <pre
+                      className="font-mono text-[12.5px] whitespace-pre-wrap break-words"
+                      style={{ color: tone.ink }}
+                    >
+                      {deal.referrerPaymentInfo}
+                    </pre>
+                  </div>
+                )}
               </div>
             </Card>
 

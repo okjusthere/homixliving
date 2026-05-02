@@ -3554,6 +3554,12 @@ async function seed() {
   if (await addColumnIfMissing(`ALTER TABLE agents ADD COLUMN is_admin INTEGER DEFAULT 0`)) {
     console.log("Added agents.is_admin column.");
   }
+  if (await addColumnIfMissing(`ALTER TABLE deals ADD COLUMN referrer_name TEXT`)) {
+    console.log("Added deals.referrer_name column.");
+  }
+  if (await addColumnIfMissing(`ALTER TABLE deals ADD COLUMN referrer_payment_info TEXT`)) {
+    console.log("Added deals.referrer_payment_info column.");
+  }
 
   // Buildings are seeded once on initial deploy. After that, additions/edits
   // happen through the Buildings admin UI. Re-running the seed should NOT

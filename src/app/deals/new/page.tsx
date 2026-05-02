@@ -9,9 +9,7 @@ import { DealBreakdownBar } from "@/components/homix/deal-breakdown";
 import { fmtMoney, tone } from "@/components/homix/tokens";
 import { computeCommission } from "@/lib/commission";
 import { SOURCE_OPTIONS, type DealSource } from "@/lib/sources";
-import type { Agent, Building, Referrer } from "@/db/schema";
-
-type ReferrerRow = { referrer: Referrer };
+import type { Agent, Building } from "@/db/schema";
 
 function initials(name: string) {
   return name
@@ -26,7 +24,6 @@ export default function NewDealPage() {
   const router = useRouter();
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [agents, setAgents] = useState<Array<{ agent: Agent; teamName: string | null }>>([]);
-  const [referrers, setReferrers] = useState<Referrer[]>([]);
   const [saving, setSaving] = useState(false);
   const [buildingSearch, setBuildingSearch] = useState("");
 
@@ -95,9 +92,14 @@ export default function NewDealPage() {
   const [coAgentId, setCoAgentId] = useState<number | null>(null);
   const [primaryAgentSharePct, setPrimaryAgentSharePct] = useState(50);
   const [hasReferrer, setHasReferrer] = useState(false);
-  const [referrerId, setReferrerId] = useState<number | null>(null);
+  // Free-text name + payment-info supersede the old `referrerId` dropdown.
+  // Most referrers are ad-hoc external people (parent's friend, school staff)
+  // that don't need a master record. The legacy `referrers` table is still
+  // there for old deals; new deals just write these two strings to `deals`.
+  const [referrerName, setReferrerName] = useState("");
   const [referrerType, setReferrerType] = useState<"percent" | "flat">("percent");
   const [referrerAmount, setReferrerAmount] = useState("");
+  const [referrerPaymentInfo, setReferrerPaymentInfo] = useState("");
   const [totalCommission, setTotalCommission] = useState("");
   const [notes, setNotes] = useState("");
   const [source, setSource] = useState<DealSource | "">("");
@@ -106,11 +108,9 @@ export default function NewDealPage() {
     Promise.all([
       fetch("/api/buildings").then((r) => r.json()),
       fetch("/api/agents").then((r) => r.json()),
-      fetch("/api/referrers").then((r) => r.json()),
-    ]).then(([buildingRows, agentRows, referrerRows]) => {
+    ]).then(([buildingRows, agentRows]) => {
       setBuildings(buildingRows);
       setAgents(agentRows);
-      setReferrers(referrerRows.map((row: ReferrerRow) => row.referrer));
       const initialBuildingId = new URLSearchParams(window.location.search).get("buildingId");
       if (initialBuildingId) setBuildingId(Number(initialBuildingId));
       if (agentRows[0]?.agent?.id) setPrimaryAgentId(agentRows[0].agent.id);
@@ -146,18 +146,6 @@ export default function NewDealPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasCoAgent]);
-
-  const selectedReferrer = useMemo(
-    () => referrers.find((referrer) => referrer.id === referrerId) || null,
-    [referrers, referrerId]
-  );
-
-  useEffect(() => {
-    if (selectedReferrer?.defaultReferralType === "percent" || selectedReferrer?.defaultReferralType === "flat") {
-      setReferrerType(selectedReferrer.defaultReferralType);
-      setReferrerAmount(String(selectedReferrer.defaultReferralAmount || ""));
-    }
-  }, [selectedReferrer]);
 
   const breakdown = useMemo(
     () =>
@@ -217,9 +205,11 @@ export default function NewDealPage() {
           primaryAgentSharePct: hasCoAgent ? primaryAgentSharePct : 100,
           coAgentId: hasCoAgent ? coAgentId : null,
           coAgentSharePct: hasCoAgent ? 100 - primaryAgentSharePct : null,
-          referrerId: hasReferrer ? referrerId : null,
+          referrerId: null, // legacy column — new deals always use free-text below
+          referrerName: hasReferrer ? referrerName.trim() || null : null,
           referrerType: hasReferrer ? referrerType : null,
           referrerAmount: hasReferrer ? Number(referrerAmount || 0) : null,
+          referrerPaymentInfo: hasReferrer ? referrerPaymentInfo.trim() || null : null,
           source: source || null,
           notes,
         }),
@@ -447,26 +437,53 @@ export default function NewDealPage() {
                 Has referrer
               </label>
               {hasReferrer && (
-                <div className="grid grid-cols-3 gap-4">
-                  <LabeledField label="Referrer">
-                    <select value={referrerId || ""} onChange={(e) => setReferrerId(Number(e.target.value) || null)} className="w-full h-10 rounded-lg px-3 text-[13.5px] outline-none" style={{ background: tone.card, border: `1px solid ${tone.line}`, color: tone.ink }}>
-                      <option value="">Select</option>
-                      {referrers.map((referrer) => (
-                        <option key={referrer.id} value={referrer.id}>
-                          {referrer.name}
-                        </option>
-                      ))}
-                    </select>
-                  </LabeledField>
-                  <LabeledField label="Type">
-                    <select value={referrerType} onChange={(e) => setReferrerType(e.target.value as "percent" | "flat")} className="w-full h-10 rounded-lg px-3 text-[13.5px] outline-none" style={{ background: tone.card, border: `1px solid ${tone.line}`, color: tone.ink }}>
-                      <option value="percent">Percent</option>
-                      <option value="flat">Flat</option>
-                    </select>
-                  </LabeledField>
-                  <LabeledField label="Amount">
-                    <EditorialInput value={referrerAmount} onChange={setReferrerAmount} type="number" prefix={referrerType === "flat" ? "$" : undefined} mono />
-                  </LabeledField>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-3 gap-4">
+                    <LabeledField label="Referrer name">
+                      <EditorialInput
+                        value={referrerName}
+                        onChange={setReferrerName}
+                        placeholder="e.g. Jane Smith / NYU housing office"
+                      />
+                    </LabeledField>
+                    <LabeledField label="Type">
+                      <select value={referrerType} onChange={(e) => setReferrerType(e.target.value as "percent" | "flat")} className="w-full h-10 rounded-lg px-3 text-[13.5px] outline-none" style={{ background: tone.card, border: `1px solid ${tone.line}`, color: tone.ink }}>
+                        <option value="percent">Percent</option>
+                        <option value="flat">Flat</option>
+                      </select>
+                    </LabeledField>
+                    <LabeledField label="Amount">
+                      <EditorialInput value={referrerAmount} onChange={setReferrerAmount} type="number" prefix={referrerType === "flat" ? "$" : undefined} mono />
+                    </LabeledField>
+                  </div>
+                  <div>
+                    <div
+                      className="text-[11px] uppercase tracking-[0.1em] mb-2"
+                      style={{ color: tone.ink50 }}
+                    >
+                      Payment method
+                    </div>
+                    <textarea
+                      value={referrerPaymentInfo}
+                      onChange={(e) => setReferrerPaymentInfo(e.target.value)}
+                      rows={3}
+                      placeholder="Zelle: 555-0102&#10;or ACH: Bank XYZ, routing 12345, acct 67890"
+                      className="w-full rounded-lg p-3 text-[13.5px] outline-none font-mono"
+                      style={{
+                        background: tone.card,
+                        border: `1px solid ${tone.line}`,
+                        color: tone.ink,
+                        resize: "vertical",
+                      }}
+                    />
+                    <div
+                      className="text-[11.5px] mt-1.5"
+                      style={{ color: tone.ink50 }}
+                    >
+                      How to pay this referrer once Homix collects from the
+                      building. Free-text — Zelle, ACH, wire, etc.
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

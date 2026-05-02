@@ -6,6 +6,13 @@ import { generateInvoicePDF } from "@/lib/pdf-generator";
 import { sendInvoiceEmail } from "@/lib/email-sender";
 import { auth } from "@/auth";
 
+// PDF rendering (@react-pdf/renderer) + Resend round-trip can occasionally
+// push past Vercel's default 10-second function limit, especially on cold
+// starts. When that happens the client sees a truncated response body and a
+// "Unexpected end of JSON input" toast — even though the email already left.
+// Bump the cap so the function gets time to complete and reply with JSON.
+export const maxDuration = 60;
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
