@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { agents, buildings, dealInvoices, deals, referrers } from "@/db/schema";
-import { desc, eq } from "drizzle-orm";
+import { agents, buildings, dealAgents, deals, invoices } from "@/db/schema";
+import { desc, eq, sql } from "drizzle-orm";
 import { getDealDate } from "@/lib/reporting";
-import { auth } from "@/auth";
+import { requireActiveAgentApi } from "@/lib/auth-guards";
+import { dealsVisibleToSql } from "@/lib/visibility";
+
+type DealAgentPayload = {
+  agentId: number;
+  sharePct: number;
+  isPrimary: boolean;
+};
 
 function parseNumber(value: unknown) {
   if (value === undefined || value === null || value === "") return null;
@@ -21,43 +28,63 @@ function stringOrNull(value: unknown) {
   return text ? text : null;
 }
 
-async function cleanDealPayload(body: Record<string, unknown>) {
-  const buildingId = parseId(body.buildingId);
-  const primaryAgentId = parseId(body.primaryAgentId);
-  const coAgentId = body.coAgentId ? parseId(body.coAgentId) : null;
-  const referrerId = body.referrerId ? parseId(body.referrerId) : null;
-  const totalCommission = parseNumber(body.totalCommission);
-  const primaryAgentSharePct = parseNumber(body.primaryAgentSharePct);
-  const coAgentSharePct = parseNumber(body.coAgentSharePct);
+function parseDealAgents(value: unknown): DealAgentPayload[] | null {
+  if (!Array.isArray(value)) return null;
+  const rows = value.map((row) => ({
+    agentId: parseId((row as Record<string, unknown>).agentId) || 0,
+    sharePct: parseNumber((row as Record<string, unknown>).sharePct) ?? Number.NaN,
+    isPrimary: Boolean((row as Record<string, unknown>).isPrimary),
+  }));
+  return rows;
+}
 
-  if (!buildingId || !stringOrNull(body.unit) || !stringOrNull(body.tenantName) || totalCommission === null || !primaryAgentId) {
-    return { error: "buildingId, unit, tenantName, totalCommission, and primaryAgentId are required" };
+async function cleanDealPayload(
+  body: Record<string, unknown>,
+  session: { user: { agentId: number | null; isAdmin: boolean } },
+  options: { allowInactiveAgents?: boolean } = {}
+) {
+  const buildingId = parseId(body.buildingId);
+  const totalCommission = parseNumber(body.totalCommission);
+  const payloadAgents = parseDealAgents(body.agents);
+
+  if (!buildingId || !stringOrNull(body.unit) || !stringOrNull(body.tenantName) || totalCommission === null) {
+    return { error: "buildingId, unit, tenantName, and totalCommission are required" };
+  }
+  if (!payloadAgents || payloadAgents.length === 0) {
+    return { error: "At least one deal agent is required" };
+  }
+
+  const uniqueAgentIds = new Set(payloadAgents.map((agent) => agent.agentId));
+  if (uniqueAgentIds.size !== payloadAgents.length || uniqueAgentIds.has(0)) {
+    return { error: "Deal agents must be unique valid agents" };
+  }
+  if (payloadAgents.filter((agent) => agent.isPrimary).length !== 1) {
+    return { error: "Exactly one primary agent is required" };
+  }
+  const shareTotal = payloadAgents.reduce((sum, agent) => sum + agent.sharePct, 0);
+  if (payloadAgents.some((agent) => !Number.isFinite(agent.sharePct) || agent.sharePct < 0) || Math.abs(shareTotal - 100) > 0.01) {
+    return { error: "Agent shares must sum to 100" };
+  }
+  if (!session.user.isAdmin && !payloadAgents.some((agent) => agent.agentId === session.user.agentId)) {
+    return { error: "Non-admin users must include themselves on the deal", status: 403 };
   }
 
   const building = await db.select().from(buildings).where(eq(buildings.id, buildingId)).get();
   if (!building) return { error: "Building not found", status: 404 };
 
-  const primaryAgent = await db.select().from(agents).where(eq(agents.id, primaryAgentId)).get();
+  const agentRows = await Promise.all(
+    payloadAgents.map((agent) => db.select().from(agents).where(eq(agents.id, agent.agentId)).get())
+  );
+  if (agentRows.some((agent) => !agent)) {
+    return { error: "Every deal agent must exist", status: 404 };
+  }
+  if (!options.allowInactiveAgents && agentRows.some((agent) => agent?.isActive === false)) {
+    return { error: "Every deal agent must be active", status: 400 };
+  }
+
+  const primaryPayload = payloadAgents.find((agent) => agent.isPrimary)!;
+  const primaryAgent = agentRows.find((agent) => agent?.id === primaryPayload.agentId);
   if (!primaryAgent) return { error: "Primary agent not found", status: 404 };
-
-  if (coAgentId) {
-    const coAgent = await db.select().from(agents).where(eq(agents.id, coAgentId)).get();
-    if (!coAgent) return { error: "Co-agent not found", status: 404 };
-    if (coAgentId === primaryAgentId) {
-      return { error: "Co-agent must be different from primary agent" };
-    }
-  }
-
-  if (referrerId) {
-    const referrer = await db.select().from(referrers).where(eq(referrers.id, referrerId)).get();
-    if (!referrer) return { error: "Referrer not found", status: 404 };
-  }
-
-  const primaryShare = coAgentId ? primaryAgentSharePct : primaryAgentSharePct ?? 100;
-  const coShare = coAgentId ? coAgentSharePct : null;
-  if (coAgentId && (primaryShare === null || coShare === null || Math.abs(primaryShare + coShare - 100) > 0.01)) {
-    return { error: "Primary and co-agent shares must sum to 100" };
-  }
 
   const status = stringOrNull(body.status) || "active";
   if (!["active", "cancelled", "completed"].includes(status)) {
@@ -84,11 +111,6 @@ async function cleanDealPayload(body: Record<string, unknown>) {
       leaseLengthMonths: parseId(body.leaseLengthMonths),
       totalCommission,
       licensedCompany: stringOrNull(body.licensedCompany) || primaryAgent.licensedCompany || "Homix Living Inc.",
-      primaryAgentId,
-      primaryAgentSharePct: primaryShare ?? 100,
-      coAgentId,
-      coAgentSharePct: coShare,
-      referrerId,
       referrerName: stringOrNull(body.referrerName),
       referrerType,
       referrerAmount: parseNumber(body.referrerAmount),
@@ -99,16 +121,13 @@ async function cleanDealPayload(body: Record<string, unknown>) {
       notes: stringOrNull(body.notes),
       updatedAt: new Date().toISOString(),
     },
+    agents: payloadAgents,
   };
 }
 
 export async function GET(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user) {
-    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
-  }
-  const sessionAgentId = session.user.agentId;
-  const sessionIsAdmin = session.user.isAdmin;
+  const authResult = await requireActiveAgentApi();
+  if ("error" in authResult) return authResult.error;
 
   const status = req.nextUrl.searchParams.get("status");
   const agentId = req.nextUrl.searchParams.get("agentId");
@@ -116,42 +135,38 @@ export async function GET(req: NextRequest) {
   const to = req.nextUrl.searchParams.get("to");
   const parsedAgentId = agentId ? parseInt(agentId, 10) : null;
 
-  const [dealRows, buildingRows, agentRows, referrerRows, linkRows] = await Promise.all([
-    db.select().from(deals).orderBy(desc(deals.dealDate), desc(deals.createdAt)),
+  const visibilityFilter = dealsVisibleToSql(authResult.session);
+  const [dealRows, buildingRows, agentRows, dealAgentRows, invoiceRows] = await Promise.all([
+    visibilityFilter
+      ? db.select().from(deals).where(visibilityFilter).orderBy(desc(deals.dealDate), desc(deals.createdAt))
+      : db.select().from(deals).orderBy(desc(deals.dealDate), desc(deals.createdAt)),
     db.select().from(buildings),
     db.select().from(agents),
-    db.select().from(referrers),
-    db.select().from(dealInvoices),
+    db.select().from(dealAgents),
+    db.select().from(invoices),
   ]);
 
   const buildingById = new Map(buildingRows.map((building) => [building.id, building]));
   const agentById = new Map(agentRows.map((agent) => [agent.id, agent]));
-  const referrerById = new Map(referrerRows.map((referrer) => [referrer.id, referrer]));
-  const invoiceCountByDeal = linkRows.reduce<Record<number, number>>((acc, link) => {
-    acc[link.dealId] = (acc[link.dealId] || 0) + 1;
+  const invoiceCountByDeal = invoiceRows.reduce<Record<number, number>>((acc, invoice) => {
+    if (invoice.dealId) acc[invoice.dealId] = (acc[invoice.dealId] || 0) + 1;
     return acc;
   }, {});
+  const dealAgentsByDeal = new Map<number, typeof dealAgentRows>();
+  for (const row of dealAgentRows) {
+    const rows = dealAgentsByDeal.get(row.dealId) || [];
+    rows.push(row);
+    dealAgentsByDeal.set(row.dealId, rows);
+  }
 
   const filtered = dealRows.filter((deal) => {
-    // Row-level visibility: non-admin users only see deals where they are
-    // primary or co-agent.
-    if (!sessionIsAdmin) {
-      if (sessionAgentId === null) return false;
-      if (
-        deal.primaryAgentId !== sessionAgentId &&
-        deal.coAgentId !== sessionAgentId
-      ) {
-        return false;
-      }
-    }
-
+    const participantRows = dealAgentsByDeal.get(deal.id) || [];
     const date = getDealDate(deal).slice(0, 10);
     if (status && status !== "all" && deal.status !== status) return false;
     if (
       parsedAgentId &&
       Number.isFinite(parsedAgentId) &&
-      deal.primaryAgentId !== parsedAgentId &&
-      deal.coAgentId !== parsedAgentId
+      !participantRows.some((row) => row.agentId === parsedAgentId)
     ) {
       return false;
     }
@@ -161,29 +176,51 @@ export async function GET(req: NextRequest) {
   });
 
   return NextResponse.json(
-    filtered.map((deal) => ({
-      deal,
-      building: buildingById.get(deal.buildingId) || null,
-      primaryAgent: agentById.get(deal.primaryAgentId) || null,
-      coAgent: deal.coAgentId ? agentById.get(deal.coAgentId) || null : null,
-      referrer: deal.referrerId ? referrerById.get(deal.referrerId) || null : null,
-      invoiceCount: invoiceCountByDeal[deal.id] || 0,
-    }))
+    filtered.map((deal) => {
+      const participantRows = dealAgentsByDeal.get(deal.id) || [];
+      const participants = participantRows.map((row) => ({
+        ...row,
+        agent: agentById.get(row.agentId) || null,
+      }));
+      const primary = participants.find((row) => row.isPrimary);
+      return {
+        deal,
+        building: buildingById.get(deal.buildingId) || null,
+        agents: participants,
+        primaryAgent: primary?.agent || null,
+        invoiceCount: invoiceCountByDeal[deal.id] || 0,
+      };
+    })
   );
 }
 
 export async function POST(req: NextRequest) {
+  const authResult = await requireActiveAgentApi();
+  if ("error" in authResult) return authResult.error;
+
   try {
     const body = await req.json();
-    const result = await cleanDealPayload(body);
+    const result = await cleanDealPayload(body, authResult.session);
     if ("error" in result) {
       return NextResponse.json({ error: result.error }, { status: result.status || 400 });
     }
-    const [created] = await db
-      .insert(deals)
-      .values({ ...result.data, createdAt: new Date().toISOString() })
-      .returning();
-    return NextResponse.json(created, { status: 201 });
+
+    const now = new Date().toISOString();
+    const batchResult = await db.batch([
+      db.insert(deals).values({ ...result.data, createdAt: now }).returning(),
+      ...result.agents.map((agent) =>
+        db.insert(dealAgents).values({
+          dealId: sql`(SELECT id FROM deals ORDER BY id DESC LIMIT 1)`,
+          agentId: agent.agentId,
+          sharePct: agent.sharePct,
+          isPrimary: agent.isPrimary,
+          createdAt: now,
+        })
+      ),
+    ]);
+
+    const createdRows = batchResult[0] as (typeof deals.$inferSelect)[];
+    return NextResponse.json(createdRows[0], { status: 201 });
   } catch {
     return NextResponse.json({ error: "Deal creation failed" }, { status: 500 });
   }

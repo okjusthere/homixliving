@@ -64,74 +64,20 @@ export const teams = sqliteTable("teams", {
   name: text("name").notNull(),
   leaderAgentId: integer("leader_agent_id").references((): AnySQLiteColumn => agents.id),
   notes: text("notes"),
-  createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
-  updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
 });
 
 export const agents = sqliteTable("agents", {
   id: integer("id").primaryKey({ autoIncrement: true }),
-  userId: text("user_id").references((): AnySQLiteColumn => users.id, { onDelete: "set null" }),
   name: text("name").notNull(),
-  email: text("email"),
+  email: text("email").notNull().unique(),
   phone: text("phone"),
   licenseNumber: text("license_number"),
   licensedCompany: text("licensed_company"),
   splitPct: real("split_pct").notNull().default(50),
-  teamId: integer("team_id").references((): AnySQLiteColumn => teams.id),
-  isActive: integer("is_active", { mode: "boolean" }).default(false), // false = pending approval
-  isAdmin: integer("is_admin", { mode: "boolean" }).default(false),
+  teamId: integer("team_id").references((): AnySQLiteColumn => teams.id, { onDelete: "set null" }),
+  isAdmin: integer("is_admin", { mode: "boolean" }).notNull().default(false),
+  isActive: integer("is_active", { mode: "boolean" }).notNull().default(false),
   joinedAt: text("joined_at"),
-  notes: text("notes"),
-  createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
-  updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
-});
-
-// ============================================================
-// Auth.js (NextAuth) tables — required by @auth/drizzle-adapter
-// ============================================================
-export const users = sqliteTable("users", {
-  id: text("id").primaryKey(),
-  name: text("name"),
-  email: text("email").unique(),
-  emailVerified: integer("emailVerified", { mode: "timestamp_ms" }),
-  image: text("image"),
-});
-
-export const accounts = sqliteTable("accounts", {
-  userId: text("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
-  type: text("type").notNull(),
-  provider: text("provider").notNull(),
-  providerAccountId: text("providerAccountId").notNull(),
-  refresh_token: text("refresh_token"),
-  access_token: text("access_token"),
-  expires_at: integer("expires_at"),
-  token_type: text("token_type"),
-  scope: text("scope"),
-  id_token: text("id_token"),
-  session_state: text("session_state"),
-}, (account) => [primaryKey({ columns: [account.provider, account.providerAccountId] })]);
-
-export const sessions = sqliteTable("sessions", {
-  sessionToken: text("sessionToken").primaryKey(),
-  userId: text("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
-  expires: integer("expires", { mode: "timestamp_ms" }).notNull(),
-});
-
-export const verificationTokens = sqliteTable("verificationTokens", {
-  identifier: text("identifier").notNull(),
-  token: text("token").notNull(),
-  expires: integer("expires", { mode: "timestamp_ms" }).notNull(),
-}, (vt) => [primaryKey({ columns: [vt.identifier, vt.token] })]);
-
-export type User = typeof users.$inferSelect;
-
-export const referrers = sqliteTable("referrers", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  name: text("name").notNull(),
-  email: text("email"),
-  phone: text("phone"),
-  defaultReferralType: text("default_referral_type"),
-  defaultReferralAmount: real("default_referral_amount"),
   notes: text("notes"),
   createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
   updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
@@ -154,19 +100,7 @@ export const deals = sqliteTable("deals", {
   leaseLengthMonths: integer("lease_length_months"),
   totalCommission: real("total_commission").notNull(),
   licensedCompany: text("licensed_company").notNull(),
-  primaryAgentId: integer("primary_agent_id")
-    .notNull()
-    .references(() => agents.id),
-  primaryAgentSharePct: real("primary_agent_share_pct").notNull().default(100),
-  coAgentId: integer("co_agent_id").references(() => agents.id),
-  coAgentSharePct: real("co_agent_share_pct"),
-  // Legacy: referrerId is kept for old deals that linked to the referrers
-  // table. New deals capture referrer info inline below — most referrers are
-  // ad-hoc external people (parents' friends, school staff) that don't need a
-  // master record. Display logic prefers `referrerName` and falls back to the
-  // FK lookup for legacy rows.
-  referrerId: integer("referrer_id").references(() => referrers.id),
-  referrerName: text("referrer_name"), // free-text name for ad-hoc referrers
+  referrerName: text("referrer_name"), // free-text referral contact name
   referrerType: text("referrer_type"),
   referrerAmount: real("referrer_amount"),
   // Payment instructions for paying the referrer once Homix gets paid by the
@@ -186,18 +120,20 @@ export const deals = sqliteTable("deals", {
   updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
 });
 
-export const dealInvoices = sqliteTable(
-  "deal_invoices",
+export const dealAgents = sqliteTable(
+  "deal_agents",
   {
     dealId: integer("deal_id")
       .notNull()
       .references(() => deals.id, { onDelete: "cascade" }),
-    invoiceId: integer("invoice_id")
+    agentId: integer("agent_id")
       .notNull()
-      .references(() => invoices.id, { onDelete: "cascade" }),
+      .references(() => agents.id, { onDelete: "restrict" }),
+    sharePct: real("share_pct").notNull(),
+    isPrimary: integer("is_primary", { mode: "boolean" }).notNull().default(false),
     createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
   },
-  (table) => [primaryKey({ columns: [table.dealId, table.invoiceId] })]
+  (table) => [primaryKey({ columns: [table.dealId, table.agentId] })]
 );
 
 // ============================================================
@@ -209,8 +145,7 @@ export const invoiceSendLog = sqliteTable("invoice_send_log", {
   invoiceId: integer("invoice_id")
     .notNull()
     .references(() => invoices.id, { onDelete: "cascade" }),
-  // Who initiated the send. userId may be null if cleared later; email is a snapshot.
-  sentByUserId: text("sent_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  // Who initiated the send. Email is snapshotted so history survives roster changes.
   sentByEmail: text("sent_by_email"),
   // Recipient snapshot (comma-separated). Not normalized — captured as sent.
   toRecipients: text("to_recipients").notNull(),
@@ -237,11 +172,9 @@ export type Team = typeof teams.$inferSelect;
 export type NewTeam = typeof teams.$inferInsert;
 export type Agent = typeof agents.$inferSelect;
 export type NewAgent = typeof agents.$inferInsert;
-export type Referrer = typeof referrers.$inferSelect;
-export type NewReferrer = typeof referrers.$inferInsert;
 export type Deal = typeof deals.$inferSelect;
 export type NewDeal = typeof deals.$inferInsert;
-export type DealInvoice = typeof dealInvoices.$inferSelect;
-export type NewDealInvoice = typeof dealInvoices.$inferInsert;
+export type DealAgent = typeof dealAgents.$inferSelect;
+export type NewDealAgent = typeof dealAgents.$inferInsert;
 export type InvoiceSendLog = typeof invoiceSendLog.$inferSelect;
 export type NewInvoiceSendLog = typeof invoiceSendLog.$inferInsert;

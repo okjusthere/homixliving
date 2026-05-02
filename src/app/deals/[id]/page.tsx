@@ -7,16 +7,19 @@ import { toast } from "sonner";
 import { Btn, Card, Icons, Pill, SoftField } from "@/components/homix/primitives";
 import { DealBreakdownBar } from "@/components/homix/deal-breakdown";
 import { fmtDate, fmtLongDate, fmtMoney, tone } from "@/components/homix/tokens";
-import type { Agent, Building, Deal, Invoice, Referrer } from "@/db/schema";
+import type { Agent, Building, Deal, Invoice } from "@/db/schema";
 import type { CommissionBreakdown } from "@/lib/commission";
 import { sourceEmoji, sourceLabel } from "@/lib/sources";
 
 type DealPayload = {
   deal: Deal;
   building: Building | null;
+  agents: Array<{
+    agent: Agent;
+    sharePct: number;
+    isPrimary: boolean;
+  }>;
   primaryAgent: Agent | null;
-  coAgent: Agent | null;
-  referrer: Referrer | null;
   linkedInvoices: Invoice[];
 };
 
@@ -71,11 +74,20 @@ export default function DealDetailPage() {
   const cancelDeal = async () => {
     if (!payload?.deal) return;
     if (!confirm("Cancel this deal?")) return;
+    const updatePayload = {
+      ...payload.deal,
+      status: "cancelled",
+      agents: payload.agents.map((participant) => ({
+        agentId: participant.agent.id,
+        sharePct: participant.sharePct,
+        isPrimary: participant.isPrimary,
+      })),
+    };
     try {
       const res = await fetch(`/api/deals/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...payload.deal, status: "cancelled" }),
+        body: JSON.stringify(updatePayload),
       });
       if (!res.ok) throw new Error();
       toast.success("Deal cancelled");
@@ -106,11 +118,8 @@ export default function DealDetailPage() {
     );
   }
 
-  const { deal, building, primaryAgent, coAgent, referrer, linkedInvoices } = payload;
-  // New deals capture referrer info inline on the deal row; legacy deals point
-  // to the `referrers` table via referrerId. Display prefers the inline value
-  // and falls back to the FK lookup so old deals still render correctly.
-  const referrerDisplayName = deal.referrerName || referrer?.name || null;
+  const { deal, building, linkedInvoices } = payload;
+  const referrerDisplayName = deal.referrerName || null;
   const referrerLabel =
     deal.referrerType === "percent"
       ? `${deal.referrerAmount || 0}%`
@@ -215,26 +224,23 @@ export default function DealDetailPage() {
               </div>
             </div>
             <div className="p-6 grid gap-4 md:grid-cols-2">
-              <div className="rounded-xl p-4" style={{ background: tone.paper, border: `1px solid ${tone.lineSoft}` }}>
-                <Pill tone="accent">Primary {deal.primaryAgentSharePct}%</Pill>
-                <div className="mt-3 font-serif" style={{ fontSize: 22, color: tone.ink }}>
-                  {primaryAgent.name}
-                </div>
-                <div className="mt-1 text-[12px]" style={{ color: tone.ink50 }}>
-                  {Number(primaryAgent.splitPct || 0)}% agent split · {primaryAgent.licensedCompany || deal.licensedCompany}
-                </div>
-              </div>
-              {coAgent && (
-                <div className="rounded-xl p-4" style={{ background: tone.paper, border: `1px solid ${tone.lineSoft}` }}>
-                  <Pill tone="neutral">Co-agent {deal.coAgentSharePct}%</Pill>
+              {payload.agents.map((participant) => (
+                <div
+                  key={participant.agent.id}
+                  className="rounded-xl p-4"
+                  style={{ background: tone.paper, border: `1px solid ${tone.lineSoft}` }}
+                >
+                  <Pill tone={participant.isPrimary ? "accent" : "neutral"}>
+                    {participant.isPrimary ? "Primary" : "Agent"} {Number(participant.sharePct || 0)}%
+                  </Pill>
                   <div className="mt-3 font-serif" style={{ fontSize: 22, color: tone.ink }}>
-                    {coAgent.name}
+                    {participant.agent.name}
                   </div>
                   <div className="mt-1 text-[12px]" style={{ color: tone.ink50 }}>
-                    {Number(coAgent.splitPct || 0)}% agent split · {coAgent.licensedCompany || "—"}
+                    {Number(participant.agent.splitPct || 0)}% agent split · {participant.agent.licensedCompany || deal.licensedCompany}
                   </div>
                 </div>
-              )}
+              ))}
             </div>
           </Card>
 
@@ -274,26 +280,20 @@ export default function DealDetailPage() {
                     </div>
                   )}
                   <div style={{ borderTop: `1px solid ${tone.lineSoft}` }} />
-                  <div className="flex justify-between" style={{ color: tone.ink }}>
-                    <span>Primary Agent — {primaryAgent.name}</span>
-                    <span className="font-mono">${fmtMoney(breakdown.primaryAgentTake)} take</span>
-                  </div>
-                  <div className="flex justify-between text-[12px]" style={{ color: tone.ink50 }}>
-                    <span>Company from primary</span>
-                    <span className="font-mono">${fmtMoney(breakdown.primaryCompanyPool)}</span>
-                  </div>
-                  {coAgent && (
-                    <>
+                  {breakdown.agents.map((agentBreakdown) => (
+                    <div key={agentBreakdown.agentId} className="space-y-1">
                       <div className="flex justify-between" style={{ color: tone.ink }}>
-                        <span>Co-Agent — {coAgent.name}</span>
-                        <span className="font-mono">${fmtMoney(breakdown.coAgentTake)} take</span>
+                        <span>
+                          {agentBreakdown.isPrimary ? "Primary" : "Agent"} — {agentBreakdown.name || "Unknown"}
+                        </span>
+                        <span className="font-mono">${fmtMoney(agentBreakdown.agentTake)} take</span>
                       </div>
                       <div className="flex justify-between text-[12px]" style={{ color: tone.ink50 }}>
-                        <span>Company from co-agent</span>
-                        <span className="font-mono">${fmtMoney(breakdown.coCompanyPool)}</span>
+                        <span>Company pool</span>
+                        <span className="font-mono">${fmtMoney(agentBreakdown.companyPool)}</span>
                       </div>
-                    </>
-                  )}
+                    </div>
+                  ))}
                   <div style={{ borderTop: `1px solid ${tone.lineSoft}` }} />
                   <div className="flex justify-between font-medium" style={{ color: tone.green }}>
                     <span>Agent take total</span>

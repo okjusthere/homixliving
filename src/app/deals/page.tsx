@@ -10,8 +10,11 @@ import type { Agent, Building, Deal } from "@/db/schema";
 type DealRow = {
   deal: Deal;
   building: Building | null;
-  primaryAgent: Agent | null;
-  coAgent: Agent | null;
+  agents: Array<{
+    agent: Agent | null;
+    sharePct: number;
+    isPrimary: boolean;
+  }>;
   invoiceCount: number;
 };
 
@@ -54,8 +57,9 @@ export default function DealsPage() {
         row.deal.tenantName.toLowerCase().includes(q) ||
         row.deal.unit.toLowerCase().includes(q) ||
         (row.building?.name || "").toLowerCase().includes(q) ||
-        (row.primaryAgent?.name || "").toLowerCase().includes(q) ||
-        (row.coAgent?.name || "").toLowerCase().includes(q)
+        row.agents.some((participant) =>
+          (participant.agent?.name || "").toLowerCase().includes(q)
+        )
       );
     });
   }, [deals, search, status]);
@@ -150,7 +154,10 @@ export default function DealsPage() {
             )}
           </div>
         ) : (
-          filtered.map(({ deal, building, primaryAgent, coAgent }, index) => (
+          filtered.map(({ deal, building, agents }, index) => {
+            const primary = agents.find((participant) => participant.isPrimary);
+            const others = agents.filter((participant) => !participant.isPrimary);
+            return (
             <Link
               key={deal.id}
               href={`/deals/${deal.id}`}
@@ -181,11 +188,13 @@ export default function DealsPage() {
               </div>
               <div>
                 <div className="text-[12.5px]" style={{ color: tone.ink70 }}>
-                  {primaryAgent?.name || "—"}
+                  {primary?.agent?.name || "—"}
                 </div>
-                {coAgent && (
+                {others.length > 0 && (
                   <div className="mt-1">
-                    <Pill tone="neutral">Co {coAgent.name}</Pill>
+                    <Pill tone="neutral">
+                      +{others.length} agent{others.length === 1 ? "" : "s"}
+                    </Pill>
                   </div>
                 )}
               </div>
@@ -199,7 +208,8 @@ export default function DealsPage() {
                 <Pill tone={statusTone(deal.status)}>{deal.status}</Pill>
               </div>
             </Link>
-          ))
+            );
+          })
         )}
       </Card>
     </div>

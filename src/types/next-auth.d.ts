@@ -13,7 +13,6 @@ declare module "next-auth" {
 
 declare module "@auth/core/jwt" {
   interface JWT {
-    userId?: string;
     agentId?: number | null;
     isAdmin?: boolean;
     isActive?: boolean;

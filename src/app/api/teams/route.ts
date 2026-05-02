@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { agents, deals, teams } from "@/db/schema";
+import { agents, dealAgents, deals, teams } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import {
   activeDeal,
+  commissionAgentsForDeal,
   dealInMonth,
   getAgentTakeForDeal,
   getMonthKey,
   type DealForReporting,
 } from "@/lib/reporting";
+import { requireActiveAgentApi, requireAdminApi } from "@/lib/auth-guards";
 
 function parseId(value: unknown) {
   const parsed = parseInt(String(value), 10);
@@ -16,10 +18,14 @@ function parseId(value: unknown) {
 }
 
 export async function GET() {
-  const [teamRows, agentRows, dealRows] = await Promise.all([
+  const authResult = await requireActiveAgentApi();
+  if ("error" in authResult) return authResult.error;
+
+  const [teamRows, agentRows, dealRows, dealAgentRows] = await Promise.all([
     db.select().from(teams).orderBy(teams.name),
     db.select().from(agents).orderBy(agents.name),
     db.select().from(deals),
+    db.select().from(dealAgents),
   ]);
   const agentById = new Map(agentRows.map((agent) => [agent.id, agent]));
   const month = getMonthKey();
@@ -27,33 +33,38 @@ export async function GET() {
   const result = teamRows.map((team) => {
     const members = agentRows.filter((agent) => agent.teamId === team.id && agent.isActive !== false);
     const memberIds = new Set(members.map((agent) => agent.id));
+    const memberDealIds = new Set(
+      dealAgentRows
+        .filter((dealAgent) => memberIds.has(dealAgent.agentId))
+        .map((dealAgent) => dealAgent.dealId)
+    );
     const monthDeals = dealRows.filter(
       (deal) =>
         activeDeal(deal) &&
         dealInMonth(deal, month) &&
-        (memberIds.has(deal.primaryAgentId) || (deal.coAgentId ? memberIds.has(deal.coAgentId) : false))
+        memberDealIds.has(deal.id)
     );
     const mtdTake = monthDeals.reduce((sum, deal) => {
-      const primaryAgent = agentById.get(deal.primaryAgentId);
-      const coAgent = deal.coAgentId ? agentById.get(deal.coAgentId) : null;
-      const primaryTake = memberIds.has(deal.primaryAgentId)
-        ? getAgentTakeForDeal({
-            deal: deal as DealForReporting,
-            agentId: deal.primaryAgentId,
-            primaryAgentSplitPct: Number(primaryAgent?.splitPct || 0),
-            coAgentSplitPct: Number(coAgent?.splitPct || 0),
-          })
-        : 0;
-      const coTake =
-        deal.coAgentId && memberIds.has(deal.coAgentId)
-          ? getAgentTakeForDeal({
-              deal: deal as DealForReporting,
-              agentId: deal.coAgentId,
-              primaryAgentSplitPct: Number(primaryAgent?.splitPct || 0),
-              coAgentSplitPct: Number(coAgent?.splitPct || 0),
-            })
-          : 0;
-      return sum + primaryTake + coTake;
+      const participants = commissionAgentsForDeal({
+        dealId: deal.id,
+        dealAgents: dealAgentRows,
+        agents: agentRows,
+      });
+      return (
+        sum +
+        participants
+          .filter((participant) => memberIds.has(participant.agentId))
+          .reduce(
+            (participantSum, participant) =>
+              participantSum +
+              getAgentTakeForDeal({
+                deal: deal as DealForReporting,
+                agentId: participant.agentId,
+                participants,
+              }),
+            0
+          )
+      );
     }, 0);
 
     return {
@@ -70,6 +81,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const authResult = await requireAdminApi();
+  if ("error" in authResult) return authResult.error;
+
   try {
     const body = await req.json();
     const name = String(body.name || "").trim();
@@ -81,8 +95,6 @@ export async function POST(req: NextRequest) {
         name,
         leaderAgentId,
         notes: body.notes ? String(body.notes) : null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
       })
       .returning();
     return NextResponse.json(created, { status: 201 });
@@ -92,6 +104,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
+  const authResult = await requireAdminApi();
+  if ("error" in authResult) return authResult.error;
+
   try {
     const body = await req.json();
     const id = parseId(body.id);
@@ -105,7 +120,6 @@ export async function PUT(req: NextRequest) {
         name,
         leaderAgentId,
         notes: body.notes ? String(body.notes) : null,
-        updatedAt: new Date().toISOString(),
       })
       .where(eq(teams.id, id))
       .returning();
@@ -117,6 +131,9 @@ export async function PUT(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const authResult = await requireAdminApi();
+  if ("error" in authResult) return authResult.error;
+
   try {
     const { id } = await req.json();
     const parsedId = parseId(id);

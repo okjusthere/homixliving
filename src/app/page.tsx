@@ -1,15 +1,16 @@
 import Link from "next/link";
 import { db } from "@/db";
-import { agents, buildings, deals, invoices } from "@/db/schema";
-import { eq, count, sql } from "drizzle-orm";
+import { agents, buildings, dealAgents, deals, invoices } from "@/db/schema";
 import { tone, fmtMoney, fmtDate } from "@/components/homix/tokens";
 import { Pill, Card } from "@/components/homix/server-primitives";
 import { IconChev } from "@/components/homix/icons";
 import { DashboardCTA } from "@/components/homix/dashboard-cta";
 import { computeCommission } from "@/lib/commission";
-import { activeDeal, dealInMonth, getMonthKey } from "@/lib/reporting";
+import { activeDeal, commissionAgentsForDeal, dealInMonth, getMonthKey } from "@/lib/reporting";
 import { isUpcoming } from "@/lib/renewals";
 import { summarize, totalOutstanding } from "@/lib/aging";
+import { requireActiveAgent } from "@/lib/auth-guards";
+import { dealsVisibleToSql } from "@/lib/visibility";
 
 export const dynamic = "force-dynamic";
 
@@ -61,43 +62,45 @@ function Stat({
 }
 
 export default async function Dashboard() {
+  const session = await requireActiveAgent();
   const now = new Date();
   const currentMonth = getMonthKey(now);
-  const [totalBuildingsRow] = await db.select({ count: count() }).from(buildings);
-  const [totalInvoicesRow] = await db.select({ count: count() }).from(invoices);
-  const [sentInvoicesRow] = await db
-    .select({ count: count() })
-    .from(invoices)
-    .where(eq(invoices.status, "sent"));
-  const [draftInvoicesRow] = await db
-    .select({ count: count() })
-    .from(invoices)
-    .where(eq(invoices.status, "draft"));
-  const [failedInvoicesRow] = await db
-    .select({ count: count() })
-    .from(invoices)
-    .where(eq(invoices.status, "failed"));
-  const [totalAmountRow] = await db
-    .select({ total: sql<number>`COALESCE(SUM(${invoices.totalAmount}), 0)` })
-    .from(invoices);
-  const [sentAmountRow] = await db
-    .select({ total: sql<number>`COALESCE(SUM(${invoices.totalAmount}), 0)` })
-    .from(invoices)
-    .where(eq(invoices.status, "sent"));
-  const [draftAmountRow] = await db
-    .select({ total: sql<number>`COALESCE(SUM(${invoices.totalAmount}), 0)` })
-    .from(invoices)
-    .where(eq(invoices.status, "draft"));
-  const [outOfStateRow] = await db
-    .select({ count: count() })
-    .from(buildings)
-    .where(eq(buildings.isOutOfState, true));
+  const visibilityFilter = dealsVisibleToSql(session);
+  const [buildingRows, invoiceRows, allAgentRows, allDealAgentRows, allDealRows] = await Promise.all([
+    db.select().from(buildings),
+    db.select().from(invoices),
+    db.select().from(agents),
+    db.select().from(dealAgents),
+    visibilityFilter
+      ? db.select().from(deals).where(visibilityFilter)
+      : db.select().from(deals),
+  ]);
 
-  // Outstanding (sent, not yet paid) — used for aging rollup
-  const sentInvoiceRows = await db
-    .select({ status: invoices.status, sentAt: invoices.sentAt, totalAmount: invoices.totalAmount })
-    .from(invoices)
-    .where(eq(invoices.status, "sent"));
+  const visibleDealIds = new Set(allDealRows.map((deal) => deal.id));
+  const visibleInvoiceRows = session.user.isAdmin
+    ? invoiceRows
+    : invoiceRows.filter((invoice) => {
+        if (invoice.dealId) return visibleDealIds.has(invoice.dealId);
+        return invoice.agentEmail?.toLowerCase() === session.user.email?.toLowerCase();
+      });
+
+  const totalBuildingsCount = buildingRows.length;
+  const totalInvoicesCount = visibleInvoiceRows.length;
+  const draftInvoicesCount = visibleInvoiceRows.filter((invoice) => invoice.status === "draft").length;
+  const failedInvoicesCount = visibleInvoiceRows.filter((invoice) => invoice.status === "failed").length;
+  const totalAmount = visibleInvoiceRows.reduce((sum, invoice) => sum + Number(invoice.totalAmount || 0), 0);
+  const draftAmount = visibleInvoiceRows
+    .filter((invoice) => invoice.status === "draft")
+    .reduce((sum, invoice) => sum + Number(invoice.totalAmount || 0), 0);
+  const outOfStateCount = buildingRows.filter((building) => building.isOutOfState).length;
+
+  const sentInvoiceRows = visibleInvoiceRows
+    .filter((invoice) => invoice.status === "sent")
+    .map((invoice) => ({
+      status: invoice.status,
+      sentAt: invoice.sentAt,
+      totalAmount: invoice.totalAmount,
+    }));
   const agingSummary = summarize(sentInvoiceRows);
   const outstanding = totalOutstanding(agingSummary);
   const overdueAmount =
@@ -109,74 +112,51 @@ export default async function Dashboard() {
     agingSummary["60-90"].count +
     agingSummary["90+"].count;
 
-  const allDealRows = await db.select().from(deals);
   const upcomingRenewals = allDealRows.filter(isUpcoming);
-  const allAgentRows = await db.select().from(agents);
   const agentById = new Map(allAgentRows.map((agent) => [agent.id, agent]));
   const mtdDeals = allDealRows.filter((deal) => activeDeal(deal) && dealInMonth(deal, currentMonth));
   const commissionMtd = mtdDeals.reduce((sum, deal) => sum + Number(deal.totalCommission || 0), 0);
   const agentTakeById = new Map<number, number>();
   for (const deal of mtdDeals) {
-    const primaryAgent = agentById.get(deal.primaryAgentId);
-    const coAgent = deal.coAgentId ? agentById.get(deal.coAgentId) : null;
+    const participants = commissionAgentsForDeal({
+      dealId: deal.id,
+      dealAgents: allDealAgentRows,
+      agents: allAgentRows,
+    });
     const breakdown = computeCommission({
       totalCommission: Number(deal.totalCommission || 0),
       referrer:
         deal.referrerType === "percent" || deal.referrerType === "flat"
           ? { type: deal.referrerType, amount: Number(deal.referrerAmount || 0) }
           : null,
-      primaryAgentSharePct: Number(deal.primaryAgentSharePct || 100),
-      primaryAgentSplitPct: Number(primaryAgent?.splitPct || 0),
-      coAgent: deal.coAgentId
-        ? { sharePct: Number(deal.coAgentSharePct || 0), splitPct: Number(coAgent?.splitPct || 0) }
-        : null,
+      agents: participants,
     });
-    if (primaryAgent) {
-      agentTakeById.set(primaryAgent.id, (agentTakeById.get(primaryAgent.id) || 0) + breakdown.primaryAgentTake);
-    }
-    if (coAgent) {
-      agentTakeById.set(coAgent.id, (agentTakeById.get(coAgent.id) || 0) + breakdown.coAgentTake);
+    for (const participant of breakdown.agents) {
+      agentTakeById.set(
+        participant.agentId,
+        (agentTakeById.get(participant.agentId) || 0) + participant.agentTake
+      );
     }
   }
   const topAgentEntry = Array.from(agentTakeById.entries()).sort((a, b) => b[1] - a[1])[0];
   const topAgent = topAgentEntry ? agentById.get(topAgentEntry[0]) : null;
 
-  const recentInvoices = await db
-    .select({
-      invoice: invoices,
-      buildingName: buildings.name,
-      buildingRegion: buildings.region,
-      buildingManagement: buildings.managementCompany,
-    })
-    .from(invoices)
-    .leftJoin(buildings, eq(invoices.buildingId, buildings.id))
-    .orderBy(sql`${invoices.createdAt} DESC`)
-    .limit(5);
+  const buildingById = new Map(buildingRows.map((building) => [building.id, building]));
+  const recentInvoices = [...visibleInvoiceRows]
+    .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))
+    .slice(0, 5)
+    .map((invoice) => ({
+      invoice,
+      buildingName: invoice.buildingId ? buildingById.get(invoice.buildingId)?.name || null : null,
+    }));
 
-  const recentDeals = await db
-    .select({
-      deal: deals,
-      buildingName: buildings.name,
-    })
-    .from(deals)
-    .leftJoin(buildings, eq(deals.buildingId, buildings.id))
-    .orderBy(sql`${deals.createdAt} DESC`)
-    .limit(5);
-
-  // Top buildings by invoice volume
-  const topBuildings = await db
-    .select({
-      id: buildings.id,
-      name: buildings.name,
-      region: buildings.region,
-      managementCompany: buildings.managementCompany,
-      count: sql<number>`COUNT(${invoices.id})`,
-    })
-    .from(buildings)
-    .leftJoin(invoices, eq(invoices.buildingId, buildings.id))
-    .groupBy(buildings.id)
-    .orderBy(sql`COUNT(${invoices.id}) DESC`, buildings.name)
-    .limit(5);
+  const recentDeals = [...allDealRows]
+    .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))
+    .slice(0, 5)
+    .map((deal) => ({
+      deal,
+      buildingName: buildingById.get(deal.buildingId)?.name || null,
+    }));
 
   const longDate = now.toLocaleDateString("en-US", {
     weekday: "long",
@@ -186,8 +166,6 @@ export default async function Dashboard() {
   });
   const hour = now.getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
-
-  const maxCount = Math.max(1, ...topBuildings.map((b) => Number(b.count || 0)));
 
   return (
     <div className="space-y-10">
@@ -209,11 +187,11 @@ export default async function Dashboard() {
             {greeting}.
           </h1>
           <p className="mt-4 text-[15px] max-w-xl" style={{ color: tone.ink70 }}>
-            {draftInvoicesRow.count} invoice{draftInvoicesRow.count === 1 ? "" : "s"} waiting to send
-            {failedInvoicesRow.count > 0 && `, ${failedInvoicesRow.count} need attention`}.
+            {draftInvoicesCount} invoice{draftInvoicesCount === 1 ? "" : "s"} waiting to send
+            {failedInvoicesCount > 0 && `, ${failedInvoicesCount} need attention`}.
             {" "}
             <span style={{ color: tone.ink }}>
-              ${fmtMoney(Number(draftAmountRow.total || 0))}
+              ${fmtMoney(draftAmount)}
             </span>{" "}
             in draft.
           </p>
@@ -251,8 +229,8 @@ export default async function Dashboard() {
           <div>
             <Stat
               label="Pending Invoices"
-              value={draftInvoicesRow.count}
-              sub={`$${fmtMoney(Number(draftAmountRow.total || 0))} in draft`}
+              value={draftInvoicesCount}
+              sub={`$${fmtMoney(draftAmount)} in draft`}
               toneKey="amber"
             />
           </div>
@@ -265,8 +243,8 @@ export default async function Dashboard() {
           <div style={{ borderRight: `1px solid ${tone.line}` }}>
             <Stat
               label="Invoiced YTD"
-              value={`$${fmtMoney(Number(totalAmountRow.total || 0))}`}
-              sub={`Across ${totalInvoicesRow.count} invoice${totalInvoicesRow.count === 1 ? "" : "s"}`}
+              value={`$${fmtMoney(totalAmount)}`}
+              sub={`Across ${totalInvoicesCount} invoice${totalInvoicesCount === 1 ? "" : "s"}`}
               big
             />
           </div>
@@ -297,8 +275,8 @@ export default async function Dashboard() {
           <div>
             <Stat
               label="Buildings"
-              value={totalBuildingsRow.count}
-              sub={`${outOfStateRow.count} out of state`}
+              value={totalBuildingsCount}
+              sub={`${outOfStateCount} out of state`}
             />
           </div>
         </div>
@@ -415,7 +393,12 @@ export default async function Dashboard() {
               </div>
             ) : (
               recentDeals.map(({ deal, buildingName }, i) => {
-                const primaryAgent = agentById.get(deal.primaryAgentId);
+                const primaryDealAgent = allDealAgentRows.find(
+                  (row) => row.dealId === deal.id && row.isPrimary
+                );
+                const primaryAgent = primaryDealAgent
+                  ? agentById.get(primaryDealAgent.agentId)
+                  : null;
                 return (
                   <Link
                     key={deal.id}

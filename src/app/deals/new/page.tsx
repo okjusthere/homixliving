@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import { Btn, Card, EditorialInput, Icons, LabeledField, Pill } from "@/components/homix/primitives";
 import { DealBreakdownBar } from "@/components/homix/deal-breakdown";
@@ -10,6 +11,12 @@ import { fmtMoney, tone } from "@/components/homix/tokens";
 import { computeCommission } from "@/lib/commission";
 import { SOURCE_OPTIONS, type DealSource } from "@/lib/sources";
 import type { Agent, Building } from "@/db/schema";
+
+type DealParticipantInput = {
+  agentId: number | null;
+  sharePct: number;
+  isPrimary: boolean;
+};
 
 function initials(name: string) {
   return name
@@ -22,6 +29,7 @@ function initials(name: string) {
 
 export default function NewDealPage() {
   const router = useRouter();
+  const { data: session } = useSession();
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [agents, setAgents] = useState<Array<{ agent: Agent; teamName: string | null }>>([]);
   const [saving, setSaving] = useState(false);
@@ -87,15 +95,10 @@ export default function NewDealPage() {
   const [moveInDate, setMoveInDate] = useState("");
   const [leaseLengthMonths, setLeaseLengthMonths] = useState(12);
   const [rentAmount, setRentAmount] = useState("");
-  const [primaryAgentId, setPrimaryAgentId] = useState<number | null>(null);
-  const [hasCoAgent, setHasCoAgent] = useState(false);
-  const [coAgentId, setCoAgentId] = useState<number | null>(null);
-  const [primaryAgentSharePct, setPrimaryAgentSharePct] = useState(50);
+  const [dealParticipants, setDealParticipants] = useState<DealParticipantInput[]>([
+    { agentId: null, sharePct: 100, isPrimary: true },
+  ]);
   const [hasReferrer, setHasReferrer] = useState(false);
-  // Free-text name + payment-info supersede the old `referrerId` dropdown.
-  // Most referrers are ad-hoc external people (parent's friend, school staff)
-  // that don't need a master record. The legacy `referrers` table is still
-  // there for old deals; new deals just write these two strings to `deals`.
   const [referrerName, setReferrerName] = useState("");
   const [referrerType, setReferrerType] = useState<"percent" | "flat">("percent");
   const [referrerAmount, setReferrerAmount] = useState("");
@@ -113,7 +116,6 @@ export default function NewDealPage() {
       setAgents(agentRows);
       const initialBuildingId = new URLSearchParams(window.location.search).get("buildingId");
       if (initialBuildingId) setBuildingId(Number(initialBuildingId));
-      if (agentRows[0]?.agent?.id) setPrimaryAgentId(agentRows[0].agent.id);
     });
   }, []);
 
@@ -121,14 +123,28 @@ export default function NewDealPage() {
     () => buildings.find((building) => building.id === buildingId) || null,
     [buildings, buildingId]
   );
-  const primaryAgent = useMemo(
-    () => agents.find((row) => row.agent.id === primaryAgentId)?.agent || null,
-    [agents, primaryAgentId]
+  useEffect(() => {
+    if (dealParticipants[0]?.agentId || agents.length === 0) return;
+    const currentAgentId = session?.user?.agentId;
+    const defaultAgent =
+      agents.find((row) => row.agent.id === currentAgentId)?.agent ||
+      agents[0]?.agent;
+    if (defaultAgent) {
+      setDealParticipants([{ agentId: defaultAgent.id, sharePct: 100, isPrimary: true }]);
+    }
+  }, [agents, dealParticipants, session?.user?.agentId]);
+
+  const selectedParticipants = useMemo(
+    () =>
+      dealParticipants.map((participant) => ({
+        ...participant,
+        agent: agents.find((row) => row.agent.id === participant.agentId)?.agent || null,
+      })),
+    [agents, dealParticipants]
   );
-  const coAgent = useMemo(
-    () => agents.find((row) => row.agent.id === coAgentId)?.agent || null,
-    [agents, coAgentId]
-  );
+
+  const primaryAgent = selectedParticipants.find((participant) => participant.isPrimary)?.agent || null;
+  const shareTotal = selectedParticipants.reduce((sum, participant) => sum + Number(participant.sharePct || 0), 0);
 
   useEffect(() => {
     if (selectedBuilding && !apartmentAddress) {
@@ -137,15 +153,36 @@ export default function NewDealPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedBuilding?.id]);
 
-  useEffect(() => {
-    if (!hasCoAgent) {
-      setPrimaryAgentSharePct(100);
-      setCoAgentId(null);
-    } else if (primaryAgentSharePct === 100) {
-      setPrimaryAgentSharePct(50);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasCoAgent]);
+  const updateParticipant = (
+    index: number,
+    patch: Partial<DealParticipantInput>
+  ) => {
+    setDealParticipants((prev) =>
+      prev.map((participant, i) =>
+        i === index ? { ...participant, ...patch } : participant
+      )
+    );
+  };
+
+  const setPrimaryParticipant = (index: number) => {
+    setDealParticipants((prev) =>
+      prev.map((participant, i) => ({ ...participant, isPrimary: i === index }))
+    );
+  };
+
+  const addParticipant = () => {
+    setDealParticipants((prev) => [...prev, { agentId: null, sharePct: 0, isPrimary: false }]);
+  };
+
+  const removeParticipant = (index: number) => {
+    setDealParticipants((prev) => {
+      const next = prev.filter((_, i) => i !== index);
+      if (!next.some((participant) => participant.isPrimary) && next[0]) {
+        next[0] = { ...next[0], isPrimary: true };
+      }
+      return next.length > 0 ? next : [{ agentId: null, sharePct: 100, isPrimary: true }];
+    });
+  };
 
   const breakdown = useMemo(
     () =>
@@ -154,13 +191,17 @@ export default function NewDealPage() {
         referrer: hasReferrer
           ? { type: referrerType, amount: Number(referrerAmount || 0) }
           : null,
-        primaryAgentSharePct: hasCoAgent ? primaryAgentSharePct : 100,
-        primaryAgentSplitPct: Number(primaryAgent?.splitPct || 0),
-        coAgent: hasCoAgent
-          ? { sharePct: 100 - primaryAgentSharePct, splitPct: Number(coAgent?.splitPct || 0) }
-          : null,
+        agents: selectedParticipants
+          .filter((participant) => participant.agent)
+          .map((participant) => ({
+            agentId: participant.agent!.id,
+            name: participant.agent!.name,
+            sharePct: Number(participant.sharePct || 0),
+            splitPct: Number(participant.agent!.splitPct || 0),
+            isPrimary: participant.isPrimary,
+          })),
       }),
-    [coAgent, hasCoAgent, hasReferrer, primaryAgent, primaryAgentSharePct, referrerAmount, referrerType, totalCommission]
+    [hasReferrer, referrerAmount, referrerType, selectedParticipants, totalCommission]
   );
 
   const filteredBuildings = useMemo(() => {
@@ -179,9 +220,19 @@ export default function NewDealPage() {
     if (!buildingId) return toast.error("Please select a building");
     if (!unit.trim()) return toast.error("Unit is required");
     if (!tenantName.trim()) return toast.error("Tenant name is required");
-    if (!primaryAgentId) return toast.error("Primary agent is required");
     if (!totalCommission || Number(totalCommission) <= 0) return toast.error("Commission is required");
-    if (hasCoAgent && !coAgentId) return toast.error("Co-agent is required");
+    if (selectedParticipants.some((participant) => !participant.agentId)) {
+      return toast.error("Every deal agent must be selected");
+    }
+    if (new Set(selectedParticipants.map((participant) => participant.agentId)).size !== selectedParticipants.length) {
+      return toast.error("Deal agents must be unique");
+    }
+    if (selectedParticipants.filter((participant) => participant.isPrimary).length !== 1) {
+      return toast.error("Exactly one primary agent is required");
+    }
+    if (Math.abs(shareTotal - 100) > 0.01) {
+      return toast.error("Agent shares must total 100%");
+    }
 
     setSaving(true);
     try {
@@ -201,11 +252,11 @@ export default function NewDealPage() {
           rentAmount: rentAmount ? Number(rentAmount) : null,
           totalCommission: Number(totalCommission),
           licensedCompany: primaryAgent?.licensedCompany,
-          primaryAgentId,
-          primaryAgentSharePct: hasCoAgent ? primaryAgentSharePct : 100,
-          coAgentId: hasCoAgent ? coAgentId : null,
-          coAgentSharePct: hasCoAgent ? 100 - primaryAgentSharePct : null,
-          referrerId: null, // legacy column — new deals always use free-text below
+          agents: selectedParticipants.map((participant) => ({
+            agentId: participant.agentId,
+            sharePct: Number(participant.sharePct || 0),
+            isPrimary: participant.isPrimary,
+          })),
           referrerName: hasReferrer ? referrerName.trim() || null : null,
           referrerType: hasReferrer ? referrerType : null,
           referrerAmount: hasReferrer ? Number(referrerAmount || 0) : null,
@@ -370,58 +421,82 @@ export default function NewDealPage() {
           <Card>
             <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
               <div className="font-serif" style={{ fontSize: 20, color: tone.ink }}>
-                Agent
+                Agents
               </div>
             </div>
             <div className="p-6 space-y-4">
-              <LabeledField label="Primary agent *">
-                <select value={primaryAgentId || ""} onChange={(e) => setPrimaryAgentId(Number(e.target.value) || null)} className="w-full h-10 rounded-lg px-3 text-[13.5px] outline-none" style={{ background: tone.card, border: `1px solid ${tone.line}`, color: tone.ink }}>
-                  <option value="">Select agent</option>
-                  {agents.map(({ agent, teamName }) => (
-                    <option key={agent.id} value={agent.id}>
-                      {agent.name} {teamName ? `· ${teamName}` : ""}
-                    </option>
-                  ))}
-                </select>
-              </LabeledField>
-              <label className="flex items-center gap-2 text-[13px]" style={{ color: tone.ink70 }}>
-                <input type="checkbox" checked={hasCoAgent} onChange={(e) => setHasCoAgent(e.target.checked)} />
-                Add co-agent
-              </label>
-              {hasCoAgent && (
-                <div className="rounded-xl p-4 space-y-4" style={{ background: tone.paper, border: `1px solid ${tone.lineSoft}` }}>
-                  <LabeledField label="Co-agent">
-                    <select value={coAgentId || ""} onChange={(e) => setCoAgentId(Number(e.target.value) || null)} className="w-full h-10 rounded-lg px-3 text-[13.5px] outline-none" style={{ background: tone.card, border: `1px solid ${tone.line}`, color: tone.ink }}>
-                      <option value="">Select co-agent</option>
-                      {agents
-                        .filter(({ agent }) => agent.id !== primaryAgentId)
-                        .map(({ agent, teamName }) => (
+              {dealParticipants.map((participant, index) => (
+                <div
+                  key={index}
+                  className="rounded-xl p-4 space-y-4"
+                  style={{ background: tone.paper, border: `1px solid ${tone.lineSoft}` }}
+                >
+                  <div className="grid grid-cols-[1fr_120px_auto] gap-3 items-end">
+                    <LabeledField label={participant.isPrimary ? "Primary agent *" : "Agent"}>
+                      <select
+                        value={participant.agentId || ""}
+                        onChange={(e) =>
+                          updateParticipant(index, {
+                            agentId: Number(e.target.value) || null,
+                          })
+                        }
+                        className="w-full h-10 rounded-lg px-3 text-[13.5px] outline-none"
+                        style={{ background: tone.card, border: `1px solid ${tone.line}`, color: tone.ink }}
+                      >
+                        <option value="">Select agent</option>
+                        {agents.map(({ agent, teamName }) => (
                           <option key={agent.id} value={agent.id}>
                             {agent.name} {teamName ? `· ${teamName}` : ""}
                           </option>
                         ))}
-                    </select>
-                  </LabeledField>
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-[11px] uppercase tracking-[0.1em]" style={{ color: tone.ink50 }}>
-                        Share split
-                      </span>
-                      <span className="font-mono text-[12px]" style={{ color: tone.ink70 }}>
-                        Primary {primaryAgentSharePct}% · Co {100 - primaryAgentSharePct}%
-                      </span>
+                      </select>
+                    </LabeledField>
+                    <LabeledField label="Share %">
+                      <EditorialInput
+                        value={participant.sharePct}
+                        onChange={(v) => updateParticipant(index, { sharePct: Number(v) })}
+                        type="number"
+                        mono
+                      />
+                    </LabeledField>
+                    <div className="flex items-center gap-2 pb-1">
+                      <button
+                        type="button"
+                        onClick={() => setPrimaryParticipant(index)}
+                        className="h-9 px-3 rounded-md text-[12px]"
+                        style={{
+                          background: participant.isPrimary ? tone.accentSoft : tone.card,
+                          border: `1px solid ${participant.isPrimary ? tone.accent : tone.line}`,
+                          color: participant.isPrimary ? tone.accent : tone.ink70,
+                        }}
+                      >
+                        Primary
+                      </button>
+                      {dealParticipants.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeParticipant(index)}
+                          className="h-9 px-3 rounded-md text-[12px]"
+                          style={{ background: tone.card, border: `1px solid ${tone.line}`, color: tone.rose }}
+                        >
+                          Remove
+                        </button>
+                      )}
                     </div>
-                    <input
-                      type="range"
-                      min={0}
-                      max={100}
-                      value={primaryAgentSharePct}
-                      onChange={(e) => setPrimaryAgentSharePct(Number(e.target.value))}
-                      className="w-full"
-                    />
                   </div>
                 </div>
-              )}
+              ))}
+              <div className="flex items-center justify-between">
+                <Btn variant="outline" size="sm" icon={<Icons.Plus />} onClick={addParticipant}>
+                  Add agent
+                </Btn>
+                <div
+                  className="text-[12px] font-mono"
+                  style={{ color: Math.abs(shareTotal - 100) > 0.01 ? tone.rose : tone.ink50 }}
+                >
+                  Total share {shareTotal}%
+                </div>
+              </div>
             </div>
           </Card>
 
@@ -500,9 +575,8 @@ export default function NewDealPage() {
                 <EditorialInput value={totalCommission} onChange={setTotalCommission} type="number" prefix="$" mono />
               </LabeledField>
               <div className="rounded-lg p-4 text-[13px]" style={{ background: tone.paper, color: tone.ink70 }}>
-                Referrer gets <span className="font-mono">${fmtMoney(breakdown.referrerCut)}</span> · Primary agent takes{" "}
-                <span className="font-mono">${fmtMoney(breakdown.primaryAgentTake)}</span> · Co-agent takes{" "}
-                <span className="font-mono">${fmtMoney(breakdown.coAgentTake)}</span> · Company pool{" "}
+                Referrer gets <span className="font-mono">${fmtMoney(breakdown.referrerCut)}</span> · Agents take{" "}
+                <span className="font-mono">${fmtMoney(breakdown.agentTakeTotal)}</span> · Company pool{" "}
                 <span className="font-mono">${fmtMoney(breakdown.companyPoolTotal)}</span>
               </div>
             </div>
@@ -568,17 +642,17 @@ export default function NewDealPage() {
                   Unit {unit || "—"} · {tenantName || "Tenant"}
                 </div>
                 <div className="mt-6 flex items-center gap-3">
-                  {[primaryAgent, hasCoAgent ? coAgent : null].filter(Boolean).map((agent) => (
-                    <div key={agent!.id} className="flex items-center gap-2">
+                  {selectedParticipants.filter((participant) => participant.agent).map((participant) => (
+                    <div key={participant.agent!.id} className="flex items-center gap-2">
                       <div className="w-9 h-9 rounded-full flex items-center justify-center font-serif" style={{ background: tone.accentSoft, color: tone.accent }}>
-                        {initials(agent!.name)}
+                        {initials(participant.agent!.name)}
                       </div>
                       <div>
                         <div className="text-[12.5px]" style={{ color: tone.ink }}>
-                          {agent!.name}
+                          {participant.agent!.name}
                         </div>
                         <div className="text-[11px]" style={{ color: tone.ink50 }}>
-                          {Number(agent!.splitPct || 0)}% split
+                          {participant.sharePct}% share · {Number(participant.agent!.splitPct || 0)}% split
                         </div>
                       </div>
                     </div>
@@ -597,7 +671,7 @@ export default function NewDealPage() {
                 </div>
                 <div className="mt-4 flex flex-wrap gap-2">
                   {hasReferrer && <Pill tone="draft">Referral</Pill>}
-                  {hasCoAgent && <Pill tone="neutral">Co-agent</Pill>}
+                  {selectedParticipants.length > 1 && <Pill tone="neutral">{selectedParticipants.length} agents</Pill>}
                   {moveInDate && <Pill tone="accent">Move-in set</Pill>}
                 </div>
               </div>

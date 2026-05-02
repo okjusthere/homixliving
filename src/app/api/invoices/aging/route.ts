@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { invoices, buildings } from "@/db/schema";
+import { deals, invoices, buildings } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import {
   bucketFor,
@@ -9,8 +9,13 @@ import {
   isOutstanding,
   AGING_BUCKETS,
 } from "@/lib/aging";
+import { requireActiveAgentApi } from "@/lib/auth-guards";
+import { dealsVisibleToSql } from "@/lib/visibility";
 
 export async function GET() {
+  const authResult = await requireActiveAgentApi();
+  if ("error" in authResult) return authResult.error;
+
   const rows = await db
     .select({
       invoice: invoices,
@@ -19,6 +24,15 @@ export async function GET() {
     })
     .from(invoices)
     .leftJoin(buildings, eq(invoices.buildingId, buildings.id));
+
+  const visibleDealIds = new Set<number>();
+  if (!authResult.session.user.isAdmin) {
+    const visibilityFilter = dealsVisibleToSql(authResult.session);
+    const visibleDeals = visibilityFilter
+      ? await db.select({ id: deals.id }).from(deals).where(visibilityFilter)
+      : await db.select({ id: deals.id }).from(deals);
+    for (const deal of visibleDeals) visibleDealIds.add(deal.id);
+  }
 
   const summary = emptyAgingSummary();
   // Per-building breakdown: { buildingId: { name, total, byBucket } }
@@ -47,6 +61,13 @@ export async function GET() {
 
   for (const row of rows) {
     const inv = row.invoice;
+    if (!authResult.session.user.isAdmin) {
+      if (inv.dealId) {
+        if (!visibleDealIds.has(inv.dealId)) continue;
+      } else if (inv.agentEmail?.toLowerCase() !== authResult.session.user.email?.toLowerCase()) {
+        continue;
+      }
+    }
     if (!isOutstanding(inv)) continue;
     const days = daysSince(inv.sentAt);
     const bucket = bucketFor(days);

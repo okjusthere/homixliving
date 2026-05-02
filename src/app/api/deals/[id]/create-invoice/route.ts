@@ -1,41 +1,57 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { agents, buildings, dealInvoices, deals, invoices, type LineItem } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { agents, buildings, dealAgents, deals, invoices, type LineItem } from "@/db/schema";
+import { and, eq } from "drizzle-orm";
 import { generateEmailSubject, generateFileName, generateInvoiceNumber } from "@/lib/invoice-generator";
+import { requireActiveAgentApi } from "@/lib/auth-guards";
+import { canEditDeal } from "@/lib/visibility";
 
 export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const authResult = await requireActiveAgentApi();
+  if ("error" in authResult) return authResult.error;
+
   const { id } = await params;
   const parsedId = parseInt(id, 10);
   if (!Number.isFinite(parsedId)) {
     return NextResponse.json({ error: "Valid deal id is required" }, { status: 400 });
   }
 
+  if (!(await canEditDeal(authResult.session, parsedId))) {
+    return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+  }
+
   const deal = await db.select().from(deals).where(eq(deals.id, parsedId)).get();
   if (!deal) return NextResponse.json({ error: "Deal not found" }, { status: 404 });
 
-  // Guard: cancelled deals cannot generate invoices. This protects against
-  // accidentally billing a building for a deal that fell through.
   if (deal.status === "cancelled") {
     return NextResponse.json(
       {
         error:
-          "无法为已取消的 deal 生成 invoice。如果该 deal 实际上已成交，请先把状态改回 active 或 completed。",
+          "Cannot generate an invoice for a cancelled deal. Change the deal status first if it closed.",
       },
       { status: 409 }
     );
   }
 
-  const [building, primaryAgent] = await Promise.all([
+  const [building, primaryRow] = await Promise.all([
     db.select().from(buildings).where(eq(buildings.id, deal.buildingId)).get(),
-    db.select().from(agents).where(eq(agents.id, deal.primaryAgentId)).get(),
+    db
+      .select({
+        dealAgent: dealAgents,
+        agent: agents,
+      })
+      .from(dealAgents)
+      .innerJoin(agents, eq(agents.id, dealAgents.agentId))
+      .where(and(eq(dealAgents.dealId, deal.id), eq(dealAgents.isPrimary, true)))
+      .get(),
   ]);
   if (!building) return NextResponse.json({ error: "Building not found" }, { status: 404 });
-  if (!primaryAgent) return NextResponse.json({ error: "Primary agent not found" }, { status: 404 });
+  if (!primaryRow) return NextResponse.json({ error: "Primary agent not found" }, { status: 404 });
 
+  const primaryAgent = primaryRow.agent;
   const lineItems: LineItem[] = [
     {
       description: "Owner Pays Commission",
@@ -78,11 +94,6 @@ export async function POST(
       updatedAt: now,
     })
     .returning();
-
-  await db
-    .insert(dealInvoices)
-    .values({ dealId: deal.id, invoiceId: invoice.id, createdAt: now })
-    .onConflictDoNothing();
 
   return NextResponse.json({ invoiceId: invoice.id, invoiceNumber });
 }

@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { agents, buildings, deals } from "@/db/schema";
+import { agents, buildings, dealAgents, deals } from "@/db/schema";
 import { desc, eq } from "drizzle-orm";
 import {
   activeDeal,
+  commissionAgentsForDeal,
   dealInMonth,
   dealInYear,
   getAgentTakeForDeal,
@@ -11,15 +12,22 @@ import {
   getMonthKey,
   type DealForReporting,
 } from "@/lib/reporting";
+import { requireActiveAgentApi } from "@/lib/auth-guards";
 
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const authResult = await requireActiveAgentApi();
+  if ("error" in authResult) return authResult.error;
+
   const { id } = await params;
   const agentId = parseInt(id, 10);
   if (!Number.isFinite(agentId)) {
     return NextResponse.json({ error: "Valid agent id is required" }, { status: 400 });
+  }
+  if (!authResult.session.user.isAdmin && authResult.session.user.agentId !== agentId) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const month = req.nextUrl.searchParams.get("month") || getMonthKey();
@@ -30,30 +38,37 @@ export async function GET(
   const agent = await db.select().from(agents).where(eq(agents.id, agentId)).get();
   if (!agent) return NextResponse.json({ error: "Agent not found" }, { status: 404 });
 
-  const allAgents = await db.select().from(agents);
-  const agentById = new Map(allAgents.map((row) => [row.id, row]));
-  const rows = await db
-    .select({
-      deal: deals,
-      buildingName: buildings.name,
-    })
-    .from(deals)
-    .leftJoin(buildings, eq(deals.buildingId, buildings.id))
-    .orderBy(desc(deals.dealDate), desc(deals.createdAt));
+  const [allAgents, allDealAgents, rows] = await Promise.all([
+    db.select().from(agents),
+    db.select().from(dealAgents),
+    db
+      .select({
+        deal: deals,
+        buildingName: buildings.name,
+      })
+      .from(deals)
+      .leftJoin(buildings, eq(deals.buildingId, buildings.id))
+      .orderBy(desc(deals.dealDate), desc(deals.createdAt)),
+  ]);
+
+  const agentDealIds = new Set(
+    allDealAgents
+      .filter((dealAgent) => dealAgent.agentId === agentId)
+      .map((dealAgent) => dealAgent.dealId)
+  );
 
   const rowsWithTake = rows
-    .filter(
-      ({ deal }) =>
-        activeDeal(deal) && (deal.primaryAgentId === agentId || deal.coAgentId === agentId)
-    )
+    .filter(({ deal }) => activeDeal(deal) && agentDealIds.has(deal.id))
     .map(({ deal, buildingName }) => {
-      const primaryAgent = agentById.get(deal.primaryAgentId);
-      const coAgent = deal.coAgentId ? agentById.get(deal.coAgentId) : null;
+      const participants = commissionAgentsForDeal({
+        dealId: deal.id,
+        dealAgents: allDealAgents,
+        agents: allAgents,
+      });
       const personalTake = getAgentTakeForDeal({
         deal: deal as DealForReporting,
         agentId,
-        primaryAgentSplitPct: Number(primaryAgent?.splitPct || 0),
-        coAgentSplitPct: Number(coAgent?.splitPct || 0),
+        participants,
       });
       return {
         deal,

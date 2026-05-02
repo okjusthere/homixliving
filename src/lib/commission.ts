@@ -1,21 +1,28 @@
+export type CommissionAgentInput = {
+  agentId: number;
+  name?: string | null;
+  sharePct: number;
+  splitPct: number;
+  isPrimary?: boolean;
+};
+
 export type CommissionInput = {
   totalCommission: number;
   referrer?: { type: "percent" | "flat"; amount: number } | null;
-  primaryAgentSharePct: number;
-  primaryAgentSplitPct: number;
-  coAgent?: { sharePct: number; splitPct: number } | null;
+  agents: CommissionAgentInput[];
+};
+
+export type CommissionAgentBreakdown = CommissionAgentInput & {
+  gross: number;
+  agentTake: number;
+  companyPool: number;
 };
 
 export type CommissionBreakdown = {
   totalCommission: number;
   referrerCut: number;
   afterReferrer: number;
-  primaryGross: number;
-  primaryAgentTake: number;
-  primaryCompanyPool: number;
-  coAgentGross: number;
-  coAgentTake: number;
-  coCompanyPool: number;
+  agents: CommissionAgentBreakdown[];
   companyPoolTotal: number;
   agentTakeTotal: number;
 };
@@ -30,8 +37,6 @@ function percentInput(value: number) {
 
 export function computeCommission(input: CommissionInput): CommissionBreakdown {
   const totalCommission = moneyInput(input.totalCommission);
-  const primaryAgentSharePct = percentInput(input.primaryAgentSharePct);
-  const primaryAgentSplitPct = percentInput(input.primaryAgentSplitPct);
 
   const rawReferrerCut =
     input.referrer?.type === "percent"
@@ -42,26 +47,30 @@ export function computeCommission(input: CommissionInput): CommissionBreakdown {
   const referrerCut = Math.min(totalCommission, rawReferrerCut);
   const afterReferrer = totalCommission - referrerCut;
 
-  const primaryGross = afterReferrer * (primaryAgentSharePct / 100);
-  const primaryAgentTake = primaryGross * (primaryAgentSplitPct / 100);
-  const primaryCompanyPool = primaryGross - primaryAgentTake;
+  const agentRows = input.agents.map((agent) => {
+    const sharePct = percentInput(agent.sharePct);
+    const splitPct = percentInput(agent.splitPct);
+    const gross = afterReferrer * (sharePct / 100);
+    const agentTake = gross * (splitPct / 100);
+    const companyPool = gross - agentTake;
 
-  const coAgentGross = input.coAgent ? afterReferrer - primaryGross : 0;
-  const coAgentSplitPct = input.coAgent ? percentInput(input.coAgent.splitPct) : 0;
-  const coAgentTake = coAgentGross * (coAgentSplitPct / 100);
-  const coCompanyPool = coAgentGross - coAgentTake;
+    return {
+      ...agent,
+      sharePct,
+      splitPct,
+      gross,
+      agentTake,
+      companyPool,
+      isPrimary: Boolean(agent.isPrimary),
+    };
+  });
 
   return {
     totalCommission,
     referrerCut,
     afterReferrer,
-    primaryGross,
-    primaryAgentTake,
-    primaryCompanyPool,
-    coAgentGross,
-    coAgentTake,
-    coCompanyPool,
-    companyPoolTotal: primaryCompanyPool + coCompanyPool,
-    agentTakeTotal: primaryAgentTake + coAgentTake,
+    agents: agentRows,
+    companyPoolTotal: agentRows.reduce((sum, agent) => sum + agent.companyPool, 0),
+    agentTakeTotal: agentRows.reduce((sum, agent) => sum + agent.agentTake, 0),
   };
 }

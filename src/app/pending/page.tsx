@@ -1,9 +1,20 @@
-import { signOut } from "@/auth";
+import { auth, signOut } from "@/auth";
 import { Btn } from "@/components/homix/primitives";
 import { HomixMark } from "@/components/homix/server-primitives";
 import { tone } from "@/components/homix/tokens";
+import { redirect } from "next/navigation";
 
-export default function PendingApprovalPage() {
+export default async function PendingApprovalPage() {
+  const session = await auth();
+
+  if (!session?.user?.email) {
+    redirect("/login");
+  }
+
+  if (session.user.isAdmin || session.user.isActive) {
+    redirect("/");
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center px-6">
       <div className="w-full max-w-md">

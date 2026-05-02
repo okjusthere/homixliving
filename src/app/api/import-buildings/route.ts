@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { writeFileSync } from "fs";
 import { join } from "path";
+import { requireAdminApi } from "@/lib/auth-guards";
 
 export async function POST(req: NextRequest) {
+  const authResult = await requireAdminApi();
+  if ("error" in authResult) return authResult.error;
+
   const body = await req.json();
   const filePath = join(process.cwd(), "src/db/buildings-raw.json");
   writeFileSync(filePath, JSON.stringify(body, null, 2), "utf-8");

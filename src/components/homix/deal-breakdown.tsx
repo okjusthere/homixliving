@@ -16,8 +16,11 @@ export function DealBreakdownBar({
 }) {
   const segments: Segment[] = [
     { label: "Referrer", value: breakdown.referrerCut, color: tone.amber },
-    { label: "Primary", value: breakdown.primaryAgentTake, color: tone.green },
-    { label: "Co-agent", value: breakdown.coAgentTake, color: tone.accent },
+    ...breakdown.agents.map((agent, index) => ({
+      label: agent.name || `Agent ${index + 1}`,
+      value: agent.agentTake,
+      color: agent.isPrimary ? tone.green : tone.accent,
+    })),
     { label: "Company", value: breakdown.companyPoolTotal, color: tone.ink50 },
   ].filter((segment) => segment.value > 0);
 

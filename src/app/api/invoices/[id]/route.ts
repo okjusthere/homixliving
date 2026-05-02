@@ -2,11 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { invoices, buildings } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { requireActiveAgentApi } from "@/lib/auth-guards";
+import { canViewDeal } from "@/lib/visibility";
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const authResult = await requireActiveAgentApi();
+  if ("error" in authResult) return authResult.error;
+
   const { id } = await params;
   const result = await db
     .select({
@@ -22,6 +27,20 @@ export async function GET(
     return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
   }
 
+  if (
+    result.invoice.dealId &&
+    !(await canViewDeal(authResult.session, result.invoice.dealId))
+  ) {
+    return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+  }
+  if (
+    !result.invoice.dealId &&
+    !authResult.session.user.isAdmin &&
+    result.invoice.agentEmail?.toLowerCase() !== authResult.session.user.email?.toLowerCase()
+  ) {
+    return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+  }
+
   return NextResponse.json(result);
 }
 
@@ -29,7 +48,22 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const authResult = await requireActiveAgentApi();
+  if ("error" in authResult) return authResult.error;
+
   const { id } = await params;
+  const invoice = await db.select().from(invoices).where(eq(invoices.id, Number(id))).get();
+  if (!invoice) return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
+  if (invoice.dealId && !(await canViewDeal(authResult.session, invoice.dealId))) {
+    return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+  }
+  if (
+    !invoice.dealId &&
+    !authResult.session.user.isAdmin &&
+    invoice.agentEmail?.toLowerCase() !== authResult.session.user.email?.toLowerCase()
+  ) {
+    return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+  }
   await db.delete(invoices).where(eq(invoices.id, Number(id)));
   return NextResponse.json({ success: true });
 }

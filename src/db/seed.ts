@@ -2,7 +2,7 @@ import { createClient } from "@libsql/client";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/libsql";
 import * as schema from "./schema";
-import { agents, buildings, referrers, settings, teams } from "./schema";
+import { agents, buildings, settings, teams } from "./schema";
 
 const client = createClient({
   url: process.env.TURSO_DATABASE_URL || "file:local.db",
@@ -3261,25 +3261,6 @@ const demoAgents: Array<Omit<schema.NewAgent, "teamId"> & { teamName: string }> 
   },
 ];
 
-const demoReferrers: schema.NewReferrer[] = [
-  {
-    name: "Jane Referral Co.",
-    email: "jane@example.com",
-    phone: "(646) 555-0191",
-    defaultReferralType: "percent",
-    defaultReferralAmount: 15,
-    notes: "Default 15% referral partner",
-  },
-  {
-    name: "Campus Housing Desk",
-    email: "housing@example.edu",
-    phone: "(212) 555-0192",
-    defaultReferralType: "flat",
-    defaultReferralAmount: 250,
-    notes: "Flat fee per signed lease",
-  },
-];
-
 async function ensureTeam(team: schema.NewTeam) {
   const existing = await db.select().from(teams).where(eq(teams.name, team.name)).get();
   if (existing) return existing;
@@ -3288,16 +3269,9 @@ async function ensureTeam(team: schema.NewTeam) {
 }
 
 async function ensureAgent(agent: schema.NewAgent) {
-  const existing = await db.select().from(agents).where(eq(agents.name, agent.name)).get();
+  const existing = await db.select().from(agents).where(eq(agents.email, agent.email)).get();
   if (existing) return existing;
   const [created] = await db.insert(agents).values(agent).returning();
-  return created;
-}
-
-async function ensureReferrer(referrer: schema.NewReferrer) {
-  const existing = await db.select().from(referrers).where(eq(referrers.name, referrer.name)).get();
-  if (existing) return existing;
-  const [created] = await db.insert(referrers).values(referrer).returning();
   return created;
 }
 
@@ -3324,9 +3298,92 @@ async function seed() {
   `);
 
   await client.execute(`
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    )
+  `);
+
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS teams (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      leader_agent_id INTEGER REFERENCES agents(id),
+      notes TEXT
+    )
+  `);
+
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS agents (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      email TEXT NOT NULL UNIQUE,
+      phone TEXT,
+      license_number TEXT,
+      licensed_company TEXT,
+      split_pct REAL NOT NULL DEFAULT 50,
+      team_id INTEGER REFERENCES teams(id) ON DELETE SET NULL,
+      is_admin INTEGER NOT NULL DEFAULT 0,
+      is_active INTEGER NOT NULL DEFAULT 0,
+      joined_at TEXT,
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS deals (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      building_id INTEGER NOT NULL REFERENCES buildings(id),
+      unit TEXT NOT NULL,
+      tenant_name TEXT NOT NULL,
+      tenant_email TEXT,
+      tenant_phone TEXT,
+      apartment_address TEXT,
+      move_in_date TEXT,
+      lease_start_date TEXT,
+      lease_end_date TEXT,
+      rent_amount REAL,
+      lease_length_months INTEGER,
+      total_commission REAL NOT NULL,
+      licensed_company TEXT NOT NULL,
+      referrer_name TEXT,
+      referrer_type TEXT,
+      referrer_amount REAL,
+      referrer_payment_info TEXT,
+      status TEXT NOT NULL DEFAULT 'active',
+      deal_date TEXT,
+      source TEXT,
+      notes TEXT,
+      renewal_status TEXT,
+      renewal_noted_at TEXT,
+      renewed_to_deal_id INTEGER REFERENCES deals(id) ON DELETE SET NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS deal_agents (
+      deal_id INTEGER NOT NULL REFERENCES deals(id) ON DELETE CASCADE,
+      agent_id INTEGER NOT NULL REFERENCES agents(id) ON DELETE RESTRICT,
+      share_pct REAL NOT NULL,
+      is_primary INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (deal_id, agent_id)
+    )
+  `);
+  await client.execute(`
+    CREATE INDEX IF NOT EXISTS idx_deal_agents_agent
+      ON deal_agents(agent_id)
+  `);
+
+  await client.execute(`
     CREATE TABLE IF NOT EXISTS invoices (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       building_id INTEGER REFERENCES buildings(id),
+      deal_id INTEGER REFERENCES deals(id) ON DELETE SET NULL,
       invoice_number TEXT NOT NULL,
       file_name TEXT NOT NULL,
       email_subject TEXT,
@@ -3353,148 +3410,9 @@ async function seed() {
   `);
 
   await client.execute(`
-    CREATE TABLE IF NOT EXISTS settings (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    )
-  `);
-
-  await client.execute(`
-    CREATE TABLE IF NOT EXISTS teams (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      leader_agent_id INTEGER REFERENCES agents(id),
-      notes TEXT,
-      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-
-  await client.execute(`
-    CREATE TABLE IF NOT EXISTS agents (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
-      name TEXT NOT NULL,
-      email TEXT,
-      phone TEXT,
-      license_number TEXT,
-      licensed_company TEXT,
-      split_pct REAL NOT NULL DEFAULT 50,
-      team_id INTEGER REFERENCES teams(id),
-      is_active INTEGER DEFAULT 0,
-      is_admin INTEGER DEFAULT 0,
-      joined_at TEXT,
-      notes TEXT,
-      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-
-  // Auth.js tables
-  await client.execute(`
-    CREATE TABLE IF NOT EXISTS users (
-      id TEXT PRIMARY KEY,
-      name TEXT,
-      email TEXT UNIQUE,
-      emailVerified INTEGER,
-      image TEXT
-    )
-  `);
-  await client.execute(`
-    CREATE TABLE IF NOT EXISTS accounts (
-      userId TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      type TEXT NOT NULL,
-      provider TEXT NOT NULL,
-      providerAccountId TEXT NOT NULL,
-      refresh_token TEXT,
-      access_token TEXT,
-      expires_at INTEGER,
-      token_type TEXT,
-      scope TEXT,
-      id_token TEXT,
-      session_state TEXT,
-      PRIMARY KEY (provider, providerAccountId)
-    )
-  `);
-  await client.execute(`
-    CREATE TABLE IF NOT EXISTS sessions (
-      sessionToken TEXT PRIMARY KEY,
-      userId TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      expires INTEGER NOT NULL
-    )
-  `);
-  await client.execute(`
-    CREATE TABLE IF NOT EXISTS verificationTokens (
-      identifier TEXT NOT NULL,
-      token TEXT NOT NULL,
-      expires INTEGER NOT NULL,
-      PRIMARY KEY (identifier, token)
-    )
-  `);
-
-  await client.execute(`
-    CREATE TABLE IF NOT EXISTS referrers (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      email TEXT,
-      phone TEXT,
-      default_referral_type TEXT,
-      default_referral_amount REAL,
-      notes TEXT,
-      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-
-  await client.execute(`
-    CREATE TABLE IF NOT EXISTS deals (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      building_id INTEGER NOT NULL REFERENCES buildings(id),
-      unit TEXT NOT NULL,
-      tenant_name TEXT NOT NULL,
-      tenant_email TEXT,
-      tenant_phone TEXT,
-      apartment_address TEXT,
-      move_in_date TEXT,
-      lease_start_date TEXT,
-      lease_end_date TEXT,
-      rent_amount REAL,
-      lease_length_months INTEGER,
-      total_commission REAL NOT NULL,
-      licensed_company TEXT NOT NULL,
-      primary_agent_id INTEGER NOT NULL REFERENCES agents(id),
-      primary_agent_share_pct REAL NOT NULL DEFAULT 100,
-      co_agent_id INTEGER REFERENCES agents(id),
-      co_agent_share_pct REAL,
-      referrer_id INTEGER REFERENCES referrers(id),
-      referrer_type TEXT,
-      referrer_amount REAL,
-      status TEXT NOT NULL DEFAULT 'active',
-      deal_date TEXT,
-      source TEXT,
-      notes TEXT,
-      renewal_status TEXT,
-      renewal_noted_at TEXT,
-      renewed_to_deal_id INTEGER REFERENCES deals(id) ON DELETE SET NULL,
-      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-
-  await client.execute(`
-    CREATE TABLE IF NOT EXISTS deal_invoices (
-      deal_id INTEGER NOT NULL REFERENCES deals(id) ON DELETE CASCADE,
-      invoice_id INTEGER NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
-      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-      PRIMARY KEY (deal_id, invoice_id)
-    )
-  `);
-
-  await client.execute(`
     CREATE TABLE IF NOT EXISTS invoice_send_log (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       invoice_id INTEGER NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
-      sent_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
       sent_by_email TEXT,
       to_recipients TEXT NOT NULL,
       cc_recipients TEXT,
@@ -3548,9 +3466,6 @@ async function seed() {
   if (await addColumnIfMissing(`ALTER TABLE deals ADD COLUMN source TEXT`)) {
     console.log("Added deals.source column.");
   }
-  if (await addColumnIfMissing(`ALTER TABLE agents ADD COLUMN user_id TEXT REFERENCES users(id) ON DELETE SET NULL`)) {
-    console.log("Added agents.user_id column.");
-  }
   if (await addColumnIfMissing(`ALTER TABLE agents ADD COLUMN is_admin INTEGER DEFAULT 0`)) {
     console.log("Added agents.is_admin column.");
   }
@@ -3585,15 +3500,15 @@ async function seed() {
     await db.insert(settings).values(setting).onConflictDoNothing();
   }
 
-  // Demo team/agent/referrer seeding is gated behind SEED_DEMO=1 so production
-  // databases stay clean. Brokers will self-register and admins will activate.
+  // Demo team/agent seeding is gated behind SEED_DEMO=1 so production databases
+  // stay clean. Admins can pre-create active agents for immediate Google login.
   if (process.env.SEED_DEMO !== "1") {
-    console.log("Skipping demo agents/teams/referrers (set SEED_DEMO=1 to include).");
+    console.log("Skipping demo agents/teams (set SEED_DEMO=1 to include).");
     console.log("Seed completed!");
     return;
   }
 
-  console.log("Inserting demo teams, agents, and referrers...");
+  console.log("Inserting demo teams and agents...");
   const teamByName = new Map<string, schema.Team>();
   for (const team of demoTeams) {
     const saved = await ensureTeam(team);
@@ -3614,13 +3529,9 @@ async function seed() {
     if (team && !team.leaderAgentId) {
       await db
         .update(teams)
-        .set({ leaderAgentId: leader.id, updatedAt: new Date().toISOString() })
+        .set({ leaderAgentId: leader.id })
         .where(eq(teams.id, team.id));
     }
-  }
-
-  for (const referrer of demoReferrers) {
-    await ensureReferrer(referrer);
   }
 
   console.log("Seed completed!");
