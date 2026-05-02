@@ -111,10 +111,12 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    if ("isAdmin" in body || "is_admin" in body) {
-      return NextResponse.json({ error: "isAdmin is env-managed" }, { status: 400 });
-    }
-
+    // isAdmin is env-managed (synced from ADMIN_EMAILS in the JWT callback,
+    // see src/auth.ts). The frontend often round-trips the full agent
+    // object — including isAdmin — so rejecting any request that mentions
+    // the key would break every legitimate save. cleanAdminAgentPayload
+    // below does NOT include isAdmin in the writable field set, so any
+    // value passed in is silently ignored — that's the actual safety net.
     const data = cleanAdminAgentPayload(body);
     if (!data.name) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
@@ -151,9 +153,9 @@ export async function PUT(req: NextRequest) {
     if (!Number.isFinite(id)) {
       return NextResponse.json({ error: "Valid agent id is required" }, { status: 400 });
     }
-    if ("isAdmin" in body || "is_admin" in body) {
-      return NextResponse.json({ error: "isAdmin is env-managed" }, { status: 400 });
-    }
+    // isAdmin is env-managed (see POST handler comment). Frontend round-trips
+    // the full agent object, so don't reject when isAdmin is merely present —
+    // cleanAdminAgentPayload silently drops it from the writable set below.
 
     const existing = await db.select().from(agents).where(eq(agents.id, id)).get();
     if (!existing) return NextResponse.json({ error: "Agent not found" }, { status: 404 });

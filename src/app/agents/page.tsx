@@ -138,17 +138,27 @@ export default function AgentsPage() {
     }
     setSaving(true);
     try {
+      // Strip env-managed fields the API doesn't accept (isAdmin is synced
+      // from ADMIN_EMAILS at sign-in, not editable here). Keeps the wire
+      // payload aligned with the API contract even though the backend now
+      // ignores extras silently.
+      const { isAdmin: _isAdmin, ...payload } = editAgent;
+      void _isAdmin;
       const res = await fetch("/api/agents", {
         method: editAgent.id ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(editAgent),
+        body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `Save failed (HTTP ${res.status})`);
+      }
       toast.success(editAgent.id ? "Agent saved" : "Agent created");
       closeDialog();
       fetchAgents();
-    } catch {
-      toast.error("Save failed");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Save failed";
+      toast.error(msg);
     } finally {
       setSaving(false);
     }
