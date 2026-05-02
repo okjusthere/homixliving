@@ -67,10 +67,22 @@ function LoginInner() {
     if (!email.trim()) return;
     setSubmittingEmail(true);
     try {
+      // For Email/Resend providers, `redirectTo` is the destination AFTER the
+      // user clicks the magic link and the session is created — NOT where they
+      // land right after submitting this form.
+      //
+      // The "Check your email" page is shown automatically via the
+      // `verifyRequest: "/login/check-email"` config in auth.config.ts when
+      // NextAuth redirects after the form submit.
+      //
+      // Setting this to "/login/check-email" was the bug: after a successful
+      // magic-link click, the user was bounced BACK to the check-email page
+      // (which read as "still not signed in"), even though the session cookie
+      // had already been issued.
       await signIn("resend", {
         email: email.trim(),
         redirect: true,
-        redirectTo: "/login/check-email",
+        redirectTo: "/",
       });
     } catch {
       toast.error("Could not send magic link");

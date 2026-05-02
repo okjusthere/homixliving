@@ -1,8 +1,19 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { HomixMark } from "@/components/homix/server-primitives";
 import { tone } from "@/components/homix/tokens";
+import { auth } from "@/auth";
 
-export default function CheckEmailPage() {
+export default async function CheckEmailPage() {
+  // Defense in depth: if a magic link click ever lands here AND the user is
+  // already authenticated (e.g. an old in-flight email or a stale callback URL
+  // from before the redirectTo bug fix), bounce them straight to the app
+  // instead of showing a confusing "check your email" message.
+  const session = await auth();
+  if (session?.user?.id) {
+    redirect("/");
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center px-6">
       <div className="w-full max-w-md">
