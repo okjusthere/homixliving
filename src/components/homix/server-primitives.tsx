@@ -92,17 +92,38 @@ export function SoftField({
 export function HomixMark({ size = 28 }: { size?: number }) {
   return (
     <div className="flex items-center gap-2.5">
-      <svg width={size} height={size} viewBox="0 0 40 40" fill="none">
-        <rect x="1" y="1" width="38" height="38" rx="8" fill={tone.ink} />
-        <path d="M11 27V13h3v5.5h6V13h3v14h-3v-6h-6v6h-3z" fill={tone.paper} />
-        <circle cx="30" cy="13.5" r="1.6" fill={tone.accent} />
+      {/*
+        Brand mark — paper-tone rounded square with the walnut roof+chimney
+        silhouette filling it. Same geometry as src/app/icon.svg so the favicon
+        and the in-app mark are visually consistent.
+      */}
+      <svg width={size} height={size} viewBox="0 0 64 64" fill="none">
+        <rect
+          x="1"
+          y="1"
+          width="62"
+          height="62"
+          rx="12"
+          fill={tone.paper}
+          stroke={tone.line}
+          strokeWidth="1"
+        />
+        <path
+          d="M 8 48 L 32 16 L 44 30 L 44 22 L 52 22 L 52 38 L 56 48 Z"
+          fill={tone.brand}
+        />
       </svg>
       <div className="leading-[1.05]">
         <div
-          className="font-serif tracking-tight"
-          style={{ color: tone.ink, fontSize: 19, letterSpacing: "-0.01em" }}
+          className="font-serif"
+          style={{
+            color: tone.brand,
+            fontSize: 20,
+            letterSpacing: "0.04em",
+            fontWeight: 400,
+          }}
         >
-          Homix
+          HOMIX
         </div>
         <div
           className="text-[10px] uppercase tracking-[0.18em]"

@@ -11,6 +11,12 @@ export const tone = {
   lineSoft: "#EDE8DD",
   accent: "#5C6B3A", // deep olive
   accentSoft: "#E9ECDD",
+  // Brand mark color — walnut brown matching the Homix wordmark and favicon.
+  // Use for the logo and brand surfaces. Keep `accent` (olive) for in-app
+  // utility highlights so the brand color stays distinctive.
+  brand: "#8B5A3C",
+  brandSoft: "#E8D9CC",
+  brandDeep: "#5E3A24",
   amber: "#A76A1F",
   amberSoft: "#F4E6CE",
   rose: "#9B3C3C",
