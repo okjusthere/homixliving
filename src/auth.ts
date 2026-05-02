@@ -108,14 +108,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
       return token;
     },
-    async session({ session, token }) {
-      session.user.id = String(token.agentId);
-      session.user.agentId = (token.agentId as number | null) ?? null;
-      session.user.email = typeof token.email === "string" ? token.email : session.user.email;
-      session.user.name = typeof token.name === "string" ? token.name : session.user.name;
-      session.user.isAdmin = Boolean(token.isAdmin);
-      session.user.isActive = Boolean(token.isActive);
-      return session;
-    },
+    // session callback intentionally omitted — it lives in src/auth.config.ts
+    // so edge middleware sees the same custom fields. See the comment there.
   },
 });
