@@ -110,7 +110,7 @@ export const deals = sqliteTable("deals", {
   referrerPaymentInfo: text("referrer_payment_info"),
   status: text("status").notNull().default("active"),
   dealDate: text("deal_date"),
-  source: text("source"), // 客源来源 — xiaohongshu | wechat | school_listserv | existing_client | website | other
+  source: text("source"), // 客源来源 — see DealSource in src/lib/sources.ts (xiaohongshu | tiktok | wechat_group | wechat_content | school_alumni | existing_client | cobroker | website | other)
   notes: text("notes"),
   // Renewal tracking — for upcoming lease-end follow-ups
   renewalStatus: text("renewal_status"), // null | 'pending' | 'renewing' | 'moving_out' | 'renewed' | 'lost'
