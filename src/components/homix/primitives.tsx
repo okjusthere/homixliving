@@ -95,7 +95,6 @@ export function Btn({
   className = "",
   disabled,
   type = "button",
-  asChild: _asChild,
 }: {
   variant?: BtnVariant;
   size?: BtnSize;
@@ -105,7 +104,6 @@ export function Btn({
   className?: string;
   disabled?: boolean;
   type?: "button" | "submit" | "reset";
-  asChild?: boolean;
 }) {
   const base =
     "inline-flex items-center gap-2 font-medium transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap";

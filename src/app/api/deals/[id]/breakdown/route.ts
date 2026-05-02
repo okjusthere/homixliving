@@ -1,27 +1,39 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { agents, deals } from "@/db/schema";
+import { agents, dealAgents, deals } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { computeCommission } from "@/lib/commission";
+import { requireActiveAgentApi } from "@/lib/auth-guards";
+import { canViewDeal } from "@/lib/visibility";
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const authResult = await requireActiveAgentApi();
+  if ("error" in authResult) return authResult.error;
+
   const { id } = await params;
   const parsedId = parseInt(id, 10);
   if (!Number.isFinite(parsedId)) {
     return NextResponse.json({ error: "Valid deal id is required" }, { status: 400 });
   }
+
+  if (!(await canViewDeal(authResult.session, parsedId))) {
+    return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+  }
+
   const deal = await db.select().from(deals).where(eq(deals.id, parsedId)).get();
   if (!deal) return NextResponse.json({ error: "Deal not found" }, { status: 404 });
-  const primaryAgent = await db.select().from(agents).where(eq(agents.id, deal.primaryAgentId)).get();
-  const coAgent = deal.coAgentId
-    ? await db.select().from(agents).where(eq(agents.id, deal.coAgentId)).get()
-    : null;
-  if (!primaryAgent) {
-    return NextResponse.json({ error: "Primary agent not found" }, { status: 404 });
-  }
+
+  const participantRows = await db
+    .select({
+      dealAgent: dealAgents,
+      agent: agents,
+    })
+    .from(dealAgents)
+    .innerJoin(agents, eq(agents.id, dealAgents.agentId))
+    .where(eq(dealAgents.dealId, deal.id));
 
   return NextResponse.json(
     computeCommission({
@@ -30,11 +42,13 @@ export async function GET(
         deal.referrerType === "percent" || deal.referrerType === "flat"
           ? { type: deal.referrerType, amount: Number(deal.referrerAmount || 0) }
           : null,
-      primaryAgentSharePct: Number(deal.primaryAgentSharePct || 100),
-      primaryAgentSplitPct: Number(primaryAgent.splitPct || 0),
-      coAgent: deal.coAgentId
-        ? { sharePct: Number(deal.coAgentSharePct || 0), splitPct: Number(coAgent?.splitPct || 0) }
-        : null,
+      agents: participantRows.map(({ dealAgent, agent }) => ({
+        agentId: agent.id,
+        name: agent.name,
+        sharePct: Number(dealAgent.sharePct || 0),
+        splitPct: Number(agent.splitPct || 0),
+        isPrimary: Boolean(dealAgent.isPrimary),
+      })),
     })
   );
 }

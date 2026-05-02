@@ -4,7 +4,8 @@ import { invoices, buildings, settings, invoiceSendLog } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { generateInvoicePDF } from "@/lib/pdf-generator";
 import { sendInvoiceEmail } from "@/lib/email-sender";
-import { auth } from "@/auth";
+import { requireActiveAgentApi } from "@/lib/auth-guards";
+import { canViewDeal } from "@/lib/visibility";
 
 // PDF rendering (@react-pdf/renderer) + Resend round-trip can occasionally
 // push past Vercel's default 10-second function limit, especially on cold
@@ -17,6 +18,9 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const authResult = await requireActiveAgentApi();
+  if ("error" in authResult) return authResult.error;
+
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
 
@@ -32,6 +36,19 @@ export async function POST(
   }
 
   const { invoice, building } = result;
+  if (
+    invoice.dealId &&
+    !(await canViewDeal(authResult.session, invoice.dealId))
+  ) {
+    return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+  }
+  if (
+    !invoice.dealId &&
+    !authResult.session.user.isAdmin &&
+    invoice.agentEmail?.toLowerCase() !== authResult.session.user.email?.toLowerCase()
+  ) {
+    return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+  }
 
   // Allow custom recipients from request body, fallback to building config
   const toEmails: string = body.to || building.contactEmail || "";
@@ -80,11 +97,7 @@ export async function POST(
     achAccountName: settingsMap.ach_account_name || undefined,
   });
 
-  // Capture identity of the sender for the audit log. The proxy enforces auth,
-  // so a session should always exist here — but be defensive in case of misconfig.
-  const session = await auth();
-  const sentByUserId = session?.user?.id || null;
-  const sentByEmail = session?.user?.email || null;
+  const sentByEmail = authResult.session.user.email || null;
 
   const to = toEmails.split(",").map((e) => e.trim()).filter(Boolean);
   const extraCc = ccEmails ? ccEmails.split(",").map((e) => e.trim()).filter(Boolean) : [];
@@ -114,7 +127,6 @@ export async function POST(
 
     await db.insert(invoiceSendLog).values({
       invoiceId: Number(id),
-      sentByUserId,
       sentByEmail,
       toRecipients: to.join(", "),
       ccRecipients: extraCc.length > 0 ? extraCc.join(", ") : null,
@@ -135,7 +147,6 @@ export async function POST(
 
     await db.insert(invoiceSendLog).values({
       invoiceId: Number(id),
-      sentByUserId,
       sentByEmail,
       toRecipients: to.join(", "),
       ccRecipients: extraCc.length > 0 ? extraCc.join(", ") : null,

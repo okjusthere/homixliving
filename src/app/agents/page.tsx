@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import { Btn, Card, EditorialInput, Icons, LabeledField, Pill } from "@/components/homix/primitives";
 import { fmtMoney, tone } from "@/components/homix/tokens";
@@ -37,6 +39,8 @@ function initials(name: string) {
 }
 
 export default function AgentsPage() {
+  const router = useRouter();
+  const { data: session, status } = useSession();
   const [agents, setAgents] = useState<AgentRow[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [search, setSearch] = useState("");
@@ -58,8 +62,14 @@ export default function AgentsPage() {
   };
 
   useEffect(() => {
-    fetchAgents();
-  }, []);
+    if (status === "authenticated" && !session.user.isAdmin) {
+      router.replace("/");
+      return;
+    }
+    if (status === "authenticated" && session.user.isAdmin) {
+      fetchAgents();
+    }
+  }, [router, session?.user.isAdmin, status]);
 
   const pending = useMemo(
     () => agents.filter((row) => row.agent.isActive === false),
@@ -143,6 +153,14 @@ export default function AgentsPage() {
       setSaving(false);
     }
   };
+
+  if (status !== "authenticated" || !session?.user.isAdmin) {
+    return (
+      <div className="py-24 text-center text-[13px]" style={{ color: tone.ink50 }}>
+        Loading…
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">

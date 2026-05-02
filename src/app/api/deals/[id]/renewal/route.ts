@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { deals } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { requireActiveAgentApi } from "@/lib/auth-guards";
+import { canEditDeal } from "@/lib/visibility";
 
 const VALID_STATUSES = new Set([
   "pending",
@@ -15,7 +17,19 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const authResult = await requireActiveAgentApi();
+  if ("error" in authResult) return authResult.error;
+
   const { id } = await params;
+  const dealId = Number(id);
+  if (!Number.isFinite(dealId)) {
+    return NextResponse.json({ error: "Valid deal id is required" }, { status: 400 });
+  }
+
+  if (!(await canEditDeal(authResult.session, dealId))) {
+    return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+  }
+
   const body = await req.json().catch(() => ({}));
   const status: string | null =
     body.renewalStatus === null
@@ -31,7 +45,7 @@ export async function PATCH(
   const renewedToDealId =
     typeof body.renewedToDealId === "number" ? body.renewedToDealId : null;
 
-  const deal = await db.select().from(deals).where(eq(deals.id, Number(id))).get();
+  const deal = await db.select().from(deals).where(eq(deals.id, dealId)).get();
   if (!deal) {
     return NextResponse.json({ error: "Deal not found" }, { status: 404 });
   }
@@ -44,7 +58,7 @@ export async function PATCH(
       renewedToDealId,
       updatedAt: new Date().toISOString(),
     })
-    .where(eq(deals.id, Number(id)));
+    .where(eq(deals.id, dealId));
 
   return NextResponse.json({ success: true });
 }

@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { Btn, Card, Icons } from "@/components/homix/primitives";
 import { fmtMoney, tone } from "@/components/homix/tokens";
 import { AgingSection } from "@/components/homix/aging-section";
@@ -23,17 +25,40 @@ type ReportPayload = {
 };
 
 export default function ReportsPage() {
+  const router = useRouter();
+  const { data: session, status } = useSession();
   const [month, setMonth] = useState(getMonthKey());
   const [report, setReport] = useState<ReportPayload | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setLoading(true);
+    if (status !== "authenticated") return;
+    if (!session.user.isAdmin) {
+      router.replace("/");
+      return;
+    }
+    let cancelled = false;
     fetch(`/api/reports/monthly?month=${month}`)
-      .then((r) => r.json())
-      .then(setReport)
-      .finally(() => setLoading(false));
-  }, [month]);
+      .then((r) => {
+        if (!r.ok) {
+          if (r.status === 403) router.replace("/");
+          throw new Error("Report fetch failed");
+        }
+        return r.json();
+      })
+      .then((data) => {
+        if (!cancelled) setReport(data);
+      })
+      .catch(() => {
+        if (!cancelled) setReport(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [month, router, session?.user.isAdmin, status]);
 
   const csv = useMemo(() => {
     if (!report) return "";
@@ -72,7 +97,10 @@ export default function ReportsPage() {
         <div className="flex items-center gap-2">
           <input
             value={month}
-            onChange={(e) => setMonth(e.target.value)}
+            onChange={(e) => {
+              setLoading(true);
+              setMonth(e.target.value);
+            }}
             type="month"
             className="h-10 rounded-lg px-3 text-[13.5px] font-mono outline-none"
             style={{ background: tone.card, border: `1px solid ${tone.line}`, color: tone.ink }}

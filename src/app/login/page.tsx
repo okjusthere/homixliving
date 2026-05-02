@@ -3,7 +3,6 @@
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
-import { Btn, EditorialInput } from "@/components/homix/primitives";
 import { HomixMark } from "@/components/homix/server-primitives";
 import { tone } from "@/components/homix/tokens";
 import { toast } from "sonner";
@@ -47,8 +46,6 @@ type Providers = Record<
 function LoginInner() {
   const params = useSearchParams();
   const error = params.get("error");
-  const [email, setEmail] = useState("");
-  const [submittingEmail, setSubmittingEmail] = useState(false);
   const [submittingGoogle, setSubmittingGoogle] = useState(false);
   const [providers, setProviders] = useState<Providers>(null);
 
@@ -60,35 +57,6 @@ function LoginInner() {
   }, []);
 
   const hasGoogle = providers && "google" in providers;
-  const hasResend = providers && "resend" in providers;
-
-  const handleEmailSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email.trim()) return;
-    setSubmittingEmail(true);
-    try {
-      // For Email/Resend providers, `redirectTo` is the destination AFTER the
-      // user clicks the magic link and the session is created — NOT where they
-      // land right after submitting this form.
-      //
-      // The "Check your email" page is shown automatically via the
-      // `verifyRequest: "/login/check-email"` config in auth.config.ts when
-      // NextAuth redirects after the form submit.
-      //
-      // Setting this to "/login/check-email" was the bug: after a successful
-      // magic-link click, the user was bounced BACK to the check-email page
-      // (which read as "still not signed in"), even though the session cookie
-      // had already been issued.
-      await signIn("resend", {
-        email: email.trim(),
-        redirect: true,
-        redirectTo: "/",
-      });
-    } catch {
-      toast.error("Could not send magic link");
-      setSubmittingEmail(false);
-    }
-  };
 
   const handleGoogleSubmit = async () => {
     setSubmittingGoogle(true);
@@ -130,7 +98,7 @@ function LoginInner() {
             Welcome back.
           </h1>
           <p className="text-[13.5px]" style={{ color: tone.ink70 }}>
-            New here? Same flow signs you up.
+            Use your Google account to access Homix Living.
           </p>
 
           {error && (
@@ -143,12 +111,11 @@ function LoginInner() {
               }}
             >
               {error === "AccessDenied"
-                ? "Access denied. Your account may be pending approval — check with your team admin."
+                ? "Access denied. Your account may be pending activation."
                 : "Sign-in failed. Please try again."}
             </div>
           )}
 
-          {/* Google */}
           {hasGoogle && (
             <div className="mt-6">
               <button
@@ -167,66 +134,24 @@ function LoginInner() {
                 <GoogleLogo />
                 <span>
                   {submittingGoogle
-                    ? "Redirecting…"
+                    ? "Redirecting..."
                     : "Continue with Google"}
                 </span>
               </button>
             </div>
           )}
 
-          {/* Divider */}
-          {hasGoogle && hasResend && (
-            <div className="my-6 flex items-center gap-3">
-              <div className="flex-1 h-px" style={{ background: tone.line }} />
-              <span
-                className="text-[10.5px] uppercase tracking-[0.14em]"
-                style={{ color: tone.ink50 }}
-              >
-                or
-              </span>
-              <div className="flex-1 h-px" style={{ background: tone.line }} />
-            </div>
-          )}
-
-          {/* Magic link */}
-          {hasResend && (
-            <form onSubmit={handleEmailSubmit} className="space-y-3">
-              <div>
-                <label
-                  className="text-[11px] uppercase tracking-[0.1em] block mb-1.5"
-                  style={{ color: tone.ink50 }}
-                >
-                  Email magic link
-                </label>
-                <EditorialInput
-                  value={email}
-                  onChange={setEmail}
-                  placeholder="you@homixny.com"
-                  mono
-                />
-              </div>
-              <Btn
-                variant={hasGoogle ? "outline" : "primary"}
-                size="lg"
-                type="submit"
-                disabled={submittingEmail || !email}
-                className="w-full"
-              >
-                {submittingEmail ? "Sending magic link…" : "Send magic link"}
-              </Btn>
-            </form>
-          )}
-
           {!providers && (
             <div className="mt-6 text-[12px] text-center" style={{ color: tone.ink50 }}>
-              Loading sign-in options…
+              Loading sign-in options...
             </div>
           )}
 
-          <div className="mt-6 text-[12px] text-center" style={{ color: tone.ink50 }}>
-            New brokers: signing in creates your account. Admin will activate
-            it shortly after.
-          </div>
+          {providers && !hasGoogle && (
+            <div className="mt-6 text-[12px] text-center" style={{ color: tone.ink50 }}>
+              Google sign-in is not configured.
+            </div>
+          )}
         </div>
       </div>
     </div>

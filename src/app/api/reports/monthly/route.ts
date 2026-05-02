@@ -1,21 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { agents, buildings, deals } from "@/db/schema";
+import { agents, buildings, dealAgents, deals } from "@/db/schema";
 import { computeCommission } from "@/lib/commission";
-import { activeDeal, dealInMonth, getMonthKey } from "@/lib/reporting";
+import { activeDeal, commissionAgentsForDeal, dealInMonth, getMonthKey } from "@/lib/reporting";
+import { requireAdminApi } from "@/lib/auth-guards";
 
 export async function GET(req: NextRequest) {
+  const authResult = await requireAdminApi();
+  if ("error" in authResult) return authResult.error;
+
   const month = req.nextUrl.searchParams.get("month") || getMonthKey();
   if (!/^\d{4}-\d{2}$/.test(month)) {
     return NextResponse.json({ error: "month must be YYYY-MM" }, { status: 400 });
   }
 
-  const [dealRows, agentRows, buildingRows] = await Promise.all([
+  const [dealRows, agentRows, buildingRows, dealAgentRows] = await Promise.all([
     db.select().from(deals),
     db.select().from(agents),
     db.select().from(buildings),
+    db.select().from(dealAgents),
   ]);
-  const agentById = new Map(agentRows.map((agent) => [agent.id, agent]));
   const buildingById = new Map(buildingRows.map((building) => [building.id, building]));
   const monthDeals = dealRows.filter((deal) => activeDeal(deal) && dealInMonth(deal, month));
 
@@ -28,36 +32,31 @@ export async function GET(req: NextRequest) {
   let referrerPayouts = 0;
 
   for (const deal of monthDeals) {
-    const primaryAgent = agentById.get(deal.primaryAgentId);
-    const coAgent = deal.coAgentId ? agentById.get(deal.coAgentId) : null;
+    const participants = commissionAgentsForDeal({
+      dealId: deal.id,
+      dealAgents: dealAgentRows,
+      agents: agentRows,
+    });
     const breakdown = computeCommission({
       totalCommission: Number(deal.totalCommission || 0),
       referrer:
         deal.referrerType === "percent" || deal.referrerType === "flat"
           ? { type: deal.referrerType, amount: Number(deal.referrerAmount || 0) }
           : null,
-      primaryAgentSharePct: Number(deal.primaryAgentSharePct || 100),
-      primaryAgentSplitPct: Number(primaryAgent?.splitPct || 0),
-      coAgent: deal.coAgentId
-        ? { sharePct: Number(deal.coAgentSharePct || 0), splitPct: Number(coAgent?.splitPct || 0) }
-        : null,
+      agents: participants,
     });
 
     companyPool += breakdown.companyPoolTotal;
     agentPayouts += breakdown.agentTakeTotal;
     referrerPayouts += breakdown.referrerCut;
 
-    if (primaryAgent) {
-      const existing = agentStats.get(primaryAgent.id) || { agent: primaryAgent, deals: new Set<number>(), take: 0 };
+    for (const agentBreakdown of breakdown.agents) {
+      const agent = agentRows.find((row) => row.id === agentBreakdown.agentId);
+      if (!agent) continue;
+      const existing = agentStats.get(agent.id) || { agent, deals: new Set<number>(), take: 0 };
       existing.deals.add(deal.id);
-      existing.take += breakdown.primaryAgentTake;
-      agentStats.set(primaryAgent.id, existing);
-    }
-    if (coAgent) {
-      const existing = agentStats.get(coAgent.id) || { agent: coAgent, deals: new Set<number>(), take: 0 };
-      existing.deals.add(deal.id);
-      existing.take += breakdown.coAgentTake;
-      agentStats.set(coAgent.id, existing);
+      existing.take += agentBreakdown.agentTake;
+      agentStats.set(agent.id, existing);
     }
 
     const building = buildingById.get(deal.buildingId);

@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { invoices, buildings } from "@/db/schema";
+import { deals, invoices, buildings } from "@/db/schema";
 import { desc, eq } from "drizzle-orm";
 import { generateInvoiceNumber, generateFileName, generateEmailSubject } from "@/lib/invoice-generator";
+import { requireActiveAgentApi } from "@/lib/auth-guards";
+import { dealsVisibleToSql } from "@/lib/visibility";
 
 export async function GET() {
+  const authResult = await requireActiveAgentApi();
+  if ("error" in authResult) return authResult.error;
+
   const allInvoices = await db
     .select({
       invoice: invoices,
@@ -14,10 +19,28 @@ export async function GET() {
     .from(invoices)
     .leftJoin(buildings, eq(invoices.buildingId, buildings.id))
     .orderBy(desc(invoices.createdAt));
-  return NextResponse.json(allInvoices);
+
+  if (authResult.session.user.isAdmin) {
+    return NextResponse.json(allInvoices);
+  }
+
+  const visibilityFilter = dealsVisibleToSql(authResult.session);
+  const visibleDeals = visibilityFilter
+    ? await db.select({ id: deals.id }).from(deals).where(visibilityFilter)
+    : await db.select({ id: deals.id }).from(deals);
+  const visibleDealIds = new Set(visibleDeals.map((deal) => deal.id));
+  return NextResponse.json(
+    allInvoices.filter(({ invoice }) => {
+      if (invoice.dealId) return visibleDealIds.has(invoice.dealId);
+      return invoice.agentEmail?.toLowerCase() === authResult.session.user.email?.toLowerCase();
+    })
+  );
 }
 
 export async function POST(req: NextRequest) {
+  const authResult = await requireActiveAgentApi();
+  if ("error" in authResult) return authResult.error;
+
   const body = await req.json();
   const { buildingId, unit, tenantName, agentEmail, agentName, agentPhone, apartmentAddress, moveInDate, licensedCompany, year, lineItems, totalAmount, notes } = body;
 

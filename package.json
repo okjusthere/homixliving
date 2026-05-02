@@ -7,12 +7,13 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx src/lib/__tests__/commission.test.ts",
+    "test": "npm run test:commission && npm run test:visibility",
+    "test:commission": "tsx src/lib/__tests__/commission.test.ts",
+    "test:visibility": "tsx src/lib/__tests__/visibility.test.ts",
     "db:seed": "tsx src/db/seed.ts",
     "db:push": "tsx src/db/seed.ts"
   },
   "dependencies": {
-    "@auth/drizzle-adapter": "^1.11.2",
     "@base-ui/react": "^1.4.0",
     "@libsql/client": "^0.17.2",
     "@react-pdf/renderer": "^4.4.1",

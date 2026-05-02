@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Btn, Card, Pill } from "@/components/homix/primitives";
+import { Card, Pill } from "@/components/homix/primitives";
 import { fmtDate, fmtMoney, tone } from "@/components/homix/tokens";
 import {
   RENEWAL_WINDOWS,
