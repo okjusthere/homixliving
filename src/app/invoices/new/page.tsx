@@ -124,6 +124,12 @@ export default function NewInvoicePage() {
     achRoutingNumber: settings.ach_routing_number,
     achAccountNumber: settings.ach_account_number,
     achAccountName: settings.ach_account_name,
+    wireAccountName: settings.wire_account_name,
+    wireBankName: settings.wire_bank_name,
+    wireRoutingNumber: settings.wire_routing_number,
+    wireAccountNumber: settings.wire_account_number,
+    wireBankAddress: settings.wire_bank_address,
+    wireSwiftCode: settings.wire_swift_code,
   };
 
   const updateLineItem = (

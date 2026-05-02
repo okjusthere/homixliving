@@ -3162,6 +3162,16 @@ const defaultSettings = [
   { key: "ach_routing_number", value: "" },
   { key: "ach_account_number", value: "" },
   { key: "ach_account_name", value: "" },
+  // Wire transfer — distinct from ACH because wire usually requires bank
+  // address, sometimes a different routing (e.g. Chase ACH vs wire), and
+  // SWIFT/BIC for international receipts. Keys default to "" so existing
+  // installs get the new fields without overwriting current values.
+  { key: "wire_account_name", value: "" },
+  { key: "wire_bank_name", value: "" },
+  { key: "wire_routing_number", value: "" },
+  { key: "wire_account_number", value: "" },
+  { key: "wire_bank_address", value: "" },
+  { key: "wire_swift_code", value: "" },
 ];
 
 const demoTeams: schema.NewTeam[] = [

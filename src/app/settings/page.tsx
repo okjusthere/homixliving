@@ -215,10 +215,10 @@ export default function SettingsPage() {
               className="font-serif"
               style={{ fontSize: 20, color: tone.ink, letterSpacing: "-0.01em" }}
             >
-              Payment · ACH / Wire
+              Payment · ACH
             </div>
             <div className="text-[12px] mt-0.5" style={{ color: tone.ink50 }}>
-              Bank transfer details
+              Domestic ACH transfer details
             </div>
           </div>
           <div className="p-6 space-y-4">
@@ -254,6 +254,79 @@ export default function SettingsPage() {
                 />
               </LabeledField>
             </div>
+          </div>
+        </Card>
+
+        {/* Payment — Wire */}
+        <Card>
+          <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
+            <div
+              className="font-serif"
+              style={{ fontSize: 20, color: tone.ink, letterSpacing: "-0.01em" }}
+            >
+              Payment · Wire
+            </div>
+            <div className="text-[12px] mt-0.5" style={{ color: tone.ink50 }}>
+              Wire transfer details (separate from ACH)
+            </div>
+          </div>
+          <div className="p-6 space-y-4">
+            <LabeledField label="Account name">
+              <EditorialInput
+                value={settings.wire_account_name || ""}
+                onChange={(v) => update("wire_account_name", v)}
+                placeholder="Homix Living Inc."
+              />
+            </LabeledField>
+            <LabeledField label="Bank name">
+              <EditorialInput
+                value={settings.wire_bank_name || ""}
+                onChange={(v) => update("wire_bank_name", v)}
+                placeholder="Chase Bank"
+              />
+            </LabeledField>
+            <div className="grid grid-cols-2 gap-3">
+              <LabeledField label="Wire routing / ABA">
+                <EditorialInput
+                  value={settings.wire_routing_number || ""}
+                  onChange={(v) => update("wire_routing_number", v)}
+                  placeholder="021000021"
+                  mono
+                />
+              </LabeledField>
+              <LabeledField label="Account №">
+                <EditorialInput
+                  value={settings.wire_account_number || ""}
+                  onChange={(v) => update("wire_account_number", v)}
+                  placeholder="••••••4823"
+                  mono
+                />
+              </LabeledField>
+            </div>
+            <LabeledField label="Bank address">
+              <textarea
+                value={settings.wire_bank_address || ""}
+                onChange={(e) => update("wire_bank_address", e.target.value)}
+                rows={3}
+                placeholder="JPMorgan Chase Bank, N.A.&#10;270 Park Avenue&#10;New York, NY 10017"
+                className="w-full rounded-lg p-3 text-[13.5px] outline-none"
+                style={{
+                  background: tone.card,
+                  border: `1px solid ${tone.line}`,
+                  color: tone.ink,
+                  resize: "vertical",
+                  fontFamily: "var(--font-geist-mono), monospace",
+                }}
+              />
+            </LabeledField>
+            <LabeledField label="SWIFT / BIC (international)">
+              <EditorialInput
+                value={settings.wire_swift_code || ""}
+                onChange={(v) => update("wire_swift_code", v)}
+                placeholder="CHASUS33"
+                mono
+              />
+            </LabeledField>
           </div>
         </Card>
       </div>

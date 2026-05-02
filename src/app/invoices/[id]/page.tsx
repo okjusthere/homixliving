@@ -25,6 +25,12 @@ function settingsForDoc(s: Settings) {
     achRoutingNumber: s.ach_routing_number,
     achAccountNumber: s.ach_account_number,
     achAccountName: s.ach_account_name,
+    wireAccountName: s.wire_account_name,
+    wireBankName: s.wire_bank_name,
+    wireRoutingNumber: s.wire_routing_number,
+    wireAccountNumber: s.wire_account_number,
+    wireBankAddress: s.wire_bank_address,
+    wireSwiftCode: s.wire_swift_code,
   };
 }
 

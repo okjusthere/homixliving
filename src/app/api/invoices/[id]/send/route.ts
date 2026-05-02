@@ -95,6 +95,12 @@ export async function POST(
     achRoutingNumber: settingsMap.ach_routing_number || undefined,
     achAccountNumber: settingsMap.ach_account_number || undefined,
     achAccountName: settingsMap.ach_account_name || undefined,
+    wireAccountName: settingsMap.wire_account_name || undefined,
+    wireBankName: settingsMap.wire_bank_name || undefined,
+    wireRoutingNumber: settingsMap.wire_routing_number || undefined,
+    wireAccountNumber: settingsMap.wire_account_number || undefined,
+    wireBankAddress: settingsMap.wire_bank_address || undefined,
+    wireSwiftCode: settingsMap.wire_swift_code || undefined,
   });
 
   const sentByEmail = authResult.session.user.email || null;

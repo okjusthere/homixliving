@@ -425,6 +425,12 @@ type InvoicePDFProps = {
   achRoutingNumber?: string;
   achAccountNumber?: string;
   achAccountName?: string;
+  wireAccountName?: string;
+  wireBankName?: string;
+  wireRoutingNumber?: string;
+  wireAccountNumber?: string;
+  wireBankAddress?: string;
+  wireSwiftCode?: string;
 };
 
 // Homix logo SVG for PDF
@@ -461,6 +467,12 @@ function InvoicePDF(props: InvoicePDFProps) {
     achRoutingNumber,
     achAccountNumber,
     achAccountName,
+    wireAccountName,
+    wireBankName,
+    wireRoutingNumber,
+    wireAccountNumber,
+    wireBankAddress,
+    wireSwiftCode,
   } = props;
 
   const issueDate = date || new Date().toISOString();
@@ -469,6 +481,8 @@ function InvoicePDF(props: InvoicePDFProps) {
 
   const hasCheck = payableTo || mailCheckAddress;
   const hasACH = achBankName || achRoutingNumber || achAccountNumber;
+  const hasWire =
+    wireBankName || wireRoutingNumber || wireAccountNumber || wireSwiftCode;
 
   return (
     <Document>
@@ -613,7 +627,7 @@ function InvoicePDF(props: InvoicePDFProps) {
         </View>
 
         {/* Payment Methods */}
-        {(hasCheck || hasACH) && (
+        {(hasCheck || hasACH || hasWire) && (
           <View style={styles.paymentBox}>
             <View style={styles.sectionLabel}>
               <Text style={styles.sectionLabelText}>Payment Methods</Text>
@@ -647,7 +661,7 @@ function InvoicePDF(props: InvoicePDFProps) {
               )}
               {hasACH && (
                 <View style={styles.paymentCol}>
-                  <Text style={styles.paymentTitle}>By ACH / Wire</Text>
+                  <Text style={styles.paymentTitle}>By ACH</Text>
                   <View style={styles.paymentBody}>
                     {achAccountName && (
                       <View style={styles.paymentRow}>
@@ -672,6 +686,49 @@ function InvoicePDF(props: InvoicePDFProps) {
                         <Text style={styles.paymentLabel}>Account №</Text>
                         <Text style={styles.paymentValue}>{achAccountNumber}</Text>
                       </View>
+                    )}
+                  </View>
+                </View>
+              )}
+              {hasWire && (
+                <View style={styles.paymentCol}>
+                  <Text style={styles.paymentTitle}>By Wire</Text>
+                  <View style={styles.paymentBody}>
+                    {wireAccountName && (
+                      <View style={styles.paymentRow}>
+                        <Text style={styles.paymentLabel}>Account</Text>
+                        <Text style={styles.paymentValue}>{wireAccountName}</Text>
+                      </View>
+                    )}
+                    {wireBankName && (
+                      <View style={styles.paymentRow}>
+                        <Text style={styles.paymentLabel}>Bank</Text>
+                        <Text style={styles.paymentValue}>{wireBankName}</Text>
+                      </View>
+                    )}
+                    {wireRoutingNumber && (
+                      <View style={styles.paymentRow}>
+                        <Text style={styles.paymentLabel}>Routing</Text>
+                        <Text style={styles.paymentValue}>{wireRoutingNumber}</Text>
+                      </View>
+                    )}
+                    {wireAccountNumber && (
+                      <View style={styles.paymentRow}>
+                        <Text style={styles.paymentLabel}>Account №</Text>
+                        <Text style={styles.paymentValue}>{wireAccountNumber}</Text>
+                      </View>
+                    )}
+                    {wireSwiftCode && (
+                      <View style={styles.paymentRow}>
+                        <Text style={styles.paymentLabel}>SWIFT</Text>
+                        <Text style={styles.paymentValue}>{wireSwiftCode}</Text>
+                      </View>
+                    )}
+                    {wireBankAddress && (
+                      <>
+                        <Text style={[styles.paymentLabel, { marginTop: 8 }]}>Bank address</Text>
+                        <Text style={styles.paymentValue}>{wireBankAddress}</Text>
+                      </>
                     )}
                   </View>
                 </View>
