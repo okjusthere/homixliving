@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
+import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import {
   Btn,
@@ -28,12 +29,14 @@ const emptyBuilding: Partial<Building> = {
 };
 
 export default function BuildingsPage() {
+  const { data: session } = useSession();
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [editBuilding, setEditBuilding] = useState<Building | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [saving, setSaving] = useState(false);
+  const isAdmin = Boolean(session?.user.isAdmin);
 
   const fetchBuildings = () => {
     fetch("/api/buildings")
@@ -54,6 +57,7 @@ export default function BuildingsPage() {
   };
 
   const openEdit = (b: Building) => {
+    if (!isAdmin) return;
     setEditBuilding(b);
     setIsNew(false);
   };
@@ -154,7 +158,8 @@ export default function BuildingsPage() {
             Buildings
           </h1>
           <p className="mt-3 text-[14px]" style={{ color: tone.ink70 }}>
-            {buildings.length} building{buildings.length === 1 ? "" : "s"} · click a card to edit
+            {buildings.length} building{buildings.length === 1 ? "" : "s"}
+            {isAdmin ? " · click a card to edit" : ""}
           </p>
         </div>
         <Btn variant="primary" icon={<Icons.Plus />} onClick={openNew}>
@@ -206,7 +211,8 @@ export default function BuildingsPage() {
                     key={b.id}
                     type="button"
                     onClick={() => openEdit(b)}
-                    className="rounded-xl p-4 text-left transition-colors hover:bg-[#FAF7F0]"
+                    className="rounded-xl p-4 text-left transition-colors hover:bg-[#FAF7F0] disabled:cursor-default disabled:hover:bg-transparent"
+                    disabled={!isAdmin}
                     style={{ border: `1px solid ${tone.line}`, background: tone.card }}
                   >
                     <div className="flex items-center justify-between mb-2">
@@ -414,7 +420,7 @@ export default function BuildingsPage() {
               style={{ borderTop: `1px solid ${tone.line}`, background: tone.paper }}
             >
               <div>
-                {!isNew && (
+                {!isNew && isAdmin && (
                   <Btn variant="danger" size="sm" icon={<Icons.Trash />} onClick={handleDelete}>
                     Delete
                   </Btn>
