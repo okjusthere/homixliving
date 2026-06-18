@@ -3285,6 +3285,46 @@ async function ensureAgent(agent: schema.NewAgent) {
   return created;
 }
 
+async function tableExists(name: string) {
+  const result = await client.execute({
+    sql: "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+    args: [name],
+  });
+  return result.rows.length > 0;
+}
+
+async function columnExists(table: string, column: string) {
+  const result = await client.execute(`PRAGMA table_info(${table})`);
+  return result.rows.some((row) => row.name === column);
+}
+
+async function renameTableIfNeeded(oldName: string, newName: string) {
+  const [oldExists, newExists] = await Promise.all([
+    tableExists(oldName),
+    tableExists(newName),
+  ]);
+  if (oldExists && !newExists) {
+    await client.execute(`ALTER TABLE ${oldName} RENAME TO ${newName}`);
+    console.log(`Renamed ${oldName} to ${newName}.`);
+  }
+}
+
+async function renameColumnIfNeeded(
+  table: string,
+  oldName: string,
+  newName: string
+) {
+  if (!(await tableExists(table))) return;
+  const [oldExists, newExists] = await Promise.all([
+    columnExists(table, oldName),
+    columnExists(table, newName),
+  ]);
+  if (oldExists && !newExists) {
+    await client.execute(`ALTER TABLE ${table} RENAME COLUMN ${oldName} TO ${newName}`);
+    console.log(`Renamed ${table}.${oldName} to ${table}.${newName}.`);
+  }
+}
+
 async function seed() {
   console.log("Creating tables...");
 
@@ -3342,8 +3382,22 @@ async function seed() {
     )
   `);
 
+  await renameTableIfNeeded("deals", "rental_deals");
+  await renameTableIfNeeded("deal_agents", "rental_deal_agents");
+  await renameColumnIfNeeded(
+    "rental_deals",
+    "renewed_to_deal_id",
+    "renewed_to_rental_deal_id"
+  );
+  await renameColumnIfNeeded(
+    "rental_deal_agents",
+    "deal_id",
+    "rental_deal_id"
+  );
+  await renameColumnIfNeeded("invoices", "deal_id", "rental_deal_id");
+
   await client.execute(`
-    CREATE TABLE IF NOT EXISTS deals (
+    CREATE TABLE IF NOT EXISTS rental_deals (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       building_id INTEGER NOT NULL REFERENCES buildings(id),
       unit TEXT NOT NULL,
@@ -3368,32 +3422,86 @@ async function seed() {
       notes TEXT,
       renewal_status TEXT,
       renewal_noted_at TEXT,
-      renewed_to_deal_id INTEGER REFERENCES deals(id) ON DELETE SET NULL,
+      renewed_to_rental_deal_id INTEGER REFERENCES rental_deals(id) ON DELETE SET NULL,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
   await client.execute(`
-    CREATE TABLE IF NOT EXISTS deal_agents (
-      deal_id INTEGER NOT NULL REFERENCES deals(id) ON DELETE CASCADE,
+    CREATE TABLE IF NOT EXISTS rental_deal_agents (
+      rental_deal_id INTEGER NOT NULL REFERENCES rental_deals(id) ON DELETE CASCADE,
       agent_id INTEGER NOT NULL REFERENCES agents(id) ON DELETE RESTRICT,
       share_pct REAL NOT NULL,
       is_primary INTEGER NOT NULL DEFAULT 0,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-      PRIMARY KEY (deal_id, agent_id)
+      PRIMARY KEY (rental_deal_id, agent_id)
     )
   `);
   await client.execute(`
-    CREATE INDEX IF NOT EXISTS idx_deal_agents_agent
-      ON deal_agents(agent_id)
+    CREATE INDEX IF NOT EXISTS idx_rental_deal_agents_agent
+      ON rental_deal_agents(agent_id)
+  `);
+
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS sale_deals (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      representation_type TEXT NOT NULL,
+      stage TEXT NOT NULL DEFAULT 'pre_contract',
+      status TEXT NOT NULL DEFAULT 'active',
+      property_address TEXT NOT NULL,
+      city TEXT,
+      state TEXT,
+      zip TEXT,
+      property_type TEXT,
+      mls_number TEXT,
+      file_id TEXT,
+      buyer_names TEXT,
+      seller_names TEXT,
+      contract_date TEXT,
+      closing_date TEXT,
+      purchase_price REAL,
+      gross_commission REAL NOT NULL DEFAULT 0,
+      referral_amount REAL,
+      brokerage_fee REAL,
+      listing_agent_name TEXT,
+      listing_agent_email TEXT,
+      listing_brokerage TEXT,
+      cooperating_agent_name TEXT,
+      cooperating_agent_email TEXT,
+      cooperating_brokerage TEXT,
+      buyer_attorney TEXT,
+      seller_attorney TEXT,
+      title_company TEXT,
+      lender_name TEXT,
+      escrow_holder TEXT,
+      source TEXT,
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS sale_deal_agents (
+      sale_deal_id INTEGER NOT NULL REFERENCES sale_deals(id) ON DELETE CASCADE,
+      agent_id INTEGER NOT NULL REFERENCES agents(id) ON DELETE RESTRICT,
+      share_pct REAL NOT NULL,
+      is_primary INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (sale_deal_id, agent_id)
+    )
+  `);
+  await client.execute(`
+    CREATE INDEX IF NOT EXISTS idx_sale_deal_agents_agent
+      ON sale_deal_agents(agent_id)
   `);
 
   await client.execute(`
     CREATE TABLE IF NOT EXISTS invoices (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       building_id INTEGER REFERENCES buildings(id),
-      deal_id INTEGER REFERENCES deals(id) ON DELETE SET NULL,
+      rental_deal_id INTEGER REFERENCES rental_deals(id) ON DELETE SET NULL,
       invoice_number TEXT NOT NULL,
       file_name TEXT NOT NULL,
       email_subject TEXT,
@@ -3454,9 +3562,9 @@ async function seed() {
 
   if (await addColumnIfMissing(`
     ALTER TABLE invoices
-    ADD COLUMN deal_id INTEGER REFERENCES deals(id) ON DELETE SET NULL
+    ADD COLUMN rental_deal_id INTEGER REFERENCES rental_deals(id) ON DELETE SET NULL
   `)) {
-    console.log("Added invoices.deal_id column.");
+    console.log("Added invoices.rental_deal_id column.");
   }
   if (await addColumnIfMissing(`ALTER TABLE invoices ADD COLUMN paid_at TEXT`)) {
     console.log("Added invoices.paid_at column.");
@@ -3464,26 +3572,26 @@ async function seed() {
   if (await addColumnIfMissing(`ALTER TABLE invoices ADD COLUMN paid_amount REAL`)) {
     console.log("Added invoices.paid_amount column.");
   }
-  if (await addColumnIfMissing(`ALTER TABLE deals ADD COLUMN renewal_status TEXT`)) {
-    console.log("Added deals.renewal_status column.");
+  if (await addColumnIfMissing(`ALTER TABLE rental_deals ADD COLUMN renewal_status TEXT`)) {
+    console.log("Added rental_deals.renewal_status column.");
   }
-  if (await addColumnIfMissing(`ALTER TABLE deals ADD COLUMN renewal_noted_at TEXT`)) {
-    console.log("Added deals.renewal_noted_at column.");
+  if (await addColumnIfMissing(`ALTER TABLE rental_deals ADD COLUMN renewal_noted_at TEXT`)) {
+    console.log("Added rental_deals.renewal_noted_at column.");
   }
-  if (await addColumnIfMissing(`ALTER TABLE deals ADD COLUMN renewed_to_deal_id INTEGER REFERENCES deals(id) ON DELETE SET NULL`)) {
-    console.log("Added deals.renewed_to_deal_id column.");
+  if (await addColumnIfMissing(`ALTER TABLE rental_deals ADD COLUMN renewed_to_rental_deal_id INTEGER REFERENCES rental_deals(id) ON DELETE SET NULL`)) {
+    console.log("Added rental_deals.renewed_to_rental_deal_id column.");
   }
-  if (await addColumnIfMissing(`ALTER TABLE deals ADD COLUMN source TEXT`)) {
-    console.log("Added deals.source column.");
+  if (await addColumnIfMissing(`ALTER TABLE rental_deals ADD COLUMN source TEXT`)) {
+    console.log("Added rental_deals.source column.");
   }
   if (await addColumnIfMissing(`ALTER TABLE agents ADD COLUMN is_admin INTEGER DEFAULT 0`)) {
     console.log("Added agents.is_admin column.");
   }
-  if (await addColumnIfMissing(`ALTER TABLE deals ADD COLUMN referrer_name TEXT`)) {
-    console.log("Added deals.referrer_name column.");
+  if (await addColumnIfMissing(`ALTER TABLE rental_deals ADD COLUMN referrer_name TEXT`)) {
+    console.log("Added rental_deals.referrer_name column.");
   }
-  if (await addColumnIfMissing(`ALTER TABLE deals ADD COLUMN referrer_payment_info TEXT`)) {
-    console.log("Added deals.referrer_payment_info column.");
+  if (await addColumnIfMissing(`ALTER TABLE rental_deals ADD COLUMN referrer_payment_info TEXT`)) {
+    console.log("Added rental_deals.referrer_payment_info column.");
   }
 
   // Buildings are seeded once on initial deploy. After that, additions/edits

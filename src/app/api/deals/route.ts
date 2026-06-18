@@ -210,7 +210,7 @@ export async function POST(req: NextRequest) {
       db.insert(deals).values({ ...result.data, createdAt: now }).returning(),
       ...result.agents.map((agent) =>
         db.insert(dealAgents).values({
-          dealId: sql`(SELECT id FROM deals ORDER BY id DESC LIMIT 1)`,
+          dealId: sql`(SELECT id FROM rental_deals ORDER BY id DESC LIMIT 1)`,
           agentId: agent.agentId,
           sharePct: agent.sharePct,
           isPrimary: agent.isPrimary,

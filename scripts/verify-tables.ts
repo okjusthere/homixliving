@@ -15,10 +15,12 @@ async function main() {
   const expected = [
     "agents",
     "buildings",
-    "deal_agents",
-    "deals",
     "invoice_send_log",
     "invoices",
+    "rental_deal_agents",
+    "rental_deals",
+    "sale_deal_agents",
+    "sale_deals",
     "settings",
     "teams",
   ];

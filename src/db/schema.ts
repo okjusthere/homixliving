@@ -27,7 +27,7 @@ export const buildings = sqliteTable("buildings", {
 export const invoices = sqliteTable("invoices", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   buildingId: integer("building_id").references(() => buildings.id),
-  dealId: integer("deal_id").references((): AnySQLiteColumn => deals.id, {
+  dealId: integer("rental_deal_id").references((): AnySQLiteColumn => rentalDeals.id, {
     onDelete: "set null",
   }),
   invoiceNumber: text("invoice_number").notNull(), // Unit-楼名-年份
@@ -83,7 +83,7 @@ export const agents = sqliteTable("agents", {
   updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
 });
 
-export const deals = sqliteTable("deals", {
+export const rentalDeals = sqliteTable("rental_deals", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   buildingId: integer("building_id")
     .notNull()
@@ -115,17 +115,17 @@ export const deals = sqliteTable("deals", {
   // Renewal tracking — for upcoming lease-end follow-ups
   renewalStatus: text("renewal_status"), // null | 'pending' | 'renewing' | 'moving_out' | 'renewed' | 'lost'
   renewalNotedAt: text("renewal_noted_at"),
-  renewedToDealId: integer("renewed_to_deal_id"), // FK to deals.id once renewal closes
+  renewedToDealId: integer("renewed_to_rental_deal_id"), // FK to rental_deals.id once renewal closes
   createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
   updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
 });
 
-export const dealAgents = sqliteTable(
-  "deal_agents",
+export const rentalDealAgents = sqliteTable(
+  "rental_deal_agents",
   {
-    dealId: integer("deal_id")
+    dealId: integer("rental_deal_id")
       .notNull()
-      .references(() => deals.id, { onDelete: "cascade" }),
+      .references(() => rentalDeals.id, { onDelete: "cascade" }),
     agentId: integer("agent_id")
       .notNull()
       .references(() => agents.id, { onDelete: "restrict" }),
@@ -134,6 +134,63 @@ export const dealAgents = sqliteTable(
     createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
   },
   (table) => [primaryKey({ columns: [table.dealId, table.agentId] })]
+);
+
+// Compatibility aliases while the Rental UI keeps the existing /deals routes.
+export const deals = rentalDeals;
+export const dealAgents = rentalDealAgents;
+
+export const saleDeals = sqliteTable("sale_deals", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  representationType: text("representation_type").notNull(), // buyer_rep | seller_rep | dual_agency | referral
+  stage: text("stage").notNull().default("pre_contract"), // pre_contract | under_contract | post_contract | closed
+  status: text("status").notNull().default("active"), // active | cancelled | completed
+  propertyAddress: text("property_address").notNull(),
+  city: text("city"),
+  state: text("state"),
+  zip: text("zip"),
+  propertyType: text("property_type"),
+  mlsNumber: text("mls_number"),
+  fileId: text("file_id"),
+  buyerNames: text("buyer_names"),
+  sellerNames: text("seller_names"),
+  contractDate: text("contract_date"),
+  closingDate: text("closing_date"),
+  purchasePrice: real("purchase_price"),
+  grossCommission: real("gross_commission").notNull().default(0),
+  referralAmount: real("referral_amount"),
+  brokerageFee: real("brokerage_fee"),
+  listingAgentName: text("listing_agent_name"),
+  listingAgentEmail: text("listing_agent_email"),
+  listingBrokerage: text("listing_brokerage"),
+  cooperatingAgentName: text("cooperating_agent_name"),
+  cooperatingAgentEmail: text("cooperating_agent_email"),
+  cooperatingBrokerage: text("cooperating_brokerage"),
+  buyerAttorney: text("buyer_attorney"),
+  sellerAttorney: text("seller_attorney"),
+  titleCompany: text("title_company"),
+  lenderName: text("lender_name"),
+  escrowHolder: text("escrow_holder"),
+  source: text("source"),
+  notes: text("notes"),
+  createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
+  updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
+});
+
+export const saleDealAgents = sqliteTable(
+  "sale_deal_agents",
+  {
+    saleDealId: integer("sale_deal_id")
+      .notNull()
+      .references(() => saleDeals.id, { onDelete: "cascade" }),
+    agentId: integer("agent_id")
+      .notNull()
+      .references(() => agents.id, { onDelete: "restrict" }),
+    sharePct: real("share_pct").notNull(),
+    isPrimary: integer("is_primary", { mode: "boolean" }).notNull().default(false),
+    createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => [primaryKey({ columns: [table.saleDealId, table.agentId] })]
 );
 
 // ============================================================
@@ -172,9 +229,17 @@ export type Team = typeof teams.$inferSelect;
 export type NewTeam = typeof teams.$inferInsert;
 export type Agent = typeof agents.$inferSelect;
 export type NewAgent = typeof agents.$inferInsert;
-export type Deal = typeof deals.$inferSelect;
-export type NewDeal = typeof deals.$inferInsert;
-export type DealAgent = typeof dealAgents.$inferSelect;
-export type NewDealAgent = typeof dealAgents.$inferInsert;
+export type RentalDeal = typeof rentalDeals.$inferSelect;
+export type NewRentalDeal = typeof rentalDeals.$inferInsert;
+export type RentalDealAgent = typeof rentalDealAgents.$inferSelect;
+export type NewRentalDealAgent = typeof rentalDealAgents.$inferInsert;
+export type Deal = RentalDeal;
+export type NewDeal = NewRentalDeal;
+export type DealAgent = RentalDealAgent;
+export type NewDealAgent = NewRentalDealAgent;
+export type SaleDeal = typeof saleDeals.$inferSelect;
+export type NewSaleDeal = typeof saleDeals.$inferInsert;
+export type SaleDealAgent = typeof saleDealAgents.$inferSelect;
+export type NewSaleDealAgent = typeof saleDealAgents.$inferInsert;
 export type InvoiceSendLog = typeof invoiceSendLog.$inferSelect;
 export type NewInvoiceSendLog = typeof invoiceSendLog.$inferInsert;
