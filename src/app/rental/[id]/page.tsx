@@ -41,8 +41,8 @@ export default function DealDetailPage() {
   const load = () => {
     setLoading(true);
     Promise.all([
-      fetch(`/api/deals/${id}`).then((r) => r.json()),
-      fetch(`/api/deals/${id}/breakdown`).then((r) => r.json()),
+      fetch(`/api/rental/${id}`).then((r) => r.json()),
+      fetch(`/api/rental/${id}/breakdown`).then((r) => r.json()),
     ])
       .then(([dealData, breakdownData]) => {
         setPayload(dealData);
@@ -59,7 +59,7 @@ export default function DealDetailPage() {
   const createInvoice = async () => {
     setCreatingInvoice(true);
     try {
-      const res = await fetch(`/api/deals/${id}/create-invoice`, { method: "POST" });
+      const res = await fetch(`/api/rental/${id}/create-invoice`, { method: "POST" });
       if (!res.ok) throw new Error();
       const data = await res.json();
       toast.success("Invoice created");
@@ -73,7 +73,7 @@ export default function DealDetailPage() {
 
   const cancelDeal = async () => {
     if (!payload?.deal) return;
-    if (!confirm("Cancel this deal?")) return;
+    if (!confirm("Cancel this rental deal?")) return;
     const updatePayload = {
       ...payload.deal,
       status: "cancelled",
@@ -84,13 +84,13 @@ export default function DealDetailPage() {
       })),
     };
     try {
-      const res = await fetch(`/api/deals/${id}`, {
+      const res = await fetch(`/api/rental/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updatePayload),
       });
       if (!res.ok) throw new Error();
-      toast.success("Deal cancelled");
+      toast.success("Rental cancelled");
       load();
     } catch {
       toast.error("Cancel failed");
@@ -109,10 +109,10 @@ export default function DealDetailPage() {
     return (
       <div className="py-24 text-center">
         <div className="font-serif text-2xl" style={{ color: tone.ink }}>
-          Deal not found
+          Rental not found
         </div>
-        <Link href="/deals" className="mt-4 inline-block text-[13px] underline" style={{ color: tone.accent }}>
-          Back to deals
+        <Link href="/rental" className="mt-4 inline-block text-[13px] underline" style={{ color: tone.accent }}>
+          Back to rental
         </Link>
       </div>
     );
@@ -131,8 +131,8 @@ export default function DealDetailPage() {
     <div>
       <div className="flex items-start justify-between mb-8 gap-6">
         <div>
-          <Link href="/deals" className="flex items-center gap-1.5 text-[12.5px] mb-4" style={{ color: tone.ink50 }}>
-            <Icons.Back /> Back to deals
+          <Link href="/rental" className="flex items-center gap-1.5 text-[12.5px] mb-4" style={{ color: tone.ink50 }}>
+            <Icons.Back /> Back to rental
           </Link>
           <div className="flex items-center gap-3 mb-2">
             <Pill tone={statusTone(deal.status)}>{deal.status}</Pill>
@@ -153,7 +153,7 @@ export default function DealDetailPage() {
           </Btn>
           {deal.status !== "cancelled" && (
             <Btn variant="danger" icon={<Icons.Trash />} onClick={cancelDeal}>
-              Cancel deal
+              Cancel rental
             </Btn>
           )}
           <Btn variant="primary" icon={<Icons.Doc />} onClick={createInvoice} disabled={creatingInvoice || deal.status === "cancelled"}>
@@ -174,7 +174,7 @@ export default function DealDetailPage() {
                 {fmtMoney(Number(deal.totalCommission || 0))}
               </div>
               <div className="mt-4 text-[12.5px]" style={{ color: tone.ink70 }}>
-                Deal date <span className="font-mono">{fmtDate(deal.dealDate || deal.createdAt)}</span>
+                Rental date <span className="font-mono">{fmtDate(deal.dealDate || deal.createdAt)}</span>
               </div>
             </div>
           </Card>
@@ -348,7 +348,7 @@ export default function DealDetailPage() {
                       No invoices linked
                     </div>
                     <p className="text-[13px]" style={{ color: tone.ink50 }}>
-                      Create a draft invoice from this deal.
+                      Create a draft invoice from this rental.
                     </p>
                   </div>
                 ) : (

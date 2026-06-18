@@ -173,9 +173,9 @@ export default function AgentDetailPage() {
 
       <div className="grid grid-cols-4 gap-4">
         {[
-          ["MTD Deals", report.summary.mtdDeals, ""],
+          ["MTD Rental", report.summary.mtdDeals, ""],
           ["MTD Take", `$${fmtMoney(report.summary.mtdTake)}`, month],
-          ["YTD Deals", report.summary.ytdDeals, month.slice(0, 4)],
+          ["YTD Rental", report.summary.ytdDeals, month.slice(0, 4)],
           ["YTD Take", `$${fmtMoney(report.summary.ytdTake)}`, month.slice(0, 4)],
         ].map(([label, value, sub]) => (
           <Card key={label}>
@@ -219,20 +219,20 @@ export default function AgentDetailPage() {
       <Card>
         <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
           <div className="font-serif" style={{ fontSize: 22, color: tone.ink }}>
-            Deals for {month}
+            Rental for {month}
           </div>
         </div>
         <div className="grid text-[11px] uppercase tracking-[0.1em] px-6 py-3" style={{ gridTemplateColumns: "1fr 2fr 1fr 1fr 1fr", color: tone.ink50, borderBottom: `1px solid ${tone.lineSoft}` }}>
-          <div>Deal #</div>
+          <div>Rental #</div>
           <div>Building / Tenant</div>
-          <div>Deal date</div>
+          <div>Rental date</div>
           <div className="text-right">Commission</div>
           <div className="text-right">Personal take</div>
         </div>
         {report.deals.length === 0 ? (
           <div className="px-6 py-14 text-center">
             <div className="font-serif mb-2" style={{ fontSize: 22, color: tone.ink }}>
-              No deals this month
+              No rental deals this month
             </div>
             <p className="text-[13px]" style={{ color: tone.ink50 }}>
               This agent has no tracked commissions for {month}.
@@ -242,7 +242,7 @@ export default function AgentDetailPage() {
           report.deals.map(({ deal, buildingName, personalTake }, index) => (
             <Link
               key={deal.id}
-              href={`/deals/${deal.id}`}
+              href={`/rental/${deal.id}`}
               className="grid px-6 py-4 items-center transition-colors hover:bg-[#FAF7F0]"
               style={{
                 gridTemplateColumns: "1fr 2fr 1fr 1fr 1fr",

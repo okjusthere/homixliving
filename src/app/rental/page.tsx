@@ -31,7 +31,7 @@ export default function DealsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/deals")
+    fetch("/api/rental")
       .then((r) => r.json())
       .then((data) => {
         setDeals(data);
@@ -79,14 +79,21 @@ export default function DealsPage() {
             Pipeline
           </div>
           <h1 className="font-serif" style={{ fontSize: 52, lineHeight: 0.95, color: tone.ink }}>
-            Deals
+            Rental
           </h1>
         </div>
-        <Link href="/deals/new">
-          <Btn variant="primary" icon={<Icons.Plus />}>
-            New Deal
-          </Btn>
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link href="/rental/renewals">
+            <Btn variant="outline">
+              Renewals
+            </Btn>
+          </Link>
+          <Link href="/rental/new">
+            <Btn variant="primary" icon={<Icons.Plus />}>
+              New Rental
+            </Btn>
+          </Link>
+        </div>
       </div>
 
       <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -125,7 +132,7 @@ export default function DealsPage() {
 
       <Card>
         <div className="grid text-[11px] uppercase tracking-[0.1em] px-6 py-3" style={{ gridTemplateColumns: "0.8fr 2fr 1.4fr 1fr 1fr 0.8fr", color: tone.ink50, borderBottom: `1px solid ${tone.lineSoft}` }}>
-          <div>Deal #</div>
+          <div>Rental #</div>
           <div>Building / Tenant</div>
           <div>Agent</div>
           <div>Move-in</div>
@@ -141,10 +148,10 @@ export default function DealsPage() {
             {deals.length === 0 ? (
               <>
                 <div className="font-serif mb-2" style={{ fontSize: 24, color: tone.ink }}>
-                  No deals yet
+                  No rental deals yet
                 </div>
-                <Link href="/deals/new" className="text-[13px] underline" style={{ color: tone.accent }}>
-                  Create your first deal
+                <Link href="/rental/new" className="text-[13px] underline" style={{ color: tone.accent }}>
+                  Create your first rental
                 </Link>
               </>
             ) : (
@@ -160,7 +167,7 @@ export default function DealsPage() {
             return (
             <Link
               key={deal.id}
-              href={`/deals/${deal.id}`}
+              href={`/rental/${deal.id}`}
               className="grid w-full text-left px-6 py-4 transition-colors items-center hover:bg-[#FAF7F0]"
               style={{
                 gridTemplateColumns: "0.8fr 2fr 1.4fr 1fr 1fr 0.8fr",

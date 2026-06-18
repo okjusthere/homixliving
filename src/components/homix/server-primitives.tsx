@@ -129,7 +129,7 @@ export function HomixMark({ size = 28 }: { size?: number }) {
           className="text-[10px] uppercase tracking-[0.18em]"
           style={{ color: tone.ink50 }}
         >
-          Invoice Suite
+          Deals
         </div>
       </div>
     </div>

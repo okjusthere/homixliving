@@ -251,10 +251,10 @@ export default function NewInvoicePage() {
             <span className="font-medium" style={{ color: tone.ink }}>
               Tip
             </span>{" "}
-            invoices are now created from a Deal.
+            invoices are now created from a Rental.
           </div>
-          <Link href="/deals" className="text-[13px] flex items-center gap-1" style={{ color: tone.accent }}>
-            Browse deals <Icons.Arrow />
+          <Link href="/rental" className="text-[13px] flex items-center gap-1" style={{ color: tone.accent }}>
+            Browse rental <Icons.Arrow />
           </Link>
         </div>
       </Card>

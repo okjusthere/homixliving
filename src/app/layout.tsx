@@ -24,8 +24,8 @@ const instrumentSerif = Instrument_Serif({
 });
 
 export const metadata: Metadata = {
-  title: "Homix Invoice Suite",
-  description: "OP Invoice generation and sending for Homix Living",
+  title: "Homix Deals",
+  description: "Rental and sales deal intake, commissions, and invoice workflow for Homix.",
 };
 
 export default function RootLayout({

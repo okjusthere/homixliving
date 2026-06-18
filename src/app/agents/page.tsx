@@ -334,7 +334,7 @@ export default function AgentsPage() {
                     <div className="mt-4 grid grid-cols-2 gap-3">
                       <div className="rounded-lg p-3" style={{ background: tone.paper }}>
                         <div className="text-[10px] uppercase tracking-[0.1em]" style={{ color: tone.ink50 }}>
-                          Deals MTD
+                          Rental MTD
                         </div>
                         <div className="mt-1 font-serif" style={{ fontSize: 24, color: tone.ink }}>
                           {mtdDeals}

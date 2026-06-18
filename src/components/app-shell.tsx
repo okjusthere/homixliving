@@ -38,8 +38,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         className="mx-auto max-w-[1280px] px-8 py-10 flex items-center justify-between text-[11px] w-full"
         style={{ color: "#7A756C" }}
       >
-        <div className="font-mono">homix-invoice v2.0</div>
-        <div>© 2026 Homix Living · Made with care in NYC</div>
+        <div className="font-mono">homix-deals v2.0</div>
+        <div>© 2026 Homix Deals · Homix Group</div>
       </footer>
     </>
   );

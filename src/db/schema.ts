@@ -136,7 +136,7 @@ export const rentalDealAgents = sqliteTable(
   (table) => [primaryKey({ columns: [table.dealId, table.agentId] })]
 );
 
-// Compatibility aliases while the Rental UI keeps the existing /deals routes.
+// Compatibility aliases while application code transitions from "deals" to Rental naming.
 export const deals = rentalDeals;
 export const dealAgents = rentalDealAgents;
 

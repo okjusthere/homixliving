@@ -98,7 +98,7 @@ function LoginInner() {
             Welcome back.
           </h1>
           <p className="text-[13.5px]" style={{ color: tone.ink70 }}>
-            Use your Google account to access Homix Living.
+            Use your Google account to access Homix Deals.
           </p>
 
           {error && (
