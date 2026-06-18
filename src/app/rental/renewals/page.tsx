@@ -51,7 +51,7 @@ export default function RenewalsPage() {
   const [savingDeal, setSavingDeal] = useState<number | null>(null);
 
   const fetchItems = async () => {
-    const res = await fetch("/api/deals/upcoming-renewals");
+    const res = await fetch("/api/rental/upcoming-renewals");
     const data = await res.json();
     setItems(data.items);
     setLoading(false);
@@ -90,7 +90,7 @@ export default function RenewalsPage() {
   const handleSetStatus = async (dealId: number, renewalStatus: string) => {
     setSavingDeal(dealId);
     try {
-      const res = await fetch(`/api/deals/${dealId}/renewal`, {
+      const res = await fetch(`/api/rental/${dealId}/renewal`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ renewalStatus }),
@@ -114,7 +114,7 @@ export default function RenewalsPage() {
             className="text-[11px] uppercase tracking-[0.16em] mb-2"
             style={{ color: tone.ink50 }}
           >
-            Pipeline
+            Rental pipeline
           </div>
           <h1
             className="font-serif"
@@ -196,7 +196,7 @@ export default function RenewalsPage() {
               borderBottom: `1px solid ${tone.lineSoft}`,
             }}
           >
-            <div>Deal</div>
+            <div>Rental</div>
             <div>Building / Tenant</div>
             <div>Agent</div>
             <div>Lease ends</div>
@@ -219,7 +219,7 @@ export default function RenewalsPage() {
               >
                 <div>
                   <Link
-                    href={`/deals/${row.deal.id}`}
+                    href={`/rental/${row.deal.id}`}
                     className="font-mono text-[12.5px] hover:underline"
                     style={{ color: tone.ink }}
                   >

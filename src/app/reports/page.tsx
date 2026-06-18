@@ -63,7 +63,7 @@ export default function ReportsPage() {
   const csv = useMemo(() => {
     if (!report) return "";
     const rows = [
-      ["Type", "Name", "Deals", "Amount"],
+      ["Type", "Name", "Rental Deals", "Amount"],
       ...report.topAgents.map((row) => ["Agent", row.agent.name, row.deals, row.take]),
       ...report.perBuilding.map((row) => ["Building", row.building.name, row.deals, row.totalCommission]),
     ];
@@ -119,7 +119,7 @@ export default function ReportsPage() {
         <>
           <div className="grid grid-cols-4 gap-4">
             {[
-              ["Total deals", report.summary.totalDeals],
+              ["Total rental deals", report.summary.totalDeals],
               ["Total commission", `$${fmtMoney(report.summary.totalCommission)}`],
               ["Company pool", `$${fmtMoney(report.summary.companyPool)}`],
               ["Agent payouts", `$${fmtMoney(report.summary.agentPayouts)}`],
@@ -146,7 +146,7 @@ export default function ReportsPage() {
               </div>
               <div className="grid text-[11px] uppercase tracking-[0.1em] px-6 py-3" style={{ gridTemplateColumns: "2fr 1fr 1fr", color: tone.ink50, borderBottom: `1px solid ${tone.lineSoft}` }}>
                 <div>Agent</div>
-                <div>Deals</div>
+                <div>Rental Deals</div>
                 <div className="text-right">Take</div>
               </div>
               {report.topAgents.length === 0 ? (
@@ -183,7 +183,7 @@ export default function ReportsPage() {
               </div>
               <div className="grid text-[11px] uppercase tracking-[0.1em] px-6 py-3" style={{ gridTemplateColumns: "2fr 1fr 1fr", color: tone.ink50, borderBottom: `1px solid ${tone.lineSoft}` }}>
                 <div>Building</div>
-                <div>Deals</div>
+                <div>Rental Deals</div>
                 <div className="text-right">Commission</div>
               </div>
               {report.perBuilding.length === 0 ? (
@@ -221,7 +221,7 @@ export default function ReportsPage() {
                   By source
                 </div>
                 <div className="text-[12px] mt-0.5" style={{ color: tone.ink50 }}>
-                  Where this month&rsquo;s deals came from
+                  Where this month&rsquo;s rental deals came from
                 </div>
               </div>
               <div className="p-6 grid grid-cols-3 gap-3">
@@ -250,7 +250,7 @@ export default function ReportsPage() {
                         {row.deals}
                       </div>
                       <div className="mt-1.5 text-[11.5px]" style={{ color: tone.ink50 }}>
-                        deal{row.deals === 1 ? "" : "s"} · {pct}%
+                        rental{row.deals === 1 ? "" : "s"} · {pct}%
                       </div>
                       <div
                         className="mt-3 h-1 rounded-full overflow-hidden"

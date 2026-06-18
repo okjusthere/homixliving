@@ -199,12 +199,12 @@ export default async function Dashboard() {
         <DashboardCTA />
       </div>
 
-      {/* Deal KPI ribbon */}
+      {/* Rental KPI ribbon */}
       <Card style={{ overflow: "hidden" }}>
         <div className="grid grid-cols-4">
           <div style={{ borderRight: `1px solid ${tone.line}` }}>
             <Stat
-              label="Deals MTD"
+              label="Rental MTD"
               value={mtdDeals.length}
               sub={currentMonth}
               toneKey="accent"
@@ -214,7 +214,7 @@ export default async function Dashboard() {
             <Stat
               label="Commission MTD"
               value={`$${fmtMoney(commissionMtd)}`}
-              sub="Signed deal value"
+              sub="Signed rental value"
               big
             />
           </div>
@@ -222,7 +222,7 @@ export default async function Dashboard() {
             <Stat
               label="Top Agent MTD"
               value={topAgent ? topAgent.name.split(" ")[0] : "—"}
-              sub={topAgentEntry ? `$${fmtMoney(topAgentEntry[1])} take` : "No deals yet"}
+              sub={topAgentEntry ? `$${fmtMoney(topAgentEntry[1])} take` : "No rentals yet"}
               toneKey="green"
             />
           </div>
@@ -260,18 +260,18 @@ export default async function Dashboard() {
               toneKey={overdueAmount > 0 ? "amber" : "green"}
             />
           </div>
-          <div style={{ borderRight: `1px solid ${tone.line}` }}>
+          <Link href="/rental/renewals" style={{ borderRight: `1px solid ${tone.line}` }}>
             <Stat
               label="Renewals 90d"
               value={upcomingRenewals.length}
               sub={
                 upcomingRenewals.length > 0
-                  ? "Follow-ups due"
+                  ? "Open rental follow-ups"
                   : "No upcoming leases"
               }
               toneKey="accent"
             />
-          </div>
+          </Link>
           <div>
             <Stat
               label="Buildings"
@@ -377,7 +377,7 @@ export default async function Dashboard() {
               className="font-serif"
               style={{ fontSize: 22, color: tone.ink, letterSpacing: "-0.01em" }}
             >
-              Recent deals
+              Recent rental
             </div>
             <div className="text-[12px] mt-0.5" style={{ color: tone.ink50 }}>
               Last 5 signed leases
@@ -386,9 +386,9 @@ export default async function Dashboard() {
           <div>
             {recentDeals.length === 0 ? (
               <div className="px-6 py-12 text-center text-[13px]" style={{ color: tone.ink50 }}>
-                No deals yet.{" "}
-                <Link href="/deals/new" className="underline">
-                  Create your first
+                No rental deals yet.{" "}
+                <Link href="/rental/new" className="underline">
+                  Create your first rental
                 </Link>
               </div>
             ) : (
@@ -402,7 +402,7 @@ export default async function Dashboard() {
                 return (
                   <Link
                     key={deal.id}
-                    href={`/deals/${deal.id}`}
+                    href={`/rental/${deal.id}`}
                     className="w-full flex items-center gap-4 px-6 py-4 text-left transition-colors hover:bg-[#FAF7F0]"
                     style={{
                       borderBottom: i < recentDeals.length - 1 ? `1px solid ${tone.lineSoft}` : "none",

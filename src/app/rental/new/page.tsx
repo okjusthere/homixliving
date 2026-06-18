@@ -222,10 +222,10 @@ export default function NewDealPage() {
     if (!tenantName.trim()) return toast.error("Tenant name is required");
     if (!totalCommission || Number(totalCommission) <= 0) return toast.error("Commission is required");
     if (selectedParticipants.some((participant) => !participant.agentId)) {
-      return toast.error("Every deal agent must be selected");
+      return toast.error("Every rental agent must be selected");
     }
     if (new Set(selectedParticipants.map((participant) => participant.agentId)).size !== selectedParticipants.length) {
-      return toast.error("Deal agents must be unique");
+      return toast.error("Rental agents must be unique");
     }
     if (selectedParticipants.filter((participant) => participant.isPrimary).length !== 1) {
       return toast.error("Exactly one primary agent is required");
@@ -236,7 +236,7 @@ export default function NewDealPage() {
 
     setSaving(true);
     try {
-      const res = await fetch("/api/deals", {
+      const res = await fetch("/api/rental", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -267,8 +267,8 @@ export default function NewDealPage() {
       });
       if (!res.ok) throw new Error(await res.text());
       const deal = await res.json();
-      toast.success("Deal created");
-      router.push(`/deals/${deal.id}`);
+      toast.success("Rental created");
+      router.push(`/rental/${deal.id}`);
     } catch {
       toast.error("Save failed");
     } finally {
@@ -280,14 +280,14 @@ export default function NewDealPage() {
     <form onSubmit={submit}>
       <div className="flex items-start justify-between mb-8">
         <div>
-          <Link href="/deals" className="flex items-center gap-1.5 text-[12.5px] mb-4" style={{ color: tone.ink50 }}>
+          <Link href="/rental" className="flex items-center gap-1.5 text-[12.5px] mb-4" style={{ color: tone.ink50 }}>
             <Icons.Back /> Back
           </Link>
           <div className="text-[11px] uppercase tracking-[0.16em] mb-2" style={{ color: tone.ink50 }}>
             Create
           </div>
           <h1 className="font-serif" style={{ fontSize: 52, lineHeight: 0.95, color: tone.ink }}>
-            New deal
+            New rental
           </h1>
         </div>
         <div className="flex gap-2 shrink-0">
@@ -295,7 +295,7 @@ export default function NewDealPage() {
             Cancel
           </Btn>
           <Btn variant="primary" icon={<Icons.Check />} type="submit" disabled={saving}>
-            {saving ? "Saving…" : "Save Deal"}
+            {saving ? "Saving…" : "Save Rental"}
           </Btn>
         </div>
       </div>
@@ -631,7 +631,7 @@ export default function NewDealPage() {
         <div>
           <div className="sticky top-24 space-y-4">
             <div className="text-[11px] uppercase tracking-[0.14em]" style={{ color: tone.ink50 }}>
-              Deal Summary
+              Rental Summary
             </div>
             <Card>
               <div className="p-6">
