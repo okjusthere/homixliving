@@ -43,7 +43,7 @@ async function setup() {
     )
   `);
   await execute(`
-    CREATE TABLE deals (
+    CREATE TABLE rental_deals (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       building_id INTEGER NOT NULL REFERENCES buildings(id),
       unit TEXT NOT NULL,
@@ -55,13 +55,34 @@ async function setup() {
     )
   `);
   await execute(`
-    CREATE TABLE deal_agents (
-      deal_id INTEGER NOT NULL REFERENCES deals(id) ON DELETE CASCADE,
+    CREATE TABLE rental_deal_agents (
+      rental_deal_id INTEGER NOT NULL REFERENCES rental_deals(id) ON DELETE CASCADE,
       agent_id INTEGER NOT NULL REFERENCES agents(id) ON DELETE RESTRICT,
       share_pct REAL NOT NULL,
       is_primary INTEGER NOT NULL DEFAULT 0,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-      PRIMARY KEY (deal_id, agent_id)
+      PRIMARY KEY (rental_deal_id, agent_id)
+    )
+  `);
+  await execute(`
+    CREATE TABLE sale_deals (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      representation_type TEXT NOT NULL,
+      stage TEXT NOT NULL DEFAULT 'pre_contract',
+      status TEXT NOT NULL DEFAULT 'active',
+      property_address TEXT NOT NULL,
+      gross_commission REAL NOT NULL DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await execute(`
+    CREATE TABLE sale_deal_agents (
+      sale_deal_id INTEGER NOT NULL REFERENCES sale_deals(id) ON DELETE CASCADE,
+      agent_id INTEGER NOT NULL REFERENCES agents(id) ON DELETE RESTRICT,
+      share_pct REAL NOT NULL,
+      is_primary INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (sale_deal_id, agent_id)
     )
   `);
 
@@ -76,16 +97,28 @@ async function setup() {
       (5, 'Inactive Participant', 'inactive@example.com', 70, NULL, 0, 0)
   `);
   await execute(`
-    INSERT INTO deals (id, building_id, unit, tenant_name, total_commission, licensed_company, status) VALUES
+    INSERT INTO rental_deals (id, building_id, unit, tenant_name, total_commission, licensed_company, status) VALUES
       (101, 1, '1A', 'Self Deal', 5000, 'Homix Living Inc.', 'active'),
       (102, 1, '2B', 'Team Deal', 6000, 'Homix Living Inc.', 'active'),
       (103, 1, '3C', 'Inactive Deal', 7000, 'Homix Living Inc.', 'active')
   `);
   await execute(`
-    INSERT INTO deal_agents (deal_id, agent_id, share_pct, is_primary) VALUES
+    INSERT INTO rental_deal_agents (rental_deal_id, agent_id, share_pct, is_primary) VALUES
       (101, 1, 100, 1),
       (102, 3, 100, 1),
       (103, 5, 100, 1)
+  `);
+  await execute(`
+    INSERT INTO sale_deals (id, representation_type, stage, status, property_address, gross_commission) VALUES
+      (201, 'buyer_rep', 'under_contract', 'active', '1 Sale St', 50000),
+      (202, 'seller_rep', 'under_contract', 'active', '2 Sale St', 60000),
+      (203, 'buyer_rep', 'under_contract', 'active', '3 Sale St', 70000)
+  `);
+  await execute(`
+    INSERT INTO sale_deal_agents (sale_deal_id, agent_id, share_pct, is_primary) VALUES
+      (201, 1, 100, 1),
+      (202, 3, 100, 1),
+      (203, 5, 100, 1)
   `);
 }
 
@@ -94,8 +127,15 @@ async function main() {
     await setup();
 
     const { db } = await import("@/db");
-    const { deals } = await import("@/db/schema");
-    const { canEditDeal, canViewDeal, dealsVisibleToSql } = await import("../visibility");
+    const { deals, saleDeals } = await import("@/db/schema");
+    const {
+      canEditDeal,
+      canEditSaleDeal,
+      canViewDeal,
+      canViewSaleDeal,
+      dealsVisibleToSql,
+      saleDealsVisibleToSql,
+    } = await import("../visibility");
 
     type TestSession = Parameters<typeof canViewDeal>[0];
 
@@ -107,35 +147,61 @@ async function main() {
       return rows.map((row) => row.id).sort((a, b) => a - b);
     }
 
+    async function visibleSaleIds(session: TestSession) {
+      const filter = saleDealsVisibleToSql(session);
+      const rows = filter
+        ? await db.select({ id: saleDeals.id }).from(saleDeals).where(filter)
+        : await db.select({ id: saleDeals.id }).from(saleDeals);
+      return rows.map((row) => row.id).sort((a, b) => a - b);
+    }
+
     const adminSession: TestSession = { user: { agentId: 99, isAdmin: true, isActive: true } };
     assert.deepEqual(await visibleDealIds(adminSession), [101, 102, 103]);
+    assert.deepEqual(await visibleSaleIds(adminSession), [201, 202, 203]);
     assert.equal(await canViewDeal(adminSession, 101), true);
     assert.equal(await canEditDeal(adminSession, 101), true);
+    assert.equal(await canViewSaleDeal(adminSession, 201), true);
+    assert.equal(await canEditSaleDeal(adminSession, 201), true);
 
     const participantSession: TestSession = { user: { agentId: 1, isAdmin: false, isActive: true } };
     assert.deepEqual(await visibleDealIds(participantSession), [101]);
+    assert.deepEqual(await visibleSaleIds(participantSession), [201]);
     assert.equal(await canViewDeal(participantSession, 101), true);
     assert.equal(await canEditDeal(participantSession, 101), true);
+    assert.equal(await canViewSaleDeal(participantSession, 201), true);
+    assert.equal(await canEditSaleDeal(participantSession, 201), true);
 
     const leaderSession: TestSession = { user: { agentId: 4, isAdmin: false, isActive: true } };
     assert.deepEqual(await visibleDealIds(leaderSession), [102]);
+    assert.deepEqual(await visibleSaleIds(leaderSession), [202]);
     assert.equal(await canViewDeal(leaderSession, 102), true);
     assert.equal(await canEditDeal(leaderSession, 102), false);
+    assert.equal(await canViewSaleDeal(leaderSession, 202), true);
+    assert.equal(await canEditSaleDeal(leaderSession, 202), false);
 
     const outsiderSession: TestSession = { user: { agentId: 2, isAdmin: false, isActive: true } };
     assert.deepEqual(await visibleDealIds(outsiderSession), []);
+    assert.deepEqual(await visibleSaleIds(outsiderSession), []);
     assert.equal(await canViewDeal(outsiderSession, 102), false);
     assert.equal(await canEditDeal(outsiderSession, 102), false);
+    assert.equal(await canViewSaleDeal(outsiderSession, 202), false);
+    assert.equal(await canEditSaleDeal(outsiderSession, 202), false);
 
     const inactiveSession: TestSession = { user: { agentId: 5, isAdmin: false, isActive: false } };
     assert.deepEqual(await visibleDealIds(inactiveSession), []);
+    assert.deepEqual(await visibleSaleIds(inactiveSession), []);
     assert.equal(await canViewDeal(inactiveSession, 103), false);
     assert.equal(await canEditDeal(inactiveSession, 103), false);
+    assert.equal(await canViewSaleDeal(inactiveSession, 203), false);
+    assert.equal(await canEditSaleDeal(inactiveSession, 203), false);
 
     const missingAgentSession: TestSession = { user: { agentId: null, isAdmin: false, isActive: true } };
     assert.deepEqual(await visibleDealIds(missingAgentSession), []);
+    assert.deepEqual(await visibleSaleIds(missingAgentSession), []);
     assert.equal(await canViewDeal(missingAgentSession, 101), false);
     assert.equal(await canEditDeal(missingAgentSession, 101), false);
+    assert.equal(await canViewSaleDeal(missingAgentSession, 201), false);
+    assert.equal(await canEditSaleDeal(missingAgentSession, 201), false);
 
     console.log("visibility tests passed");
   } finally {
