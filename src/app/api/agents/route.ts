@@ -11,6 +11,7 @@ import {
   getMonthKey,
   type DealForReporting,
 } from "@/lib/reporting";
+import { DEFAULT_AGENT_SPLIT_PCT } from "@/lib/splits";
 
 function numberOrNull(value: unknown) {
   if (value === undefined || value === null || value === "") return null;
@@ -37,7 +38,7 @@ function cleanAdminAgentPayload(body: Record<string, unknown>) {
     phone: stringOrNull(body.phone),
     licenseNumber: stringOrNull(body.licenseNumber),
     licensedCompany: stringOrNull(body.licensedCompany),
-    splitPct: splitPct ?? 50,
+    splitPct: splitPct ?? DEFAULT_AGENT_SPLIT_PCT,
     teamId,
     isActive: body.isActive === undefined ? true : Boolean(body.isActive),
     joinedAt: stringOrNull(body.joinedAt),

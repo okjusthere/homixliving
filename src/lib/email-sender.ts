@@ -29,19 +29,33 @@ type SendInvoiceEmailParams = {
 
 type EmailAttachment = {
   filename: string;
-  content: Buffer;
+  content: string;
+  contentType: "application/pdf";
 };
 
 async function loadW9Attachment(): Promise<EmailAttachment> {
   try {
+    const pdf = await readFile(join(process.cwd(), "src/assets/homix-living-inc-w9.pdf"));
     return {
       filename: "Homix Living Inc W9.pdf",
-      content: await readFile(join(process.cwd(), "src/assets/homix-living-inc-w9.pdf")),
+      content: pdf.toString("base64"),
+      contentType: "application/pdf",
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     throw new Error(`Failed to load Homix Living W-9 attachment: ${message}`);
   }
+}
+
+export async function buildInvoiceEmailAttachments(fileName: string, pdfBuffer: Buffer): Promise<EmailAttachment[]> {
+  return [
+    {
+      filename: `${fileName}.pdf`,
+      content: pdfBuffer.toString("base64"),
+      contentType: "application/pdf",
+    },
+    await loadW9Attachment(),
+  ];
 }
 
 export async function sendInvoiceEmail({
@@ -57,20 +71,12 @@ export async function sendInvoiceEmail({
 }: SendInvoiceEmailParams) {
   const fromEmail = process.env.FROM_EMAIL || "invoice@homixny.com";
   const ccEmail = process.env.CC_EMAIL || "homix@homixny.com";
-  const w9Attachment = await loadW9Attachment();
+  const attachments = await buildInvoiceEmailAttachments(fileName, pdfBuffer);
 
   const allCc = cc ? [...cc] : [];
   if (ccEmail && !allCc.includes(ccEmail)) {
     allCc.push(ccEmail);
   }
-
-  const attachments: EmailAttachment[] = [
-    {
-      filename: `${fileName}.pdf`,
-      content: pdfBuffer,
-    },
-    w9Attachment,
-  ];
 
   const { data, error } = await getResend().emails.send({
     from: `Homix Invoice <${fromEmail}>`,

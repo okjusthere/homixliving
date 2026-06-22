@@ -10,6 +10,7 @@ import { DealBreakdownBar } from "@/components/homix/deal-breakdown";
 import { fmtMoney, tone } from "@/components/homix/tokens";
 import { computeCommission } from "@/lib/commission";
 import { SOURCE_OPTIONS, type DealSource } from "@/lib/sources";
+import { companySplitPct, normalizeSplitPct, splitLabel } from "@/lib/splits";
 import type { Agent, Building, Deal } from "@/db/schema";
 
 type DealParticipantInput = {
@@ -492,6 +493,10 @@ export function RentalDealFormPage({ mode = "new", dealId }: RentalDealFormPageP
             </div>
             <div className="p-6 space-y-4">
               {dealParticipants.map((participant, index) => (
+                (() => {
+                  const selectedAgent = selectedParticipants[index]?.agent || null;
+                  const agentSplit = normalizeSplitPct(selectedAgent?.splitPct);
+                  return (
                 <div
                   key={index}
                   className="rounded-xl p-4 space-y-4"
@@ -550,7 +555,40 @@ export function RentalDealFormPage({ mode = "new", dealId }: RentalDealFormPageP
                       )}
                     </div>
                   </div>
+                  {selectedAgent && (
+                    <div
+                      className="grid grid-cols-3 gap-3 rounded-lg p-3"
+                      style={{ background: tone.card, border: `1px solid ${tone.line}` }}
+                    >
+                      <div>
+                        <div className="text-[10px] uppercase tracking-[0.1em]" style={{ color: tone.ink50 }}>
+                          Split
+                        </div>
+                        <div className="mt-1 font-serif" style={{ fontSize: 24, color: tone.ink }}>
+                          {splitLabel(agentSplit)}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] uppercase tracking-[0.1em]" style={{ color: tone.green }}>
+                          Agent keeps
+                        </div>
+                        <div className="mt-1 font-serif" style={{ fontSize: 24, color: tone.green }}>
+                          {agentSplit}%
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] uppercase tracking-[0.1em]" style={{ color: tone.ink50 }}>
+                          Homix keeps
+                        </div>
+                        <div className="mt-1 font-serif" style={{ fontSize: 24, color: tone.ink }}>
+                          {companySplitPct(agentSplit)}%
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
+                  );
+                })()
               ))}
               <div className="flex items-center justify-between">
                 <Btn variant="outline" size="sm" icon={<Icons.Plus />} onClick={addParticipant}>
@@ -640,11 +678,72 @@ export function RentalDealFormPage({ mode = "new", dealId }: RentalDealFormPageP
               <LabeledField label="Total commission *">
                 <EditorialInput value={totalCommission} onChange={setTotalCommission} type="number" prefix="$" mono />
               </LabeledField>
-              <div className="rounded-lg p-4 text-[13px]" style={{ background: tone.paper, color: tone.ink70 }}>
-                Referrer gets <span className="font-mono">${fmtMoney(breakdown.referrerCut)}</span> · Agents take{" "}
-                <span className="font-mono">${fmtMoney(breakdown.agentTakeTotal)}</span> · Company pool{" "}
-                <span className="font-mono">${fmtMoney(breakdown.companyPoolTotal)}</span>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="rounded-lg p-4" style={{ background: tone.paper }}>
+                  <div className="text-[10px] uppercase tracking-[0.1em]" style={{ color: tone.ink50 }}>
+                    Referrer
+                  </div>
+                  <div className="mt-1 font-serif" style={{ fontSize: 26, color: tone.amber }}>
+                    ${fmtMoney(breakdown.referrerCut)}
+                  </div>
+                </div>
+                <div className="rounded-lg p-4" style={{ background: tone.greenSoft }}>
+                  <div className="text-[10px] uppercase tracking-[0.1em]" style={{ color: tone.green }}>
+                    Agent keeps
+                  </div>
+                  <div className="mt-1 font-serif" style={{ fontSize: 26, color: tone.green }}>
+                    ${fmtMoney(breakdown.agentTakeTotal)}
+                  </div>
+                </div>
+                <div className="rounded-lg p-4" style={{ background: tone.paper }}>
+                  <div className="text-[10px] uppercase tracking-[0.1em]" style={{ color: tone.ink50 }}>
+                    Homix keeps
+                  </div>
+                  <div className="mt-1 font-serif" style={{ fontSize: 26, color: tone.ink }}>
+                    ${fmtMoney(breakdown.companyPoolTotal)}
+                  </div>
+                </div>
               </div>
+              {breakdown.agents.length > 0 && (
+                <div className="space-y-2">
+                  {breakdown.agents.map((agentBreakdown) => (
+                    <div
+                      key={agentBreakdown.agentId}
+                      className="rounded-lg p-4"
+                      style={{ background: tone.card, border: `1px solid ${tone.line}` }}
+                    >
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <div className="font-serif" style={{ fontSize: 20, color: tone.ink }}>
+                            {agentBreakdown.name || "Agent"}
+                          </div>
+                          <div className="text-[12px] mt-1" style={{ color: tone.ink50 }}>
+                            {agentBreakdown.sharePct}% deal share · {splitLabel(agentBreakdown.splitPct)} split
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3 text-right">
+                          <div>
+                            <div className="text-[10px] uppercase tracking-[0.1em]" style={{ color: tone.green }}>
+                              Agent
+                            </div>
+                            <div className="font-mono text-[13px]" style={{ color: tone.green }}>
+                              ${fmtMoney(agentBreakdown.agentTake)}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] uppercase tracking-[0.1em]" style={{ color: tone.ink50 }}>
+                              Homix
+                            </div>
+                            <div className="font-mono text-[13px]" style={{ color: tone.ink }}>
+                              ${fmtMoney(agentBreakdown.companyPool)}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </Card>
 
@@ -718,7 +817,7 @@ export function RentalDealFormPage({ mode = "new", dealId }: RentalDealFormPageP
                           {participant.agent!.name}
                         </div>
                         <div className="text-[11px]" style={{ color: tone.ink50 }}>
-                          {participant.sharePct}% share · {Number(participant.agent!.splitPct || 0)}% split
+                          {participant.sharePct}% share · {splitLabel(participant.agent!.splitPct)} split
                         </div>
                       </div>
                     </div>

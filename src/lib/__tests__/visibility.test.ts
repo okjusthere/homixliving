@@ -36,7 +36,7 @@ async function setup() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       email TEXT NOT NULL UNIQUE,
-      split_pct REAL NOT NULL DEFAULT 50,
+      split_pct REAL NOT NULL DEFAULT 80,
       team_id INTEGER REFERENCES teams(id) ON DELETE SET NULL,
       is_admin INTEGER NOT NULL DEFAULT 0,
       is_active INTEGER NOT NULL DEFAULT 0

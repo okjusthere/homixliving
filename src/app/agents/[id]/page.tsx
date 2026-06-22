@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Btn, Card, EditorialInput, Icons, LabeledField, Pill, SoftField } from "@/components/homix/primitives";
 import { fmtDate, fmtMoney, tone } from "@/components/homix/tokens";
 import { getMonthKey } from "@/lib/reporting";
+import { DEFAULT_AGENT_SPLIT_PCT, splitLabel } from "@/lib/splits";
 import type { Agent, Deal, Team } from "@/db/schema";
 
 type AgentPayload = {
@@ -149,7 +150,7 @@ export default function AgentDetailPage() {
             <Icons.Back /> Back to agents
           </Link>
           <div className="flex items-center gap-3 mb-3">
-            <Pill tone="accent">{Number(agent.splitPct || 0)}% split</Pill>
+            <Pill tone="accent">{splitLabel(agent.splitPct)} split</Pill>
             <span className="text-[12px]" style={{ color: tone.ink50 }}>
               {teamName || "Unassigned"}
             </span>
@@ -341,8 +342,8 @@ export default function AgentDetailPage() {
                 <LabeledField label="License #">
                   <EditorialInput value={editAgent.licenseNumber || ""} onChange={(v) => updateField("licenseNumber", v)} mono />
                 </LabeledField>
-                <LabeledField label="Split %">
-                  <EditorialInput value={editAgent.splitPct || 50} onChange={(v) => updateField("splitPct", Number(v))} type="number" mono />
+                <LabeledField label="Agent keep %">
+                  <EditorialInput value={editAgent.splitPct ?? DEFAULT_AGENT_SPLIT_PCT} onChange={(v) => updateField("splitPct", Number(v))} type="number" mono />
                 </LabeledField>
                 <LabeledField label="Licensed company">
                   <EditorialInput value={editAgent.licensedCompany || ""} onChange={(v) => updateField("licensedCompany", v)} />

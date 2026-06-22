@@ -10,6 +10,7 @@ import { fmtDate, fmtLongDate, fmtMoney, tone } from "@/components/homix/tokens"
 import type { Agent, Building, Deal, Invoice } from "@/db/schema";
 import type { CommissionBreakdown } from "@/lib/commission";
 import { sourceEmoji, sourceLabel } from "@/lib/sources";
+import { companySplitPct, normalizeSplitPct, splitLabel } from "@/lib/splits";
 
 type DealPayload = {
   deal: Deal;
@@ -237,7 +238,10 @@ export default function DealDetailPage() {
                     {participant.agent.name}
                   </div>
                   <div className="mt-1 text-[12px]" style={{ color: tone.ink50 }}>
-                    {Number(participant.agent.splitPct || 0)}% agent split · {participant.agent.licensedCompany || deal.licensedCompany}
+                    {splitLabel(participant.agent.splitPct)} split · Agent keeps {normalizeSplitPct(participant.agent.splitPct)}% · Homix keeps {companySplitPct(participant.agent.splitPct)}%
+                  </div>
+                  <div className="mt-1 text-[12px]" style={{ color: tone.ink50 }}>
+                    {participant.agent.licensedCompany || deal.licensedCompany}
                   </div>
                 </div>
               ))}

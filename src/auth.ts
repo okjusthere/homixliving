@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { agents } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { authConfig } from "./auth.config";
+import { DEFAULT_AGENT_SPLIT_PCT } from "@/lib/splits";
 
 const adminEmails = (process.env.ADMIN_EMAILS ?? "")
   .split(",")
@@ -33,7 +34,7 @@ async function upsertAgentFromGoogle(user: {
       name: user.name || email.split("@")[0],
       isAdmin: admin,
       isActive: admin,
-      splitPct: 50,
+      splitPct: DEFAULT_AGENT_SPLIT_PCT,
       joinedAt: now.slice(0, 10),
       createdAt: now,
       updatedAt: now,

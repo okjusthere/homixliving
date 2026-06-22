@@ -73,7 +73,7 @@ export const agents = sqliteTable("agents", {
   phone: text("phone"),
   licenseNumber: text("license_number"),
   licensedCompany: text("licensed_company"),
-  splitPct: real("split_pct").notNull().default(50),
+  splitPct: real("split_pct").notNull().default(80),
   teamId: integer("team_id").references((): AnySQLiteColumn => teams.id, { onDelete: "set null" }),
   isAdmin: integer("is_admin", { mode: "boolean" }).notNull().default(false),
   isActive: integer("is_active", { mode: "boolean" }).notNull().default(false),

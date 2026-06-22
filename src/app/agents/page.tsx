@@ -7,6 +7,7 @@ import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import { Btn, Card, EditorialInput, Icons, LabeledField, Pill } from "@/components/homix/primitives";
 import { fmtMoney, tone } from "@/components/homix/tokens";
+import { DEFAULT_AGENT_SPLIT_PCT, splitLabel } from "@/lib/splits";
 import type { Agent, Team } from "@/db/schema";
 
 type AgentRow = {
@@ -22,7 +23,7 @@ const emptyAgent: Partial<Agent> = {
   phone: "",
   licenseNumber: "",
   licensedCompany: "Homix Living Inc.",
-  splitPct: 50,
+  splitPct: DEFAULT_AGENT_SPLIT_PCT,
   teamId: null,
   isActive: true,
   joinedAt: "",
@@ -329,7 +330,7 @@ export default function AgentsPage() {
                           {agent.licenseNumber || "No license #"}
                         </div>
                       </div>
-                      <Pill tone="accent">{Number(agent.splitPct || 0)}%</Pill>
+                      <Pill tone="accent">{splitLabel(agent.splitPct)}</Pill>
                     </div>
                     <div className="mt-4 grid grid-cols-2 gap-3">
                       <div className="rounded-lg p-3" style={{ background: tone.paper }}>
@@ -404,8 +405,8 @@ export default function AgentsPage() {
                 <LabeledField label="License #">
                   <EditorialInput value={editAgent.licenseNumber || ""} onChange={(v) => updateField("licenseNumber", v)} mono />
                 </LabeledField>
-                <LabeledField label="Split %">
-                  <EditorialInput value={editAgent.splitPct || 50} onChange={(v) => updateField("splitPct", Number(v))} type="number" mono />
+                <LabeledField label="Agent keep %">
+                  <EditorialInput value={editAgent.splitPct ?? DEFAULT_AGENT_SPLIT_PCT} onChange={(v) => updateField("splitPct", Number(v))} type="number" mono />
                 </LabeledField>
                 <LabeledField label="Licensed company">
                   <EditorialInput value={editAgent.licensedCompany || ""} onChange={(v) => updateField("licensedCompany", v)} />
