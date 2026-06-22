@@ -10,12 +10,27 @@ import { DealBreakdownBar } from "@/components/homix/deal-breakdown";
 import { fmtMoney, tone } from "@/components/homix/tokens";
 import { computeCommission } from "@/lib/commission";
 import { SOURCE_OPTIONS, type DealSource } from "@/lib/sources";
-import type { Agent, Building } from "@/db/schema";
+import type { Agent, Building, Deal } from "@/db/schema";
 
 type DealParticipantInput = {
   agentId: number | null;
   sharePct: number;
   isPrimary: boolean;
+};
+
+type RentalDealPayload = {
+  deal: Deal;
+  building: Building | null;
+  agents: Array<{
+    agent: Agent;
+    sharePct: number;
+    isPrimary: boolean;
+  }>;
+};
+
+type RentalDealFormPageProps = {
+  mode?: "new" | "edit";
+  dealId?: string;
 };
 
 function initials(name: string) {
@@ -27,11 +42,13 @@ function initials(name: string) {
     .join("");
 }
 
-export default function NewDealPage() {
+export function RentalDealFormPage({ mode = "new", dealId }: RentalDealFormPageProps) {
   const router = useRouter();
   const { data: session } = useSession();
+  const isEdit = mode === "edit";
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [agents, setAgents] = useState<Array<{ agent: Agent; teamName: string | null }>>([]);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [buildingSearch, setBuildingSearch] = useState("");
 
@@ -108,23 +125,63 @@ export default function NewDealPage() {
   const [source, setSource] = useState<DealSource | "">("");
 
   useEffect(() => {
+    setLoading(true);
     Promise.all([
       fetch("/api/buildings").then((r) => r.json()),
       fetch("/api/agents").then((r) => r.json()),
-    ]).then(([buildingRows, agentRows]) => {
+      isEdit && dealId
+        ? fetch(`/api/rental/${dealId}`).then(async (r) => {
+            if (!r.ok) throw new Error(await r.text());
+            return (await r.json()) as RentalDealPayload;
+          })
+        : Promise.resolve(null),
+    ]).then(([buildingRows, agentRows, rentalPayload]) => {
       setBuildings(buildingRows);
       setAgents(agentRows);
-      const initialBuildingId = new URLSearchParams(window.location.search).get("buildingId");
-      if (initialBuildingId) setBuildingId(Number(initialBuildingId));
-    });
-  }, []);
+      if (rentalPayload) {
+        const { deal } = rentalPayload;
+        setBuildingId(deal.buildingId);
+        setUnit(deal.unit || "");
+        setTenantName(deal.tenantName || "");
+        setTenantEmail(deal.tenantEmail || "");
+        setTenantPhone(deal.tenantPhone || "");
+        setApartmentAddress(deal.apartmentAddress || "");
+        setMoveInDate(deal.moveInDate || "");
+        setLeaseLengthMonths(deal.leaseLengthMonths || 12);
+        setRentAmount(deal.rentAmount === null ? "" : String(deal.rentAmount));
+        setTotalCommission(String(deal.totalCommission || ""));
+        setHasReferrer(Boolean(deal.referrerName || deal.referrerType || deal.referrerAmount || deal.referrerPaymentInfo));
+        setReferrerName(deal.referrerName || "");
+        setReferrerType(deal.referrerType === "flat" ? "flat" : "percent");
+        setReferrerAmount(deal.referrerAmount === null ? "" : String(deal.referrerAmount));
+        setReferrerPaymentInfo(deal.referrerPaymentInfo || "");
+        setNotes(deal.notes || "");
+        setSource(SOURCE_OPTIONS.some((opt) => opt.value === deal.source) ? (deal.source as DealSource) : "");
+        setDealParticipants(
+          rentalPayload.agents.length > 0
+            ? rentalPayload.agents.map((participant) => ({
+                agentId: participant.agent.id,
+                sharePct: Number(participant.sharePct || 0),
+                isPrimary: participant.isPrimary,
+              }))
+            : [{ agentId: null, sharePct: 100, isPrimary: true }]
+        );
+      } else {
+        const initialBuildingId = new URLSearchParams(window.location.search).get("buildingId");
+        if (initialBuildingId) setBuildingId(Number(initialBuildingId));
+      }
+    }).catch(() => {
+      toast.error(isEdit ? "Could not load rental" : "Could not load form data");
+      if (isEdit) router.push("/rental");
+    }).finally(() => setLoading(false));
+  }, [dealId, isEdit, router]);
 
   const selectedBuilding = useMemo(
     () => buildings.find((building) => building.id === buildingId) || null,
     [buildings, buildingId]
   );
   useEffect(() => {
-    if (dealParticipants[0]?.agentId || agents.length === 0) return;
+    if (isEdit || dealParticipants[0]?.agentId || agents.length === 0) return;
     const currentAgentId = session?.user?.agentId;
     const defaultAgent =
       agents.find((row) => row.agent.id === currentAgentId)?.agent ||
@@ -132,7 +189,7 @@ export default function NewDealPage() {
     if (defaultAgent) {
       setDealParticipants([{ agentId: defaultAgent.id, sharePct: 100, isPrimary: true }]);
     }
-  }, [agents, dealParticipants, session?.user?.agentId]);
+  }, [agents, dealParticipants, isEdit, session?.user?.agentId]);
 
   const selectedParticipants = useMemo(
     () =>
@@ -147,11 +204,11 @@ export default function NewDealPage() {
   const shareTotal = selectedParticipants.reduce((sum, participant) => sum + Number(participant.sharePct || 0), 0);
 
   useEffect(() => {
-    if (selectedBuilding && !apartmentAddress) {
+    if (!isEdit && selectedBuilding && !apartmentAddress) {
       setApartmentAddress(selectedBuilding.billToAddress || "");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedBuilding?.id]);
+  }, [selectedBuilding?.id, isEdit]);
 
   const updateParticipant = (
     index: number,
@@ -236,8 +293,9 @@ export default function NewDealPage() {
 
     setSaving(true);
     try {
-      const res = await fetch("/api/rental", {
-        method: "POST",
+      if (isEdit && !dealId) throw new Error("Missing rental id");
+      const res = await fetch(isEdit ? `/api/rental/${dealId}` : "/api/rental", {
+        method: isEdit ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           buildingId,
@@ -267,8 +325,8 @@ export default function NewDealPage() {
       });
       if (!res.ok) throw new Error(await res.text());
       const deal = await res.json();
-      toast.success("Rental created");
-      router.push(`/rental/${deal.id}`);
+      toast.success(isEdit ? "Rental updated" : "Rental created");
+      router.push(`/rental/${isEdit ? dealId : deal.id}`);
     } catch {
       toast.error("Save failed");
     } finally {
@@ -276,18 +334,26 @@ export default function NewDealPage() {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="py-24 text-center text-[13px]" style={{ color: tone.ink50 }}>
+        Loading…
+      </div>
+    );
+  }
+
   return (
     <form onSubmit={submit}>
       <div className="flex items-start justify-between mb-8">
         <div>
-          <Link href="/rental" className="flex items-center gap-1.5 text-[12.5px] mb-4" style={{ color: tone.ink50 }}>
+          <Link href={isEdit && dealId ? `/rental/${dealId}` : "/rental"} className="flex items-center gap-1.5 text-[12.5px] mb-4" style={{ color: tone.ink50 }}>
             <Icons.Back /> Back
           </Link>
           <div className="text-[11px] uppercase tracking-[0.16em] mb-2" style={{ color: tone.ink50 }}>
-            Create
+            {isEdit ? "Edit" : "Create"}
           </div>
           <h1 className="font-serif" style={{ fontSize: 52, lineHeight: 0.95, color: tone.ink }}>
-            New rental
+            {isEdit ? "Edit rental" : "New rental"}
           </h1>
         </div>
         <div className="flex gap-2 shrink-0">
@@ -295,7 +361,7 @@ export default function NewDealPage() {
             Cancel
           </Btn>
           <Btn variant="primary" icon={<Icons.Check />} type="submit" disabled={saving}>
-            {saving ? "Saving…" : "Save Rental"}
+            {saving ? "Saving…" : isEdit ? "Save Changes" : "Save Rental"}
           </Btn>
         </div>
       </div>
@@ -799,4 +865,8 @@ export default function NewDealPage() {
       )}
     </form>
   );
+}
+
+export default function NewDealPage() {
+  return <RentalDealFormPage />;
 }

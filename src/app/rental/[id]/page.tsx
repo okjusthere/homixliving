@@ -148,7 +148,7 @@ export default function DealDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <Btn variant="outline" icon={<Icons.Edit />} onClick={() => toast.message("Edit is coming in V1.1")}>
+          <Btn variant="outline" icon={<Icons.Edit />} onClick={() => router.push(`/rental/${id}/edit`)}>
             Edit
           </Btn>
           {deal.status !== "cancelled" && (
