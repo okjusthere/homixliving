@@ -350,15 +350,19 @@ export default async function Dashboard() {
                     <div className="mt-1.5">
                       <Pill
                         tone={
-                          invoice.status === "sent"
+                          invoice.status === "paid"
                             ? "sent"
+                            : invoice.status === "sent"
+                            ? "accent"
                             : invoice.status === "failed"
                             ? "failed"
                             : "draft"
                         }
                       >
-                        {invoice.status === "sent"
-                          ? "Sent"
+                        {invoice.status === "paid"
+                          ? "Paid"
+                          : invoice.status === "sent"
+                          ? "Awaiting"
                           : invoice.status === "failed"
                           ? "Failed"
                           : "Draft"}

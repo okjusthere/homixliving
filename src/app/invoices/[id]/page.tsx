@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
+import { useSession } from "next-auth/react";
 import { Pill, Btn, Card, SoftField, Icons } from "@/components/homix/primitives";
 import { tone, fmtMoney, fmtDate } from "@/components/homix/tokens";
 import { ScaledInvoiceDoc } from "@/components/homix/invoice-doc";
@@ -21,6 +22,8 @@ export default function InvoiceDetailPage() {
   const [settings, setSettings] = useState<Settings>({});
   const [loading, setLoading] = useState(true);
   const [showSend, setShowSend] = useState(false);
+  const { data: session } = useSession();
+  const isAdmin = Boolean(session?.user.isAdmin);
 
   const previewRef = useRef<HTMLDivElement>(null);
   const [previewWidth, setPreviewWidth] = useState(520);
@@ -117,9 +120,6 @@ export default function InvoiceDetailPage() {
       ? JSON.parse(invoice.lineItems)
       : invoice.lineItems || [];
 
-  const issueDate = invoice.createdAt || new Date().toISOString();
-  const dueDate = new Date(new Date(issueDate).getTime() + 30 * 86400000).toISOString();
-
   const invoiceForDoc = {
     invoiceNumber: invoice.invoiceNumber,
     unit: invoice.unit,
@@ -163,7 +163,7 @@ export default function InvoiceDetailPage() {
               {invoice.status === "paid"
                 ? "Paid"
                 : invoice.status === "sent"
-                ? "Sent"
+                ? "Awaiting payment"
                 : invoice.status === "failed"
                 ? "Failed"
                 : "Draft"}
@@ -209,11 +209,11 @@ export default function InvoiceDetailPage() {
           <Btn variant="danger" icon={<Icons.Trash />} onClick={handleDelete}>
             Delete
           </Btn>
-          {invoice.status === "paid" ? (
+          {isAdmin && invoice.status === "paid" ? (
             <Btn variant="outline" onClick={handleUnmarkPaid}>
               Mark unpaid
             </Btn>
-          ) : invoice.status === "sent" ? (
+          ) : isAdmin && invoice.status === "sent" ? (
             <Btn variant="primary" icon={<Icons.Check />} onClick={handleMarkPaid}>
               Mark paid
             </Btn>
@@ -266,10 +266,17 @@ export default function InvoiceDetailPage() {
                 style={{ color: tone.ink70 }}
               >
                 <span>
-                  Due <span className="font-mono">{fmtDate(dueDate)}</span>
+                  Issued <span className="font-mono">{fmtDate(invoice.createdAt)}</span>
                 </span>
-                <span>·</span>
-                <span>Net 30</span>
+                <span>
+                  {invoice.status === "paid"
+                    ? "Company received payment"
+                    : invoice.status === "sent"
+                    ? "Awaiting building payment"
+                    : invoice.status === "failed"
+                    ? "Send failed"
+                    : "Draft not sent"}
+                </span>
                 <span>·</span>
                 <span>USD</span>
               </div>

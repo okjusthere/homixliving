@@ -4,6 +4,7 @@ import { agents, buildings, dealAgents, deals, invoices } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { requireActiveAgentApi } from "@/lib/auth-guards";
 import { canEditDeal, canViewDeal } from "@/lib/visibility";
+import { summarizeInvoicePayment } from "@/lib/invoice-payment";
 
 type DealAgentPayload = {
   agentId: number;
@@ -143,7 +144,14 @@ async function serializeDeal(id: number) {
   }));
   const primaryAgent = participants.find((row) => row.isPrimary)?.agent || null;
 
-  return { deal, building, agents: participants, primaryAgent, linkedInvoices };
+  return {
+    deal,
+    building,
+    agents: participants,
+    primaryAgent,
+    linkedInvoices,
+    invoiceSummary: summarizeInvoicePayment(linkedInvoices),
+  };
 }
 
 export async function GET(

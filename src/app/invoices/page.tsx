@@ -62,7 +62,7 @@ export default function InvoicesPage() {
   const statuses: { id: "all" | "draft" | "sent" | "paid" | "failed"; label: string; count: number }[] = [
     { id: "all", label: "All", count: counts.all },
     { id: "draft", label: "Draft", count: counts.draft },
-    { id: "sent", label: "Sent", count: counts.sent },
+    { id: "sent", label: "Awaiting", count: counts.sent },
     { id: "paid", label: "Paid", count: counts.paid },
     { id: "failed", label: "Failed", count: counts.failed },
   ];
@@ -160,7 +160,7 @@ export default function InvoicesPage() {
           <div>Agent</div>
           <div>Issued</div>
           <div className="text-right">Amount</div>
-          <div className="text-right">Status</div>
+          <div className="text-right">Payment</div>
         </div>
         {loading ? (
           <div className="px-6 py-12 text-center text-[13px]" style={{ color: tone.ink50 }}>
@@ -240,7 +240,7 @@ export default function InvoicesPage() {
                   {invoice.status === "paid"
                     ? "Paid"
                     : invoice.status === "sent"
-                    ? "Sent"
+                    ? "Awaiting payment"
                     : invoice.status === "failed"
                     ? "Failed"
                     : "Draft"}

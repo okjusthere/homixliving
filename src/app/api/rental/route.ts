@@ -5,6 +5,7 @@ import { desc, eq, sql } from "drizzle-orm";
 import { getDealDate } from "@/lib/reporting";
 import { requireActiveAgentApi } from "@/lib/auth-guards";
 import { dealsVisibleToSql } from "@/lib/visibility";
+import { summarizeInvoicePayment } from "@/lib/invoice-payment";
 
 type DealAgentPayload = {
   agentId: number;
@@ -152,6 +153,13 @@ export async function GET(req: NextRequest) {
     if (invoice.dealId) acc[invoice.dealId] = (acc[invoice.dealId] || 0) + 1;
     return acc;
   }, {});
+  const invoicesByDeal = new Map<number, typeof invoiceRows>();
+  for (const invoice of invoiceRows) {
+    if (!invoice.dealId) continue;
+    const rows = invoicesByDeal.get(invoice.dealId) || [];
+    rows.push(invoice);
+    invoicesByDeal.set(invoice.dealId, rows);
+  }
   const dealAgentsByDeal = new Map<number, typeof dealAgentRows>();
   for (const row of dealAgentRows) {
     const rows = dealAgentsByDeal.get(row.dealId) || [];
@@ -189,6 +197,7 @@ export async function GET(req: NextRequest) {
         agents: participants,
         primaryAgent: primary?.agent || null,
         invoiceCount: invoiceCountByDeal[deal.id] || 0,
+        invoiceSummary: summarizeInvoicePayment(invoicesByDeal.get(deal.id) || []),
       };
     })
   );

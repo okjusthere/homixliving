@@ -11,6 +11,11 @@ import type { Agent, Building, Deal, Invoice } from "@/db/schema";
 import type { CommissionBreakdown } from "@/lib/commission";
 import { sourceEmoji, sourceLabel } from "@/lib/sources";
 import { companySplitPct, normalizeSplitPct, splitLabel } from "@/lib/splits";
+import {
+  invoicePaymentTone,
+  summarizeInvoicePayment,
+  type InvoicePaymentSummary,
+} from "@/lib/invoice-payment";
 
 type DealPayload = {
   deal: Deal;
@@ -22,12 +27,31 @@ type DealPayload = {
   }>;
   primaryAgent: Agent | null;
   linkedInvoices: Invoice[];
+  invoiceSummary: InvoicePaymentSummary;
 };
 
 function statusTone(status: string) {
   if (status === "completed") return "sent";
   if (status === "cancelled") return "failed";
   return "accent";
+}
+
+function paymentDetail(summary: InvoicePaymentSummary) {
+  if (summary.status === "awaiting_payment") {
+    return `Homix has not received $${fmtMoney(summary.totalOutstanding)} from the building yet.`;
+  }
+  if (summary.status === "paid") {
+    return summary.paidAt
+      ? `Homix received payment on ${fmtDate(summary.paidAt)}.`
+      : `Homix received $${fmtMoney(summary.totalPaid)}.`;
+  }
+  if (summary.status === "draft") {
+    return "Invoice exists but has not been sent to the building yet.";
+  }
+  if (summary.status === "failed") {
+    return "The latest invoice send failed and needs attention.";
+  }
+  return "No invoice has been created for this rental yet.";
 }
 
 export default function DealDetailPage() {
@@ -119,7 +143,7 @@ export default function DealDetailPage() {
     );
   }
 
-  const { deal, building, linkedInvoices } = payload;
+  const { deal, building, linkedInvoices, invoiceSummary } = payload;
   const referrerDisplayName = deal.referrerName || null;
   const referrerLabel =
     deal.referrerType === "percent"
@@ -266,6 +290,55 @@ export default function DealDetailPage() {
           <div className="sticky top-24 space-y-6">
             <Card>
               <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="font-serif" style={{ fontSize: 22, color: tone.ink }}>
+                    Payment Status
+                  </div>
+                  <Pill tone={invoicePaymentTone(invoiceSummary.status)}>
+                    {invoiceSummary.label}
+                  </Pill>
+                </div>
+              </div>
+              <div className="p-6">
+                <p className="text-[13.5px] leading-relaxed" style={{ color: tone.ink70 }}>
+                  {paymentDetail(invoiceSummary)}
+                </p>
+                <div className="mt-5 grid grid-cols-2 gap-3">
+                  <SoftField
+                    label="Outstanding"
+                    value={`$${fmtMoney(invoiceSummary.totalOutstanding)}`}
+                    mono
+                  />
+                  <SoftField
+                    label="Received"
+                    value={`$${fmtMoney(invoiceSummary.totalPaid)}`}
+                    mono
+                  />
+                  <SoftField
+                    label="Sent"
+                    value={invoiceSummary.sentAt ? fmtDate(invoiceSummary.sentAt) : "—"}
+                    mono
+                  />
+                  <SoftField
+                    label="Paid"
+                    value={invoiceSummary.paidAt ? fmtDate(invoiceSummary.paidAt) : "—"}
+                    mono
+                  />
+                </div>
+                {invoiceSummary.latestInvoiceId && (
+                  <Link
+                    href={`/invoices/${invoiceSummary.latestInvoiceId}`}
+                    className="mt-5 inline-flex items-center gap-1.5 text-[12.5px] underline"
+                    style={{ color: tone.accent }}
+                  >
+                    View {invoiceSummary.latestInvoiceNumber}
+                  </Link>
+                )}
+              </div>
+            </Card>
+
+            <Card>
+              <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
                 <div className="font-serif" style={{ fontSize: 22, color: tone.ink }}>
                   Commission Breakdown
                 </div>
@@ -356,26 +429,38 @@ export default function DealDetailPage() {
                     </p>
                   </div>
                 ) : (
-                  linkedInvoices.map((invoice, index) => (
-                    <Link
-                      key={invoice.id}
-                      href={`/invoices/${invoice.id}`}
-                      className="flex items-center justify-between px-6 py-4 transition-colors hover:bg-[#FAF7F0]"
-                      style={{ borderBottom: index < linkedInvoices.length - 1 ? `1px solid ${tone.lineSoft}` : "none" }}
-                    >
-                      <div>
-                        <div className="font-mono text-[12.5px]" style={{ color: tone.ink }}>
-                          {invoice.invoiceNumber}
+                  linkedInvoices.map((invoice, index) => {
+                    const summary = summarizeInvoicePayment([invoice]);
+                    return (
+                      <Link
+                        key={invoice.id}
+                        href={`/invoices/${invoice.id}`}
+                        className="flex items-center justify-between gap-4 px-6 py-4 transition-colors hover:bg-[#FAF7F0]"
+                        style={{ borderBottom: index < linkedInvoices.length - 1 ? `1px solid ${tone.lineSoft}` : "none" }}
+                      >
+                        <div>
+                          <div className="font-mono text-[12.5px]" style={{ color: tone.ink }}>
+                            {invoice.invoiceNumber}
+                          </div>
+                          <div className="text-[11.5px] mt-0.5" style={{ color: tone.ink50 }}>
+                            {invoice.status === "paid" && invoice.paidAt
+                              ? `Paid ${fmtDate(invoice.paidAt)}`
+                              : invoice.status === "sent" && invoice.sentAt
+                              ? `Sent ${fmtDate(invoice.sentAt)}`
+                              : `Created ${fmtDate(invoice.createdAt)}`}
+                          </div>
                         </div>
-                        <div className="text-[11.5px] mt-0.5" style={{ color: tone.ink50 }}>
-                          {fmtDate(invoice.createdAt)}
+                        <div className="text-right">
+                          <Pill tone={invoicePaymentTone(summary.status)}>
+                            {summary.label}
+                          </Pill>
+                          <div className="mt-1 font-serif" style={{ fontSize: 18, color: tone.ink }}>
+                            ${fmtMoney(Number(invoice.totalAmount || 0))}
+                          </div>
                         </div>
-                      </div>
-                      <div className="text-right font-serif" style={{ fontSize: 18, color: tone.ink }}>
-                        ${fmtMoney(Number(invoice.totalAmount || 0))}
-                      </div>
-                    </Link>
-                  ))
+                      </Link>
+                    );
+                  })
                 )}
               </div>
             </Card>
