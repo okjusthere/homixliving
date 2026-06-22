@@ -35,7 +35,7 @@ type EmailAttachment = {
 
 async function loadW9Attachment(): Promise<EmailAttachment> {
   try {
-    const pdf = await readFile(join(process.cwd(), "src/assets/homix-living-inc-w9.pdf"));
+    const pdf = await readFile(join(process.cwd(), "src", "assets", "homix-living-inc-w9.pdf"));
     return {
       filename: "Homix Living Inc W9.pdf",
       content: pdf.toString("base64"),

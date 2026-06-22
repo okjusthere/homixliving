@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
-    "/*": ["src/assets/homix-living-inc-w9.pdf"],
+    "/api/invoices/*/send": ["src/assets/homix-living-inc-w9.pdf"],
   },
 };
 

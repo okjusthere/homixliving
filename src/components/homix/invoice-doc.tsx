@@ -60,8 +60,6 @@ export function InvoiceDoc({
   const lineItems = invoice.lineItems || [];
   const total = invoice.totalAmount;
   const issueDate = invoice.createdAt || new Date().toISOString();
-  const dueDays = 30;
-  const dueDate = new Date(new Date(issueDate).getTime() + dueDays * 86400000).toISOString();
   const hasCheck = settings.payableTo || settings.taxId || settings.mailCheckAddress;
   const hasACH =
     settings.achAccountName ||
@@ -80,7 +78,7 @@ export function InvoiceDoc({
   const page: React.CSSProperties = {
     width: 816,
     height: 1056,
-    padding: "56px 64px",
+    padding: "42px 54px",
     background: "#FBF9F4",
     color: "#1A1814",
     fontFamily: "var(--font-geist-sans), 'Helvetica Neue', Arial, sans-serif",
@@ -119,7 +117,7 @@ export function InvoiceDoc({
       <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 6, background: "#5C6B3A" }} />
 
       {/* HEADER */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 48 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 28 }}>
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <svg width={36} height={36} viewBox="0 0 40 40">
@@ -142,7 +140,7 @@ export function InvoiceDoc({
         </div>
 
         <div style={{ textAlign: "right" }}>
-          <div style={{ ...serif, fontSize: 54, lineHeight: 0.9, color: "#1A1814" }}>Invoice</div>
+          <div style={{ ...serif, fontSize: 46, lineHeight: 0.9, color: "#1A1814" }}>Invoice</div>
           <div style={{ ...mono, fontSize: 11, marginTop: 10, color: "#1A1814", letterSpacing: "0.02em" }}>
             № {invoice.invoiceNumber}
           </div>
@@ -156,25 +154,17 @@ export function InvoiceDoc({
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "1fr 1fr 1fr 1.3fr",
+          gridTemplateColumns: "1fr 1.3fr",
           gap: 0,
-          padding: "16px 0",
+          padding: "10px 0",
           borderTop: "1px solid #E4DED2",
           borderBottom: "1px solid #E4DED2",
-          marginBottom: 36,
+          marginBottom: 24,
         }}
       >
         <div style={{ paddingRight: 16, borderRight: "1px solid #EDE8DD" }}>
           <div style={label}>Issue Date</div>
           <div style={{ ...mono, fontSize: 12, marginTop: 6, color: "#1A1814" }}>{fmtDate(issueDate)}</div>
-        </div>
-        <div style={{ padding: "0 16px", borderRight: "1px solid #EDE8DD" }}>
-          <div style={label}>Due Date</div>
-          <div style={{ ...mono, fontSize: 12, marginTop: 6, color: "#1A1814" }}>{fmtDate(dueDate)}</div>
-        </div>
-        <div style={{ padding: "0 16px", borderRight: "1px solid #EDE8DD" }}>
-          <div style={label}>Terms</div>
-          <div style={{ ...mono, fontSize: 12, marginTop: 6, color: "#1A1814" }}>Net {dueDays}</div>
         </div>
         <div style={{ paddingLeft: 16 }}>
           <div style={label}>Amount Due</div>
@@ -185,16 +175,16 @@ export function InvoiceDoc({
       </div>
 
       {/* BILL TO / TENANT */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 48, marginBottom: 40 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 36, marginBottom: 28 }}>
         <div>
           <div style={labelLine}>
             <span>Billed To</span>
             <span style={{ flex: 1, height: 1, background: "#E4DED2" }} />
           </div>
-          <div style={{ ...serif, fontSize: 19, marginTop: 10, color: "#1A1814", lineHeight: 1.2 }}>
+          <div style={{ ...serif, fontSize: 18, marginTop: 8, color: "#1A1814", lineHeight: 1.2 }}>
             {building?.billToCompany || building?.name || "—"}
           </div>
-          <div style={{ fontSize: 10.5, color: "#4A4640", marginTop: 6, lineHeight: 1.55 }}>
+          <div style={{ fontSize: 10, color: "#4A4640", marginTop: 6, lineHeight: 1.45 }}>
             {building?.billToAddress || invoice.apartmentAddress || ""}
           </div>
           {building?.managementCompany && (
@@ -208,10 +198,10 @@ export function InvoiceDoc({
             <span>For Tenant</span>
             <span style={{ flex: 1, height: 1, background: "#E4DED2" }} />
           </div>
-          <div style={{ ...serif, fontSize: 19, marginTop: 10, color: "#1A1814", lineHeight: 1.2 }}>
+          <div style={{ ...serif, fontSize: 18, marginTop: 8, color: "#1A1814", lineHeight: 1.2 }}>
             {invoice.tenantName}
           </div>
-          <div style={{ fontSize: 10.5, color: "#4A4640", marginTop: 6, lineHeight: 1.55 }}>
+          <div style={{ fontSize: 10, color: "#4A4640", marginTop: 6, lineHeight: 1.45 }}>
             Unit {invoice.unit} · {building?.name || ""}
             <br />
             {invoice.moveInDate && `Move-in ${fmtLongDate(invoice.moveInDate)}`}
@@ -226,12 +216,12 @@ export function InvoiceDoc({
       </div>
 
       {/* LINE ITEMS */}
-      <div style={{ marginBottom: 40 }}>
+      <div style={{ marginBottom: 24 }}>
         <div style={labelLine}>
           <span>Services</span>
           <span style={{ flex: 1, height: 1, background: "#E4DED2" }} />
         </div>
-        <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 14 }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 10 }}>
           <thead>
             <tr>
               <th style={{ ...label, textAlign: "left", fontWeight: 500, padding: "0 0 10px 0", width: "60%" }}>Description</th>
@@ -243,21 +233,21 @@ export function InvoiceDoc({
           <tbody>
             {lineItems.map((item, i) => (
               <tr key={i} style={{ borderTop: "1px solid #EDE8DD" }}>
-                <td style={{ padding: "16px 12px 16px 0", fontSize: 12, color: "#1A1814", verticalAlign: "top" }}>
+                <td style={{ padding: "10px 12px 10px 0", fontSize: 11, color: "#1A1814", verticalAlign: "top" }}>
                   {item.description}
                   {invoice.apartmentAddress && (
-                    <div style={{ ...mono, fontSize: 9.5, color: "#7A756C", marginTop: 3 }}>
+                    <div style={{ ...mono, fontSize: 8.5, color: "#7A756C", marginTop: 3 }}>
                       {invoice.apartmentAddress}
                     </div>
                   )}
                 </td>
-                <td style={{ ...mono, padding: "16px 0", fontSize: 11, textAlign: "right", color: "#4A4640", verticalAlign: "top" }}>
+                <td style={{ ...mono, padding: "10px 0", fontSize: 10, textAlign: "right", color: "#4A4640", verticalAlign: "top" }}>
                   {Number(item.quantity).toFixed(2)}
                 </td>
-                <td style={{ ...mono, padding: "16px 0", fontSize: 11, textAlign: "right", color: "#4A4640", verticalAlign: "top" }}>
+                <td style={{ ...mono, padding: "10px 0", fontSize: 10, textAlign: "right", color: "#4A4640", verticalAlign: "top" }}>
                   ${fmtMoney(item.unitPrice)}
                 </td>
-                <td style={{ ...mono, padding: "16px 0", fontSize: 11, textAlign: "right", color: "#1A1814", verticalAlign: "top", fontWeight: 500 }}>
+                <td style={{ ...mono, padding: "10px 0", fontSize: 10, textAlign: "right", color: "#1A1814", verticalAlign: "top", fontWeight: 500 }}>
                   ${fmtMoney(item.amount)}
                 </td>
               </tr>
@@ -266,20 +256,20 @@ export function InvoiceDoc({
         </table>
 
         {/* Totals */}
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 24 }}>
-          <div style={{ width: 280 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", fontSize: 11, color: "#4A4640" }}>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
+          <div style={{ width: 250 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", fontSize: 11, color: "#4A4640" }}>
               <span>Subtotal</span>
               <span style={mono}>${fmtMoney(total)}</span>
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", fontSize: 11, color: "#4A4640" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", fontSize: 11, color: "#4A4640" }}>
               <span>Tax</span>
               <span style={mono}>$0.00</span>
             </div>
             <div style={{ height: 1, background: "#1A1814", margin: "10px 0" }} />
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "4px 0" }}>
               <span style={{ ...label, color: "#1A1814" }}>Total Due</span>
-              <span style={{ ...serif, fontSize: 26, color: "#1A1814", lineHeight: 1 }}>
+              <span style={{ ...serif, fontSize: 22, color: "#1A1814", lineHeight: 1 }}>
                 <span style={{ fontSize: 12, color: "#7A756C", marginRight: 4, ...mono }}>USD</span>${fmtMoney(total)}
               </span>
             </div>
@@ -290,8 +280,8 @@ export function InvoiceDoc({
       {/* PAYMENT METHODS */}
       <div
         style={{
-          marginTop: 40,
-          padding: "24px 28px",
+          marginTop: 18,
+          padding: "14px 16px",
           background: "#F3F0E7",
           borderRadius: 8,
           border: "1px solid #E4DED2",
@@ -305,15 +295,15 @@ export function InvoiceDoc({
           style={{
             display: "grid",
             gridTemplateColumns: `repeat(${paymentColumnCount}, 1fr)`,
-            gap: 24,
-            marginTop: 16,
+            gap: 18,
+            marginTop: 10,
           }}
         >
           {/* Check */}
           {hasCheck && (
             <div>
-              <div style={{ ...serif, fontSize: 15, color: "#1A1814" }}>By Check</div>
-              <div style={{ ...mono, fontSize: 10, color: "#4A4640", marginTop: 10, lineHeight: 1.7 }}>
+              <div style={{ ...serif, fontSize: 13, color: "#1A1814" }}>By Check</div>
+              <div style={{ ...mono, fontSize: 8.5, color: "#4A4640", marginTop: 6, lineHeight: 1.35 }}>
                 {settings.payableTo && (
                   <div>
                     <span style={{ color: "#7A756C" }}>Payable to</span>&nbsp;&nbsp;{settings.payableTo}
@@ -336,8 +326,8 @@ export function InvoiceDoc({
           {/* ACH */}
           {hasACH && (
             <div>
-              <div style={{ ...serif, fontSize: 15, color: "#1A1814" }}>By ACH</div>
-              <div style={{ ...mono, fontSize: 10, color: "#4A4640", marginTop: 10, lineHeight: 1.7 }}>
+              <div style={{ ...serif, fontSize: 13, color: "#1A1814" }}>By ACH</div>
+              <div style={{ ...mono, fontSize: 8.5, color: "#4A4640", marginTop: 6, lineHeight: 1.35 }}>
                 {settings.achAccountName && (
                   <div>
                     <span style={{ color: "#7A756C" }}>Account</span>&nbsp;&nbsp;{settings.achAccountName}
@@ -364,8 +354,8 @@ export function InvoiceDoc({
           {/* Wire */}
           {hasWire && (
             <div>
-              <div style={{ ...serif, fontSize: 15, color: "#1A1814" }}>By Wire</div>
-              <div style={{ ...mono, fontSize: 10, color: "#4A4640", marginTop: 10, lineHeight: 1.7 }}>
+              <div style={{ ...serif, fontSize: 13, color: "#1A1814" }}>By Wire</div>
+              <div style={{ ...mono, fontSize: 8.5, color: "#4A4640", marginTop: 6, lineHeight: 1.35 }}>
                 {settings.wireAccountName && (
                   <div>
                     <span style={{ color: "#7A756C" }}>Account</span>&nbsp;&nbsp;{settings.wireAccountName}
@@ -404,8 +394,8 @@ export function InvoiceDoc({
       </div>
 
       {/* FOOTER */}
-      <div style={{ position: "absolute", left: 64, right: 64, bottom: 40 }}>
-        <div style={{ height: 1, background: "#E4DED2", marginBottom: 16 }} />
+      <div style={{ position: "absolute", left: 54, right: 54, bottom: 24 }}>
+        <div style={{ height: 1, background: "#E4DED2", marginBottom: 10 }} />
         <div
           style={{
             display: "flex",

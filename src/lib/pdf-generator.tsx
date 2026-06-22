@@ -35,7 +35,7 @@ const COLORS = {
 
 const styles = StyleSheet.create({
   page: {
-    padding: "56px 64px",
+    padding: "42px 54px",
     backgroundColor: COLORS.paper,
     color: COLORS.ink,
     fontFamily: "Helvetica",
@@ -56,7 +56,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 48,
+    marginBottom: 28,
   },
   brandRow: {
     flexDirection: "row",
@@ -95,7 +95,7 @@ const styles = StyleSheet.create({
   },
   invoiceTitle: {
     fontFamily: "Times-Roman",
-    fontSize: 54,
+    fontSize: 46,
     lineHeight: 0.9,
     color: COLORS.ink,
   },
@@ -115,12 +115,12 @@ const styles = StyleSheet.create({
   // Key dates band
   datesBand: {
     flexDirection: "row",
-    paddingVertical: 16,
+    paddingVertical: 10,
     borderTopWidth: 1,
     borderTopColor: COLORS.line,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.line,
-    marginBottom: 36,
+    marginBottom: 24,
   },
   datesCell: {
     flex: 1,
@@ -159,8 +159,8 @@ const styles = StyleSheet.create({
   // Bill to / Tenant
   twoCol: {
     flexDirection: "row",
-    gap: 48,
-    marginBottom: 40,
+    gap: 36,
+    marginBottom: 28,
   },
   col: {
     flex: 1,
@@ -185,33 +185,33 @@ const styles = StyleSheet.create({
   },
   partyName: {
     fontFamily: "Times-Roman",
-    fontSize: 19,
-    marginTop: 10,
+    fontSize: 18,
+    marginTop: 8,
     color: COLORS.ink,
     lineHeight: 1.2,
   },
   partyAddress: {
-    fontSize: 10.5,
+    fontSize: 10,
     color: COLORS.ink70,
     marginTop: 6,
     lineHeight: 1.55,
   },
   partyMeta: {
     fontFamily: "Courier",
-    fontSize: 9.5,
+    fontSize: 9,
     color: COLORS.ink50,
     marginTop: 8,
   },
   // Line items
   itemsSection: {
-    marginBottom: 40,
+    marginBottom: 24,
   },
   itemsTable: {
-    marginTop: 14,
+    marginTop: 10,
   },
   itemsHeader: {
     flexDirection: "row",
-    paddingBottom: 10,
+    paddingBottom: 8,
   },
   itemsHeaderCell: {
     fontSize: 9,
@@ -224,7 +224,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     borderTopWidth: 1,
     borderTopColor: COLORS.lineSoft,
-    paddingVertical: 16,
+    paddingVertical: 10,
   },
   itemDescCol: {
     width: "60%",
@@ -243,23 +243,23 @@ const styles = StyleSheet.create({
     textAlign: "right",
   },
   itemDesc: {
-    fontSize: 12,
+    fontSize: 11,
     color: COLORS.ink,
   },
   itemSubDesc: {
     fontFamily: "Courier",
-    fontSize: 9.5,
+    fontSize: 8.5,
     color: COLORS.ink50,
     marginTop: 3,
   },
   itemNumber: {
     fontFamily: "Courier",
-    fontSize: 11,
+    fontSize: 10,
     color: COLORS.ink70,
   },
   itemAmount: {
     fontFamily: "Courier",
-    fontSize: 11,
+    fontSize: 10,
     color: COLORS.ink,
     fontWeight: 500,
   },
@@ -267,15 +267,15 @@ const styles = StyleSheet.create({
   totalsWrap: {
     flexDirection: "row",
     justifyContent: "flex-end",
-    marginTop: 24,
+    marginTop: 10,
   },
   totalsBox: {
-    width: 280,
+    width: 250,
   },
   totalsRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingVertical: 6,
+    paddingVertical: 4,
   },
   totalsLabel: {
     fontSize: 11,
@@ -306,7 +306,7 @@ const styles = StyleSheet.create({
   },
   totalDueValue: {
     fontFamily: "Times-Roman",
-    fontSize: 26,
+    fontSize: 22,
     color: COLORS.ink,
     lineHeight: 1,
   },
@@ -318,8 +318,8 @@ const styles = StyleSheet.create({
   },
   // Payment methods
   paymentBox: {
-    marginTop: 40,
-    padding: "24px 28px",
+    marginTop: 18,
+    padding: "14px 16px",
     backgroundColor: COLORS.paperDeep,
     borderRadius: 8,
     borderWidth: 1,
@@ -327,23 +327,23 @@ const styles = StyleSheet.create({
   },
   paymentGrid: {
     flexDirection: "row",
-    gap: 32,
-    marginTop: 16,
+    gap: 18,
+    marginTop: 10,
   },
   paymentCol: {
     flex: 1,
   },
   paymentTitle: {
     fontFamily: "Times-Roman",
-    fontSize: 15,
+    fontSize: 13,
     color: COLORS.ink,
   },
   paymentBody: {
     fontFamily: "Courier",
-    fontSize: 10,
+    fontSize: 8.5,
     color: COLORS.ink70,
-    marginTop: 10,
-    lineHeight: 1.7,
+    marginTop: 6,
+    lineHeight: 1.35,
   },
   paymentRow: {
     flexDirection: "row",
@@ -351,7 +351,7 @@ const styles = StyleSheet.create({
   },
   paymentLabel: {
     color: COLORS.ink50,
-    width: 70,
+    width: 58,
   },
   paymentValue: {
     flex: 1,
@@ -360,14 +360,14 @@ const styles = StyleSheet.create({
   // Footer
   footer: {
     position: "absolute",
-    left: 64,
-    right: 64,
-    bottom: 40,
+    left: 54,
+    right: 54,
+    bottom: 24,
   },
   footerDivider: {
     height: 1,
     backgroundColor: COLORS.line,
-    marginBottom: 16,
+    marginBottom: 10,
   },
   footerRow: {
     flexDirection: "row",
@@ -476,13 +476,11 @@ function InvoicePDF(props: InvoicePDFProps) {
   } = props;
 
   const issueDate = date || new Date().toISOString();
-  const dueDays = 30;
-  const dueDate = new Date(new Date(issueDate).getTime() + dueDays * 86400000).toISOString();
 
   const hasCheck = payableTo || mailCheckAddress;
-  const hasACH = achBankName || achRoutingNumber || achAccountNumber;
+  const hasACH = achAccountName || achBankName || achRoutingNumber || achAccountNumber;
   const hasWire =
-    wireBankName || wireRoutingNumber || wireAccountNumber || wireSwiftCode;
+    wireAccountName || wireBankName || wireRoutingNumber || wireAccountNumber || wireBankAddress || wireSwiftCode;
 
   return (
     <Document>
@@ -517,14 +515,6 @@ function InvoicePDF(props: InvoicePDFProps) {
           <View style={styles.datesCellFirst}>
             <Text style={styles.label}>Issue Date</Text>
             <Text style={styles.dateValue}>{fmtDateShort(issueDate)}</Text>
-          </View>
-          <View style={styles.datesCell}>
-            <Text style={styles.label}>Due Date</Text>
-            <Text style={styles.dateValue}>{fmtDateShort(dueDate)}</Text>
-          </View>
-          <View style={styles.datesCell}>
-            <Text style={styles.label}>Terms</Text>
-            <Text style={styles.dateValue}>Net {dueDays}</Text>
           </View>
           <View style={styles.datesCellLast}>
             <Text style={styles.label}>Amount Due</Text>
