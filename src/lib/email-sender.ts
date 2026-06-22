@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { Resend } from "resend";
 
 // Lazy init so build doesn't fail when RESEND_API_KEY isn't set.
@@ -25,6 +27,23 @@ type SendInvoiceEmailParams = {
   tenantName: string;
 };
 
+type EmailAttachment = {
+  filename: string;
+  content: Buffer;
+};
+
+async function loadW9Attachment(): Promise<EmailAttachment> {
+  try {
+    return {
+      filename: "Homix Living Inc W9.pdf",
+      content: await readFile(join(process.cwd(), "src/assets/homix-living-inc-w9.pdf")),
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    throw new Error(`Failed to load Homix Living W-9 attachment: ${message}`);
+  }
+}
+
 export async function sendInvoiceEmail({
   to,
   cc,
@@ -38,11 +57,20 @@ export async function sendInvoiceEmail({
 }: SendInvoiceEmailParams) {
   const fromEmail = process.env.FROM_EMAIL || "invoice@homixny.com";
   const ccEmail = process.env.CC_EMAIL || "homix@homixny.com";
+  const w9Attachment = await loadW9Attachment();
 
   const allCc = cc ? [...cc] : [];
   if (ccEmail && !allCc.includes(ccEmail)) {
     allCc.push(ccEmail);
   }
+
+  const attachments: EmailAttachment[] = [
+    {
+      filename: `${fileName}.pdf`,
+      content: pdfBuffer,
+    },
+    w9Attachment,
+  ];
 
   const { data, error } = await getResend().emails.send({
     from: `Homix Invoice <${fromEmail}>`,
@@ -60,16 +88,11 @@ export async function sendInvoiceEmail({
           <li><strong>Unit:</strong> ${unit}</li>
           <li><strong>Tenant:</strong> ${tenantName}</li>
         </ul>
-        <p>Please see the attached PDF for details.</p>
+        <p>Please see the attached invoice PDF and W-9 for details.</p>
         <p>Best regards,<br/>Homix Living</p>
       </div>
     `,
-    attachments: [
-      {
-        filename: `${fileName}.pdf`,
-        content: pdfBuffer,
-      },
-    ],
+    attachments,
   });
 
   if (error) {
