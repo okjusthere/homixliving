@@ -6,6 +6,7 @@ import { generateInvoicePDF } from "@/lib/pdf-generator";
 import { sendInvoiceEmail } from "@/lib/email-sender";
 import { requireActiveAgentApi } from "@/lib/auth-guards";
 import { canViewDeal } from "@/lib/visibility";
+import { invoiceSettingsForDocument } from "@/lib/invoice-settings";
 
 // PDF rendering (@react-pdf/renderer) + Resend round-trip can occasionally
 // push past Vercel's default 10-second function limit, especially on cold
@@ -65,6 +66,7 @@ export async function POST(
 
   const allSettings = await db.select().from(settings);
   const settingsMap = Object.fromEntries(allSettings.map((s) => [s.key, s.value]));
+  const docSettings = invoiceSettingsForDocument(settingsMap);
 
   const lineItems = typeof invoice.lineItems === "string"
     ? JSON.parse(invoice.lineItems)
@@ -85,22 +87,7 @@ export async function POST(
     lineItems,
     totalAmount: invoice.totalAmount,
     notes: invoice.notes || undefined,
-    companyName: settingsMap.company_name || "Homix Living",
-    companyAddress: settingsMap.company_address || "5 West 37th Street, Floor 2\nNew York, NY 10018",
-    fromEmail: settingsMap.from_email || "invoice@homixny.com",
-    payableTo: settingsMap.payable_to || undefined,
-    taxId: settingsMap.tax_id || undefined,
-    mailCheckAddress: settingsMap.mail_check_address || undefined,
-    achBankName: settingsMap.ach_bank_name || undefined,
-    achRoutingNumber: settingsMap.ach_routing_number || undefined,
-    achAccountNumber: settingsMap.ach_account_number || undefined,
-    achAccountName: settingsMap.ach_account_name || undefined,
-    wireAccountName: settingsMap.wire_account_name || undefined,
-    wireBankName: settingsMap.wire_bank_name || undefined,
-    wireRoutingNumber: settingsMap.wire_routing_number || undefined,
-    wireAccountNumber: settingsMap.wire_account_number || undefined,
-    wireBankAddress: settingsMap.wire_bank_address || undefined,
-    wireSwiftCode: settingsMap.wire_swift_code || undefined,
+    ...docSettings,
   });
 
   const sentByEmail = authResult.session.user.email || null;

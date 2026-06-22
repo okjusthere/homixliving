@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { generateInvoicePDF } from "@/lib/pdf-generator";
 import { requireActiveAgentApi } from "@/lib/auth-guards";
 import { canViewDeal } from "@/lib/visibility";
+import { invoiceSettingsForDocument } from "@/lib/invoice-settings";
 
 export async function GET(
   _req: NextRequest,
@@ -39,6 +40,7 @@ export async function GET(
 
   const allSettings = await db.select().from(settings);
   const settingsMap = Object.fromEntries(allSettings.map((s) => [s.key, s.value]));
+  const docSettings = invoiceSettingsForDocument(settingsMap);
 
   const lineItems = typeof invoice.lineItems === "string"
     ? JSON.parse(invoice.lineItems)
@@ -59,16 +61,7 @@ export async function GET(
     lineItems,
     totalAmount: invoice.totalAmount,
     notes: invoice.notes || undefined,
-    companyName: settingsMap.company_name || "Homix Living",
-    companyAddress: settingsMap.company_address || "5 West 37th Street, Floor 2\nNew York, NY 10018",
-    fromEmail: settingsMap.from_email || "invoice@homixny.com",
-    payableTo: settingsMap.payable_to || undefined,
-    taxId: settingsMap.tax_id || undefined,
-    mailCheckAddress: settingsMap.mail_check_address || undefined,
-    achBankName: settingsMap.ach_bank_name || undefined,
-    achRoutingNumber: settingsMap.ach_routing_number || undefined,
-    achAccountNumber: settingsMap.ach_account_number || undefined,
-    achAccountName: settingsMap.ach_account_name || undefined,
+    ...docSettings,
   });
 
   return new NextResponse(new Uint8Array(pdfBuffer), {

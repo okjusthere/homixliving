@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { settings } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { requireActiveAgentApi, requireAdminApi } from "@/lib/auth-guards";
+import { withInvoiceSettingDefaults } from "@/lib/invoice-settings";
 
 export async function GET() {
   const authResult = await requireActiveAgentApi();
@@ -10,7 +11,7 @@ export async function GET() {
 
   const allSettings = await db.select().from(settings);
   const settingsMap = Object.fromEntries(allSettings.map((s) => [s.key, s.value]));
-  return NextResponse.json(settingsMap);
+  return NextResponse.json(withInvoiceSettingDefaults(settingsMap));
 }
 
 export async function PUT(req: NextRequest) {

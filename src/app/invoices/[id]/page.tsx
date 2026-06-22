@@ -9,30 +9,9 @@ import { tone, fmtMoney, fmtDate } from "@/components/homix/tokens";
 import { ScaledInvoiceDoc } from "@/components/homix/invoice-doc";
 import { SendDialog } from "@/components/homix/send-dialog";
 import type { Building, Invoice, LineItem } from "@/db/schema";
+import { invoiceSettingsForDocument } from "@/lib/invoice-settings";
 
 type Settings = Record<string, string>;
-
-function settingsForDoc(s: Settings) {
-  return {
-    companyName: s.company_name,
-    companyAddress: s.company_address,
-    fromEmail: s.from_email,
-    ccEmail: s.cc_email,
-    payableTo: s.payable_to,
-    taxId: s.tax_id,
-    mailCheckAddress: s.mail_check_address,
-    achBankName: s.ach_bank_name,
-    achRoutingNumber: s.ach_routing_number,
-    achAccountNumber: s.ach_account_number,
-    achAccountName: s.ach_account_name,
-    wireAccountName: s.wire_account_name,
-    wireBankName: s.wire_bank_name,
-    wireRoutingNumber: s.wire_routing_number,
-    wireAccountNumber: s.wire_account_number,
-    wireBankAddress: s.wire_bank_address,
-    wireSwiftCode: s.wire_swift_code,
-  };
-}
 
 export default function InvoiceDetailPage() {
   const params = useParams();
@@ -506,7 +485,7 @@ export default function InvoiceDetailPage() {
               <ScaledInvoiceDoc
                 invoice={invoiceForDoc}
                 building={building}
-                settings={settingsForDoc(settings)}
+                settings={invoiceSettingsForDocument(settings)}
                 targetWidth={Math.max(320, previewWidth - 32)}
               />
             </div>

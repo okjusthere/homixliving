@@ -14,6 +14,7 @@ import {
 import { tone, fmtMoney } from "@/components/homix/tokens";
 import { ScaledInvoiceDoc } from "@/components/homix/invoice-doc";
 import type { Building, LineItem } from "@/db/schema";
+import { invoiceSettingsForDocument } from "@/lib/invoice-settings";
 
 export default function NewInvoicePage() {
   const router = useRouter();
@@ -113,24 +114,7 @@ export default function NewInvoicePage() {
     ]
   );
 
-  const settingsForDoc = {
-    companyName: settings.company_name,
-    companyAddress: settings.company_address,
-    fromEmail: settings.from_email,
-    payableTo: settings.payable_to,
-    taxId: settings.tax_id,
-    mailCheckAddress: settings.mail_check_address,
-    achBankName: settings.ach_bank_name,
-    achRoutingNumber: settings.ach_routing_number,
-    achAccountNumber: settings.ach_account_number,
-    achAccountName: settings.ach_account_name,
-    wireAccountName: settings.wire_account_name,
-    wireBankName: settings.wire_bank_name,
-    wireRoutingNumber: settings.wire_routing_number,
-    wireAccountNumber: settings.wire_account_number,
-    wireBankAddress: settings.wire_bank_address,
-    wireSwiftCode: settings.wire_swift_code,
-  };
+  const settingsForDoc = invoiceSettingsForDocument(settings);
 
   const updateLineItem = (
     index: number,

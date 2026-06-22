@@ -31,6 +31,12 @@ type InvoiceSettings = {
   achRoutingNumber?: string;
   achAccountNumber?: string;
   achAccountName?: string;
+  wireAccountName?: string;
+  wireBankName?: string;
+  wireRoutingNumber?: string;
+  wireAccountNumber?: string;
+  wireBankAddress?: string;
+  wireSwiftCode?: string;
 };
 
 /**
@@ -56,6 +62,20 @@ export function InvoiceDoc({
   const issueDate = invoice.createdAt || new Date().toISOString();
   const dueDays = 30;
   const dueDate = new Date(new Date(issueDate).getTime() + dueDays * 86400000).toISOString();
+  const hasCheck = settings.payableTo || settings.taxId || settings.mailCheckAddress;
+  const hasACH =
+    settings.achAccountName ||
+    settings.achBankName ||
+    settings.achRoutingNumber ||
+    settings.achAccountNumber;
+  const hasWire =
+    settings.wireAccountName ||
+    settings.wireBankName ||
+    settings.wireRoutingNumber ||
+    settings.wireAccountNumber ||
+    settings.wireBankAddress ||
+    settings.wireSwiftCode;
+  const paymentColumnCount = [hasCheck, hasACH, hasWire].filter(Boolean).length || 1;
 
   const page: React.CSSProperties = {
     width: 816,
@@ -281,41 +301,105 @@ export function InvoiceDoc({
           <span>Payment Methods</span>
           <span style={{ flex: 1, height: 1, background: "#D9D3C5" }} />
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32, marginTop: 16 }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: `repeat(${paymentColumnCount}, 1fr)`,
+            gap: 24,
+            marginTop: 16,
+          }}
+        >
           {/* Check */}
-          <div>
-            <div style={{ ...serif, fontSize: 15, color: "#1A1814" }}>By Check</div>
-            <div style={{ ...mono, fontSize: 10, color: "#4A4640", marginTop: 10, lineHeight: 1.7 }}>
-              <div>
-                <span style={{ color: "#7A756C" }}>Payable to</span>&nbsp;&nbsp;{settings.payableTo || "Homix Living Inc."}
+          {hasCheck && (
+            <div>
+              <div style={{ ...serif, fontSize: 15, color: "#1A1814" }}>By Check</div>
+              <div style={{ ...mono, fontSize: 10, color: "#4A4640", marginTop: 10, lineHeight: 1.7 }}>
+                {settings.payableTo && (
+                  <div>
+                    <span style={{ color: "#7A756C" }}>Payable to</span>&nbsp;&nbsp;{settings.payableTo}
+                  </div>
+                )}
+                {settings.taxId && (
+                  <div>
+                    <span style={{ color: "#7A756C" }}>Tax ID</span>&nbsp;&nbsp;{settings.taxId}
+                  </div>
+                )}
+                {settings.mailCheckAddress && (
+                  <>
+                    <div style={{ marginTop: 8, color: "#7A756C" }}>Mail to</div>
+                    <div style={{ whiteSpace: "pre-line" }}>{settings.mailCheckAddress}</div>
+                  </>
+                )}
               </div>
-              {settings.taxId && (
-                <div>
-                  <span style={{ color: "#7A756C" }}>Tax ID</span>&nbsp;&nbsp;{settings.taxId}
-                </div>
-              )}
-              <div style={{ marginTop: 8, color: "#7A756C" }}>Mail to</div>
-              <div style={{ whiteSpace: "pre-line" }}>{settings.mailCheckAddress || "Homix Living Inc."}</div>
             </div>
-          </div>
+          )}
           {/* ACH */}
-          <div>
-            <div style={{ ...serif, fontSize: 15, color: "#1A1814" }}>By ACH / Wire</div>
-            <div style={{ ...mono, fontSize: 10, color: "#4A4640", marginTop: 10, lineHeight: 1.7 }}>
-              <div>
-                <span style={{ color: "#7A756C" }}>Account</span>&nbsp;&nbsp;{settings.achAccountName || "—"}
-              </div>
-              <div>
-                <span style={{ color: "#7A756C" }}>Bank</span>&nbsp;&nbsp;{settings.achBankName || "—"}
-              </div>
-              <div>
-                <span style={{ color: "#7A756C" }}>Routing</span>&nbsp;&nbsp;{settings.achRoutingNumber || "—"}
-              </div>
-              <div>
-                <span style={{ color: "#7A756C" }}>Account №</span>&nbsp;&nbsp;{settings.achAccountNumber || "—"}
+          {hasACH && (
+            <div>
+              <div style={{ ...serif, fontSize: 15, color: "#1A1814" }}>By ACH</div>
+              <div style={{ ...mono, fontSize: 10, color: "#4A4640", marginTop: 10, lineHeight: 1.7 }}>
+                {settings.achAccountName && (
+                  <div>
+                    <span style={{ color: "#7A756C" }}>Account</span>&nbsp;&nbsp;{settings.achAccountName}
+                  </div>
+                )}
+                {settings.achBankName && (
+                  <div>
+                    <span style={{ color: "#7A756C" }}>Bank</span>&nbsp;&nbsp;{settings.achBankName}
+                  </div>
+                )}
+                {settings.achRoutingNumber && (
+                  <div>
+                    <span style={{ color: "#7A756C" }}>Routing</span>&nbsp;&nbsp;{settings.achRoutingNumber}
+                  </div>
+                )}
+                {settings.achAccountNumber && (
+                  <div>
+                    <span style={{ color: "#7A756C" }}>Account №</span>&nbsp;&nbsp;{settings.achAccountNumber}
+                  </div>
+                )}
               </div>
             </div>
-          </div>
+          )}
+          {/* Wire */}
+          {hasWire && (
+            <div>
+              <div style={{ ...serif, fontSize: 15, color: "#1A1814" }}>By Wire</div>
+              <div style={{ ...mono, fontSize: 10, color: "#4A4640", marginTop: 10, lineHeight: 1.7 }}>
+                {settings.wireAccountName && (
+                  <div>
+                    <span style={{ color: "#7A756C" }}>Account</span>&nbsp;&nbsp;{settings.wireAccountName}
+                  </div>
+                )}
+                {settings.wireBankName && (
+                  <div>
+                    <span style={{ color: "#7A756C" }}>Bank</span>&nbsp;&nbsp;{settings.wireBankName}
+                  </div>
+                )}
+                {settings.wireRoutingNumber && (
+                  <div>
+                    <span style={{ color: "#7A756C" }}>Routing</span>&nbsp;&nbsp;{settings.wireRoutingNumber}
+                  </div>
+                )}
+                {settings.wireAccountNumber && (
+                  <div>
+                    <span style={{ color: "#7A756C" }}>Account №</span>&nbsp;&nbsp;{settings.wireAccountNumber}
+                  </div>
+                )}
+                {settings.wireSwiftCode && (
+                  <div>
+                    <span style={{ color: "#7A756C" }}>SWIFT</span>&nbsp;&nbsp;{settings.wireSwiftCode}
+                  </div>
+                )}
+                {settings.wireBankAddress && (
+                  <>
+                    <div style={{ marginTop: 8, color: "#7A756C" }}>Bank address</div>
+                    <div style={{ whiteSpace: "pre-line" }}>{settings.wireBankAddress}</div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

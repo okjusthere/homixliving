@@ -3158,18 +3158,18 @@ const defaultSettings = [
   { key: "payable_to", value: "Homix Living Inc." },
   { key: "tax_id", value: "" },
   { key: "mail_check_address", value: "Homix Living Inc." },
+  { key: "ach_account_name", value: "Homix Living Inc." },
   { key: "ach_bank_name", value: "" },
-  { key: "ach_routing_number", value: "" },
-  { key: "ach_account_number", value: "" },
-  { key: "ach_account_name", value: "" },
+  { key: "ach_routing_number", value: "021000089" },
+  { key: "ach_account_number", value: "6883209576" },
   // Wire transfer — distinct from ACH because wire usually requires bank
   // address, sometimes a different routing (e.g. Chase ACH vs wire), and
   // SWIFT/BIC for international receipts. Keys default to "" so existing
   // installs get the new fields without overwriting current values.
-  { key: "wire_account_name", value: "" },
+  { key: "wire_account_name", value: "Homix Living Inc." },
   { key: "wire_bank_name", value: "" },
-  { key: "wire_routing_number", value: "" },
-  { key: "wire_account_number", value: "" },
+  { key: "wire_routing_number", value: "021000089" },
+  { key: "wire_account_number", value: "6883209576" },
   { key: "wire_bank_address", value: "" },
   { key: "wire_swift_code", value: "" },
 ];
