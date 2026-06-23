@@ -214,6 +214,23 @@ export const invoiceSendLog = sqliteTable("invoice_send_log", {
   sentAt: text("sent_at").$defaultFn(() => new Date().toISOString()),
 });
 
+// ============================================================
+// Agent training videos — Cloudflare Stream UIDs + metadata, shown in the
+// gated /training section. Managed by admins; watched by all active agents.
+// ============================================================
+export const trainingVideos = sqliteTable("training_videos", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  title: text("title").notNull(),
+  description: text("description"),
+  category: text("category").notNull().default("General"),
+  cloudflareUid: text("cloudflare_uid").notNull(),
+  durationLabel: text("duration_label"), // e.g. "8 min"
+  sortOrder: integer("sort_order").notNull().default(100),
+  isPublished: integer("is_published", { mode: "boolean" }).notNull().default(true),
+  createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
+  updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
+});
+
 export type LineItem = {
   description: string;
   quantity: number;
@@ -243,3 +260,5 @@ export type SaleDealAgent = typeof saleDealAgents.$inferSelect;
 export type NewSaleDealAgent = typeof saleDealAgents.$inferInsert;
 export type InvoiceSendLog = typeof invoiceSendLog.$inferSelect;
 export type NewInvoiceSendLog = typeof invoiceSendLog.$inferInsert;
+export type TrainingVideo = typeof trainingVideos.$inferSelect;
+export type NewTrainingVideo = typeof trainingVideos.$inferInsert;
