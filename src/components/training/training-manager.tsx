@@ -55,11 +55,11 @@ export function TrainingManager({
     router.refresh();
   }
 
-  async function togglePublish(v: TrainingVideo) {
+  async function patch(v: TrainingVideo, body: Record<string, unknown>) {
     await fetch(`/api/training/${v.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ isPublished: !v.isPublished }),
+      body: JSON.stringify(body),
     });
     router.refresh();
   }
@@ -78,7 +78,7 @@ export function TrainingManager({
             Manage videos
           </div>
           <div className="text-[12px] mt-0.5" style={{ color: tone.ink50 }}>
-            Upload to Cloudflare Stream, then paste the video UID here.
+            Bulk-import from Cloudflare with the script, or add one by pasting its UID.
           </div>
         </div>
         <Btn variant="outline" size="sm" onClick={() => setOpen((o) => !o)}>
@@ -137,38 +137,56 @@ export function TrainingManager({
 
       {initialVideos.length > 0 && (
         <div className="mt-5">
-          {initialVideos.map((v) => (
-            <div
-              key={v.id}
-              className="flex items-center gap-3 py-2.5"
-              style={{ borderTop: `1px solid ${tone.lineSoft}` }}
-            >
-              <div className="flex-1 min-w-0">
-                <div className="text-[13.5px] truncate" style={{ color: tone.ink }}>
-                  {v.title}
+          {initialVideos.map((v) => {
+            const catOptions = TRAINING_CATEGORIES.includes(v.category)
+              ? TRAINING_CATEGORIES
+              : [v.category, ...TRAINING_CATEGORIES];
+            return (
+              <div
+                key={v.id}
+                className="flex items-center gap-3 py-2.5"
+                style={{ borderTop: `1px solid ${tone.lineSoft}` }}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="text-[13.5px] truncate" style={{ color: tone.ink }}>
+                    {v.title}
+                  </div>
+                  <div className="text-[11.5px] truncate font-mono" style={{ color: tone.ink50 }}>
+                    {v.cloudflareUid}
+                  </div>
                 </div>
-                <div className="text-[11.5px] truncate font-mono" style={{ color: tone.ink50 }}>
-                  {v.category} · {v.cloudflareUid}
-                </div>
+                <select
+                  value={v.category}
+                  onChange={(e) => patch(v, { category: e.target.value })}
+                  className="text-[12px] px-2 py-1 rounded-md outline-none"
+                  style={{ background: tone.paperDeep, color: tone.ink70, border: `1px solid ${tone.line}` }}
+                  aria-label="Category"
+                >
+                  {catOptions.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => patch(v, { isPublished: !v.isPublished })}
+                  className="text-[12px] px-2.5 py-1 rounded-md"
+                  style={{ color: v.isPublished ? tone.green : tone.ink50, background: tone.paperDeep }}
+                >
+                  {v.isPublished ? "Published" : "Hidden"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => remove(v)}
+                  className="text-[12px] px-2.5 py-1 rounded-md"
+                  style={{ color: tone.rose }}
+                >
+                  Delete
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => togglePublish(v)}
-                className="text-[12px] px-2.5 py-1 rounded-md"
-                style={{ color: v.isPublished ? tone.green : tone.ink50, background: tone.paperDeep }}
-              >
-                {v.isPublished ? "Published" : "Hidden"}
-              </button>
-              <button
-                type="button"
-                onClick={() => remove(v)}
-                className="text-[12px] px-2.5 py-1 rounded-md"
-                style={{ color: tone.rose }}
-              >
-                Delete
-              </button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </Card>
