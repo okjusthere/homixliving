@@ -101,6 +101,12 @@ export default function DealsPage() {
           </h1>
         </div>
         <div className="flex items-center gap-2">
+          <Link href="/invoices">
+            <Btn variant="outline">Invoices</Btn>
+          </Link>
+          <Link href="/buildings">
+            <Btn variant="outline">Buildings</Btn>
+          </Link>
           <Link href="/rental/renewals">
             <Btn variant="outline">
               Renewals
