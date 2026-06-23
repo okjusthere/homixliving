@@ -3546,6 +3546,58 @@ async function seed() {
       ON invoice_send_log(invoice_id)
   `);
 
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS commerce_orders (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      product_key TEXT NOT NULL,
+      product_name TEXT NOT NULL,
+      billing_mode TEXT NOT NULL,
+      stripe_price_id TEXT,
+      amount_cents INTEGER NOT NULL,
+      currency TEXT NOT NULL DEFAULT 'usd',
+      status TEXT NOT NULL DEFAULT 'pending',
+      stripe_checkout_session_id TEXT UNIQUE,
+      stripe_customer_id TEXT,
+      stripe_subscription_id TEXT,
+      stripe_payment_intent_id TEXT,
+      checkout_url TEXT,
+      customer_name TEXT,
+      customer_email TEXT,
+      requested_workspace_email TEXT,
+      phone TEXT,
+      referral_has_agent TEXT,
+      referral_agent_name TEXT,
+      message TEXT,
+      workspace_status TEXT NOT NULL DEFAULT 'not_required',
+      workspace_user_id TEXT,
+      workspace_error TEXT,
+      paid_at TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await client.execute(`
+    CREATE INDEX IF NOT EXISTS idx_commerce_orders_checkout_session
+      ON commerce_orders(stripe_checkout_session_id)
+  `);
+  await client.execute(`
+    CREATE INDEX IF NOT EXISTS idx_commerce_orders_subscription
+      ON commerce_orders(stripe_subscription_id)
+  `);
+  await client.execute(`
+    CREATE INDEX IF NOT EXISTS idx_commerce_orders_customer_email
+      ON commerce_orders(customer_email)
+  `);
+
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS stripe_events (
+      id TEXT PRIMARY KEY,
+      type TEXT NOT NULL,
+      commerce_order_id INTEGER REFERENCES commerce_orders(id) ON DELETE SET NULL,
+      received_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
   // Helper to add a column if it doesn't exist
   const addColumnIfMissing = async (sql: string) => {
     try {

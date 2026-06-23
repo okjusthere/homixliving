@@ -247,6 +247,44 @@ export const resources = sqliteTable("resources", {
   updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
 });
 
+export const commerceOrders = sqliteTable("commerce_orders", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  productKey: text("product_key").notNull(),
+  productName: text("product_name").notNull(),
+  billingMode: text("billing_mode").notNull(), // payment | subscription
+  stripePriceId: text("stripe_price_id"),
+  amountCents: integer("amount_cents").notNull(),
+  currency: text("currency").notNull().default("usd"),
+  status: text("status").notNull().default("pending"),
+  stripeCheckoutSessionId: text("stripe_checkout_session_id").unique(),
+  stripeCustomerId: text("stripe_customer_id"),
+  stripeSubscriptionId: text("stripe_subscription_id"),
+  stripePaymentIntentId: text("stripe_payment_intent_id"),
+  checkoutUrl: text("checkout_url"),
+  customerName: text("customer_name"),
+  customerEmail: text("customer_email"),
+  requestedWorkspaceEmail: text("requested_workspace_email"),
+  phone: text("phone"),
+  referralHasAgent: text("referral_has_agent"),
+  referralAgentName: text("referral_agent_name"),
+  message: text("message"),
+  workspaceStatus: text("workspace_status").notNull().default("not_required"),
+  workspaceUserId: text("workspace_user_id"),
+  workspaceError: text("workspace_error"),
+  paidAt: text("paid_at"),
+  createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
+  updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
+});
+
+export const stripeEvents = sqliteTable("stripe_events", {
+  id: text("id").primaryKey(),
+  type: text("type").notNull(),
+  orderId: integer("commerce_order_id").references(() => commerceOrders.id, {
+    onDelete: "set null",
+  }),
+  receivedAt: text("received_at").$defaultFn(() => new Date().toISOString()),
+});
+
 export type LineItem = {
   description: string;
   quantity: number;
@@ -280,3 +318,7 @@ export type TrainingVideo = typeof trainingVideos.$inferSelect;
 export type NewTrainingVideo = typeof trainingVideos.$inferInsert;
 export type Resource = typeof resources.$inferSelect;
 export type NewResource = typeof resources.$inferInsert;
+export type CommerceOrder = typeof commerceOrders.$inferSelect;
+export type NewCommerceOrder = typeof commerceOrders.$inferInsert;
+export type StripeEvent = typeof stripeEvents.$inferSelect;
+export type NewStripeEvent = typeof stripeEvents.$inferInsert;

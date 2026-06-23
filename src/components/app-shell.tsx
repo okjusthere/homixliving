@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { useEffect } from "react";
 import { Nav } from "@/components/nav";
 
-const NAV_FREE_PREFIXES = ["/login", "/pending"];
+const NAV_FREE_PREFIXES = ["/login", "/pending", "/pay"];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

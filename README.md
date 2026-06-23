@@ -20,6 +20,63 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Payments Setup
+
+The public payment page is `/pay`. Stripe Checkout uses server-side price IDs, and the webhook endpoint is `/api/stripe/webhook`.
+
+Required Stripe environment variables:
+
+```bash
+STRIPE_SECRET_KEY=sk_test_or_live_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+APP_URL=https://your-production-domain
+STRIPE_PRICE_COMPANY_DOMAIN_EMAIL_MONTHLY=price_...
+STRIPE_PRICE_ELITE_DESK_FEE_YEARLY=price_...
+STRIPE_PRICE_GROWTH_DESK_FEE_YEARLY=price_...
+STRIPE_PRICE_TWO_YEAR_MEMBERSHIP=price_...
+STRIPE_PRICE_ONE_YEAR_MEMBERSHIP=price_...
+STRIPE_PRICE_LIBOR=price_...
+STRIPE_PRICE_TRANSFER_FEE=price_...
+```
+
+Create or reuse the configured Stripe Products and Prices:
+
+```bash
+npm run stripe:products
+```
+
+Google Workspace provisioning for company email supports two server-side auth modes. The recommended
+fallback when service account keys are blocked by organization policy is OAuth with an admin refresh
+token:
+
+```bash
+GOOGLE_WORKSPACE_ALLOWED_DOMAINS=homixny.com
+GOOGLE_WORKSPACE_AUTH_MODE=oauth
+GOOGLE_WORKSPACE_OAUTH_CLIENT_ID=...
+GOOGLE_WORKSPACE_OAUTH_CLIENT_SECRET=...
+GOOGLE_WORKSPACE_OAUTH_REFRESH_TOKEN=...
+RESEND_API_KEY=re_...
+WORKSPACE_ONBOARDING_FROM_EMAIL=invoice@homixny.com
+```
+
+After creating a Google OAuth client, generate the refresh token locally:
+
+```bash
+npm run google:workspace:oauth
+```
+
+Service account auth is also supported when domain-wide delegation and private key creation are
+allowed:
+
+```bash
+GOOGLE_WORKSPACE_ALLOWED_DOMAINS=homixny.com
+GOOGLE_WORKSPACE_ADMIN_EMAIL=admin@homixny.com
+GOOGLE_WORKSPACE_CLIENT_EMAIL=service-account@project.iam.gserviceaccount.com
+GOOGLE_WORKSPACE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+RESEND_API_KEY=re_...
+WORKSPACE_ONBOARDING_FROM_EMAIL=invoice@homixny.com
+```
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

@@ -38,7 +38,16 @@ export const authConfig: NextAuthConfig = {
     },
     async authorized({ request, auth }) {
       const { pathname } = request.nextUrl;
-      const PUBLIC_PATHS = ["/login", "/pending", "/api/auth", "/_next", "/favicon"];
+      const PUBLIC_PATHS = [
+        "/login",
+        "/pending",
+        "/pay",
+        "/api/auth",
+        "/api/checkout",
+        "/api/stripe/webhook",
+        "/_next",
+        "/favicon",
+      ];
       const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
       if (isPublic) return true;
       if (!auth) return false;
