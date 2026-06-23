@@ -4,10 +4,10 @@ import { db } from "@/db";
 import { trainingVideos, type TrainingVideo } from "@/db/schema";
 import { requireActiveAgent } from "@/lib/auth-guards";
 import { tone } from "@/components/homix/tokens";
-import { Card, Pill } from "@/components/homix/server-primitives";
-import { Watermark } from "@/components/training/watermark";
+import { Card } from "@/components/homix/server-primitives";
 import { TrainingManager } from "@/components/training/training-manager";
-import { streamIframeUrl, cloudflareStreamConfigured } from "@/lib/cloudflare-stream";
+import { TrainingLibrary } from "@/components/training/training-library";
+import { cloudflareStreamConfigured } from "@/lib/cloudflare-stream";
 import { TRAINING_CATEGORIES } from "@/lib/training-categories";
 
 export const metadata: Metadata = { title: "Training · Homix Deals" };
@@ -66,64 +66,7 @@ export default async function TrainingPage() {
           </p>
         </Card>
       ) : (
-        <div className="space-y-12">
-          {groups.map(([category, items]) => (
-            <section key={category}>
-              <h2 className="font-serif mb-4" style={{ fontSize: 20, color: tone.ink }}>
-                {category}
-              </h2>
-              <div className="grid gap-6 lg:grid-cols-2">
-                {items.map((v) => {
-                  const src = streamIframeUrl(v.cloudflareUid);
-                  return (
-                    <Card key={v.id} className="overflow-hidden">
-                      <div className="relative aspect-video" style={{ background: tone.ink }}>
-                        {src ? (
-                          <iframe
-                            src={src}
-                            title={v.title}
-                            loading="lazy"
-                            allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
-                            allowFullScreen
-                            className="absolute inset-0 h-full w-full border-0"
-                          />
-                        ) : (
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <span
-                              className="text-[11px] uppercase tracking-[0.14em]"
-                              style={{ color: "rgba(255,255,255,0.6)" }}
-                            >
-                              Connecting
-                            </span>
-                          </div>
-                        )}
-                        <Watermark label={watermark} />
-                      </div>
-                      <div className="p-5">
-                        <div className="flex items-start justify-between gap-3">
-                          <h3 className="font-serif" style={{ fontSize: 17, color: tone.ink }}>
-                            {v.title}
-                          </h3>
-                          {!v.isPublished && <Pill tone="draft">Hidden</Pill>}
-                        </div>
-                        {v.durationLabel && (
-                          <div className="mt-1 text-[12px]" style={{ color: tone.ink50 }}>
-                            {v.durationLabel}
-                          </div>
-                        )}
-                        {v.description && (
-                          <p className="mt-2 text-[13.5px] leading-relaxed" style={{ color: tone.ink70 }}>
-                            {v.description}
-                          </p>
-                        )}
-                      </div>
-                    </Card>
-                  );
-                })}
-              </div>
-            </section>
-          ))}
-        </div>
+        <TrainingLibrary groups={groups} watermark={watermark} />
       )}
 
       <p
