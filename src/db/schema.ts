@@ -231,6 +231,22 @@ export const trainingVideos = sqliteTable("training_videos", {
   updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
 });
 
+// ============================================================
+// Agent resource library — links to SOPs, scripts, templates, brand assets.
+// Shown in the gated /resources section; managed by admins.
+// ============================================================
+export const resources = sqliteTable("resources", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  title: text("title").notNull(),
+  description: text("description"),
+  category: text("category").notNull().default("General"),
+  url: text("url").notNull(),
+  sortOrder: integer("sort_order").notNull().default(100),
+  isPublished: integer("is_published", { mode: "boolean" }).notNull().default(true),
+  createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
+  updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
+});
+
 export type LineItem = {
   description: string;
   quantity: number;
@@ -262,3 +278,5 @@ export type InvoiceSendLog = typeof invoiceSendLog.$inferSelect;
 export type NewInvoiceSendLog = typeof invoiceSendLog.$inferInsert;
 export type TrainingVideo = typeof trainingVideos.$inferSelect;
 export type NewTrainingVideo = typeof trainingVideos.$inferInsert;
+export type Resource = typeof resources.$inferSelect;
+export type NewResource = typeof resources.$inferInsert;

@@ -14,6 +14,7 @@ const navItems = [
   { href: "/invoices", label: "Invoices" },
   { href: "/buildings", label: "Buildings" },
   { href: "/training", label: "Training" },
+  { href: "/resources", label: "Resources" },
   { href: "/agents", label: "Agents", adminOnly: true },
   { href: "/reports", label: "Reports", adminOnly: true },
   { href: "/settings", label: "Settings", adminOnly: true },

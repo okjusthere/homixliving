@@ -8,6 +8,7 @@ import { Card, Pill } from "@/components/homix/server-primitives";
 import { Watermark } from "@/components/training/watermark";
 import { TrainingManager } from "@/components/training/training-manager";
 import { streamIframeUrl, cloudflareStreamConfigured } from "@/lib/cloudflare-stream";
+import { TRAINING_CATEGORIES } from "@/lib/training-categories";
 
 export const metadata: Metadata = { title: "Training · Homix Deals" };
 
@@ -32,7 +33,11 @@ export default async function TrainingPage() {
     .from(trainingVideos)
     .orderBy(asc(trainingVideos.sortOrder), asc(trainingVideos.id));
   const visible = isAdmin ? all : all.filter((v) => v.isPublished);
-  const groups = groupByCategory(visible);
+  const order = (c: string) => {
+    const i = TRAINING_CATEGORIES.indexOf(c);
+    return i === -1 ? 999 : i;
+  };
+  const groups = groupByCategory(visible).sort((a, b) => order(a[0]) - order(b[0]));
 
   return (
     <div>
