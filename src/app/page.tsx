@@ -58,8 +58,8 @@ function StatusMetric({
   toneKey?: ToneKey;
 }) {
   return (
-    <div className="min-h-[118px] rounded-lg border bg-white p-4" style={{ borderColor: tone.line }}>
-      <div className="text-[12px] font-medium uppercase" style={{ color: tone.ink50 }}>
+    <div className="min-h-[118px] rounded-xl border bg-white p-5" style={{ borderColor: tone.line }}>
+      <div className="text-[11px] font-medium uppercase tracking-[0.14em]" style={{ color: tone.ink50 }}>
         {label}
       </div>
       <div className="mt-3 font-serif text-[34px] leading-none" style={{ color: toneValue(toneKey) }}>
@@ -88,7 +88,7 @@ function ActionLink({
   return (
     <Link
       href={href}
-      className="group flex min-h-[92px] items-start justify-between rounded-lg border p-4 transition hover:-translate-y-0.5 hover:shadow-sm"
+      className="group flex min-h-[92px] items-start justify-between rounded-xl border p-4 transition hover:-translate-y-0.5 hover:shadow-sm"
       style={{
         background: primary ? tone.ink : tone.card,
         borderColor: primary ? tone.ink : tone.line,
@@ -382,13 +382,13 @@ export default async function Dashboard() {
   return (
     <div className="space-y-6">
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
-        <div className="rounded-lg border bg-white p-5 md:p-6" style={{ borderColor: tone.line }}>
+        <div className="rounded-xl border bg-white p-6 md:p-7" style={{ borderColor: tone.line }}>
           <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
             <div>
-              <div className="text-[12px] uppercase" style={{ color: tone.ink50 }}>
+              <div className="text-[11px] font-medium uppercase tracking-[0.16em]" style={{ color: tone.ink50 }}>
                 {longDate}
               </div>
-              <h1 className="mt-3 font-serif text-[48px] leading-none md:text-[64px]" style={{ color: tone.ink }}>
+              <h1 className="mt-3 font-serif text-[44px] leading-[1.02] md:text-[54px]" style={{ color: tone.ink }}>
                 Agent Workbench
               </h1>
               <p className="mt-4 max-w-2xl text-[15px] leading-6" style={{ color: tone.ink70 }}>
