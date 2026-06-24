@@ -273,3 +273,49 @@ export async function provisionWorkspaceForOrder(order: CommerceOrder) {
     });
   }
 }
+
+export async function suspendWorkspaceForOrder(order: CommerceOrder) {
+  const primaryEmail = order.requestedWorkspaceEmail?.trim().toLowerCase();
+  if (!primaryEmail || order.workspaceStatus === "not_required") return;
+
+  const domain = primaryEmail.split("@")[1]?.toLowerCase();
+  if (!domain || !getWorkspaceAllowedDomains().includes(domain)) {
+    await updateWorkspaceStatus(order.id, "failed", {
+      workspaceError: "Requested workspace email is outside the allowed company domains.",
+    });
+    return;
+  }
+
+  const config = getWorkspaceConfig();
+  if (!config) {
+    await updateWorkspaceStatus(order.id, "pending_config", {
+      workspaceError: getWorkspaceConfigError(),
+    });
+    return;
+  }
+
+  const auth = createWorkspaceAuth(config);
+  const admin = google.admin({ version: "directory_v1", auth });
+
+  try {
+    await admin.users.update({
+      userKey: primaryEmail,
+      requestBody: {
+        suspended: true,
+      },
+    });
+
+    await updateWorkspaceStatus(order.id, "suspended");
+  } catch (error) {
+    if (errorStatus(error) === 404) {
+      await updateWorkspaceStatus(order.id, "suspended", {
+        workspaceError: "Google Workspace user was already missing.",
+      });
+      return;
+    }
+
+    await updateWorkspaceStatus(order.id, "failed", {
+      workspaceError: errorMessage(error).slice(0, 1000),
+    });
+  }
+}

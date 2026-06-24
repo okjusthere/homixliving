@@ -18,13 +18,22 @@ export default async function PayPage({
 }) {
   const params = await searchParams;
   const canceled = params.canceled === "1";
-  const products: PublicPayProduct[] = getConfiguredCommerceProducts().map(
-    ({ stripePriceId: _stripePriceId, priceEnvVar, ...product }) => ({
-      ...product,
-      priceEnvVar,
-      priceLabel: formatProductAmount(product.amountCents),
-    })
-  );
+  const products: PublicPayProduct[] = getConfiguredCommerceProducts().map((product) => ({
+    key: product.key,
+    name: product.name,
+    description: product.description,
+    amountCents: product.amountCents,
+    currency: product.currency,
+    billingMode: product.billingMode,
+    priceEnvVar: product.priceEnvVar,
+    category: product.category,
+    recurrenceLabel: product.recurrenceLabel,
+    commissionLabel: product.commissionLabel,
+    requiresWorkspaceEmail: product.requiresWorkspaceEmail,
+    requiresReferral: product.requiresReferral,
+    configured: product.configured,
+    priceLabel: formatProductAmount(product.amountCents),
+  }));
 
   return (
     <PayClient

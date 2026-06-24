@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { commerceOrders, stripeEvents, type CommerceOrder } from "@/db/schema";
 import { getStripe, getStripeWebhookSecret, stripeId } from "@/lib/stripe";
-import { provisionWorkspaceForOrder } from "@/lib/google-workspace";
+import { provisionWorkspaceForOrder, suspendWorkspaceForOrder } from "@/lib/google-workspace";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -57,6 +57,11 @@ async function findOrderBySubscription(subscriptionId: string): Promise<Commerce
 async function maybeProvisionWorkspace(order: CommerceOrder) {
   if (order.productKey !== "company_domain_email") return;
   await provisionWorkspaceForOrder(order);
+}
+
+async function maybeSuspendWorkspace(order: CommerceOrder) {
+  if (order.productKey !== "company_domain_email") return;
+  await suspendWorkspaceForOrder(order);
 }
 
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promise<number | null> {
@@ -158,6 +163,24 @@ async function handleInvoiceFailed(invoice: Stripe.Invoice): Promise<number | nu
   return order.id;
 }
 
+async function handleSubscriptionUpdated(subscription: Stripe.Subscription): Promise<number | null> {
+  const order = await findOrderBySubscription(subscription.id);
+  if (!order) return null;
+
+  const isPendingCancellation = Boolean(subscription.cancel_at_period_end || subscription.cancel_at);
+  const status = isPendingCancellation
+    ? "canceling"
+    : subscription.status === "active" || subscription.status === "trialing"
+    ? "active"
+    : subscription.status;
+
+  await db
+    .update(commerceOrders)
+    .set({ status, updatedAt: new Date().toISOString() })
+    .where(eq(commerceOrders.id, order.id));
+  return order.id;
+}
+
 async function handleSubscriptionDeleted(subscription: Stripe.Subscription): Promise<number | null> {
   const order = await findOrderBySubscription(subscription.id);
   if (!order) return null;
@@ -166,6 +189,7 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription): Pro
     .update(commerceOrders)
     .set({ status: "canceled", updatedAt: new Date().toISOString() })
     .where(eq(commerceOrders.id, order.id));
+  await maybeSuspendWorkspace(order);
   return order.id;
 }
 
@@ -179,6 +203,8 @@ async function processStripeEvent(event: Stripe.Event): Promise<number | null> {
       return handleInvoicePaid(event.data.object as Stripe.Invoice);
     case "invoice.payment_failed":
       return handleInvoiceFailed(event.data.object as Stripe.Invoice);
+    case "customer.subscription.updated":
+      return handleSubscriptionUpdated(event.data.object as Stripe.Subscription);
     case "customer.subscription.deleted":
       return handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
     default:
