@@ -20,23 +20,79 @@ function Chevron({ open }: { open: boolean }) {
   );
 }
 
-function PlayBadge() {
+/** A "designed" video cover: poster frame + dark gradient + glassy play button +
+ *  title overlaid. The gradient unifies the look so an awkward auto-frame still
+ *  reads as an intentional, branded thumbnail. */
+function VideoCover({ video, onPlay }: { video: TrainingVideo; onPlay: () => void }) {
+  const thumb = streamThumbnailUrl(video.cloudflareUid);
   return (
-    <span
-      className="flex items-center justify-center rounded-full"
-      style={{ width: 44, height: 44, background: "rgba(255,255,255,0.92)", boxShadow: "0 2px 10px rgba(0,0,0,0.28)" }}
-    >
-      <span
-        style={{
-          marginLeft: 3,
-          width: 0,
-          height: 0,
-          borderTop: "8px solid transparent",
-          borderBottom: "8px solid transparent",
-          borderLeft: `13px solid ${tone.ink}`,
-        }}
-      />
-    </span>
+    <button type="button" onClick={onPlay} className="group block w-full text-left">
+      <div className="relative aspect-video overflow-hidden rounded-lg" style={{ background: tone.ink }}>
+        {thumb && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={thumb}
+            alt=""
+            loading="lazy"
+            className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+          />
+        )}
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(to top, rgba(20,18,16,0.92) 0%, rgba(20,18,16,0.32) 40%, rgba(20,18,16,0.10) 72%, rgba(20,18,16,0.20) 100%)",
+          }}
+        />
+        <span className="absolute inset-0 flex items-center justify-center">
+          <span
+            className="flex items-center justify-center rounded-full transition-transform duration-200 group-hover:scale-110"
+            style={{
+              width: 46,
+              height: 46,
+              background: "rgba(255,255,255,0.18)",
+              border: "1px solid rgba(255,255,255,0.55)",
+              backdropFilter: "blur(2px)",
+            }}
+          >
+            <span
+              style={{
+                marginLeft: 3,
+                width: 0,
+                height: 0,
+                borderTop: "7px solid transparent",
+                borderBottom: "7px solid transparent",
+                borderLeft: "11px solid #fff",
+              }}
+            />
+          </span>
+        </span>
+        {video.durationLabel && (
+          <span
+            className="absolute top-2 right-2 rounded px-1.5 py-0.5 text-[10px] font-medium"
+            style={{ background: "rgba(0,0,0,0.55)", color: "#fff" }}
+          >
+            {video.durationLabel}
+          </span>
+        )}
+        {!video.isPublished && (
+          <span
+            className="absolute top-2 left-2 rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide"
+            style={{ background: tone.amber, color: "#fff" }}
+          >
+            hidden
+          </span>
+        )}
+        <div className="absolute inset-x-0 bottom-0 p-3">
+          <div
+            className="font-serif leading-snug line-clamp-2"
+            style={{ fontSize: 14, color: "#fff", textShadow: "0 1px 3px rgba(0,0,0,0.55)" }}
+          >
+            {video.title}
+          </div>
+        </div>
+      </div>
+    </button>
   );
 }
 
@@ -79,47 +135,10 @@ export function TrainingLibrary({
             </button>
 
             {isOpen && (
-              <div className="px-5 pb-5 grid gap-x-4 gap-y-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {items.map((v) => {
-                  const thumb = streamThumbnailUrl(v.cloudflareUid);
-                  return (
-                    <button key={v.id} type="button" onClick={() => setActive(v)} className="group text-left">
-                      <div className="relative aspect-video overflow-hidden rounded-lg" style={{ background: tone.ink }}>
-                        {thumb && (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={thumb}
-                            alt={v.title}
-                            loading="lazy"
-                            className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                          />
-                        )}
-                        <span className="absolute inset-0 flex items-center justify-center opacity-90 transition-opacity group-hover:opacity-100">
-                          <PlayBadge />
-                        </span>
-                        {v.durationLabel && (
-                          <span
-                            className="absolute bottom-1.5 right-1.5 rounded px-1.5 py-0.5 text-[10px]"
-                            style={{ background: "rgba(0,0,0,0.72)", color: "#fff" }}
-                          >
-                            {v.durationLabel}
-                          </span>
-                        )}
-                        {!v.isPublished && (
-                          <span
-                            className="absolute top-1.5 left-1.5 rounded px-1.5 py-0.5 text-[10px] uppercase"
-                            style={{ background: tone.amberSoft, color: tone.amber }}
-                          >
-                            hidden
-                          </span>
-                        )}
-                      </div>
-                      <div className="mt-2 text-[13px] leading-snug line-clamp-2" style={{ color: tone.ink }}>
-                        {v.title}
-                      </div>
-                    </button>
-                  );
-                })}
+              <div className="px-5 pb-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {items.map((v) => (
+                  <VideoCover key={v.id} video={v} onPlay={() => setActive(v)} />
+                ))}
               </div>
             )}
           </section>
