@@ -126,6 +126,36 @@ export function SearchInput({
   );
 }
 
+/** Header row for a Card section: serif title + optional subtitle + action. */
+export function CardHeader({
+  title,
+  subtitle,
+  action,
+}: {
+  title: string;
+  subtitle?: string;
+  action?: ReactNode;
+}) {
+  return (
+    <div
+      className="flex items-center justify-between gap-4 px-5 py-4"
+      style={{ borderBottom: `1px solid ${tone.lineSoft}` }}
+    >
+      <div className="min-w-0">
+        <div className="font-serif" style={{ fontSize: 17, color: tone.ink }}>
+          {title}
+        </div>
+        {subtitle && (
+          <div className="mt-0.5 text-[12px]" style={{ color: tone.ink50 }}>
+            {subtitle}
+          </div>
+        )}
+      </div>
+      {action && <div className="shrink-0">{action}</div>}
+    </div>
+  );
+}
+
 export type Column<T> = {
   key: string;
   label: string;
@@ -135,12 +165,14 @@ export type Column<T> = {
   render: (row: T) => ReactNode;
 };
 
-/** Consistent, clickable data table built on a CSS grid. Replaces the ad-hoc
- *  `<div>` grids each list page used to hand-roll. */
+/** Consistent data table built on a CSS grid. Replaces the ad-hoc `<div>` grids
+ *  each list page used to hand-roll. Rows can navigate (`getHref`), fire a
+ *  callback (`onRowClick`, e.g. to open an edit dialog), or be static. */
 export function DataTable<T>({
   columns,
   rows,
   getHref,
+  onRowClick,
   getKey,
   loading,
   emptyTitle = "Nothing here yet",
@@ -148,13 +180,15 @@ export function DataTable<T>({
 }: {
   columns: Column<T>[];
   rows: T[];
-  getHref: (row: T) => string;
+  getHref?: (row: T) => string;
+  onRowClick?: (row: T) => void;
   getKey: (row: T) => string | number;
   loading?: boolean;
   emptyTitle?: string;
   emptyAction?: ReactNode;
 }) {
   const gridCols = columns.map((c) => c.width).join(" ");
+  const rowClass = "grid w-full items-center px-6 py-4 text-left transition-colors";
   return (
     <div className="overflow-hidden rounded-xl" style={{ background: tone.card, border: `1px solid ${tone.line}` }}>
       <div
@@ -179,23 +213,54 @@ export function DataTable<T>({
           {emptyAction && <div className="mt-3">{emptyAction}</div>}
         </div>
       ) : (
-        rows.map((row, i) => (
-          <Link
-            key={getKey(row)}
-            href={getHref(row)}
-            className="grid w-full items-center px-6 py-4 text-left transition-colors hover:bg-[#FAF7F0]"
-            style={{
-              gridTemplateColumns: gridCols,
-              borderBottom: i < rows.length - 1 ? `1px solid ${tone.lineSoft}` : "none",
-            }}
-          >
-            {columns.map((c) => (
-              <div key={c.key} className={c.align === "right" ? "text-right" : ""}>
-                {c.render(row)}
+        rows.map((row, i) => {
+          const style = {
+            gridTemplateColumns: gridCols,
+            borderBottom: i < rows.length - 1 ? `1px solid ${tone.lineSoft}` : "none",
+          };
+          const cells = columns.map((c) => (
+            <div key={c.key} className={c.align === "right" ? "text-right" : ""}>
+              {c.render(row)}
+            </div>
+          ));
+          if (getHref) {
+            return (
+              <Link
+                key={getKey(row)}
+                href={getHref(row)}
+                className={`${rowClass} hover:bg-[#FAF7F0]`}
+                style={style}
+              >
+                {cells}
+              </Link>
+            );
+          }
+          if (onRowClick) {
+            return (
+              <div
+                key={getKey(row)}
+                role="button"
+                tabIndex={0}
+                onClick={() => onRowClick(row)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onRowClick(row);
+                  }
+                }}
+                className={`${rowClass} cursor-pointer hover:bg-[#FAF7F0]`}
+                style={style}
+              >
+                {cells}
               </div>
-            ))}
-          </Link>
-        ))
+            );
+          }
+          return (
+            <div key={getKey(row)} className={rowClass} style={style}>
+              {cells}
+            </div>
+          );
+        })
       )}
     </div>
   );

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Btn, Card, Icons, Pill, SoftField } from "@/components/homix/primitives";
+import { CardHeader, PageHeader } from "@/components/homix/page-kit";
 import { DealBreakdownBar } from "@/components/homix/deal-breakdown";
 import { fmtDate, fmtLongDate, fmtMoney, tone } from "@/components/homix/tokens";
 import type { Agent, Building, Deal, Invoice } from "@/db/schema";
@@ -153,38 +154,32 @@ export default function DealDetailPage() {
       : "";
 
   return (
-    <div>
-      <div className="flex items-start justify-between mb-8 gap-6">
-        <div>
-          <Link href="/rental" className="flex items-center gap-1.5 text-[12.5px] mb-4" style={{ color: tone.ink50 }}>
-            <Icons.Back /> Back to rental
-          </Link>
-          <div className="flex items-center gap-3 mb-2">
-            <Pill tone={statusTone(deal.status)}>{deal.status}</Pill>
-            <span className="font-mono text-[12px]" style={{ color: tone.ink50 }}>
-              #{deal.id}
-            </span>
-          </div>
-          <h1 className="font-serif" style={{ fontSize: 44, lineHeight: 1, color: tone.ink }}>
-            {deal.tenantName}
-          </h1>
-          <div className="mt-3 text-[14px]" style={{ color: tone.ink70 }}>
-            Unit {deal.unit} · {building.name}
-          </div>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <Btn variant="outline" icon={<Icons.Edit />} onClick={() => router.push(`/rental/${id}/edit`)}>
-            Edit
-          </Btn>
-          {deal.status !== "cancelled" && (
-            <Btn variant="danger" icon={<Icons.Trash />} onClick={cancelDeal}>
-              Cancel rental
-            </Btn>
-          )}
-          <Btn variant="primary" icon={<Icons.Doc />} onClick={createInvoice} disabled={creatingInvoice || deal.status === "cancelled"}>
-            {creatingInvoice ? "Creating…" : "Create Invoice"}
-          </Btn>
-        </div>
+    <div className="space-y-7">
+      <div className="space-y-4">
+        <Link href="/rental" className="flex w-fit items-center gap-1.5 text-[12.5px]" style={{ color: tone.ink50 }}>
+          <Icons.Back /> Back to rental
+        </Link>
+        <PageHeader
+          eyebrow={`Rental · #${deal.id}`}
+          title={deal.tenantName}
+          description={`Unit ${deal.unit} · ${building.name}`}
+          actions={
+            <>
+              <Pill tone={statusTone(deal.status)}>{deal.status}</Pill>
+              <Btn variant="outline" icon={<Icons.Edit />} onClick={() => router.push(`/rental/${id}/edit`)}>
+                Edit
+              </Btn>
+              {deal.status !== "cancelled" && (
+                <Btn variant="danger" icon={<Icons.Trash />} onClick={cancelDeal}>
+                  Cancel rental
+                </Btn>
+              )}
+              <Btn variant="primary" icon={<Icons.Doc />} onClick={createInvoice} disabled={creatingInvoice || deal.status === "cancelled"}>
+                {creatingInvoice ? "Creating…" : "Create Invoice"}
+              </Btn>
+            </>
+          }
+        />
       </div>
 
       <div className="grid gap-8" style={{ gridTemplateColumns: "minmax(0, 1fr) 520px" }}>
@@ -243,11 +238,7 @@ export default function DealDetailPage() {
           </div>
 
           <Card>
-            <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
-              <div className="font-serif" style={{ fontSize: 20, color: tone.ink }}>
-                Agents
-              </div>
-            </div>
+            <CardHeader title="Agents" />
             <div className="p-6 grid gap-4 md:grid-cols-2">
               {payload.agents.map((participant) => (
                 <div
@@ -289,16 +280,14 @@ export default function DealDetailPage() {
         <div>
           <div className="sticky top-24 space-y-6">
             <Card>
-              <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
-                <div className="flex items-center justify-between gap-3">
-                  <div className="font-serif" style={{ fontSize: 22, color: tone.ink }}>
-                    Payment Status
-                  </div>
+              <CardHeader
+                title="Payment Status"
+                action={
                   <Pill tone={invoicePaymentTone(invoiceSummary.status)}>
                     {invoiceSummary.label}
                   </Pill>
-                </div>
-              </div>
+                }
+              />
               <div className="p-6">
                 <p className="text-[13.5px] leading-relaxed" style={{ color: tone.ink70 }}>
                   {paymentDetail(invoiceSummary)}
@@ -338,11 +327,7 @@ export default function DealDetailPage() {
             </Card>
 
             <Card>
-              <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
-                <div className="font-serif" style={{ fontSize: 22, color: tone.ink }}>
-                  Commission Breakdown
-                </div>
-              </div>
+              <CardHeader title="Commission Breakdown" />
               <div className="p-6">
                 <DealBreakdownBar breakdown={breakdown} />
                 <div className="mt-6 space-y-3 text-[13px]">
@@ -408,16 +393,16 @@ export default function DealDetailPage() {
             </Card>
 
             <Card>
-              <div className="px-6 py-5 flex items-center justify-between" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
-                <div className="font-serif" style={{ fontSize: 22, color: tone.ink }}>
-                  Linked Invoices
-                </div>
-                {linkedInvoices.length === 0 && (
-                  <Btn variant="primary" size="sm" icon={<Icons.Doc />} onClick={createInvoice} disabled={creatingInvoice || deal.status === "cancelled"}>
-                    Create
-                  </Btn>
-                )}
-              </div>
+              <CardHeader
+                title="Linked Invoices"
+                action={
+                  linkedInvoices.length === 0 ? (
+                    <Btn variant="primary" size="sm" icon={<Icons.Doc />} onClick={createInvoice} disabled={creatingInvoice || deal.status === "cancelled"}>
+                      Create
+                    </Btn>
+                  ) : undefined
+                }
+              />
               <div>
                 {linkedInvoices.length === 0 ? (
                   <div className="px-6 py-10 text-center">

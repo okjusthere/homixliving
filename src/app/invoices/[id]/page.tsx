@@ -6,6 +6,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { useSession } from "next-auth/react";
 import { Pill, Btn, Card, SoftField, Icons } from "@/components/homix/primitives";
+import { PageHeader, CardHeader } from "@/components/homix/page-kit";
 import { tone, fmtMoney, fmtDate } from "@/components/homix/tokens";
 import { ScaledInvoiceDoc } from "@/components/homix/invoice-doc";
 import { SendDialog } from "@/components/homix/send-dialog";
@@ -137,97 +138,86 @@ export default function InvoiceDetailPage() {
   };
 
   return (
-    <div>
+    <div className="space-y-7">
       {/* Header */}
-      <div className="flex items-start justify-between mb-8 gap-6">
-        <div>
-          <Link
-            href="/invoices"
-            className="flex items-center gap-1.5 text-[12.5px] mb-4"
-            style={{ color: tone.ink50 }}
-          >
-            <Icons.Back /> Back to invoices
-          </Link>
-          <div className="flex items-center gap-3 mb-2">
-            <Pill
-              tone={
-                invoice.status === "paid"
-                  ? "sent"
-                  : invoice.status === "sent"
-                  ? "accent"
-                  : invoice.status === "failed"
-                  ? "failed"
-                  : "draft"
-              }
-            >
-              {invoice.status === "paid"
-                ? "Paid"
+      <div className="space-y-4">
+        <Link
+          href="/invoices"
+          className="inline-flex items-center gap-1.5 text-[12.5px]"
+          style={{ color: tone.ink50 }}
+        >
+          <Icons.Back /> Back to invoices
+        </Link>
+        <PageHeader
+          eyebrow={`${building.name} · Unit ${invoice.unit} · ${invoice.tenantName}`}
+          title={invoice.invoiceNumber}
+          actions={
+            <>
+              <Btn variant="outline" icon={<Icons.Download />} onClick={handleDownloadPDF}>
+                Download PDF
+              </Btn>
+              <Btn variant="danger" icon={<Icons.Trash />} onClick={handleDelete}>
+                Delete
+              </Btn>
+              {isAdmin && invoice.status === "paid" ? (
+                <Btn variant="outline" onClick={handleUnmarkPaid}>
+                  Mark unpaid
+                </Btn>
+              ) : isAdmin && invoice.status === "sent" ? (
+                <Btn variant="primary" icon={<Icons.Check />} onClick={handleMarkPaid}>
+                  Mark paid
+                </Btn>
+              ) : null}
+              <Btn variant="primary" icon={<Icons.Send />} onClick={() => setShowSend(true)}>
+                {invoice.status === "sent" || invoice.status === "paid" ? "Resend" : "Send Invoice"}
+              </Btn>
+            </>
+          }
+        />
+        <div className="flex items-center gap-3">
+          <Pill
+            tone={
+              invoice.status === "paid"
+                ? "sent"
                 : invoice.status === "sent"
-                ? "Awaiting payment"
+                ? "accent"
                 : invoice.status === "failed"
-                ? "Failed"
-                : "Draft"}
-            </Pill>
-            {invoice.status === "paid" && invoice.paidAt && (
-              <span className="text-[12px]" style={{ color: tone.green }}>
-                Paid {fmtDate(invoice.paidAt)}
-                {invoice.paidAmount !== invoice.totalAmount && invoice.paidAmount !== null && (
-                  <> · ${fmtMoney(Number(invoice.paidAmount))}</>
-                )}
-              </span>
-            )}
-            {invoice.status === "sent" && invoice.sentAt && (
-              <span className="text-[12px]" style={{ color: tone.ink50 }}>
-                Sent {fmtDate(invoice.sentAt)} at{" "}
-                {new Date(invoice.sentAt).toLocaleTimeString("en-US", {
-                  hour: "numeric",
-                  minute: "2-digit",
-                })}
-              </span>
-            )}
-          </div>
-          <h1
-            className="font-serif"
-            style={{
-              fontSize: 44,
-              lineHeight: 1,
-              letterSpacing: "-0.02em",
-              color: tone.ink,
-              wordBreak: "break-all",
-            }}
+                ? "failed"
+                : "draft"
+            }
           >
-            {invoice.invoiceNumber}
-          </h1>
-          <div className="mt-3 text-[14px]" style={{ color: tone.ink70 }}>
-            {building.name} · Unit {invoice.unit} · {invoice.tenantName}
-          </div>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <Btn variant="outline" icon={<Icons.Download />} onClick={handleDownloadPDF}>
-            Download PDF
-          </Btn>
-          <Btn variant="danger" icon={<Icons.Trash />} onClick={handleDelete}>
-            Delete
-          </Btn>
-          {isAdmin && invoice.status === "paid" ? (
-            <Btn variant="outline" onClick={handleUnmarkPaid}>
-              Mark unpaid
-            </Btn>
-          ) : isAdmin && invoice.status === "sent" ? (
-            <Btn variant="primary" icon={<Icons.Check />} onClick={handleMarkPaid}>
-              Mark paid
-            </Btn>
-          ) : null}
-          <Btn variant="primary" icon={<Icons.Send />} onClick={() => setShowSend(true)}>
-            {invoice.status === "sent" || invoice.status === "paid" ? "Resend" : "Send Invoice"}
-          </Btn>
+            {invoice.status === "paid"
+              ? "Paid"
+              : invoice.status === "sent"
+              ? "Awaiting payment"
+              : invoice.status === "failed"
+              ? "Failed"
+              : "Draft"}
+          </Pill>
+          {invoice.status === "paid" && invoice.paidAt && (
+            <span className="text-[12px]" style={{ color: tone.green }}>
+              Paid {fmtDate(invoice.paidAt)}
+              {invoice.paidAmount !== invoice.totalAmount && invoice.paidAmount !== null && (
+                <> · ${fmtMoney(Number(invoice.paidAmount))}</>
+              )}
+            </span>
+          )}
+          {invoice.status === "sent" && invoice.sentAt && (
+            <span className="text-[12px]" style={{ color: tone.ink50 }}>
+              Sent {fmtDate(invoice.sentAt)} at{" "}
+              {new Date(invoice.sentAt).toLocaleTimeString("en-US", {
+                hour: "numeric",
+                minute: "2-digit",
+              })}
+            </span>
+          )}
         </div>
       </div>
 
       {/* Special notes alert */}
       {building.specialNotes && (
         <div
-          className="rounded-lg p-4 text-[13px] mb-6"
+          className="rounded-lg p-4 text-[13px]"
           style={{ background: tone.roseSoft, color: tone.rose, border: `1px solid ${tone.rose}20` }}
         >
           <strong>Special requirement: </strong>
@@ -357,21 +347,7 @@ export default function InvoiceDetailPage() {
 
           {/* Line items */}
           <Card>
-            <div
-              className="px-6 py-5"
-              style={{ borderBottom: `1px solid ${tone.lineSoft}` }}
-            >
-              <div
-                className="font-serif"
-                style={{
-                  fontSize: 18,
-                  color: tone.ink,
-                  letterSpacing: "-0.01em",
-                }}
-              >
-                Line items
-              </div>
-            </div>
+            <CardHeader title="Line items" />
             <div className="px-6 py-2">
               {lineItems.map((it, i) => (
                 <div

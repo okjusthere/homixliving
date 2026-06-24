@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { toast } from "sonner";
 import { Btn, Card, Icons, Pill, SoftField } from "@/components/homix/primitives";
+import { PageHeader, CardHeader } from "@/components/homix/page-kit";
 import { DealBreakdownBar } from "@/components/homix/deal-breakdown";
 import { fmtDate, fmtLongDate, fmtMoney, tone } from "@/components/homix/tokens";
 import { computeCommission } from "@/lib/commission";
@@ -127,37 +128,35 @@ export default function SaleDetailPage() {
   );
 
   return (
-    <div>
-      <div className="flex items-start justify-between mb-8 gap-6">
-        <div>
-          <Link href="/sales" className="flex items-center gap-1.5 text-[12.5px] mb-4" style={{ color: tone.ink50 }}>
+    <div className="space-y-7">
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <Link href="/sales" className="flex items-center gap-1.5 text-[12.5px]" style={{ color: tone.ink50 }}>
             <Icons.Back /> Back to sales
           </Link>
-          <div className="flex items-center gap-3 mb-2">
-            <Pill tone={statusTone(saleDeal.status)}>{saleDeal.status}</Pill>
-            <Pill tone="neutral">{saleStageLabel(saleDeal.stage)}</Pill>
-            <span className="font-mono text-[12px]" style={{ color: tone.ink50 }}>
-              #{saleDeal.id}
-            </span>
-          </div>
-          <h1 className="font-serif" style={{ fontSize: 44, lineHeight: 1, color: tone.ink }}>
-            {saleDeal.propertyAddress}
-          </h1>
-          <div className="mt-3 text-[14px]" style={{ color: tone.ink70 }}>
-            {saleRepresentationLabel(saleDeal.representationType)}
-            {location ? ` · ${location}` : ""}
-          </div>
+          <Pill tone={statusTone(saleDeal.status)}>{saleDeal.status}</Pill>
+          <Pill tone="neutral">{saleStageLabel(saleDeal.stage)}</Pill>
+          <span className="font-mono text-[12px]" style={{ color: tone.ink50 }}>
+            #{saleDeal.id}
+          </span>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <Btn variant="outline" icon={<Icons.Edit />} onClick={() => toast.message("Edit is coming in the next pass")}>
-            Edit
-          </Btn>
-          {saleDeal.status !== "cancelled" && (
-            <Btn variant="danger" icon={<Icons.Trash />} onClick={cancelSale}>
-              Cancel sale
-            </Btn>
-          )}
-        </div>
+        <PageHeader
+          eyebrow={saleRepresentationLabel(saleDeal.representationType)}
+          title={saleDeal.propertyAddress}
+          description={location || undefined}
+          actions={
+            <>
+              <Btn variant="outline" icon={<Icons.Edit />} onClick={() => toast.message("Edit is coming in the next pass")}>
+                Edit
+              </Btn>
+              {saleDeal.status !== "cancelled" && (
+                <Btn variant="danger" icon={<Icons.Trash />} onClick={cancelSale}>
+                  Cancel sale
+                </Btn>
+              )}
+            </>
+          }
+        />
       </div>
 
       <div className="grid gap-8" style={{ gridTemplateColumns: "minmax(0, 1fr) 520px" }}>
@@ -203,11 +202,7 @@ export default function SaleDetailPage() {
           </div>
 
           <Card>
-            <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
-              <div className="font-serif" style={{ fontSize: 20, color: tone.ink }}>
-                Parties
-              </div>
-            </div>
+            <CardHeader title="Parties" />
             <div className="p-6 grid grid-cols-2 gap-4">
               <SoftField label="Buyer(s)" value={saleDeal.buyerNames || "—"} />
               <SoftField label="Seller(s)" value={saleDeal.sellerNames || "—"} />
@@ -215,11 +210,7 @@ export default function SaleDetailPage() {
           </Card>
 
           <Card>
-            <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
-              <div className="font-serif" style={{ fontSize: 20, color: tone.ink }}>
-                Homix Agents
-              </div>
-            </div>
+            <CardHeader title="Homix Agents" />
             <div className="p-6 grid gap-4 md:grid-cols-2">
               {payload.agents.map((participant) => (
                 <div
@@ -242,11 +233,7 @@ export default function SaleDetailPage() {
           </Card>
 
           <Card>
-            <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
-              <div className="font-serif" style={{ fontSize: 20, color: tone.ink }}>
-                Outside Contacts
-              </div>
-            </div>
+            <CardHeader title="Outside Contacts" />
             <div className="p-6 grid grid-cols-2 gap-4">
               <SoftField label="Listing agent" value={saleDeal.listingAgentName || "—"} />
               <SoftField label="Listing email" value={saleDeal.listingAgentEmail || "—"} mono />
@@ -258,11 +245,7 @@ export default function SaleDetailPage() {
           </Card>
 
           <Card>
-            <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
-              <div className="font-serif" style={{ fontSize: 20, color: tone.ink }}>
-                Closing Contacts
-              </div>
-            </div>
+            <CardHeader title="Closing Contacts" />
             <div className="p-6 grid grid-cols-2 gap-4">
               <SoftField label="Buyer attorney" value={saleDeal.buyerAttorney || "—"} />
               <SoftField label="Seller attorney" value={saleDeal.sellerAttorney || "—"} />
@@ -289,11 +272,7 @@ export default function SaleDetailPage() {
         <div>
           <div className="sticky top-24 space-y-6">
             <Card>
-              <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
-                <div className="font-serif" style={{ fontSize: 22, color: tone.ink }}>
-                  Commission Breakdown
-                </div>
-              </div>
+              <CardHeader title="Commission Breakdown" />
               <div className="p-6">
                 <DealBreakdownBar breakdown={breakdown} />
                 <div className="mt-6 space-y-3 text-[13px]">

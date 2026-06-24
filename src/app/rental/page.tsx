@@ -2,7 +2,15 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Btn, Card, Icons, Pill } from "@/components/homix/primitives";
+import { Btn, Icons, Pill } from "@/components/homix/primitives";
+import {
+  PageHeader,
+  Toolbar,
+  FilterTabs,
+  SearchInput,
+  DataTable,
+  type Column,
+} from "@/components/homix/page-kit";
 import { fmtDate, fmtMoney, tone } from "@/components/homix/tokens";
 import { sourceEmoji, sourceLabel } from "@/lib/sources";
 import { invoicePaymentTone, type InvoicePaymentSummary } from "@/lib/invoice-payment";
@@ -82,176 +90,167 @@ export default function DealsPage() {
     });
   }, [deals, search, status]);
 
-  const statuses: { id: typeof status; label: string; count: number }[] = [
-    { id: "all", label: "All", count: counts.all },
-    { id: "active", label: "Active", count: counts.active },
-    { id: "cancelled", label: "Cancelled", count: counts.cancelled },
-    { id: "completed", label: "Completed", count: counts.completed },
+  const columns: Column<DealRow>[] = [
+    {
+      key: "id",
+      label: "Rental #",
+      width: "0.7fr",
+      render: (row) => (
+        <span className="font-mono text-[12.5px]" style={{ color: tone.ink }}>
+          #{row.deal.id}
+        </span>
+      ),
+    },
+    {
+      key: "building",
+      label: "Building / Tenant",
+      width: "1.9fr",
+      render: (row) => (
+        <div>
+          <div className="text-[13px]" style={{ color: tone.ink }}>
+            {row.building?.name || "—"} · Unit {row.deal.unit}
+          </div>
+          <div
+            className="text-[11.5px] mt-0.5 flex items-center gap-1.5"
+            style={{ color: tone.ink50 }}
+          >
+            <span>{row.deal.tenantName}</span>
+            {row.deal.source && (
+              <span title={sourceLabel(row.deal.source)}>
+                · {sourceEmoji(row.deal.source)}
+              </span>
+            )}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "agent",
+      label: "Agent",
+      width: "1.2fr",
+      render: (row) => {
+        const primary = row.agents.find((participant) => participant.isPrimary);
+        const others = row.agents.filter((participant) => !participant.isPrimary);
+        return (
+          <div>
+            <div className="text-[12.5px]" style={{ color: tone.ink70 }}>
+              {primary?.agent?.name || "—"}
+            </div>
+            {others.length > 0 && (
+              <div className="mt-1">
+                <Pill tone="neutral">
+                  +{others.length} agent{others.length === 1 ? "" : "s"}
+                </Pill>
+              </div>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      key: "moveIn",
+      label: "Move-in",
+      width: "0.9fr",
+      render: (row) => (
+        <span className="text-[12.5px] font-mono" style={{ color: tone.ink70 }}>
+          {row.deal.moveInDate ? fmtDate(row.deal.moveInDate) : "—"}
+        </span>
+      ),
+    },
+    {
+      key: "commission",
+      label: "Commission",
+      width: "1fr",
+      align: "right",
+      render: (row) => (
+        <div className="font-serif" style={{ fontSize: 18, color: tone.ink }}>
+          ${fmtMoney(Number(row.deal.totalCommission || 0))}
+        </div>
+      ),
+    },
+    {
+      key: "invoice",
+      label: "Invoice / Payment",
+      width: "1.2fr",
+      render: (row) => (
+        <div>
+          <Pill tone={invoicePaymentTone(row.invoiceSummary.status)}>
+            {row.invoiceSummary.label}
+          </Pill>
+          <div className="mt-1 text-[11.5px]" style={{ color: tone.ink50 }}>
+            {paymentDetail(row.invoiceSummary)}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "status",
+      label: "Status",
+      width: "0.8fr",
+      align: "right",
+      render: (row) => <Pill tone={statusTone(row.deal.status)}>{row.deal.status}</Pill>,
+    },
   ];
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-end justify-between">
-        <div>
-          <div className="text-[11px] uppercase tracking-[0.16em] mb-2" style={{ color: tone.ink50 }}>
-            Pipeline
-          </div>
-          <h1 className="font-serif" style={{ fontSize: 52, lineHeight: 0.95, color: tone.ink }}>
-            Rental
-          </h1>
-        </div>
-        <div className="flex items-center gap-2">
-          <Link href="/invoices">
-            <Btn variant="outline">Invoices</Btn>
-          </Link>
-          <Link href="/buildings">
-            <Btn variant="outline">Buildings</Btn>
-          </Link>
-          <Link href="/rental/renewals">
-            <Btn variant="outline">
-              Renewals
-            </Btn>
-          </Link>
-          <Link href="/rental/new">
-            <Btn variant="primary" icon={<Icons.Plus />}>
-              New Rental
-            </Btn>
-          </Link>
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-1 p-1 rounded-lg" style={{ background: tone.paperDeep }}>
-          {statuses.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setStatus(item.id)}
-              className="px-3 h-8 rounded-md text-[12.5px] font-medium transition-colors flex items-center gap-2"
-              style={{
-                background: status === item.id ? tone.card : "transparent",
-                color: status === item.id ? tone.ink : tone.ink50,
-                boxShadow: status === item.id ? "0 1px 2px rgba(0,0,0,0.04)" : "none",
-              }}
-            >
-              {item.label}
-              <span className="text-[11px] font-mono" style={{ color: status === item.id ? tone.ink50 : tone.ink30 }}>
-                {item.count}
-              </span>
-            </button>
-          ))}
-        </div>
-        <div className="flex items-center gap-2 h-9 px-3 rounded-md min-w-[320px]" style={{ background: tone.card, border: `1px solid ${tone.line}` }}>
-          <span style={{ color: tone.ink30 }}>
-            <Icons.Search />
-          </span>
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search tenant, unit, building, agent..."
-            className="flex-1 bg-transparent outline-none text-[13px]"
-            style={{ color: tone.ink }}
-          />
-        </div>
-      </div>
-
-      <Card>
-        <div className="grid text-[11px] uppercase tracking-[0.1em] px-6 py-3" style={{ gridTemplateColumns: "0.7fr 1.9fr 1.2fr 0.9fr 1fr 1.2fr 0.8fr", color: tone.ink50, borderBottom: `1px solid ${tone.lineSoft}` }}>
-          <div>Rental #</div>
-          <div>Building / Tenant</div>
-          <div>Agent</div>
-          <div>Move-in</div>
-          <div className="text-right">Commission</div>
-          <div>Invoice / Payment</div>
-          <div className="text-right">Status</div>
-        </div>
-        {loading ? (
-          <div className="px-6 py-12 text-center text-[13px]" style={{ color: tone.ink50 }}>
-            Loading…
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="px-6 py-16 text-center">
-            {deals.length === 0 ? (
-              <>
-                <div className="font-serif mb-2" style={{ fontSize: 24, color: tone.ink }}>
-                  No rental deals yet
-                </div>
-                <Link href="/rental/new" className="text-[13px] underline" style={{ color: tone.accent }}>
-                  Create your first rental
-                </Link>
-              </>
-            ) : (
-              <p className="text-[13px]" style={{ color: tone.ink50 }}>
-                No results match your filters.
-              </p>
-            )}
-          </div>
-        ) : (
-          filtered.map(({ deal, building, agents, invoiceSummary }, index) => {
-            const primary = agents.find((participant) => participant.isPrimary);
-            const others = agents.filter((participant) => !participant.isPrimary);
-            return (
-            <Link
-              key={deal.id}
-              href={`/rental/${deal.id}`}
-              className="grid w-full text-left px-6 py-4 transition-colors items-center hover:bg-[#FAF7F0]"
-              style={{
-                gridTemplateColumns: "0.7fr 1.9fr 1.2fr 0.9fr 1fr 1.2fr 0.8fr",
-                borderBottom: index < filtered.length - 1 ? `1px solid ${tone.lineSoft}` : "none",
-              }}
-            >
-              <div className="font-mono text-[12.5px]" style={{ color: tone.ink }}>
-                #{deal.id}
-              </div>
-              <div>
-                <div className="text-[13px]" style={{ color: tone.ink }}>
-                  {building?.name || "—"} · Unit {deal.unit}
-                </div>
-                <div
-                  className="text-[11.5px] mt-0.5 flex items-center gap-1.5"
-                  style={{ color: tone.ink50 }}
-                >
-                  <span>{deal.tenantName}</span>
-                  {deal.source && (
-                    <span title={sourceLabel(deal.source)}>
-                      · {sourceEmoji(deal.source)}
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div>
-                <div className="text-[12.5px]" style={{ color: tone.ink70 }}>
-                  {primary?.agent?.name || "—"}
-                </div>
-                {others.length > 0 && (
-                  <div className="mt-1">
-                    <Pill tone="neutral">
-                      +{others.length} agent{others.length === 1 ? "" : "s"}
-                    </Pill>
-                  </div>
-                )}
-              </div>
-              <div className="text-[12.5px] font-mono" style={{ color: tone.ink70 }}>
-                {deal.moveInDate ? fmtDate(deal.moveInDate) : "—"}
-              </div>
-              <div className="text-right font-serif" style={{ fontSize: 18, color: tone.ink }}>
-                ${fmtMoney(Number(deal.totalCommission || 0))}
-              </div>
-              <div>
-                <Pill tone={invoicePaymentTone(invoiceSummary.status)}>
-                  {invoiceSummary.label}
-                </Pill>
-                <div className="mt-1 text-[11.5px]" style={{ color: tone.ink50 }}>
-                  {paymentDetail(invoiceSummary)}
-                </div>
-              </div>
-              <div className="text-right">
-                <Pill tone={statusTone(deal.status)}>{deal.status}</Pill>
-              </div>
+    <div className="space-y-7">
+      <PageHeader
+        eyebrow="Pipeline"
+        title="Rental"
+        actions={
+          <>
+            <Link href="/invoices">
+              <Btn variant="outline">Invoices</Btn>
             </Link>
-            );
-          })
-        )}
-      </Card>
+            <Link href="/buildings">
+              <Btn variant="outline">Buildings</Btn>
+            </Link>
+            <Link href="/rental/renewals">
+              <Btn variant="outline">Renewals</Btn>
+            </Link>
+            <Link href="/rental/new">
+              <Btn variant="primary" icon={<Icons.Plus />}>
+                New Rental
+              </Btn>
+            </Link>
+          </>
+        }
+      />
+
+      <Toolbar>
+        <FilterTabs
+          value={status}
+          onChange={setStatus}
+          options={[
+            { id: "all", label: "All", count: counts.all },
+            { id: "active", label: "Active", count: counts.active },
+            { id: "cancelled", label: "Cancelled", count: counts.cancelled },
+            { id: "completed", label: "Completed", count: counts.completed },
+          ]}
+        />
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          placeholder="Search tenant, unit, building, agent…"
+          className="min-w-[320px]"
+        />
+      </Toolbar>
+
+      <DataTable
+        columns={columns}
+        rows={filtered}
+        getKey={(row) => row.deal.id}
+        getHref={(row) => `/rental/${row.deal.id}`}
+        loading={loading}
+        emptyTitle={deals.length === 0 ? "No rental deals yet" : "No results match your filters"}
+        emptyAction={
+          deals.length === 0 ? (
+            <Link href="/rental/new" className="text-[13px] underline" style={{ color: tone.accent }}>
+              Create your first rental
+            </Link>
+          ) : undefined
+        }
+      />
     </div>
   );
 }

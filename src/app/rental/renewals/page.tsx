@@ -3,7 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Card, Pill } from "@/components/homix/primitives";
+import { Pill } from "@/components/homix/primitives";
+import {
+  PageHeader,
+  Toolbar,
+  FilterTabs,
+  DataTable,
+  type Column,
+} from "@/components/homix/page-kit";
 import { fmtDate, fmtMoney, tone } from "@/components/homix/tokens";
 import {
   RENEWAL_WINDOWS,
@@ -105,203 +112,160 @@ export default function RenewalsPage() {
     }
   };
 
-  return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="flex items-end justify-between">
+  const columns: Column<RenewalRow>[] = [
+    {
+      key: "rental",
+      label: "Rental",
+      width: "1.4fr",
+      render: (row) => (
         <div>
-          <div
-            className="text-[11px] uppercase tracking-[0.16em] mb-2"
-            style={{ color: tone.ink50 }}
-          >
-            Rental pipeline
+          <span className="font-mono text-[12.5px]" style={{ color: tone.ink }}>
+            #{row.deal.id}
+          </span>
+          <div className="mt-0.5 text-[11.5px]" style={{ color: tone.ink50 }}>
+            Unit {row.deal.unit}
           </div>
-          <h1
-            className="font-serif"
-            style={{
-              fontSize: 52,
-              lineHeight: 0.95,
-              letterSpacing: "-0.02em",
-              color: tone.ink,
-            }}
-          >
-            Renewals
-          </h1>
-          <p className="mt-3 text-[14px]" style={{ color: tone.ink70 }}>
-            {items.length} lease{items.length === 1 ? "" : "s"} ending in the next
-            90 days · ${fmtMoney(totalRent)} monthly rent in play
-          </p>
         </div>
-      </div>
-
-      {/* Window chips */}
-      <div className="flex items-center gap-1 p-1 rounded-lg w-fit"
-        style={{ background: tone.paperDeep }}
-      >
-        {(["all", ...RENEWAL_WINDOWS] as const).map((w) => {
-          const active = activeWindow === w;
-          const label = w === "all" ? "All" : windowLabel(w);
-          return (
-            <button
-              key={w}
-              onClick={() => setActiveWindow(w)}
-              className="px-3 h-8 rounded-md text-[12.5px] font-medium transition-colors flex items-center gap-2"
+      ),
+    },
+    {
+      key: "building",
+      label: "Building / Tenant",
+      width: "1.6fr",
+      render: (row) => (
+        <div>
+          <div className="text-[13px]" style={{ color: tone.ink }}>
+            {row.buildingName || "—"}
+          </div>
+          <div className="mt-0.5 text-[11.5px]" style={{ color: tone.ink50 }}>
+            {row.deal.tenantName}
+            {row.deal.rentAmount
+              ? ` · $${fmtMoney(Number(row.deal.rentAmount))} / mo`
+              : ""}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "agent",
+      label: "Agent",
+      width: "1fr",
+      render: (row) => (
+        <span className="text-[12.5px]" style={{ color: tone.ink70 }}>
+          {row.agentName || "—"}
+        </span>
+      ),
+    },
+    {
+      key: "leaseEnds",
+      label: "Lease ends",
+      width: "0.9fr",
+      render: (row) => (
+        <span className="font-mono text-[12.5px]" style={{ color: tone.ink70 }}>
+          {fmtDate(row.deal.leaseEndDate)}
+        </span>
+      ),
+    },
+    {
+      key: "when",
+      label: "When",
+      width: "1fr",
+      render: (row) => {
+        const days = row.daysUntil;
+        const win = row.window;
+        return win ? (
+          <Pill tone={windowTone(win)}>
+            {days !== null && days < 0
+              ? `${Math.abs(days)} d ago`
+              : `${days} d`}
+          </Pill>
+        ) : null;
+      },
+    },
+    {
+      key: "action",
+      label: "Action",
+      width: "1.2fr",
+      align: "right",
+      render: (row) => (
+        <div className="flex items-center justify-end gap-2">
+          {row.deal.renewalStatus && row.deal.renewalStatus !== "pending" ? (
+            <Pill tone={renewalStatusTone(row.deal.renewalStatus)}>
+              {renewalStatusLabel(row.deal.renewalStatus)}
+            </Pill>
+          ) : (
+            <select
+              value={row.deal.renewalStatus || "pending"}
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => handleSetStatus(row.deal.id, e.target.value)}
+              disabled={savingDeal === row.deal.id}
+              className="h-8 rounded-md px-2 text-[12px] font-medium"
               style={{
-                background: active ? tone.card : "transparent",
-                color: active ? tone.ink : tone.ink50,
-                boxShadow: active ? "0 1px 2px rgba(0,0,0,0.04)" : "none",
+                background: tone.paperDeep,
+                color: tone.ink,
+                border: `1px solid ${tone.line}`,
               }}
             >
-              {label}
-              <span
-                className="text-[11px] font-mono"
-                style={{ color: active ? tone.ink50 : tone.ink30 }}
-              >
-                {counts[w]}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
-      {loading ? (
-        <p className="text-[13px]" style={{ color: tone.ink50 }}>
-          Loading…
-        </p>
-      ) : filtered.length === 0 ? (
-        <Card>
-          <div className="px-6 py-16 text-center">
-            <div
-              className="font-serif mb-2"
-              style={{ fontSize: 22, color: tone.ink, letterSpacing: "-0.01em" }}
+              {STATUS_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          )}
+          {row.deal.renewalStatus && row.deal.renewalStatus !== "pending" && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleSetStatus(row.deal.id, "pending");
+              }}
+              disabled={savingDeal === row.deal.id}
+              className="text-[11px] underline"
+              style={{ color: tone.ink50 }}
             >
-              {items.length === 0
-                ? "Nothing coming up"
-                : "No leases in this window"}
-            </div>
-            <p className="text-[13px]" style={{ color: tone.ink50 }}>
-              {items.length === 0
-                ? "Renewals show up here when a lease is within 90 days of ending."
-                : "Try a different filter."}
-            </p>
-          </div>
-        </Card>
-      ) : (
-        <Card>
-          <div
-            className="grid text-[11px] uppercase tracking-[0.1em] px-6 py-3"
-            style={{
-              gridTemplateColumns: "1.4fr 1.6fr 1fr 0.9fr 1fr 1.2fr",
-              color: tone.ink50,
-              borderBottom: `1px solid ${tone.lineSoft}`,
-            }}
-          >
-            <div>Rental</div>
-            <div>Building / Tenant</div>
-            <div>Agent</div>
-            <div>Lease ends</div>
-            <div>When</div>
-            <div className="text-right">Action</div>
-          </div>
+              reset
+            </button>
+          )}
+        </div>
+      ),
+    },
+  ];
 
-          {filtered.map((row, i) => {
-            const days = row.daysUntil;
-            const win = row.window;
-            return (
-              <div
-                key={row.deal.id}
-                className="grid items-center px-6 py-4"
-                style={{
-                  gridTemplateColumns: "1.4fr 1.6fr 1fr 0.9fr 1fr 1.2fr",
-                  borderBottom:
-                    i < filtered.length - 1 ? `1px solid ${tone.lineSoft}` : "none",
-                }}
-              >
-                <div>
-                  <Link
-                    href={`/rental/${row.deal.id}`}
-                    className="font-mono text-[12.5px] hover:underline"
-                    style={{ color: tone.ink }}
-                  >
-                    #{row.deal.id}
-                  </Link>
-                  <div className="text-[11.5px] mt-0.5" style={{ color: tone.ink50 }}>
-                    Unit {row.deal.unit}
-                  </div>
-                </div>
+  return (
+    <div className="space-y-7">
+      <PageHeader
+        eyebrow="Rental pipeline"
+        title="Renewals"
+        description={`${items.length} lease${
+          items.length === 1 ? "" : "s"
+        } ending in the next 90 days · $${fmtMoney(
+          totalRent
+        )} monthly rent in play`}
+      />
 
-                <div>
-                  <div className="text-[13px]" style={{ color: tone.ink }}>
-                    {row.buildingName || "—"}
-                  </div>
-                  <div className="text-[11.5px] mt-0.5" style={{ color: tone.ink50 }}>
-                    {row.deal.tenantName}
-                    {row.deal.rentAmount
-                      ? ` · $${fmtMoney(Number(row.deal.rentAmount))} / mo`
-                      : ""}
-                  </div>
-                </div>
+      <Toolbar>
+        <FilterTabs
+          value={activeWindow}
+          onChange={setActiveWindow}
+          options={(["all", ...RENEWAL_WINDOWS] as const).map((w) => ({
+            id: w,
+            label: w === "all" ? "All" : windowLabel(w),
+            count: counts[w],
+          }))}
+        />
+      </Toolbar>
 
-                <div className="text-[12.5px]" style={{ color: tone.ink70 }}>
-                  {row.agentName || "—"}
-                </div>
-
-                <div className="text-[12.5px] font-mono" style={{ color: tone.ink70 }}>
-                  {fmtDate(row.deal.leaseEndDate)}
-                </div>
-
-                <div>
-                  {win && (
-                    <Pill tone={windowTone(win)}>
-                      {days !== null && days < 0
-                        ? `${Math.abs(days)} d ago`
-                        : `${days} d`}
-                    </Pill>
-                  )}
-                </div>
-
-                <div className="flex items-center justify-end gap-2">
-                  {row.deal.renewalStatus && row.deal.renewalStatus !== "pending" ? (
-                    <Pill tone={renewalStatusTone(row.deal.renewalStatus)}>
-                      {renewalStatusLabel(row.deal.renewalStatus)}
-                    </Pill>
-                  ) : (
-                    <select
-                      value={row.deal.renewalStatus || "pending"}
-                      onChange={(e) => handleSetStatus(row.deal.id, e.target.value)}
-                      disabled={savingDeal === row.deal.id}
-                      className="text-[12px] rounded-md px-2 h-8 font-medium"
-                      style={{
-                        background: tone.paperDeep,
-                        color: tone.ink,
-                        border: `1px solid ${tone.line}`,
-                      }}
-                    >
-                      {STATUS_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                  {row.deal.renewalStatus &&
-                    row.deal.renewalStatus !== "pending" && (
-                      <button
-                        type="button"
-                        onClick={() => handleSetStatus(row.deal.id, "pending")}
-                        disabled={savingDeal === row.deal.id}
-                        className="text-[11px] underline"
-                        style={{ color: tone.ink50 }}
-                      >
-                        reset
-                      </button>
-                    )}
-                </div>
-              </div>
-            );
-          })}
-        </Card>
-      )}
+      <DataTable
+        columns={columns}
+        rows={filtered}
+        getKey={(row) => row.deal.id}
+        getHref={(row) => `/rental/${row.deal.id}`}
+        loading={loading}
+        emptyTitle={
+          items.length === 0 ? "Nothing coming up" : "No leases in this window"
+        }
+      />
     </div>
   );
 }

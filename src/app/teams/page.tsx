@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Btn, Card, EditorialInput, Icons, LabeledField, Pill } from "@/components/homix/primitives";
+import { PageHeader } from "@/components/homix/page-kit";
 import { fmtMoney, tone } from "@/components/homix/tokens";
 import type { Agent, Team } from "@/db/schema";
 
@@ -87,23 +88,17 @@ export default function TeamsPage() {
   };
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-end justify-between">
-        <div>
-          <div className="text-[11px] uppercase tracking-[0.16em] mb-2" style={{ color: tone.ink50 }}>
-            Organization
-          </div>
-          <h1 className="font-serif" style={{ fontSize: 52, lineHeight: 0.95, color: tone.ink }}>
-            Teams
-          </h1>
-          <p className="mt-3 text-[14px]" style={{ color: tone.ink70 }}>
-            Member groups with month-to-date production totals.
-          </p>
-        </div>
-        <Btn variant="primary" icon={<Icons.Plus />} onClick={() => setEditTeam(emptyTeam)}>
-          Add Team
-        </Btn>
-      </div>
+    <div className="space-y-7">
+      <PageHeader
+        eyebrow="Organization"
+        title="Teams"
+        description="Member groups with month-to-date production totals."
+        actions={
+          <Btn variant="primary" icon={<Icons.Plus />} onClick={() => setEditTeam(emptyTeam)}>
+            Add Team
+          </Btn>
+        }
+      />
 
       {loading ? (
         <p className="text-[13px]" style={{ color: tone.ink50 }}>

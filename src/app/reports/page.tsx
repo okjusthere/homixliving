@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Btn, Card, Icons } from "@/components/homix/primitives";
+import { PageHeader, CardHeader } from "@/components/homix/page-kit";
 import { fmtMoney, tone } from "@/components/homix/tokens";
 import { AgingSection } from "@/components/homix/aging-section";
 import { getMonthKey } from "@/lib/reporting";
@@ -81,35 +82,29 @@ export default function ReportsPage() {
   };
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-end justify-between">
-        <div>
-          <div className="text-[11px] uppercase tracking-[0.16em] mb-2" style={{ color: tone.ink50 }}>
-            Reports
-          </div>
-          <h1 className="font-serif" style={{ fontSize: 52, lineHeight: 0.95, color: tone.ink }}>
-            Reports
-          </h1>
-          <p className="mt-3 text-[14px]" style={{ color: tone.ink70 }}>
-            Monthly commission production by agent and building.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <input
-            value={month}
-            onChange={(e) => {
-              setLoading(true);
-              setMonth(e.target.value);
-            }}
-            type="month"
-            className="h-10 rounded-lg px-3 text-[13.5px] font-mono outline-none"
-            style={{ background: tone.card, border: `1px solid ${tone.line}`, color: tone.ink }}
-          />
-          <Btn variant="outline" icon={<Icons.Download />} onClick={exportCsv} disabled={!report}>
-            Export CSV
-          </Btn>
-        </div>
-      </div>
+    <div className="space-y-7">
+      <PageHeader
+        eyebrow="Reports"
+        title="Reports"
+        description="Monthly commission production by agent and building."
+        actions={
+          <>
+            <input
+              value={month}
+              onChange={(e) => {
+                setLoading(true);
+                setMonth(e.target.value);
+              }}
+              type="month"
+              className="h-10 rounded-lg px-3 text-[13.5px] font-mono outline-none"
+              style={{ background: tone.card, border: `1px solid ${tone.line}`, color: tone.ink }}
+            />
+            <Btn variant="outline" icon={<Icons.Download />} onClick={exportCsv} disabled={!report}>
+              Export CSV
+            </Btn>
+          </>
+        }
+      />
 
       {loading || !report ? (
         <p className="text-[13px]" style={{ color: tone.ink50 }}>
@@ -139,11 +134,7 @@ export default function ReportsPage() {
 
           <div className="grid grid-cols-2 gap-6">
             <Card>
-              <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
-                <div className="font-serif" style={{ fontSize: 22, color: tone.ink }}>
-                  Top agents
-                </div>
-              </div>
+              <CardHeader title="Top agents" />
               <div className="grid text-[11px] uppercase tracking-[0.1em] px-6 py-3" style={{ gridTemplateColumns: "2fr 1fr 1fr", color: tone.ink50, borderBottom: `1px solid ${tone.lineSoft}` }}>
                 <div>Agent</div>
                 <div>Rental Deals</div>
@@ -176,11 +167,7 @@ export default function ReportsPage() {
             </Card>
 
             <Card>
-              <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
-                <div className="font-serif" style={{ fontSize: 22, color: tone.ink }}>
-                  Per building
-                </div>
-              </div>
+              <CardHeader title="Per building" />
               <div className="grid text-[11px] uppercase tracking-[0.1em] px-6 py-3" style={{ gridTemplateColumns: "2fr 1fr 1fr", color: tone.ink50, borderBottom: `1px solid ${tone.lineSoft}` }}>
                 <div>Building</div>
                 <div>Rental Deals</div>
@@ -216,14 +203,10 @@ export default function ReportsPage() {
           {/* By source */}
           {report.perSource && report.perSource.length > 0 && (
             <Card>
-              <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
-                <div className="font-serif" style={{ fontSize: 22, color: tone.ink }}>
-                  By source
-                </div>
-                <div className="text-[12px] mt-0.5" style={{ color: tone.ink50 }}>
-                  Where this month&rsquo;s rental deals came from
-                </div>
-              </div>
+              <CardHeader
+                title="By source"
+                subtitle="Where this month’s rental deals came from"
+              />
               <div className="p-6 grid grid-cols-3 gap-3">
                 {report.perSource.map((row) => {
                   const totalDeals = report.summary.totalDeals || 1;

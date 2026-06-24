@@ -8,6 +8,7 @@ import {
   EditorialInput,
   LabeledField,
 } from "@/components/homix/primitives";
+import { PageHeader, CardHeader } from "@/components/homix/page-kit";
 import { tone } from "@/components/homix/tokens";
 
 export default function SettingsPage() {
@@ -54,50 +55,22 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="flex items-end justify-between">
-        <div>
-          <div
-            className="text-[11px] uppercase tracking-[0.16em] mb-2"
-            style={{ color: tone.ink50 }}
-          >
-            Configuration
-          </div>
-          <h1
-            className="font-serif"
-            style={{
-              fontSize: 52,
-              lineHeight: 0.95,
-              letterSpacing: "-0.02em",
-              color: tone.ink,
-            }}
-          >
-            Settings
-          </h1>
-          <p className="mt-3 text-[14px]" style={{ color: tone.ink70 }}>
-            Email delivery, company details, and payment options.
-          </p>
-        </div>
-        <Btn variant="primary" onClick={handleSave} disabled={saving}>
-          {saving ? "Saving…" : "Save Changes"}
-        </Btn>
-      </div>
+    <div className="space-y-7">
+      <PageHeader
+        eyebrow="Configuration"
+        title="Settings"
+        description="Email delivery, company details, and payment options."
+        actions={
+          <Btn variant="primary" onClick={handleSave} disabled={saving}>
+            {saving ? "Saving…" : "Save Changes"}
+          </Btn>
+        }
+      />
 
       <div className="grid grid-cols-2 gap-6">
         {/* Email */}
         <Card>
-          <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
-            <div
-              className="font-serif"
-              style={{ fontSize: 20, color: tone.ink, letterSpacing: "-0.01em" }}
-            >
-              Email
-            </div>
-            <div className="text-[12px] mt-0.5" style={{ color: tone.ink50 }}>
-              How invoices are delivered
-            </div>
-          </div>
+          <CardHeader title="Email" subtitle="How invoices are delivered" />
           <div className="p-6 space-y-4">
             <LabeledField label="From email">
               <EditorialInput
@@ -123,17 +96,7 @@ export default function SettingsPage() {
 
         {/* Company */}
         <Card>
-          <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
-            <div
-              className="font-serif"
-              style={{ fontSize: 20, color: tone.ink, letterSpacing: "-0.01em" }}
-            >
-              Company
-            </div>
-            <div className="text-[12px] mt-0.5" style={{ color: tone.ink50 }}>
-              Shown on every invoice
-            </div>
-          </div>
+          <CardHeader title="Company" subtitle="Shown on every invoice" />
           <div className="p-6 space-y-4">
             <LabeledField label="Company name">
               <EditorialInput
@@ -162,17 +125,10 @@ export default function SettingsPage() {
 
         {/* Payment — Check */}
         <Card>
-          <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
-            <div
-              className="font-serif"
-              style={{ fontSize: 20, color: tone.ink, letterSpacing: "-0.01em" }}
-            >
-              Payment · Check
-            </div>
-            <div className="text-[12px] mt-0.5" style={{ color: tone.ink50 }}>
-              Appears in the Payment Methods block
-            </div>
-          </div>
+          <CardHeader
+            title="Payment · Check"
+            subtitle="Appears in the Payment Methods block"
+          />
           <div className="p-6 space-y-4">
             <LabeledField label="Payable to">
               <EditorialInput
@@ -210,17 +166,10 @@ export default function SettingsPage() {
 
         {/* Payment — ACH */}
         <Card>
-          <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
-            <div
-              className="font-serif"
-              style={{ fontSize: 20, color: tone.ink, letterSpacing: "-0.01em" }}
-            >
-              Payment · ACH
-            </div>
-            <div className="text-[12px] mt-0.5" style={{ color: tone.ink50 }}>
-              Domestic ACH transfer details
-            </div>
-          </div>
+          <CardHeader
+            title="Payment · ACH"
+            subtitle="Domestic ACH transfer details"
+          />
           <div className="p-6 space-y-4">
             <LabeledField label="Account name">
               <EditorialInput
@@ -259,17 +208,10 @@ export default function SettingsPage() {
 
         {/* Payment — Wire */}
         <Card>
-          <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
-            <div
-              className="font-serif"
-              style={{ fontSize: 20, color: tone.ink, letterSpacing: "-0.01em" }}
-            >
-              Payment · Wire
-            </div>
-            <div className="text-[12px] mt-0.5" style={{ color: tone.ink50 }}>
-              Wire transfer details (separate from ACH)
-            </div>
-          </div>
+          <CardHeader
+            title="Payment · Wire"
+            subtitle="Wire transfer details (separate from ACH)"
+          />
           <div className="p-6 space-y-4">
             <LabeledField label="Account name">
               <EditorialInput

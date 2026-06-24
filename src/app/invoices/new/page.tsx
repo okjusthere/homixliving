@@ -11,6 +11,7 @@ import {
   EditorialInput,
   LabeledField,
 } from "@/components/homix/primitives";
+import { PageHeader, CardHeader } from "@/components/homix/page-kit";
 import { tone, fmtMoney } from "@/components/homix/tokens";
 import { ScaledInvoiceDoc } from "@/components/homix/invoice-doc";
 import type { Building, LineItem } from "@/db/schema";
@@ -190,46 +191,28 @@ export default function NewInvoicePage() {
   }, [buildings, search]);
 
   return (
-    <form onSubmit={handleSubmit}>
-      {/* Header */}
-      <div className="flex items-start justify-between mb-8">
-        <div>
-          <Link
-            href="/invoices"
-            className="flex items-center gap-1.5 text-[12.5px] mb-4"
-            style={{ color: tone.ink50 }}
-          >
-            <Icons.Back /> Back
-          </Link>
-          <div
-            className="text-[11px] uppercase tracking-[0.16em] mb-2"
-            style={{ color: tone.ink50 }}
-          >
-            Create
-          </div>
-          <h1
-            className="font-serif"
-            style={{
-              fontSize: 52,
-              lineHeight: 0.95,
-              letterSpacing: "-0.02em",
-              color: tone.ink,
-            }}
-          >
-            New invoice
-          </h1>
-        </div>
-        <div className="flex gap-2 shrink-0">
-          <Btn variant="outline" onClick={() => router.back()}>
-            Cancel
-          </Btn>
-          <Btn variant="primary" icon={<Icons.Send />} type="submit" disabled={loading}>
-            {loading ? "Creating…" : "Create Invoice"}
-          </Btn>
-        </div>
-      </div>
+    <form onSubmit={handleSubmit} className="space-y-7">
+      <PageHeader
+        eyebrow="Create"
+        title="New invoice"
+        actions={
+          <>
+            <Link href="/invoices">
+              <Btn variant="ghost" icon={<Icons.Back />}>
+                Back
+              </Btn>
+            </Link>
+            <Btn variant="outline" onClick={() => router.back()}>
+              Cancel
+            </Btn>
+            <Btn variant="primary" icon={<Icons.Send />} type="submit" disabled={loading}>
+              {loading ? "Creating…" : "Create Invoice"}
+            </Btn>
+          </>
+        }
+      />
 
-      <Card className="mb-6">
+      <Card>
         <div className="px-5 py-4 flex items-center justify-between gap-4">
           <div className="text-[13px]" style={{ color: tone.ink70 }}>
             <span className="font-medium" style={{ color: tone.ink }}>
@@ -248,18 +231,7 @@ export default function NewInvoicePage() {
         <div className="space-y-6">
           {/* Building */}
           <Card>
-            <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
-              <div
-                className="font-serif"
-                style={{
-                  fontSize: 20,
-                  color: tone.ink,
-                  letterSpacing: "-0.01em",
-                }}
-              >
-                Building
-              </div>
-            </div>
+            <CardHeader title="Building" />
             <div className="p-6 space-y-4">
               {selectedBuilding ? (
                 <div
@@ -355,18 +327,7 @@ export default function NewInvoicePage() {
 
           {/* Tenant & Unit */}
           <Card>
-            <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
-              <div
-                className="font-serif"
-                style={{
-                  fontSize: 20,
-                  color: tone.ink,
-                  letterSpacing: "-0.01em",
-                }}
-              >
-                Tenant & Unit
-              </div>
-            </div>
+            <CardHeader title="Tenant & Unit" />
             <div className="p-6 grid grid-cols-2 gap-4">
               <LabeledField label="Unit *">
                 <EditorialInput value={unit} onChange={setUnit} placeholder="e.g. 12F" />
@@ -397,18 +358,7 @@ export default function NewInvoicePage() {
 
           {/* Agent */}
           <Card>
-            <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
-              <div
-                className="font-serif"
-                style={{
-                  fontSize: 20,
-                  color: tone.ink,
-                  letterSpacing: "-0.01em",
-                }}
-              >
-                Agent
-              </div>
-            </div>
+            <CardHeader title="Agent" />
             <div className="p-6 grid grid-cols-2 gap-4">
               <LabeledField label="Name">
                 <EditorialInput value={agentName} onChange={setAgentName} placeholder="e.g. Sarah Kim" />
@@ -441,24 +391,14 @@ export default function NewInvoicePage() {
 
           {/* Commission line items */}
           <Card>
-            <div
-              className="px-6 py-5 flex items-center justify-between"
-              style={{ borderBottom: `1px solid ${tone.lineSoft}` }}
-            >
-              <div
-                className="font-serif"
-                style={{
-                  fontSize: 20,
-                  color: tone.ink,
-                  letterSpacing: "-0.01em",
-                }}
-              >
-                Commission
-              </div>
-              <Btn variant="ghost" size="sm" icon={<Icons.Plus />} onClick={addLineItem}>
-                Add line
-              </Btn>
-            </div>
+            <CardHeader
+              title="Commission"
+              action={
+                <Btn variant="ghost" size="sm" icon={<Icons.Plus />} onClick={addLineItem}>
+                  Add line
+                </Btn>
+              }
+            />
             <div className="p-6 space-y-3">
               {lineItems.map((item, index) => (
                 <div key={index} className="grid grid-cols-12 gap-2 items-center">
@@ -545,18 +485,7 @@ export default function NewInvoicePage() {
 
           {/* Notes */}
           <Card>
-            <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
-              <div
-                className="font-serif"
-                style={{
-                  fontSize: 20,
-                  color: tone.ink,
-                  letterSpacing: "-0.01em",
-                }}
-              >
-                Notes
-              </div>
-            </div>
+            <CardHeader title="Notes" />
             <div className="p-6">
               <textarea
                 value={notes}

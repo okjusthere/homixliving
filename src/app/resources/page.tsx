@@ -5,6 +5,7 @@ import { resources, type Resource } from "@/db/schema";
 import { requireActiveAgent } from "@/lib/auth-guards";
 import { tone } from "@/components/homix/tokens";
 import { Card, Pill } from "@/components/homix/server-primitives";
+import { PageHeader, CardHeader } from "@/components/homix/page-kit";
 import { ResourceManager } from "@/components/resources/resource-manager";
 
 export const metadata: Metadata = { title: "Resources · Homix Deals" };
@@ -32,18 +33,12 @@ export default async function ResourcesPage() {
   const groups = groupByCategory(visible);
 
   return (
-    <div>
-      <div className="mb-8">
-        <div className="text-[11px] uppercase tracking-[0.16em]" style={{ color: tone.ink50 }}>
-          Agent resources
-        </div>
-        <h1 className="font-serif mt-1" style={{ fontSize: 34, letterSpacing: "-0.02em", color: tone.ink }}>
-          Resource library
-        </h1>
-        <p className="mt-2 text-[14px]" style={{ color: tone.ink50 }}>
-          SOPs, scripts, templates and brand assets — the playbooks for running a deal the Homix way.
-        </p>
-      </div>
+    <div className="space-y-7">
+      <PageHeader
+        eyebrow="Agent resources"
+        title="Resource library"
+        description="SOPs, scripts, templates and brand assets."
+      />
 
       {isAdmin && <ResourceManager initialResources={all} />}
 
@@ -64,27 +59,27 @@ export default async function ResourcesPage() {
               </h2>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {items.map((r) => (
-                  <Card key={r.id} className="p-5 flex flex-col">
-                    <div className="flex items-start justify-between gap-3">
-                      <h3 className="font-serif" style={{ fontSize: 16, color: tone.ink }}>
-                        {r.title}
-                      </h3>
-                      {!r.isPublished && <Pill tone="draft">Hidden</Pill>}
+                  <Card key={r.id} className="flex flex-col">
+                    <CardHeader
+                      title={r.title}
+                      action={!r.isPublished ? <Pill tone="draft">Hidden</Pill> : undefined}
+                    />
+                    <div className="flex flex-1 flex-col p-5">
+                      {r.description && (
+                        <p className="flex-1 text-[13px] leading-relaxed" style={{ color: tone.ink70 }}>
+                          {r.description}
+                        </p>
+                      )}
+                      <a
+                        href={r.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-4 inline-flex items-center gap-1 text-[13px] font-medium"
+                        style={{ color: tone.accent }}
+                      >
+                        Open ↗
+                      </a>
                     </div>
-                    {r.description && (
-                      <p className="mt-2 flex-1 text-[13px] leading-relaxed" style={{ color: tone.ink70 }}>
-                        {r.description}
-                      </p>
-                    )}
-                    <a
-                      href={r.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-4 inline-flex items-center gap-1 text-[13px] font-medium"
-                      style={{ color: tone.accent }}
-                    >
-                      Open ↗
-                    </a>
                   </Card>
                 ))}
               </div>

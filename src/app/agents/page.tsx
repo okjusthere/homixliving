@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import { Btn, Card, EditorialInput, Icons, LabeledField, Pill } from "@/components/homix/primitives";
+import { PageHeader, Toolbar, SearchInput, CardHeader } from "@/components/homix/page-kit";
 import { fmtMoney, tone } from "@/components/homix/tokens";
 import { DEFAULT_AGENT_SPLIT_PCT, splitLabel } from "@/lib/splits";
 import type { Agent, Team } from "@/db/schema";
@@ -174,57 +175,34 @@ export default function AgentsPage() {
   }
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-end justify-between">
-        <div>
-          <div className="text-[11px] uppercase tracking-[0.16em] mb-2" style={{ color: tone.ink50 }}>
-            Team
-          </div>
-          <h1 className="font-serif" style={{ fontSize: 52, lineHeight: 0.95, color: tone.ink }}>
-            Agents
-          </h1>
-          <p className="mt-3 text-[14px]" style={{ color: tone.ink70 }}>
-            {filtered.length} active broker{filtered.length === 1 ? "" : "s"} across {Object.keys(grouped).length} team{Object.keys(grouped).length === 1 ? "" : "s"}.
-          </p>
-        </div>
-        <Btn variant="primary" icon={<Icons.Plus />} onClick={() => setEditAgent(emptyAgent)}>
-          Add Agent
-        </Btn>
-      </div>
+    <div className="space-y-7">
+      <PageHeader
+        eyebrow="Team"
+        title="Agents"
+        description={`${filtered.length} active broker${filtered.length === 1 ? "" : "s"} across ${Object.keys(grouped).length} team${Object.keys(grouped).length === 1 ? "" : "s"}.`}
+        actions={
+          <Btn variant="primary" icon={<Icons.Plus />} onClick={() => setEditAgent(emptyAgent)}>
+            Add Agent
+          </Btn>
+        }
+      />
 
-      <div className="flex items-center gap-2 h-10 px-3 rounded-md max-w-md" style={{ background: tone.card, border: `1px solid ${tone.line}` }}>
-        <span style={{ color: tone.ink30 }}>
-          <Icons.Search />
-        </span>
-        <input
+      <Toolbar>
+        <SearchInput
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search name, team, license, email..."
-          className="flex-1 bg-transparent outline-none text-[13.5px]"
-          style={{ color: tone.ink }}
+          onChange={setSearch}
+          placeholder="Search name, team, license, email…"
         />
-      </div>
+      </Toolbar>
 
       {/* Pending approvals */}
       {pending.length > 0 && (
         <Card>
-          <div
-            className="px-6 py-5 flex items-center justify-between"
-            style={{ borderBottom: `1px solid ${tone.lineSoft}` }}
-          >
-            <div>
-              <div
-                className="font-serif flex items-center gap-3"
-                style={{ fontSize: 22, color: tone.ink, letterSpacing: "-0.01em" }}
-              >
-                Pending approvals
-                <Pill tone="draft">{pending.length}</Pill>
-              </div>
-              <div className="text-[12px] mt-1" style={{ color: tone.ink50 }}>
-                New brokers awaiting activation
-              </div>
-            </div>
-          </div>
+          <CardHeader
+            title="Pending approvals"
+            subtitle="New brokers awaiting activation"
+            action={<Pill tone="draft">{pending.length}</Pill>}
+          />
           <div className="divide-y" style={{ borderColor: tone.lineSoft }}>
             {pending.map(({ agent }) => (
               <div
@@ -301,12 +279,7 @@ export default function AgentsPage() {
           .sort(([a], [b]) => a.localeCompare(b))
           .map(([teamName, rows]) => (
             <Card key={teamName}>
-              <div className="px-6 py-5 flex items-center justify-between" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
-                <div className="font-serif flex items-center gap-3" style={{ fontSize: 22, color: tone.ink }}>
-                  {teamName}
-                  <Pill tone="neutral">{rows.length}</Pill>
-                </div>
-              </div>
+              <CardHeader title={teamName} action={<Pill tone="neutral">{rows.length}</Pill>} />
               <div className="p-6 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {rows.map(({ agent, mtdDeals, mtdTake }) => (
                   <Link

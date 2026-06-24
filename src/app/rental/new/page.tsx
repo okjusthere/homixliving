@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import { Btn, Card, EditorialInput, Icons, LabeledField, Pill } from "@/components/homix/primitives";
+import { PageHeader, CardHeader } from "@/components/homix/page-kit";
 import { DealBreakdownBar } from "@/components/homix/deal-breakdown";
 import { fmtMoney, tone } from "@/components/homix/tokens";
 import { computeCommission } from "@/lib/commission";
@@ -344,37 +345,31 @@ export function RentalDealFormPage({ mode = "new", dealId }: RentalDealFormPageP
   }
 
   return (
-    <form onSubmit={submit}>
-      <div className="flex items-start justify-between mb-8">
-        <div>
-          <Link href={isEdit && dealId ? `/rental/${dealId}` : "/rental"} className="flex items-center gap-1.5 text-[12.5px] mb-4" style={{ color: tone.ink50 }}>
-            <Icons.Back /> Back
-          </Link>
-          <div className="text-[11px] uppercase tracking-[0.16em] mb-2" style={{ color: tone.ink50 }}>
-            {isEdit ? "Edit" : "Create"}
-          </div>
-          <h1 className="font-serif" style={{ fontSize: 52, lineHeight: 0.95, color: tone.ink }}>
-            {isEdit ? "Edit rental" : "New rental"}
-          </h1>
-        </div>
-        <div className="flex gap-2 shrink-0">
-          <Btn variant="outline" onClick={() => router.back()}>
-            Cancel
-          </Btn>
-          <Btn variant="primary" icon={<Icons.Check />} type="submit" disabled={saving}>
-            {saving ? "Saving…" : isEdit ? "Save Changes" : "Save Rental"}
-          </Btn>
-        </div>
-      </div>
+    <form onSubmit={submit} className="space-y-7">
+      <PageHeader
+        eyebrow={isEdit ? "Edit" : "Create"}
+        title={isEdit ? "Edit rental" : "New rental"}
+        actions={
+          <>
+            <Link href={isEdit && dealId ? `/rental/${dealId}` : "/rental"}>
+              <Btn variant="ghost" icon={<Icons.Back />}>
+                Back
+              </Btn>
+            </Link>
+            <Btn variant="outline" onClick={() => router.back()}>
+              Cancel
+            </Btn>
+            <Btn variant="primary" icon={<Icons.Check />} type="submit" disabled={saving}>
+              {saving ? "Saving…" : isEdit ? "Save Changes" : "Save Rental"}
+            </Btn>
+          </>
+        }
+      />
 
       <div className="grid gap-8" style={{ gridTemplateColumns: "minmax(0, 1fr) 520px" }}>
         <div className="space-y-6">
           <Card>
-            <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
-              <div className="font-serif" style={{ fontSize: 20, color: tone.ink }}>
-                Building
-              </div>
-            </div>
+            <CardHeader title="Building" />
             <div className="p-6 space-y-4">
               {selectedBuilding ? (
                 <div className="flex items-center justify-between rounded-lg p-4" style={{ background: tone.accentSoft, border: `1px solid ${tone.accent}` }}>
@@ -452,11 +447,7 @@ export function RentalDealFormPage({ mode = "new", dealId }: RentalDealFormPageP
           </Card>
 
           <Card>
-            <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
-              <div className="font-serif" style={{ fontSize: 20, color: tone.ink }}>
-                Tenant & Lease
-              </div>
-            </div>
+            <CardHeader title="Tenant & Lease" />
             <div className="p-6 grid grid-cols-2 gap-4">
               <LabeledField label="Unit *">
                 <EditorialInput value={unit} onChange={setUnit} placeholder="12F" />
@@ -486,11 +477,7 @@ export function RentalDealFormPage({ mode = "new", dealId }: RentalDealFormPageP
           </Card>
 
           <Card>
-            <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
-              <div className="font-serif" style={{ fontSize: 20, color: tone.ink }}>
-                Agents
-              </div>
-            </div>
+            <CardHeader title="Agents" />
             <div className="p-6 space-y-4">
               {dealParticipants.map((participant, index) => (
                 (() => {
@@ -605,11 +592,7 @@ export function RentalDealFormPage({ mode = "new", dealId }: RentalDealFormPageP
           </Card>
 
           <Card>
-            <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
-              <div className="font-serif" style={{ fontSize: 20, color: tone.ink }}>
-                Referral
-              </div>
-            </div>
+            <CardHeader title="Referral" />
             <div className="p-6 space-y-4">
               <label className="flex items-center gap-2 text-[13px]" style={{ color: tone.ink70 }}>
                 <input type="checkbox" checked={hasReferrer} onChange={(e) => setHasReferrer(e.target.checked)} />
@@ -669,11 +652,7 @@ export function RentalDealFormPage({ mode = "new", dealId }: RentalDealFormPageP
           </Card>
 
           <Card>
-            <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
-              <div className="font-serif" style={{ fontSize: 20, color: tone.ink }}>
-                Commission
-              </div>
-            </div>
+            <CardHeader title="Commission" />
             <div className="p-6 space-y-4">
               <LabeledField label="Total commission *">
                 <EditorialInput value={totalCommission} onChange={setTotalCommission} type="number" prefix="$" mono />
@@ -748,14 +727,7 @@ export function RentalDealFormPage({ mode = "new", dealId }: RentalDealFormPageP
           </Card>
 
           <Card>
-            <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
-              <div className="font-serif" style={{ fontSize: 20, color: tone.ink }}>
-                Source
-              </div>
-              <div className="text-[12px] mt-0.5" style={{ color: tone.ink50 }}>
-                客源来自哪里？— 帮我们分析渠道转化
-              </div>
-            </div>
+            <CardHeader title="Source" subtitle="客源来自哪里？— 帮我们分析渠道转化" />
             <div className="p-6 grid grid-cols-3 gap-2">
               {SOURCE_OPTIONS.map((opt) => {
                 const active = source === opt.value;
@@ -782,11 +754,7 @@ export function RentalDealFormPage({ mode = "new", dealId }: RentalDealFormPageP
           </Card>
 
           <Card>
-            <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
-              <div className="font-serif" style={{ fontSize: 20, color: tone.ink }}>
-                Notes
-              </div>
-            </div>
+            <CardHeader title="Notes" />
             <div className="p-6">
               <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className="w-full rounded-lg p-3 text-[13.5px] outline-none" style={{ background: tone.card, border: `1px solid ${tone.line}`, color: tone.ink, resize: "vertical" }} />
             </div>

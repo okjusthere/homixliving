@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import { Btn, Card, EditorialInput, Icons, LabeledField, Pill } from "@/components/homix/primitives";
+import { PageHeader, CardHeader } from "@/components/homix/page-kit";
 import { DealBreakdownBar } from "@/components/homix/deal-breakdown";
 import { fmtMoney, tone } from "@/components/homix/tokens";
 import { computeCommission } from "@/lib/commission";
@@ -240,37 +241,31 @@ export default function NewSalePage() {
   };
 
   return (
-    <form onSubmit={submit}>
-      <div className="flex items-start justify-between mb-8">
-        <div>
-          <Link href="/sales" className="flex items-center gap-1.5 text-[12.5px] mb-4" style={{ color: tone.ink50 }}>
-            <Icons.Back /> Back
-          </Link>
-          <div className="text-[11px] uppercase tracking-[0.16em] mb-2" style={{ color: tone.ink50 }}>
-            Create
-          </div>
-          <h1 className="font-serif" style={{ fontSize: 52, lineHeight: 0.95, color: tone.ink }}>
-            New sale
-          </h1>
-        </div>
-        <div className="flex gap-2 shrink-0">
-          <Btn variant="outline" onClick={() => router.back()}>
-            Cancel
-          </Btn>
-          <Btn variant="primary" icon={<Icons.Check />} type="submit" disabled={saving}>
-            {saving ? "Saving…" : "Save Sale"}
-          </Btn>
-        </div>
+    <form onSubmit={submit} className="space-y-7">
+      <div className="space-y-4">
+        <Link href="/sales" className="flex w-fit items-center gap-1.5 text-[12.5px]" style={{ color: tone.ink50 }}>
+          <Icons.Back /> Back
+        </Link>
+        <PageHeader
+          eyebrow="Create"
+          title="New sale"
+          actions={
+            <>
+              <Btn variant="outline" onClick={() => router.back()}>
+                Cancel
+              </Btn>
+              <Btn variant="primary" icon={<Icons.Check />} type="submit" disabled={saving}>
+                {saving ? "Saving…" : "Save Sale"}
+              </Btn>
+            </>
+          }
+        />
       </div>
 
       <div className="grid gap-8" style={{ gridTemplateColumns: "minmax(0, 1fr) 520px" }}>
         <div className="space-y-6">
           <Card>
-            <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
-              <div className="font-serif" style={{ fontSize: 20, color: tone.ink }}>
-                Transaction
-              </div>
-            </div>
+            <CardHeader title="Transaction" />
             <div className="p-6 grid grid-cols-2 gap-4">
               <LabeledField label="Representation">
                 <SelectShell value={representationType} onChange={(value) => setRepresentationType(value as SaleRepresentation)}>
@@ -300,11 +295,7 @@ export default function NewSalePage() {
           </Card>
 
           <Card>
-            <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
-              <div className="font-serif" style={{ fontSize: 20, color: tone.ink }}>
-                Property
-              </div>
-            </div>
+            <CardHeader title="Property" />
             <div className="p-6 grid grid-cols-2 gap-4">
               <LabeledField label="Address *" wide>
                 <EditorialInput value={propertyAddress} onChange={setPropertyAddress} placeholder="Street address, unit" />
@@ -331,11 +322,7 @@ export default function NewSalePage() {
           </Card>
 
           <Card>
-            <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
-              <div className="font-serif" style={{ fontSize: 20, color: tone.ink }}>
-                Parties
-              </div>
-            </div>
+            <CardHeader title="Parties" />
             <div className="p-6 grid grid-cols-2 gap-4">
               <LabeledField label="Buyer name(s)" wide>
                 <EditorialInput value={buyerNames} onChange={setBuyerNames} placeholder="Use commas for multiple buyers" />
@@ -347,11 +334,7 @@ export default function NewSalePage() {
           </Card>
 
           <Card>
-            <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
-              <div className="font-serif" style={{ fontSize: 20, color: tone.ink }}>
-                Agents
-              </div>
-            </div>
+            <CardHeader title="Agents" />
             <div className="p-6 space-y-4">
               {saleParticipants.map((participant, index) => (
                 <div
@@ -427,11 +410,7 @@ export default function NewSalePage() {
           </Card>
 
           <Card>
-            <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
-              <div className="font-serif" style={{ fontSize: 20, color: tone.ink }}>
-                Commission
-              </div>
-            </div>
+            <CardHeader title="Commission" />
             <div className="p-6 grid grid-cols-2 gap-4">
               <LabeledField label="Purchase price">
                 <EditorialInput value={purchasePrice} onChange={setPurchasePrice} type="number" prefix="$" mono />
@@ -449,11 +428,7 @@ export default function NewSalePage() {
           </Card>
 
           <Card>
-            <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
-              <div className="font-serif" style={{ fontSize: 20, color: tone.ink }}>
-                Outside Contacts
-              </div>
-            </div>
+            <CardHeader title="Outside Contacts" />
             <div className="p-6 grid grid-cols-2 gap-4">
               <LabeledField label="Listing agent">
                 <EditorialInput value={listingAgentName} onChange={setListingAgentName} />
@@ -477,11 +452,7 @@ export default function NewSalePage() {
           </Card>
 
           <Card>
-            <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
-              <div className="font-serif" style={{ fontSize: 20, color: tone.ink }}>
-                Closing Contacts
-              </div>
-            </div>
+            <CardHeader title="Closing Contacts" />
             <div className="p-6 grid grid-cols-2 gap-4">
               <LabeledField label="Buyer attorney">
                 <EditorialInput value={buyerAttorney} onChange={setBuyerAttorney} />
@@ -502,11 +473,7 @@ export default function NewSalePage() {
           </Card>
 
           <Card>
-            <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
-              <div className="font-serif" style={{ fontSize: 20, color: tone.ink }}>
-                Notes
-              </div>
-            </div>
+            <CardHeader title="Notes" />
             <div className="p-6">
               <textarea
                 value={notes}
@@ -521,7 +488,7 @@ export default function NewSalePage() {
 
         <div>
           <div className="sticky top-24 space-y-4">
-            <div className="text-[11px] uppercase tracking-[0.14em]" style={{ color: tone.ink50 }}>
+            <div className="text-[11px] font-medium uppercase tracking-[0.16em]" style={{ color: tone.ink50 }}>
               Sale Summary
             </div>
             <Card>

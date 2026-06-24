@@ -2,7 +2,15 @@
 
 import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
-import { Pill, Btn, Card, Icons } from "@/components/homix/primitives";
+import { Pill, Btn, Icons } from "@/components/homix/primitives";
+import {
+  PageHeader,
+  Toolbar,
+  FilterTabs,
+  SearchInput,
+  DataTable,
+  type Column,
+} from "@/components/homix/page-kit";
 import { tone, fmtMoney, fmtDate } from "@/components/homix/tokens";
 
 type InvoiceRow = {
@@ -59,197 +67,145 @@ export default function InvoicesPage() {
     });
   }, [invoices, status, search]);
 
-  const statuses: { id: "all" | "draft" | "sent" | "paid" | "failed"; label: string; count: number }[] = [
-    { id: "all", label: "All", count: counts.all },
-    { id: "draft", label: "Draft", count: counts.draft },
-    { id: "sent", label: "Awaiting", count: counts.sent },
-    { id: "paid", label: "Paid", count: counts.paid },
-    { id: "failed", label: "Failed", count: counts.failed },
+  const columns: Column<InvoiceRow>[] = [
+    {
+      key: "invoice",
+      label: "Invoice",
+      width: "1.5fr",
+      render: ({ invoice }) => (
+        <div>
+          <div className="font-mono text-[12.5px]" style={{ color: tone.ink }}>
+            {invoice.invoiceNumber}
+          </div>
+          <div className="text-[11.5px] mt-0.5" style={{ color: tone.ink50 }}>
+            Unit {invoice.unit}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "building",
+      label: "Building / Tenant",
+      width: "2fr",
+      render: ({ invoice, buildingName }) => (
+        <div>
+          <div className="text-[13px]" style={{ color: tone.ink }}>
+            {buildingName || "—"}
+          </div>
+          <div className="text-[11.5px] mt-0.5" style={{ color: tone.ink50 }}>
+            {invoice.tenantName}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "agent",
+      label: "Agent",
+      width: "1fr",
+      render: ({ invoice }) => (
+        <div className="text-[12.5px]" style={{ color: tone.ink70 }}>
+          {invoice.agentName || "—"}
+        </div>
+      ),
+    },
+    {
+      key: "issued",
+      label: "Issued",
+      width: "1fr",
+      render: ({ invoice }) => (
+        <div className="text-[12.5px] font-mono" style={{ color: tone.ink70 }}>
+          {invoice.createdAt ? fmtDate(invoice.createdAt) : "—"}
+        </div>
+      ),
+    },
+    {
+      key: "amount",
+      label: "Amount",
+      width: "1fr",
+      align: "right",
+      render: ({ invoice }) => (
+        <div className="font-serif" style={{ fontSize: 18, color: tone.ink, letterSpacing: "-0.01em" }}>
+          ${fmtMoney(invoice.totalAmount)}
+        </div>
+      ),
+    },
+    {
+      key: "payment",
+      label: "Payment",
+      width: "0.6fr",
+      align: "right",
+      render: ({ invoice }) => (
+        <Pill
+          tone={
+            invoice.status === "paid"
+              ? "sent"
+              : invoice.status === "sent"
+              ? "accent"
+              : invoice.status === "failed"
+              ? "failed"
+              : "draft"
+          }
+        >
+          {invoice.status === "paid"
+            ? "Paid"
+            : invoice.status === "sent"
+            ? "Awaiting payment"
+            : invoice.status === "failed"
+            ? "Failed"
+            : "Draft"}
+        </Pill>
+      ),
+    },
   ];
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="flex items-end justify-between">
-        <div>
-          <div
-            className="text-[11px] uppercase tracking-[0.16em] mb-2"
-            style={{ color: tone.ink50 }}
-          >
-            Documents
-          </div>
-          <h1
-            className="font-serif"
-            style={{
-              fontSize: 52,
-              lineHeight: 0.95,
-              letterSpacing: "-0.02em",
-              color: tone.ink,
-            }}
-          >
-            Invoices
-          </h1>
-        </div>
-        <div className="flex items-center gap-3">
+    <div className="space-y-7">
+      <PageHeader
+        eyebrow="Documents"
+        title="Invoices"
+        actions={
           <Link href="/invoices/new">
             <Btn variant="primary" icon={<Icons.Plus />}>
               New Invoice
             </Btn>
           </Link>
-        </div>
-      </div>
+        }
+      />
 
-      {/* Filter bar */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div
-          className="flex items-center gap-1 p-1 rounded-lg"
-          style={{ background: tone.paperDeep }}
-        >
-          {statuses.map((s) => (
-            <button
-              key={s.id}
-              onClick={() => setStatus(s.id)}
-              className="px-3 h-8 rounded-md text-[12.5px] font-medium transition-colors flex items-center gap-2"
-              style={{
-                background: status === s.id ? tone.card : "transparent",
-                color: status === s.id ? tone.ink : tone.ink50,
-                boxShadow: status === s.id ? "0 1px 2px rgba(0,0,0,0.04)" : "none",
-              }}
-            >
-              {s.label}
-              <span
-                className="text-[11px] font-mono"
-                style={{ color: status === s.id ? tone.ink50 : tone.ink30 }}
-              >
-                {s.count}
-              </span>
-            </button>
-          ))}
-        </div>
-        <div className="flex items-center gap-3">
-          <div
-            className="flex items-center gap-2 h-9 px-3 rounded-md min-w-[280px]"
-            style={{ background: tone.card, border: `1px solid ${tone.line}` }}
-          >
-            <span style={{ color: tone.ink30 }}>
-              <Icons.Search />
-            </span>
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by number, tenant, building…"
-              className="flex-1 bg-transparent outline-none text-[13px]"
-              style={{ color: tone.ink }}
-            />
-          </div>
-        </div>
-      </div>
+      <Toolbar>
+        <FilterTabs
+          value={status}
+          onChange={setStatus}
+          options={[
+            { id: "all", label: "All", count: counts.all },
+            { id: "draft", label: "Draft", count: counts.draft },
+            { id: "sent", label: "Awaiting", count: counts.sent },
+            { id: "paid", label: "Paid", count: counts.paid },
+            { id: "failed", label: "Failed", count: counts.failed },
+          ]}
+        />
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          placeholder="Search by number, tenant, building…"
+        />
+      </Toolbar>
 
-      {/* Table */}
-      <Card>
-        <div
-          className="grid text-[11px] uppercase tracking-[0.1em] px-6 py-3"
-          style={{
-            gridTemplateColumns: "1.5fr 2fr 1fr 1fr 1fr 0.6fr",
-            color: tone.ink50,
-            borderBottom: `1px solid ${tone.lineSoft}`,
-          }}
-        >
-          <div>Invoice</div>
-          <div>Building / Tenant</div>
-          <div>Agent</div>
-          <div>Issued</div>
-          <div className="text-right">Amount</div>
-          <div className="text-right">Payment</div>
-        </div>
-        {loading ? (
-          <div className="px-6 py-12 text-center text-[13px]" style={{ color: tone.ink50 }}>
-            Loading…
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="px-6 py-16 text-center" style={{ color: tone.ink50 }}>
-            {invoices.length === 0 ? (
-              <>
-                <div
-                  className="font-serif mb-2"
-                  style={{ fontSize: 22, color: tone.ink, letterSpacing: "-0.01em" }}
-                >
-                  No invoices yet
-                </div>
-                <p className="text-[13px]">
-                  <Link href="/invoices/new" style={{ color: tone.accent }} className="underline">
-                    Create your first invoice
-                  </Link>
-                </p>
-              </>
-            ) : (
-              <p className="text-[13px]">No results match your filters.</p>
-            )}
-          </div>
-        ) : (
-          filtered.map(({ invoice, buildingName }, i) => (
-            <Link
-              key={invoice.id}
-              href={`/invoices/${invoice.id}`}
-              className="grid w-full text-left px-6 py-4 transition-colors items-center hover:bg-[#FAF7F0]"
-              style={{
-                gridTemplateColumns: "1.5fr 2fr 1fr 1fr 1fr 0.6fr",
-                borderBottom: i < filtered.length - 1 ? `1px solid ${tone.lineSoft}` : "none",
-              }}
-            >
-              <div>
-                <div className="font-mono text-[12.5px]" style={{ color: tone.ink }}>
-                  {invoice.invoiceNumber}
-                </div>
-                <div className="text-[11.5px] mt-0.5" style={{ color: tone.ink50 }}>
-                  Unit {invoice.unit}
-                </div>
-              </div>
-              <div>
-                <div className="text-[13px]" style={{ color: tone.ink }}>
-                  {buildingName || "—"}
-                </div>
-                <div className="text-[11.5px] mt-0.5" style={{ color: tone.ink50 }}>
-                  {invoice.tenantName}
-                </div>
-              </div>
-              <div className="text-[12.5px]" style={{ color: tone.ink70 }}>
-                {invoice.agentName || "—"}
-              </div>
-              <div className="text-[12.5px] font-mono" style={{ color: tone.ink70 }}>
-                {invoice.createdAt ? fmtDate(invoice.createdAt) : "—"}
-              </div>
-              <div
-                className="text-right font-serif"
-                style={{ fontSize: 18, color: tone.ink, letterSpacing: "-0.01em" }}
-              >
-                ${fmtMoney(invoice.totalAmount)}
-              </div>
-              <div className="text-right">
-                <Pill
-                  tone={
-                    invoice.status === "paid"
-                      ? "sent"
-                      : invoice.status === "sent"
-                      ? "accent"
-                      : invoice.status === "failed"
-                      ? "failed"
-                      : "draft"
-                  }
-                >
-                  {invoice.status === "paid"
-                    ? "Paid"
-                    : invoice.status === "sent"
-                    ? "Awaiting payment"
-                    : invoice.status === "failed"
-                    ? "Failed"
-                    : "Draft"}
-                </Pill>
-              </div>
+      <DataTable
+        columns={columns}
+        rows={filtered}
+        getKey={(row) => row.invoice.id}
+        getHref={(row) => `/invoices/${row.invoice.id}`}
+        loading={loading}
+        emptyTitle={invoices.length === 0 ? "No invoices yet" : "No results match your filters"}
+        emptyAction={
+          invoices.length === 0 ? (
+            <Link href="/invoices/new" className="text-[13px] underline" style={{ color: tone.accent }}>
+              Create your first invoice
             </Link>
-          ))
-        )}
-      </Card>
+          ) : undefined
+        }
+      />
     </div>
   );
 }

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Btn, Card, EditorialInput, Icons, LabeledField, Pill, SoftField } from "@/components/homix/primitives";
+import { PageHeader, CardHeader } from "@/components/homix/page-kit";
 import { fmtDate, fmtMoney, tone } from "@/components/homix/tokens";
 import { getMonthKey } from "@/lib/reporting";
 import { DEFAULT_AGENT_SPLIT_PCT, splitLabel } from "@/lib/splits";
@@ -143,33 +144,30 @@ export default function AgentDetailPage() {
   const { agent, teamName } = payload;
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-start justify-between gap-6">
-        <div>
-          <Link href="/agents" className="flex items-center gap-1.5 text-[12.5px] mb-4" style={{ color: tone.ink50 }}>
-            <Icons.Back /> Back to agents
-          </Link>
-          <div className="flex items-center gap-3 mb-3">
-            <Pill tone="accent">{splitLabel(agent.splitPct)} split</Pill>
-            <span className="text-[12px]" style={{ color: tone.ink50 }}>
-              {teamName || "Unassigned"}
-            </span>
-          </div>
-          <h1 className="font-serif" style={{ fontSize: 52, lineHeight: 0.95, color: tone.ink }}>
-            {agent.name}
-          </h1>
-          <div className="mt-3 text-[14px]" style={{ color: tone.ink70 }}>
-            {agent.licenseNumber || "No license #"} · {agent.licensedCompany || "No company"}
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Btn variant="outline" icon={<Icons.Edit />} onClick={() => setEditAgent(agent)}>
-            Edit
-          </Btn>
-          <Btn variant="danger" icon={<Icons.Trash />} onClick={handleDelete}>
-            Deactivate
-          </Btn>
-        </div>
+    <div className="space-y-7">
+      <div className="space-y-4">
+        <Link href="/agents" className="inline-flex items-center gap-1.5 text-[12.5px]" style={{ color: tone.ink50 }}>
+          <Icons.Back /> Back to agents
+        </Link>
+        <PageHeader
+          eyebrow="Agent"
+          title={agent.name}
+          description={`${agent.licenseNumber || "No license #"} · ${agent.licensedCompany || "No company"}`}
+          actions={
+            <>
+              <Pill tone="accent">{splitLabel(agent.splitPct)} split</Pill>
+              <span className="mr-1 text-[12px]" style={{ color: tone.ink50 }}>
+                {teamName || "Unassigned"}
+              </span>
+              <Btn variant="outline" icon={<Icons.Edit />} onClick={() => setEditAgent(agent)}>
+                Edit
+              </Btn>
+              <Btn variant="danger" icon={<Icons.Trash />} onClick={handleDelete}>
+                Deactivate
+              </Btn>
+            </>
+          }
+        />
       </div>
 
       <div className="grid grid-cols-4 gap-4">
@@ -218,11 +216,7 @@ export default function AgentDetailPage() {
       </div>
 
       <Card>
-        <div className="px-6 py-5" style={{ borderBottom: `1px solid ${tone.lineSoft}` }}>
-          <div className="font-serif" style={{ fontSize: 22, color: tone.ink }}>
-            Rental for {month}
-          </div>
-        </div>
+        <CardHeader title={`Rental for ${month}`} />
         <div className="grid text-[11px] uppercase tracking-[0.1em] px-6 py-3" style={{ gridTemplateColumns: "1fr 2fr 1fr 1fr 1fr", color: tone.ink50, borderBottom: `1px solid ${tone.lineSoft}` }}>
           <div>Rental #</div>
           <div>Building / Tenant</div>
@@ -277,19 +271,15 @@ export default function AgentDetailPage() {
 
       <div className="grid grid-cols-3 gap-4">
         <Card>
-          <div className="p-6 space-y-4">
-            <div className="text-[11px] uppercase tracking-[0.12em]" style={{ color: tone.ink50 }}>
-              Contact
-            </div>
+          <CardHeader title="Contact" />
+          <div className="p-5 space-y-4">
             <SoftField label="Email" value={agent.email || "—"} mono />
             <SoftField label="Phone" value={agent.phone || "—"} mono />
           </div>
         </Card>
         <Card className="col-span-2">
-          <div className="p-6">
-            <div className="text-[11px] uppercase tracking-[0.12em] mb-4" style={{ color: tone.ink50 }}>
-              Notes
-            </div>
+          <CardHeader title="Notes" />
+          <div className="p-5">
             <div className="text-[13.5px] leading-relaxed" style={{ color: tone.ink70 }}>
               {agent.notes || "No notes yet."}
             </div>

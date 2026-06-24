@@ -5,12 +5,18 @@ import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import {
   Btn,
-  Card,
   Pill,
   Icons,
   EditorialInput,
   LabeledField,
 } from "@/components/homix/primitives";
+import {
+  PageHeader,
+  Toolbar,
+  SearchInput,
+  DataTable,
+  type Column,
+} from "@/components/homix/page-kit";
 import { tone } from "@/components/homix/tokens";
 import type { Building } from "@/db/schema";
 
@@ -57,7 +63,6 @@ export default function BuildingsPage() {
   };
 
   const openEdit = (b: Building) => {
-    if (!isAdmin) return;
     setEditBuilding(b);
     setIsNew(false);
   };
@@ -126,155 +131,120 @@ export default function BuildingsPage() {
     );
   }, [buildings, search]);
 
-  const grouped = useMemo(() => {
-    return filtered.reduce<Record<string, Building[]>>((acc, b) => {
-      const key = b.region;
-      if (!acc[key]) acc[key] = [];
-      acc[key].push(b);
-      return acc;
-    }, {});
-  }, [filtered]);
+  const columns: Column<Building>[] = [
+    {
+      key: "building",
+      label: "Building",
+      width: "2.2fr",
+      render: (b) => (
+        <div>
+          <div className="flex items-center gap-2">
+            <span
+              className="font-serif"
+              style={{ fontSize: 18, color: tone.ink, letterSpacing: "-0.01em", lineHeight: 1.2 }}
+            >
+              {b.name}
+            </span>
+            {b.isOutOfState && <Pill tone="accent">Out of state</Pill>}
+          </div>
+          {b.managementCompany && (
+            <div className="mt-0.5 text-[12px]" style={{ color: tone.ink50 }}>
+              {b.managementCompany}
+            </div>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: "region",
+      label: "Region",
+      width: "0.9fr",
+      render: (b) => <Pill tone="neutral">{b.region}</Pill>,
+    },
+    {
+      key: "billTo",
+      label: "Bill to",
+      width: "1.3fr",
+      render: (b) => (
+        <span className="truncate text-[12.5px]" style={{ color: tone.ink70 }}>
+          {b.billToCompany || "—"}
+        </span>
+      ),
+    },
+    {
+      key: "contact",
+      label: "Contact",
+      width: "1.4fr",
+      render: (b) =>
+        b.contactEmail ? (
+          <span className="truncate font-mono text-[11px]" style={{ color: tone.ink70 }}>
+            {b.contactEmail}
+          </span>
+        ) : (
+          <span className="text-[11.5px]" style={{ color: tone.amber }}>
+            No contact email
+          </span>
+        ),
+    },
+    {
+      key: "notes",
+      label: "Notes",
+      width: "1.4fr",
+      render: (b) =>
+        b.specialNotes ? (
+          <span className="line-clamp-2 text-[11.5px]" style={{ color: tone.rose }}>
+            ⚠ {b.specialNotes}
+          </span>
+        ) : (
+          <span className="text-[12px]" style={{ color: tone.ink30 }}>
+            —
+          </span>
+        ),
+    },
+  ];
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="flex items-end justify-between">
-        <div>
-          <div
-            className="text-[11px] uppercase tracking-[0.16em] mb-2"
-            style={{ color: tone.ink50 }}
-          >
-            Directory
-          </div>
-          <h1
-            className="font-serif"
-            style={{
-              fontSize: 52,
-              lineHeight: 0.95,
-              letterSpacing: "-0.02em",
-              color: tone.ink,
-            }}
-          >
-            Buildings
-          </h1>
-          <p className="mt-3 text-[14px]" style={{ color: tone.ink70 }}>
-            {buildings.length} building{buildings.length === 1 ? "" : "s"}
-            {isAdmin ? " · click a card to edit" : ""}
-          </p>
-        </div>
-        <Btn variant="primary" icon={<Icons.Plus />} onClick={openNew}>
-          Add Building
-        </Btn>
-      </div>
+    <div className="space-y-7">
+      <PageHeader
+        eyebrow="Directory"
+        title="Buildings"
+        description={`${buildings.length} building${buildings.length === 1 ? "" : "s"}`}
+        actions={
+          <Btn variant="primary" icon={<Icons.Plus />} onClick={openNew}>
+            Add Building
+          </Btn>
+        }
+      />
 
-      {/* Search */}
-      <div
-        className="flex items-center gap-2 h-10 px-3 rounded-md max-w-md"
-        style={{ background: tone.card, border: `1px solid ${tone.line}` }}
-      >
-        <span style={{ color: tone.ink30 }}>
-          <Icons.Search />
-        </span>
-        <input
+      <Toolbar>
+        <SearchInput
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={setSearch}
           placeholder="Search name, region, management, email…"
-          className="flex-1 bg-transparent outline-none text-[13.5px]"
-          style={{ color: tone.ink }}
+          className="min-w-[340px]"
         />
-      </div>
+      </Toolbar>
 
-      {loading ? (
-        <p className="text-[13px]" style={{ color: tone.ink50 }}>
-          Loading…
-        </p>
-      ) : (
-        Object.entries(grouped)
-          .sort(([a], [b]) => a.localeCompare(b))
-          .map(([region, regionBuildings]) => (
-            <Card key={region}>
-              <div
-                className="px-6 py-5 flex items-center justify-between"
-                style={{ borderBottom: `1px solid ${tone.lineSoft}` }}
-              >
-                <div
-                  className="font-serif flex items-center gap-3"
-                  style={{ fontSize: 22, color: tone.ink, letterSpacing: "-0.01em" }}
-                >
-                  {region}
-                  <Pill tone="neutral">{regionBuildings.length}</Pill>
-                </div>
-              </div>
-              <div className="p-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {regionBuildings.map((b) => (
-                  <button
-                    key={b.id}
-                    type="button"
-                    onClick={() => openEdit(b)}
-                    className="rounded-xl p-4 text-left transition-colors hover:bg-[#FAF7F0] disabled:cursor-default disabled:hover:bg-transparent"
-                    disabled={!isAdmin}
-                    style={{ border: `1px solid ${tone.line}`, background: tone.card }}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <Pill tone="neutral">{b.region}</Pill>
-                      {b.isOutOfState && <Pill tone="accent">Out of state</Pill>}
-                    </div>
-                    <div
-                      className="font-serif"
-                      style={{
-                        fontSize: 18,
-                        color: tone.ink,
-                        letterSpacing: "-0.01em",
-                        lineHeight: 1.2,
-                      }}
-                    >
-                      {b.name}
-                    </div>
-                    {b.managementCompany && (
-                      <div className="text-[12px] mt-1" style={{ color: tone.ink50 }}>
-                        {b.managementCompany}
-                      </div>
-                    )}
-                    <div
-                      className="mt-3 pt-3 space-y-1.5 text-[11.5px]"
-                      style={{ borderTop: `1px solid ${tone.lineSoft}`, color: tone.ink70 }}
-                    >
-                      {b.billToCompany && (
-                        <div className="flex gap-2">
-                          <span style={{ color: tone.ink50 }}>Bill to</span>
-                          <span className="truncate">{b.billToCompany}</span>
-                        </div>
-                      )}
-                      {b.contactEmail ? (
-                        <div className="flex gap-2">
-                          <span style={{ color: tone.ink50 }}>Email</span>
-                          <span className="truncate font-mono text-[10.5px]">
-                            {b.contactEmail}
-                          </span>
-                        </div>
-                      ) : (
-                        <div
-                          className="text-[11px]"
-                          style={{ color: tone.amber }}
-                        >
-                          No contact email
-                        </div>
-                      )}
-                    </div>
-                    {b.specialNotes && (
-                      <div
-                        className="mt-2 text-[11px] line-clamp-2"
-                        style={{ color: tone.rose }}
-                      >
-                        ⚠ {b.specialNotes}
-                      </div>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </Card>
-          ))
-      )}
+      <DataTable
+        columns={columns}
+        rows={filtered}
+        getKey={(b) => b.id}
+        onRowClick={isAdmin ? openEdit : undefined}
+        loading={loading}
+        emptyTitle={buildings.length === 0 ? "No buildings yet" : "No results match your search"}
+        emptyAction={
+          buildings.length === 0 ? (
+            <button
+              type="button"
+              onClick={openNew}
+              className="text-[13px] underline"
+              style={{ color: tone.accent }}
+            >
+              Add your first building
+            </button>
+          ) : undefined
+        }
+      />
 
       {/* Edit Dialog */}
       {editBuilding && (

@@ -5,6 +5,7 @@ import { trainingVideos, type TrainingVideo } from "@/db/schema";
 import { requireActiveAgent } from "@/lib/auth-guards";
 import { tone } from "@/components/homix/tokens";
 import { Card } from "@/components/homix/server-primitives";
+import { PageHeader } from "@/components/homix/page-kit";
 import { TrainingManager } from "@/components/training/training-manager";
 import { TrainingLibrary } from "@/components/training/training-library";
 import { cloudflareStreamConfigured } from "@/lib/cloudflare-stream";
@@ -40,18 +41,12 @@ export default async function TrainingPage() {
   const groups = groupByCategory(visible).sort((a, b) => order(a[0]) - order(b[0]));
 
   return (
-    <div>
-      <div className="mb-8">
-        <div className="text-[11px] uppercase tracking-[0.16em]" style={{ color: tone.ink50 }}>
-          Agent training
-        </div>
-        <h1 className="font-serif mt-1" style={{ fontSize: 34, letterSpacing: "-0.02em", color: tone.ink }}>
-          Training videos
-        </h1>
-        <p className="mt-2 text-[14px]" style={{ color: tone.ink50 }}>
-          Internal to Homix — please don&rsquo;t share or record these.
-        </p>
-      </div>
+    <div className="space-y-7">
+      <PageHeader
+        eyebrow="Agent training"
+        title="Training videos"
+        description="Internal to Homix — please do not share or record these."
+      />
 
       {isAdmin && (
         <TrainingManager initialVideos={all} cloudflareConfigured={cloudflareStreamConfigured} />
