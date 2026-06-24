@@ -7,4 +7,5 @@ export const TRAINING_CATEGORIES = [
   "买家课程",
   "卖家课程",
   "IP 培训 / 个人品牌",
+  "Inman 2026",
 ];

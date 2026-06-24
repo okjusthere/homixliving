@@ -96,6 +96,9 @@ function VideoCover({ video, onPlay }: { video: TrainingVideo; onPlay: () => voi
   );
 }
 
+/** How many videos make up one row at the widest grid (xl:grid-cols-4). */
+const ROW = 4;
+
 export function TrainingLibrary({
   groups,
   watermark,
@@ -103,25 +106,24 @@ export function TrainingLibrary({
   groups: [string, TrainingVideo[]][];
   watermark: string;
 }) {
-  const [open, setOpen] = useState<Record<string, boolean>>(
-    () => Object.fromEntries(groups.map(([c]) => [c, true])),
-  );
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [active, setActive] = useState<TrainingVideo | null>(null);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {groups.map(([category, items]) => {
-        const isOpen = open[category] ?? true;
+        const isExpanded = expanded[category] ?? false;
+        const shown = isExpanded ? items : items.slice(0, ROW);
+        const hasMore = items.length > ROW;
         return (
           <section
             key={category}
             className="rounded-xl overflow-hidden"
             style={{ border: `1px solid ${tone.line}`, background: tone.card }}
           >
-            <button
-              type="button"
-              onClick={() => setOpen((o) => ({ ...o, [category]: !isOpen }))}
-              className="w-full flex items-center justify-between px-5 py-4 transition-colors hover:bg-[#FAF7F0]"
+            <div
+              className="flex items-baseline justify-between px-5 py-4"
+              style={{ borderBottom: `1px solid ${tone.lineSoft}` }}
             >
               <div className="flex items-baseline gap-3">
                 <span className="font-serif" style={{ fontSize: 18, color: tone.ink }}>
@@ -131,15 +133,26 @@ export function TrainingLibrary({
                   {items.length} 个视频
                 </span>
               </div>
-              <Chevron open={isOpen} />
-            </button>
+            </div>
 
-            {isOpen && (
-              <div className="px-5 pb-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {items.map((v) => (
-                  <VideoCover key={v.id} video={v} onPlay={() => setActive(v)} />
-                ))}
-              </div>
+            <div className="grid gap-4 px-5 pt-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {shown.map((v) => (
+                <VideoCover key={v.id} video={v} onPlay={() => setActive(v)} />
+              ))}
+            </div>
+
+            {hasMore ? (
+              <button
+                type="button"
+                onClick={() => setExpanded((e) => ({ ...e, [category]: !isExpanded }))}
+                className="mt-4 flex w-full items-center justify-center gap-1.5 px-5 py-3 text-[13px] font-medium transition-colors hover:bg-[#FAF7F0]"
+                style={{ color: tone.accent, borderTop: `1px solid ${tone.lineSoft}` }}
+              >
+                {isExpanded ? "收起" : `展开全部 ${items.length} 个视频`}
+                <Chevron open={isExpanded} />
+              </button>
+            ) : (
+              <div className="pb-5" />
             )}
           </section>
         );

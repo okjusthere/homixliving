@@ -90,16 +90,16 @@ function ActionLink({
       href={href}
       className="group flex min-h-[92px] items-start justify-between rounded-xl border p-4 transition hover:-translate-y-0.5 hover:shadow-sm"
       style={{
-        background: primary ? tone.ink : tone.card,
-        borderColor: primary ? tone.ink : tone.line,
-        color: primary ? "#fff" : tone.ink,
+        background: primary ? tone.accentSoft : tone.card,
+        borderColor: primary ? tone.accent : tone.line,
+        color: tone.ink,
       }}
     >
       <div className="flex items-start gap-3">
         <span
           className="flex size-9 shrink-0 items-center justify-center rounded-md"
           style={{
-            background: primary ? "rgba(255,255,255,0.12)" : tone.paperDeep,
+            background: primary ? tone.accent : tone.paperDeep,
             color: primary ? "#fff" : tone.accent,
           }}
         >
@@ -109,7 +109,7 @@ function ActionLink({
           <span className="block text-[14px] font-medium">{label}</span>
           <span
             className="mt-1 block text-[12px] leading-5"
-            style={{ color: primary ? "rgba(255,255,255,0.72)" : tone.ink50 }}
+            style={{ color: tone.ink50 }}
           >
             {detail}
           </span>

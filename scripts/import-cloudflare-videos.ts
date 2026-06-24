@@ -43,10 +43,13 @@ interface CfResponse {
   result: CfVideo[];
 }
 
-const CATEGORIES = ["买家课程", "卖家课程", "IP 培训 / 个人品牌"];
+const CATEGORIES = ["买家课程", "卖家课程", "IP 培训 / 个人品牌", "Inman 2026"];
 
 function categoryFor(name: string): string {
   const n = name.toLowerCase();
+  // Pure-English uploads are the Inman 2026 conference sessions; the Chinese
+  // course videos all carry CJK names.
+  if (name.trim() && !/[一-鿿]/.test(name)) return "Inman 2026";
   if (n.includes("买家") || n.includes("buyer")) return "买家课程";
   if (n.includes("卖家") || n.includes("seller")) return "卖家课程";
   if (n.includes("ip") || n.includes("品牌") || n.includes("brand")) return "IP 培训 / 个人品牌";
