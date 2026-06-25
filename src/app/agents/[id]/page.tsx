@@ -9,7 +9,105 @@ import { PageHeader, CardHeader } from "@/components/homix/page-kit";
 import { fmtDate, fmtMoney, tone } from "@/components/homix/tokens";
 import { getMonthKey } from "@/lib/reporting";
 import { DEFAULT_AGENT_SPLIT_PCT, splitLabel } from "@/lib/splits";
+import { useLocale } from "@/lib/i18n-client";
 import type { Agent, Deal, Team } from "@/db/schema";
+
+const M = {
+  en: {
+    nameRequired: "Name is required",
+    agentSaved: "Agent saved",
+    saveFailed: "Save failed",
+    deactivateConfirm: (name: string) => `Deactivate ${name}?`,
+    agentDeactivated: "Agent deactivated",
+    deleteFailed: "Delete failed",
+    thisMonth: "This month",
+    lastMonth: "Last month",
+    loading: "Loading…",
+    agentNotFound: "Agent not found",
+    backToAgents: "Back to agents",
+    eyebrowAgent: "Agent",
+    noLicense: "No license #",
+    noCompany: "No company",
+    split: "split",
+    unassigned: "Unassigned",
+    edit: "Edit",
+    deactivate: "Deactivate",
+    mtdRental: "MTD Rental",
+    mtdTake: "MTD Take",
+    ytdRental: "YTD Rental",
+    ytdTake: "YTD Take",
+    rentalForMonth: (month: string) => `Rental for ${month}`,
+    rentalNum: "Rental #",
+    buildingTenant: "Building / Tenant",
+    rentalDate: "Rental date",
+    commission: "Commission",
+    personalTake: "Personal take",
+    noRentalDeals: "No rental deals this month",
+    noCommissions: (month: string) => `This agent has no tracked commissions for ${month}.`,
+    unit: "Unit",
+    contact: "Contact",
+    email: "Email",
+    phone: "Phone",
+    notes: "Notes",
+    noNotes: "No notes yet.",
+    name: "Name *",
+    team: "Team",
+    licenseNumber: "License #",
+    agentKeep: "Agent keep %",
+    licensedCompany: "Licensed company",
+    joined: "Joined",
+    cancel: "Cancel",
+    saving: "Saving…",
+    save: "Save",
+  },
+  zh: {
+    nameRequired: "姓名为必填项",
+    agentSaved: "经纪人已保存",
+    saveFailed: "保存失败",
+    deactivateConfirm: (name: string) => `停用 ${name}？`,
+    agentDeactivated: "经纪人已停用",
+    deleteFailed: "删除失败",
+    thisMonth: "本月",
+    lastMonth: "上月",
+    loading: "加载中…",
+    agentNotFound: "未找到经纪人",
+    backToAgents: "返回经纪人",
+    eyebrowAgent: "经纪人",
+    noLicense: "无执照号",
+    noCompany: "无公司",
+    split: "分成",
+    unassigned: "未分配",
+    edit: "编辑",
+    deactivate: "停用",
+    mtdRental: "本月租赁",
+    mtdTake: "本月收入",
+    ytdRental: "年度租赁",
+    ytdTake: "年度收入",
+    rentalForMonth: (month: string) => `${month} 租赁`,
+    rentalNum: "租赁编号",
+    buildingTenant: "楼盘 / 租客",
+    rentalDate: "租赁日期",
+    commission: "佣金",
+    personalTake: "个人收入",
+    noRentalDeals: "本月暂无租赁交易",
+    noCommissions: (month: string) => `该经纪人在 ${month} 暂无记录的佣金。`,
+    unit: "单元",
+    contact: "联系方式",
+    email: "邮箱",
+    phone: "电话",
+    notes: "备注",
+    noNotes: "暂无备注。",
+    name: "姓名 *",
+    team: "团队",
+    licenseNumber: "执照号",
+    agentKeep: "经纪人保留 %",
+    licensedCompany: "持照公司",
+    joined: "入职日期",
+    cancel: "取消",
+    saving: "保存中…",
+    save: "保存",
+  },
+} as const;
 
 type AgentPayload = {
   agent: Agent;
@@ -41,6 +139,7 @@ function previousMonth(month: string) {
 export default function AgentDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const t = M[useLocale()];
   const id = String(params.id);
   const thisMonth = getMonthKey();
   const [payload, setPayload] = useState<AgentPayload | null>(null);
@@ -78,7 +177,7 @@ export default function AgentDetailPage() {
 
   const handleSave = async () => {
     if (!editAgent?.name?.trim()) {
-      toast.error("Name is required");
+      toast.error(t.nameRequired);
       return;
     }
     setSaving(true);
@@ -89,11 +188,11 @@ export default function AgentDetailPage() {
         body: JSON.stringify(editAgent),
       });
       if (!res.ok) throw new Error();
-      toast.success("Agent saved");
+      toast.success(t.agentSaved);
       setEditAgent(null);
       load();
     } catch {
-      toast.error("Save failed");
+      toast.error(t.saveFailed);
     } finally {
       setSaving(false);
     }
@@ -101,29 +200,29 @@ export default function AgentDetailPage() {
 
   const handleDelete = async () => {
     if (!payload?.agent) return;
-    if (!confirm(`Deactivate ${payload.agent.name}?`)) return;
+    if (!confirm(t.deactivateConfirm(payload.agent.name))) return;
     try {
       const res = await fetch(`/api/agents/${payload.agent.id}`, { method: "DELETE" });
       if (!res.ok) throw new Error();
-      toast.success("Agent deactivated");
+      toast.success(t.agentDeactivated);
       router.push("/agents");
     } catch {
-      toast.error("Delete failed");
+      toast.error(t.deleteFailed);
     }
   };
 
   const monthOptions = useMemo(
     () => [
-      { label: "This month", value: thisMonth },
-      { label: "Last month", value: previousMonth(thisMonth) },
+      { label: t.thisMonth, value: thisMonth },
+      { label: t.lastMonth, value: previousMonth(thisMonth) },
     ],
-    [thisMonth]
+    [thisMonth, t]
   );
 
   if (loading) {
     return (
       <div className="py-24 text-center text-[13px]" style={{ color: tone.ink50 }}>
-        Loading…
+        {t.loading}
       </div>
     );
   }
@@ -132,10 +231,10 @@ export default function AgentDetailPage() {
     return (
       <div className="py-24 text-center">
         <div className="font-serif text-2xl" style={{ color: tone.ink }}>
-          Agent not found
+          {t.agentNotFound}
         </div>
         <Link href="/agents" className="mt-4 inline-block text-[13px] underline" style={{ color: tone.accent }}>
-          Back to agents
+          {t.backToAgents}
         </Link>
       </div>
     );
@@ -147,23 +246,23 @@ export default function AgentDetailPage() {
     <div className="space-y-7">
       <div className="space-y-4">
         <Link href="/agents" className="inline-flex items-center gap-1.5 text-[12.5px]" style={{ color: tone.ink50 }}>
-          <Icons.Back /> Back to agents
+          <Icons.Back /> {t.backToAgents}
         </Link>
         <PageHeader
-          eyebrow="Agent"
+          eyebrow={t.eyebrowAgent}
           title={agent.name}
-          description={`${agent.licenseNumber || "No license #"} · ${agent.licensedCompany || "No company"}`}
+          description={`${agent.licenseNumber || t.noLicense} · ${agent.licensedCompany || t.noCompany}`}
           actions={
             <>
-              <Pill tone="accent">{splitLabel(agent.splitPct)} split</Pill>
+              <Pill tone="accent">{splitLabel(agent.splitPct)} {t.split}</Pill>
               <span className="mr-1 text-[12px]" style={{ color: tone.ink50 }}>
-                {teamName || "Unassigned"}
+                {teamName || t.unassigned}
               </span>
               <Btn variant="outline" icon={<Icons.Edit />} onClick={() => setEditAgent(agent)}>
-                Edit
+                {t.edit}
               </Btn>
               <Btn variant="danger" icon={<Icons.Trash />} onClick={handleDelete}>
-                Deactivate
+                {t.deactivate}
               </Btn>
             </>
           }
@@ -172,10 +271,10 @@ export default function AgentDetailPage() {
 
       <div className="grid grid-cols-4 gap-4">
         {[
-          ["MTD Rental", report.summary.mtdDeals, ""],
-          ["MTD Take", `$${fmtMoney(report.summary.mtdTake)}`, month],
-          ["YTD Rental", report.summary.ytdDeals, month.slice(0, 4)],
-          ["YTD Take", `$${fmtMoney(report.summary.ytdTake)}`, month.slice(0, 4)],
+          [t.mtdRental, report.summary.mtdDeals, ""],
+          [t.mtdTake, `$${fmtMoney(report.summary.mtdTake)}`, month],
+          [t.ytdRental, report.summary.ytdDeals, month.slice(0, 4)],
+          [t.ytdTake, `$${fmtMoney(report.summary.ytdTake)}`, month.slice(0, 4)],
         ].map(([label, value, sub]) => (
           <Card key={label}>
             <div className="p-5">
@@ -216,21 +315,21 @@ export default function AgentDetailPage() {
       </div>
 
       <Card>
-        <CardHeader title={`Rental for ${month}`} />
+        <CardHeader title={t.rentalForMonth(month)} />
         <div className="grid text-[11px] uppercase tracking-[0.1em] px-6 py-3" style={{ gridTemplateColumns: "1fr 2fr 1fr 1fr 1fr", color: tone.ink50, borderBottom: `1px solid ${tone.lineSoft}` }}>
-          <div>Rental #</div>
-          <div>Building / Tenant</div>
-          <div>Rental date</div>
-          <div className="text-right">Commission</div>
-          <div className="text-right">Personal take</div>
+          <div>{t.rentalNum}</div>
+          <div>{t.buildingTenant}</div>
+          <div>{t.rentalDate}</div>
+          <div className="text-right">{t.commission}</div>
+          <div className="text-right">{t.personalTake}</div>
         </div>
         {report.deals.length === 0 ? (
           <div className="px-6 py-14 text-center">
             <div className="font-serif mb-2" style={{ fontSize: 22, color: tone.ink }}>
-              No rental deals this month
+              {t.noRentalDeals}
             </div>
             <p className="text-[13px]" style={{ color: tone.ink50 }}>
-              This agent has no tracked commissions for {month}.
+              {t.noCommissions(month)}
             </p>
           </div>
         ) : (
@@ -249,7 +348,7 @@ export default function AgentDetailPage() {
               </div>
               <div>
                 <div className="text-[13px]" style={{ color: tone.ink }}>
-                  {buildingName || "—"} · Unit {deal.unit}
+                  {buildingName || "—"} · {t.unit} {deal.unit}
                 </div>
                 <div className="text-[11.5px] mt-0.5" style={{ color: tone.ink50 }}>
                   {deal.tenantName}
@@ -271,17 +370,17 @@ export default function AgentDetailPage() {
 
       <div className="grid grid-cols-3 gap-4">
         <Card>
-          <CardHeader title="Contact" />
+          <CardHeader title={t.contact} />
           <div className="p-5 space-y-4">
-            <SoftField label="Email" value={agent.email || "—"} mono />
-            <SoftField label="Phone" value={agent.phone || "—"} mono />
+            <SoftField label={t.email} value={agent.email || "—"} mono />
+            <SoftField label={t.phone} value={agent.phone || "—"} mono />
           </div>
         </Card>
         <Card className="col-span-2">
-          <CardHeader title="Notes" />
+          <CardHeader title={t.notes} />
           <div className="p-5">
             <div className="text-[13.5px] leading-relaxed" style={{ color: tone.ink70 }}>
-              {agent.notes || "No notes yet."}
+              {agent.notes || t.noNotes}
             </div>
           </div>
         </Card>
@@ -293,7 +392,7 @@ export default function AgentDetailPage() {
             <div className="px-8 py-6 flex items-center justify-between" style={{ borderBottom: `1px solid ${tone.line}` }}>
               <div>
                 <div className="text-[11px] uppercase tracking-[0.14em]" style={{ color: tone.ink50 }}>
-                  Edit
+                  {t.edit}
                 </div>
                 <div className="font-serif" style={{ fontSize: 26, color: tone.ink, marginTop: 2 }}>
                   {editAgent.name}
@@ -305,17 +404,17 @@ export default function AgentDetailPage() {
             </div>
             <div className="flex-1 overflow-auto px-8 py-6 space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <LabeledField label="Name *">
+                <LabeledField label={t.name}>
                   <EditorialInput value={editAgent.name || ""} onChange={(v) => updateField("name", v)} />
                 </LabeledField>
-                <LabeledField label="Team">
+                <LabeledField label={t.team}>
                   <select
                     value={editAgent.teamId || ""}
                     onChange={(e) => updateField("teamId", e.target.value ? Number(e.target.value) : null)}
                     className="w-full h-10 rounded-lg px-3 text-[13.5px] outline-none"
                     style={{ background: tone.card, border: `1px solid ${tone.line}`, color: tone.ink }}
                   >
-                    <option value="">Unassigned</option>
+                    <option value="">{t.unassigned}</option>
                     {teams.map((team) => (
                       <option key={team.id} value={team.id}>
                         {team.name}
@@ -323,26 +422,26 @@ export default function AgentDetailPage() {
                     ))}
                   </select>
                 </LabeledField>
-                <LabeledField label="Email">
+                <LabeledField label={t.email}>
                   <EditorialInput value={editAgent.email || ""} onChange={(v) => updateField("email", v)} mono />
                 </LabeledField>
-                <LabeledField label="Phone">
+                <LabeledField label={t.phone}>
                   <EditorialInput value={editAgent.phone || ""} onChange={(v) => updateField("phone", v)} mono />
                 </LabeledField>
-                <LabeledField label="License #">
+                <LabeledField label={t.licenseNumber}>
                   <EditorialInput value={editAgent.licenseNumber || ""} onChange={(v) => updateField("licenseNumber", v)} mono />
                 </LabeledField>
-                <LabeledField label="Agent keep %">
+                <LabeledField label={t.agentKeep}>
                   <EditorialInput value={editAgent.splitPct ?? DEFAULT_AGENT_SPLIT_PCT} onChange={(v) => updateField("splitPct", Number(v))} type="number" mono />
                 </LabeledField>
-                <LabeledField label="Licensed company">
+                <LabeledField label={t.licensedCompany}>
                   <EditorialInput value={editAgent.licensedCompany || ""} onChange={(v) => updateField("licensedCompany", v)} />
                 </LabeledField>
-                <LabeledField label="Joined">
+                <LabeledField label={t.joined}>
                   <EditorialInput value={editAgent.joinedAt || ""} onChange={(v) => updateField("joinedAt", v)} type="date" mono />
                 </LabeledField>
               </div>
-              <LabeledField label="Notes">
+              <LabeledField label={t.notes}>
                 <textarea
                   value={editAgent.notes || ""}
                   onChange={(e) => updateField("notes", e.target.value)}
@@ -354,10 +453,10 @@ export default function AgentDetailPage() {
             </div>
             <div className="px-8 py-5 flex items-center justify-end gap-2" style={{ borderTop: `1px solid ${tone.line}`, background: tone.paper }}>
               <Btn variant="outline" onClick={() => setEditAgent(null)}>
-                Cancel
+                {t.cancel}
               </Btn>
               <Btn variant="primary" onClick={handleSave} disabled={saving}>
-                {saving ? "Saving…" : "Save"}
+                {saving ? t.saving : t.save}
               </Btn>
             </div>
           </div>

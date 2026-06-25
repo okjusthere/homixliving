@@ -3,8 +3,26 @@
 import { useState } from "react";
 import { tone } from "@/components/homix/tokens";
 import { streamIframeUrl, streamThumbnailUrl } from "@/lib/cloudflare-stream";
+import { useLocale } from "@/lib/i18n-client";
 import { Watermark } from "./watermark";
 import type { TrainingVideo } from "@/db/schema";
+
+const M = {
+  en: {
+    hidden: "hidden",
+    videoCount: (n: number) => `${n} videos`,
+    collapse: "Collapse",
+    expandAll: (n: number) => `Show all ${n} videos`,
+    close: "Close",
+  },
+  zh: {
+    hidden: "隐藏",
+    videoCount: (n: number) => `${n} 个视频`,
+    collapse: "收起",
+    expandAll: (n: number) => `展开全部 ${n} 个视频`,
+    close: "关闭",
+  },
+} as const;
 
 function Chevron({ open }: { open: boolean }) {
   return (
@@ -24,6 +42,7 @@ function Chevron({ open }: { open: boolean }) {
  *  title overlaid. The gradient unifies the look so an awkward auto-frame still
  *  reads as an intentional, branded thumbnail. */
 function VideoCover({ video, onPlay }: { video: TrainingVideo; onPlay: () => void }) {
+  const t = M[useLocale()];
   const thumb = streamThumbnailUrl(video.cloudflareUid);
   return (
     <button type="button" onClick={onPlay} className="group block w-full text-left">
@@ -80,7 +99,7 @@ function VideoCover({ video, onPlay }: { video: TrainingVideo; onPlay: () => voi
             className="absolute top-2 left-2 rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide"
             style={{ background: tone.amber, color: "#fff" }}
           >
-            hidden
+            {t.hidden}
           </span>
         )}
         <div className="absolute inset-x-0 bottom-0 p-3">
@@ -106,6 +125,7 @@ export function TrainingLibrary({
   groups: [string, TrainingVideo[]][];
   watermark: string;
 }) {
+  const t = M[useLocale()];
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [active, setActive] = useState<TrainingVideo | null>(null);
 
@@ -130,7 +150,7 @@ export function TrainingLibrary({
                   {category}
                 </span>
                 <span className="text-[12px]" style={{ color: tone.ink50 }}>
-                  {items.length} 个视频
+                  {t.videoCount(items.length)}
                 </span>
               </div>
             </div>
@@ -148,7 +168,7 @@ export function TrainingLibrary({
                 className="mt-4 flex w-full items-center justify-center gap-1.5 px-5 py-3 text-[13px] font-medium transition-colors hover:bg-[#FAF7F0]"
                 style={{ color: tone.accent, borderTop: `1px solid ${tone.lineSoft}` }}
               >
-                {isExpanded ? "收起" : `展开全部 ${items.length} 个视频`}
+                {isExpanded ? t.collapse : t.expandAll(items.length)}
                 <Chevron open={isExpanded} />
               </button>
             ) : (
@@ -185,7 +205,7 @@ export function TrainingLibrary({
                 className="shrink-0 text-[13px]"
                 style={{ color: "rgba(255,255,255,0.7)" }}
               >
-                关闭 ✕
+                {t.close} ✕
               </button>
             </div>
           </div>

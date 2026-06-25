@@ -10,7 +10,115 @@ import { DealBreakdownBar } from "@/components/homix/deal-breakdown";
 import { fmtDate, fmtLongDate, fmtMoney, tone } from "@/components/homix/tokens";
 import { computeCommission } from "@/lib/commission";
 import { saleRepresentationLabel, saleStageLabel } from "@/lib/sales";
+import { useLocale } from "@/lib/i18n-client";
 import type { Agent, SaleDeal } from "@/db/schema";
+
+const M = {
+  en: {
+    backToSales: "Back to sales",
+    edit: "Edit",
+    editComingSoon: "Edit is coming in the next pass",
+    cancelSale: "Cancel sale",
+    confirmCancel: "Cancel this sale?",
+    saleCancelled: "Sale cancelled",
+    cancelFailed: "Cancel failed",
+    loading: "Loading…",
+    saleNotFound: "Sale not found",
+    grossCommission: "Gross Commission",
+    netSplitBase: "Net split base",
+    property: "Property",
+    address: "Address",
+    location: "Location",
+    propertyType: "Property type",
+    mlsFile: "MLS / File",
+    dates: "Dates",
+    contractDate: "Contract date",
+    closingDate: "Closing date",
+    purchasePrice: "Purchase price",
+    created: "Created",
+    parties: "Parties",
+    buyers: "Buyer(s)",
+    sellers: "Seller(s)",
+    homixAgents: "Homix Agents",
+    primary: "Primary",
+    agent: "Agent",
+    agentSplit: "agent split",
+    outsideContacts: "Outside Contacts",
+    listingAgent: "Listing agent",
+    listingEmail: "Listing email",
+    listingBrokerage: "Listing brokerage",
+    cooperatingAgent: "Cooperating agent",
+    cooperatingEmail: "Cooperating email",
+    cooperatingBrokerage: "Cooperating brokerage",
+    closingContacts: "Closing Contacts",
+    buyerAttorney: "Buyer attorney",
+    sellerAttorney: "Seller attorney",
+    titleCompany: "Title company",
+    lender: "Lender",
+    escrowHolder: "Escrow holder",
+    notes: "Notes",
+    commissionBreakdown: "Commission Breakdown",
+    grossCommissionRow: "Gross commission",
+    referral: "Referral",
+    brokerageAdminFee: "Brokerage/admin fee",
+    unknown: "Unknown",
+    take: "take",
+    companyPool: "Company pool",
+    agentTakeTotal: "Agent take total",
+  },
+  zh: {
+    backToSales: "返回买卖",
+    edit: "编辑",
+    editComingSoon: "编辑功能将在下个版本中推出",
+    cancelSale: "取消交易",
+    confirmCancel: "确定取消此交易吗？",
+    saleCancelled: "交易已取消",
+    cancelFailed: "取消失败",
+    loading: "加载中…",
+    saleNotFound: "未找到交易",
+    grossCommission: "总佣金",
+    netSplitBase: "净分成基数",
+    property: "房产",
+    address: "地址",
+    location: "区域",
+    propertyType: "房产类型",
+    mlsFile: "MLS / 档案",
+    dates: "日期",
+    contractDate: "签约日期",
+    closingDate: "过户日期",
+    purchasePrice: "成交价",
+    created: "创建时间",
+    parties: "交易方",
+    buyers: "买家",
+    sellers: "卖家",
+    homixAgents: "Homix 经纪人",
+    primary: "主办",
+    agent: "经纪人",
+    agentSplit: "经纪人分成",
+    outsideContacts: "外部联系人",
+    listingAgent: "挂牌经纪人",
+    listingEmail: "挂牌方邮箱",
+    listingBrokerage: "挂牌方经纪公司",
+    cooperatingAgent: "协办经纪人",
+    cooperatingEmail: "协办方邮箱",
+    cooperatingBrokerage: "协办方经纪公司",
+    closingContacts: "过户联系人",
+    buyerAttorney: "买方律师",
+    sellerAttorney: "卖方律师",
+    titleCompany: "产权公司",
+    lender: "贷款机构",
+    escrowHolder: "托管方",
+    notes: "备注",
+    commissionBreakdown: "佣金明细",
+    grossCommissionRow: "总佣金",
+    referral: "推荐",
+    brokerageAdminFee: "经纪/管理费",
+    unknown: "未知",
+    take: "实得",
+    companyPool: "公司池",
+    agentTakeTotal: "经纪人实得合计",
+  },
+} as const;
 
 type SalePayload = {
   saleDeal: SaleDeal;
@@ -29,6 +137,7 @@ function statusTone(status: string) {
 }
 
 export default function SaleDetailPage() {
+  const t = M[useLocale()];
   const params = useParams();
   const id = String(params.id);
   const [payload, setPayload] = useState<SalePayload | null>(null);
@@ -72,7 +181,7 @@ export default function SaleDetailPage() {
 
   const cancelSale = async () => {
     if (!payload?.saleDeal) return;
-    if (!confirm("Cancel this sale?")) return;
+    if (!confirm(t.confirmCancel)) return;
     const saleDeal = payload.saleDeal;
     const updatePayload = {
       ...saleDeal,
@@ -90,17 +199,17 @@ export default function SaleDetailPage() {
         body: JSON.stringify(updatePayload),
       });
       if (!res.ok) throw new Error();
-      toast.success("Sale cancelled");
+      toast.success(t.saleCancelled);
       load();
     } catch {
-      toast.error("Cancel failed");
+      toast.error(t.cancelFailed);
     }
   };
 
   if (loading) {
     return (
       <div className="py-24 text-center text-[13px]" style={{ color: tone.ink50 }}>
-        Loading…
+        {t.loading}
       </div>
     );
   }
@@ -109,10 +218,10 @@ export default function SaleDetailPage() {
     return (
       <div className="py-24 text-center">
         <div className="font-serif text-2xl" style={{ color: tone.ink }}>
-          Sale not found
+          {t.saleNotFound}
         </div>
         <Link href="/sales" className="mt-4 inline-block text-[13px] underline" style={{ color: tone.accent }}>
-          Back to sales
+          {t.backToSales}
         </Link>
       </div>
     );
@@ -132,7 +241,7 @@ export default function SaleDetailPage() {
       <div className="space-y-4">
         <div className="flex flex-wrap items-center gap-3">
           <Link href="/sales" className="flex items-center gap-1.5 text-[12.5px]" style={{ color: tone.ink50 }}>
-            <Icons.Back /> Back to sales
+            <Icons.Back /> {t.backToSales}
           </Link>
           <Pill tone={statusTone(saleDeal.status)}>{saleDeal.status}</Pill>
           <Pill tone="neutral">{saleStageLabel(saleDeal.stage)}</Pill>
@@ -146,12 +255,12 @@ export default function SaleDetailPage() {
           description={location || undefined}
           actions={
             <>
-              <Btn variant="outline" icon={<Icons.Edit />} onClick={() => toast.message("Edit is coming in the next pass")}>
-                Edit
+              <Btn variant="outline" icon={<Icons.Edit />} onClick={() => toast.message(t.editComingSoon)}>
+                {t.edit}
               </Btn>
               {saleDeal.status !== "cancelled" && (
                 <Btn variant="danger" icon={<Icons.Trash />} onClick={cancelSale}>
-                  Cancel sale
+                  {t.cancelSale}
                 </Btn>
               )}
             </>
@@ -164,14 +273,14 @@ export default function SaleDetailPage() {
           <Card>
             <div className="p-8">
               <div className="text-[11px] uppercase tracking-[0.14em]" style={{ color: tone.ink50 }}>
-                Gross Commission
+                {t.grossCommission}
               </div>
               <div className="font-serif" style={{ fontSize: 76, lineHeight: 0.9, color: tone.ink, marginTop: 8 }}>
                 <span style={{ fontSize: 32, color: tone.ink50, marginRight: 6 }}>$</span>
                 {fmtMoney(Number(saleDeal.grossCommission || 0))}
               </div>
               <div className="mt-4 text-[12.5px]" style={{ color: tone.ink70 }}>
-                Net split base <span className="font-mono">${fmtMoney(commissionBase)}</span>
+                {t.netSplitBase} <span className="font-mono">${fmtMoney(commissionBase)}</span>
               </div>
             </div>
           </Card>
@@ -180,37 +289,37 @@ export default function SaleDetailPage() {
             <Card>
               <div className="p-6 space-y-4">
                 <div className="text-[11px] uppercase tracking-[0.12em]" style={{ color: tone.ink50 }}>
-                  Property
+                  {t.property}
                 </div>
-                <SoftField label="Address" value={saleDeal.propertyAddress} />
-                <SoftField label="Location" value={location || "—"} />
-                <SoftField label="Property type" value={saleDeal.propertyType || "—"} />
-                <SoftField label="MLS / File" value={[saleDeal.mlsNumber, saleDeal.fileId].filter(Boolean).join(" · ") || "—"} mono />
+                <SoftField label={t.address} value={saleDeal.propertyAddress} />
+                <SoftField label={t.location} value={location || "—"} />
+                <SoftField label={t.propertyType} value={saleDeal.propertyType || "—"} />
+                <SoftField label={t.mlsFile} value={[saleDeal.mlsNumber, saleDeal.fileId].filter(Boolean).join(" · ") || "—"} mono />
               </div>
             </Card>
             <Card>
               <div className="p-6 space-y-4">
                 <div className="text-[11px] uppercase tracking-[0.12em]" style={{ color: tone.ink50 }}>
-                  Dates
+                  {t.dates}
                 </div>
-                <SoftField label="Contract date" value={saleDeal.contractDate ? fmtLongDate(saleDeal.contractDate) : "—"} />
-                <SoftField label="Closing date" value={saleDeal.closingDate ? fmtLongDate(saleDeal.closingDate) : "—"} />
-                <SoftField label="Purchase price" value={saleDeal.purchasePrice ? `$${fmtMoney(Number(saleDeal.purchasePrice))}` : "—"} mono />
-                <SoftField label="Created" value={fmtDate(saleDeal.createdAt)} mono />
+                <SoftField label={t.contractDate} value={saleDeal.contractDate ? fmtLongDate(saleDeal.contractDate) : "—"} />
+                <SoftField label={t.closingDate} value={saleDeal.closingDate ? fmtLongDate(saleDeal.closingDate) : "—"} />
+                <SoftField label={t.purchasePrice} value={saleDeal.purchasePrice ? `$${fmtMoney(Number(saleDeal.purchasePrice))}` : "—"} mono />
+                <SoftField label={t.created} value={fmtDate(saleDeal.createdAt)} mono />
               </div>
             </Card>
           </div>
 
           <Card>
-            <CardHeader title="Parties" />
+            <CardHeader title={t.parties} />
             <div className="p-6 grid grid-cols-2 gap-4">
-              <SoftField label="Buyer(s)" value={saleDeal.buyerNames || "—"} />
-              <SoftField label="Seller(s)" value={saleDeal.sellerNames || "—"} />
+              <SoftField label={t.buyers} value={saleDeal.buyerNames || "—"} />
+              <SoftField label={t.sellers} value={saleDeal.sellerNames || "—"} />
             </div>
           </Card>
 
           <Card>
-            <CardHeader title="Homix Agents" />
+            <CardHeader title={t.homixAgents} />
             <div className="p-6 grid gap-4 md:grid-cols-2">
               {payload.agents.map((participant) => (
                 <div
@@ -219,13 +328,13 @@ export default function SaleDetailPage() {
                   style={{ background: tone.paper, border: `1px solid ${tone.lineSoft}` }}
                 >
                   <Pill tone={participant.isPrimary ? "accent" : "neutral"}>
-                    {participant.isPrimary ? "Primary" : "Agent"} {Number(participant.sharePct || 0)}%
+                    {participant.isPrimary ? t.primary : t.agent} {Number(participant.sharePct || 0)}%
                   </Pill>
                   <div className="mt-3 font-serif" style={{ fontSize: 22, color: tone.ink }}>
                     {participant.agent.name}
                   </div>
                   <div className="mt-1 text-[12px]" style={{ color: tone.ink50 }}>
-                    {Number(participant.agent.splitPct || 0)}% agent split · {participant.agent.licensedCompany || "Homix"}
+                    {Number(participant.agent.splitPct || 0)}% {t.agentSplit} · {participant.agent.licensedCompany || "Homix"}
                   </div>
                 </div>
               ))}
@@ -233,25 +342,25 @@ export default function SaleDetailPage() {
           </Card>
 
           <Card>
-            <CardHeader title="Outside Contacts" />
+            <CardHeader title={t.outsideContacts} />
             <div className="p-6 grid grid-cols-2 gap-4">
-              <SoftField label="Listing agent" value={saleDeal.listingAgentName || "—"} />
-              <SoftField label="Listing email" value={saleDeal.listingAgentEmail || "—"} mono />
-              <SoftField label="Listing brokerage" value={saleDeal.listingBrokerage || "—"} />
-              <SoftField label="Cooperating agent" value={saleDeal.cooperatingAgentName || "—"} />
-              <SoftField label="Cooperating email" value={saleDeal.cooperatingAgentEmail || "—"} mono />
-              <SoftField label="Cooperating brokerage" value={saleDeal.cooperatingBrokerage || "—"} />
+              <SoftField label={t.listingAgent} value={saleDeal.listingAgentName || "—"} />
+              <SoftField label={t.listingEmail} value={saleDeal.listingAgentEmail || "—"} mono />
+              <SoftField label={t.listingBrokerage} value={saleDeal.listingBrokerage || "—"} />
+              <SoftField label={t.cooperatingAgent} value={saleDeal.cooperatingAgentName || "—"} />
+              <SoftField label={t.cooperatingEmail} value={saleDeal.cooperatingAgentEmail || "—"} mono />
+              <SoftField label={t.cooperatingBrokerage} value={saleDeal.cooperatingBrokerage || "—"} />
             </div>
           </Card>
 
           <Card>
-            <CardHeader title="Closing Contacts" />
+            <CardHeader title={t.closingContacts} />
             <div className="p-6 grid grid-cols-2 gap-4">
-              <SoftField label="Buyer attorney" value={saleDeal.buyerAttorney || "—"} />
-              <SoftField label="Seller attorney" value={saleDeal.sellerAttorney || "—"} />
-              <SoftField label="Title company" value={saleDeal.titleCompany || "—"} />
-              <SoftField label="Lender" value={saleDeal.lenderName || "—"} />
-              <SoftField label="Escrow holder" value={saleDeal.escrowHolder || "—"} />
+              <SoftField label={t.buyerAttorney} value={saleDeal.buyerAttorney || "—"} />
+              <SoftField label={t.sellerAttorney} value={saleDeal.sellerAttorney || "—"} />
+              <SoftField label={t.titleCompany} value={saleDeal.titleCompany || "—"} />
+              <SoftField label={t.lender} value={saleDeal.lenderName || "—"} />
+              <SoftField label={t.escrowHolder} value={saleDeal.escrowHolder || "—"} />
             </div>
           </Card>
 
@@ -259,7 +368,7 @@ export default function SaleDetailPage() {
             <Card>
               <div className="p-6">
                 <div className="text-[11px] uppercase tracking-[0.12em] mb-3" style={{ color: tone.ink50 }}>
-                  Notes
+                  {t.notes}
                 </div>
                 <div className="text-[13.5px] leading-relaxed" style={{ color: tone.ink70 }}>
                   {saleDeal.notes}
@@ -272,23 +381,23 @@ export default function SaleDetailPage() {
         <div>
           <div className="sticky top-24 space-y-6">
             <Card>
-              <CardHeader title="Commission Breakdown" />
+              <CardHeader title={t.commissionBreakdown} />
               <div className="p-6">
                 <DealBreakdownBar breakdown={breakdown} />
                 <div className="mt-6 space-y-3 text-[13px]">
                   <div className="flex justify-between" style={{ color: tone.ink }}>
-                    <span>Gross commission</span>
+                    <span>{t.grossCommissionRow}</span>
                     <span className="font-mono">${fmtMoney(Number(saleDeal.grossCommission || 0))}</span>
                   </div>
                   {saleDeal.referralAmount ? (
                     <div className="flex justify-between" style={{ color: tone.amber }}>
-                      <span>Referral</span>
+                      <span>{t.referral}</span>
                       <span className="font-mono">-${fmtMoney(Number(saleDeal.referralAmount))}</span>
                     </div>
                   ) : null}
                   {saleDeal.brokerageFee ? (
                     <div className="flex justify-between" style={{ color: tone.amber }}>
-                      <span>Brokerage/admin fee</span>
+                      <span>{t.brokerageAdminFee}</span>
                       <span className="font-mono">-${fmtMoney(Number(saleDeal.brokerageFee))}</span>
                     </div>
                   ) : null}
@@ -297,23 +406,23 @@ export default function SaleDetailPage() {
                     <div key={agentBreakdown.agentId} className="space-y-1">
                       <div className="flex justify-between" style={{ color: tone.ink }}>
                         <span>
-                          {agentBreakdown.isPrimary ? "Primary" : "Agent"} — {agentBreakdown.name || "Unknown"}
+                          {agentBreakdown.isPrimary ? t.primary : t.agent} — {agentBreakdown.name || t.unknown}
                         </span>
-                        <span className="font-mono">${fmtMoney(agentBreakdown.agentTake)} take</span>
+                        <span className="font-mono">${fmtMoney(agentBreakdown.agentTake)} {t.take}</span>
                       </div>
                       <div className="flex justify-between text-[12px]" style={{ color: tone.ink50 }}>
-                        <span>Company pool</span>
+                        <span>{t.companyPool}</span>
                         <span className="font-mono">${fmtMoney(agentBreakdown.companyPool)}</span>
                       </div>
                     </div>
                   ))}
                   <div style={{ borderTop: `1px solid ${tone.lineSoft}` }} />
                   <div className="flex justify-between font-medium" style={{ color: tone.green }}>
-                    <span>Agent take total</span>
+                    <span>{t.agentTakeTotal}</span>
                     <span className="font-mono">${fmtMoney(breakdown.agentTakeTotal)}</span>
                   </div>
                   <div className="flex justify-between font-medium" style={{ color: tone.ink }}>
-                    <span>Company pool</span>
+                    <span>{t.companyPool}</span>
                     <span className="font-mono">${fmtMoney(breakdown.companyPoolTotal)}</span>
                   </div>
                 </div>

@@ -12,6 +12,116 @@ import { ScaledInvoiceDoc } from "@/components/homix/invoice-doc";
 import { SendDialog } from "@/components/homix/send-dialog";
 import type { Building, Invoice, LineItem } from "@/db/schema";
 import { invoiceSettingsForDocument } from "@/lib/invoice-settings";
+import { useLocale } from "@/lib/i18n-client";
+
+const M = {
+  en: {
+    backToInvoices: "Back to invoices",
+    downloadPDF: "Download PDF",
+    delete: "Delete",
+    markUnpaid: "Mark unpaid",
+    markPaid: "Mark paid",
+    resend: "Resend",
+    sendInvoice: "Send Invoice",
+    paid: "Paid",
+    awaitingPayment: "Awaiting payment",
+    failed: "Failed",
+    draft: "Draft",
+    paidLabel: "Paid",
+    sentLabel: "Sent",
+    at: "at",
+    specialRequirement: "Special requirement: ",
+    totalDue: "Total Due",
+    issued: "Issued",
+    companyReceivedPayment: "Company received payment",
+    awaitingBuildingPayment: "Awaiting building payment",
+    sendFailed: "Send failed",
+    draftNotSent: "Draft not sent",
+    billedTo: "Billed To",
+    tenantAndUnit: "Tenant & Unit",
+    unit: "Unit",
+    moveIn: "Move-in",
+    lineItems: "Line items",
+    total: "Total",
+    agent: "Agent",
+    name: "Name",
+    email: "Email",
+    phone: "Phone",
+    licensedCompany: "Licensed Company",
+    submission: "Submission",
+    emailPill: "Email",
+    contactEmail: "Contact Email",
+    notConfigured: "Not configured",
+    region: "Region",
+    outOfState: "Out of state",
+    management: "Management",
+    pdfPreview: "PDF Preview",
+    download: "Download",
+    letterOnePage: "Letter · 1 page",
+    loading: "Loading…",
+    invoiceNotFound: "Invoice not found",
+    deleteConfirm: "Delete this invoice? This cannot be undone.",
+    invoiceDeleted: "Invoice deleted",
+    markedAsPaid: "Marked as paid",
+    couldNotMarkPaid: "Could not mark as paid",
+    unmarkConfirm: "Mark this invoice as unpaid again?",
+    revertedToSent: "Reverted to sent",
+    couldNotRevert: "Could not revert",
+  },
+  zh: {
+    backToInvoices: "返回发票",
+    downloadPDF: "下载 PDF",
+    delete: "删除",
+    markUnpaid: "标记为未付款",
+    markPaid: "标记为已付款",
+    resend: "重新发送",
+    sendInvoice: "发送发票",
+    paid: "已付款",
+    awaitingPayment: "待付款",
+    failed: "失败",
+    draft: "草稿",
+    paidLabel: "已付款",
+    sentLabel: "已发送",
+    at: "于",
+    specialRequirement: "特殊要求：",
+    totalDue: "应付合计",
+    issued: "开具于",
+    companyReceivedPayment: "公司已收到付款",
+    awaitingBuildingPayment: "等待楼盘付款",
+    sendFailed: "发送失败",
+    draftNotSent: "草稿未发送",
+    billedTo: "账单接收方",
+    tenantAndUnit: "租客与单元",
+    unit: "单元",
+    moveIn: "入住",
+    lineItems: "明细项",
+    total: "合计",
+    agent: "经纪人",
+    name: "姓名",
+    email: "邮箱",
+    phone: "电话",
+    licensedCompany: "持牌公司",
+    submission: "提交方式",
+    emailPill: "邮箱",
+    contactEmail: "联系邮箱",
+    notConfigured: "未配置",
+    region: "区域",
+    outOfState: "州外",
+    management: "管理公司",
+    pdfPreview: "PDF 预览",
+    download: "下载",
+    letterOnePage: "Letter · 1 页",
+    loading: "加载中…",
+    invoiceNotFound: "未找到发票",
+    deleteConfirm: "删除此发票？此操作无法撤销。",
+    invoiceDeleted: "发票已删除",
+    markedAsPaid: "已标记为已付款",
+    couldNotMarkPaid: "无法标记为已付款",
+    unmarkConfirm: "将此发票重新标记为未付款？",
+    revertedToSent: "已恢复为已发送",
+    couldNotRevert: "无法恢复",
+  },
+} as const;
 
 type Settings = Record<string, string>;
 
@@ -25,6 +135,7 @@ export default function InvoiceDetailPage() {
   const [showSend, setShowSend] = useState(false);
   const { data: session } = useSession();
   const isAdmin = Boolean(session?.user.isAdmin);
+  const t = M[useLocale()];
 
   const previewRef = useRef<HTMLDivElement>(null);
   const [previewWidth, setPreviewWidth] = useState(520);
@@ -57,9 +168,9 @@ export default function InvoiceDetailPage() {
   };
 
   const handleDelete = async () => {
-    if (!confirm("Delete this invoice? This cannot be undone.")) return;
+    if (!confirm(t.deleteConfirm)) return;
     await fetch(`/api/invoices/${params.id}`, { method: "DELETE" });
-    toast.success("Invoice deleted");
+    toast.success(t.invoiceDeleted);
     router.push("/invoices");
   };
 
@@ -77,29 +188,29 @@ export default function InvoiceDetailPage() {
         body: JSON.stringify({}),
       });
       if (!res.ok) throw new Error();
-      toast.success("Marked as paid");
+      toast.success(t.markedAsPaid);
       await refreshInvoice();
     } catch {
-      toast.error("Could not mark as paid");
+      toast.error(t.couldNotMarkPaid);
     }
   };
 
   const handleUnmarkPaid = async () => {
-    if (!confirm("Mark this invoice as unpaid again?")) return;
+    if (!confirm(t.unmarkConfirm)) return;
     try {
       const res = await fetch(`/api/invoices/${params.id}/mark-paid`, { method: "DELETE" });
       if (!res.ok) throw new Error();
-      toast.success("Reverted to sent");
+      toast.success(t.revertedToSent);
       await refreshInvoice();
     } catch {
-      toast.error("Could not revert");
+      toast.error(t.couldNotRevert);
     }
   };
 
   if (loading) {
     return (
       <div className="py-24 text-center text-[13px]" style={{ color: tone.ink50 }}>
-        Loading…
+        {t.loading}
       </div>
     );
   }
@@ -107,10 +218,10 @@ export default function InvoiceDetailPage() {
     return (
       <div className="py-24 text-center">
         <div className="font-serif text-2xl" style={{ color: tone.ink }}>
-          Invoice not found
+          {t.invoiceNotFound}
         </div>
         <Link href="/invoices" className="mt-4 inline-block text-[13px] underline" style={{ color: tone.accent }}>
-          Back to invoices
+          {t.backToInvoices}
         </Link>
       </div>
     );
@@ -146,7 +257,7 @@ export default function InvoiceDetailPage() {
           className="inline-flex items-center gap-1.5 text-[12.5px]"
           style={{ color: tone.ink50 }}
         >
-          <Icons.Back /> Back to invoices
+          <Icons.Back /> {t.backToInvoices}
         </Link>
         <PageHeader
           eyebrow={`${building.name} · Unit ${invoice.unit} · ${invoice.tenantName}`}
@@ -154,22 +265,22 @@ export default function InvoiceDetailPage() {
           actions={
             <>
               <Btn variant="outline" icon={<Icons.Download />} onClick={handleDownloadPDF}>
-                Download PDF
+                {t.downloadPDF}
               </Btn>
               <Btn variant="danger" icon={<Icons.Trash />} onClick={handleDelete}>
-                Delete
+                {t.delete}
               </Btn>
               {isAdmin && invoice.status === "paid" ? (
                 <Btn variant="outline" onClick={handleUnmarkPaid}>
-                  Mark unpaid
+                  {t.markUnpaid}
                 </Btn>
               ) : isAdmin && invoice.status === "sent" ? (
                 <Btn variant="primary" icon={<Icons.Check />} onClick={handleMarkPaid}>
-                  Mark paid
+                  {t.markPaid}
                 </Btn>
               ) : null}
               <Btn variant="primary" icon={<Icons.Send />} onClick={() => setShowSend(true)}>
-                {invoice.status === "sent" || invoice.status === "paid" ? "Resend" : "Send Invoice"}
+                {invoice.status === "sent" || invoice.status === "paid" ? t.resend : t.sendInvoice}
               </Btn>
             </>
           }
@@ -187,16 +298,16 @@ export default function InvoiceDetailPage() {
             }
           >
             {invoice.status === "paid"
-              ? "Paid"
+              ? t.paid
               : invoice.status === "sent"
-              ? "Awaiting payment"
+              ? t.awaitingPayment
               : invoice.status === "failed"
-              ? "Failed"
-              : "Draft"}
+              ? t.failed
+              : t.draft}
           </Pill>
           {invoice.status === "paid" && invoice.paidAt && (
             <span className="text-[12px]" style={{ color: tone.green }}>
-              Paid {fmtDate(invoice.paidAt)}
+              {t.paidLabel} {fmtDate(invoice.paidAt)}
               {invoice.paidAmount !== invoice.totalAmount && invoice.paidAmount !== null && (
                 <> · ${fmtMoney(Number(invoice.paidAmount))}</>
               )}
@@ -204,7 +315,7 @@ export default function InvoiceDetailPage() {
           )}
           {invoice.status === "sent" && invoice.sentAt && (
             <span className="text-[12px]" style={{ color: tone.ink50 }}>
-              Sent {fmtDate(invoice.sentAt)} at{" "}
+              {t.sentLabel} {fmtDate(invoice.sentAt)} {t.at}{" "}
               {new Date(invoice.sentAt).toLocaleTimeString("en-US", {
                 hour: "numeric",
                 minute: "2-digit",
@@ -220,7 +331,7 @@ export default function InvoiceDetailPage() {
           className="rounded-lg p-4 text-[13px]"
           style={{ background: tone.roseSoft, color: tone.rose, border: `1px solid ${tone.rose}20` }}
         >
-          <strong>Special requirement: </strong>
+          <strong>{t.specialRequirement}</strong>
           {building.specialNotes}
         </div>
       )}
@@ -236,7 +347,7 @@ export default function InvoiceDetailPage() {
                 className="text-[11px] uppercase tracking-[0.14em]"
                 style={{ color: tone.ink50 }}
               >
-                Total Due
+                {t.totalDue}
               </div>
               <div
                 className="font-serif"
@@ -256,16 +367,16 @@ export default function InvoiceDetailPage() {
                 style={{ color: tone.ink70 }}
               >
                 <span>
-                  Issued <span className="font-mono">{fmtDate(invoice.createdAt)}</span>
+                  {t.issued} <span className="font-mono">{fmtDate(invoice.createdAt)}</span>
                 </span>
                 <span>
                   {invoice.status === "paid"
-                    ? "Company received payment"
+                    ? t.companyReceivedPayment
                     : invoice.status === "sent"
-                    ? "Awaiting building payment"
+                    ? t.awaitingBuildingPayment
                     : invoice.status === "failed"
-                    ? "Send failed"
-                    : "Draft not sent"}
+                    ? t.sendFailed
+                    : t.draftNotSent}
                 </span>
                 <span>·</span>
                 <span>USD</span>
@@ -281,7 +392,7 @@ export default function InvoiceDetailPage() {
                   className="text-[11px] uppercase tracking-[0.12em] mb-4"
                   style={{ color: tone.ink50 }}
                 >
-                  Billed To
+                  {t.billedTo}
                 </div>
                 <div
                   className="font-serif"
@@ -315,7 +426,7 @@ export default function InvoiceDetailPage() {
                   className="text-[11px] uppercase tracking-[0.12em] mb-4"
                   style={{ color: tone.ink50 }}
                 >
-                  Tenant & Unit
+                  {t.tenantAndUnit}
                 </div>
                 <div
                   className="font-serif"
@@ -331,14 +442,14 @@ export default function InvoiceDetailPage() {
                   className="mt-3 text-[12.5px] leading-relaxed"
                   style={{ color: tone.ink70 }}
                 >
-                  {invoice.apartmentAddress || `Unit ${invoice.unit} · ${building.name}`}
+                  {invoice.apartmentAddress || `${t.unit} ${invoice.unit} · ${building.name}`}
                 </div>
                 {invoice.moveInDate && (
                   <div
                     className="mt-3 font-mono text-[11.5px]"
                     style={{ color: tone.ink50 }}
                   >
-                    Move-in {fmtDate(invoice.moveInDate)}
+                    {t.moveIn} {fmtDate(invoice.moveInDate)}
                   </div>
                 )}
               </div>
@@ -347,7 +458,7 @@ export default function InvoiceDetailPage() {
 
           {/* Line items */}
           <Card>
-            <CardHeader title="Line items" />
+            <CardHeader title={t.lineItems} />
             <div className="px-6 py-2">
               {lineItems.map((it, i) => (
                 <div
@@ -390,7 +501,7 @@ export default function InvoiceDetailPage() {
                 className="text-[11px] uppercase tracking-[0.12em]"
                 style={{ color: tone.ink50 }}
               >
-                Total
+                {t.total}
               </span>
               <span
                 className="font-serif"
@@ -413,12 +524,12 @@ export default function InvoiceDetailPage() {
                   className="text-[11px] uppercase tracking-[0.12em]"
                   style={{ color: tone.ink50 }}
                 >
-                  Agent
+                  {t.agent}
                 </div>
-                <SoftField label="Name" value={invoice.agentName || "—"} />
-                <SoftField label="Email" value={invoice.agentEmail || "—"} mono />
-                <SoftField label="Phone" value={invoice.agentPhone || "—"} mono />
-                <SoftField label="Licensed Company" value={invoice.licensedCompany} />
+                <SoftField label={t.name} value={invoice.agentName || "—"} />
+                <SoftField label={t.email} value={invoice.agentEmail || "—"} mono />
+                <SoftField label={t.phone} value={invoice.agentPhone || "—"} mono />
+                <SoftField label={t.licensedCompany} value={invoice.licensedCompany} />
               </div>
             </Card>
             <Card>
@@ -428,16 +539,16 @@ export default function InvoiceDetailPage() {
                     className="text-[11px] uppercase tracking-[0.12em]"
                     style={{ color: tone.ink50 }}
                   >
-                    Submission
+                    {t.submission}
                   </div>
-                  {building.contactEmail && <Pill tone="accent">Email</Pill>}
+                  {building.contactEmail && <Pill tone="accent">{t.emailPill}</Pill>}
                 </div>
-                <SoftField label="Contact Email" value={building.contactEmail || "Not configured"} mono />
+                <SoftField label={t.contactEmail} value={building.contactEmail || t.notConfigured} mono />
                 <SoftField
-                  label="Region"
-                  value={`${building.region}${building.isOutOfState ? " · Out of state" : ""}`}
+                  label={t.region}
+                  value={`${building.region}${building.isOutOfState ? ` · ${t.outOfState}` : ""}`}
                 />
-                <SoftField label="Management" value={building.managementCompany || "—"} />
+                <SoftField label={t.management} value={building.managementCompany || "—"} />
               </div>
             </Card>
           </div>
@@ -451,14 +562,14 @@ export default function InvoiceDetailPage() {
                 className="text-[11px] uppercase tracking-[0.14em]"
                 style={{ color: tone.ink50 }}
               >
-                PDF Preview
+                {t.pdfPreview}
               </div>
               <button
                 onClick={handleDownloadPDF}
                 className="h-7 px-2 rounded flex items-center gap-1 text-[11px]"
                 style={{ color: tone.ink70 }}
               >
-                <Icons.Download /> Download
+                <Icons.Download /> {t.download}
               </button>
             </div>
             <div
@@ -476,7 +587,7 @@ export default function InvoiceDetailPage() {
               className="mt-3 font-mono text-[10.5px] text-center"
               style={{ color: tone.ink50 }}
             >
-              {invoice.fileName}.pdf · Letter · 1 page
+              {invoice.fileName}.pdf · {t.letterOnePage}
             </div>
           </div>
         </div>

@@ -4,10 +4,51 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Btn, Card, EditorialInput } from "@/components/homix/primitives";
 import { tone } from "@/components/homix/tokens";
+import { useLocale } from "@/lib/i18n-client";
 import type { Resource } from "@/db/schema";
+
+const M = {
+  en: {
+    manageResources: "Manage resources",
+    lead: "Paste a link to a doc, template, or folder (Google Drive, Notion, Dropbox, or a file URL).",
+    close: "Close",
+    addResource: "Add resource",
+    titleRequired: "Title and link (URL) are required.",
+    saveFailed: "Could not save — admin only.",
+    confirmDelete: (title: string) => `Delete "${title}"?`,
+    title: "Title",
+    category: "Category (e.g. Scripts)",
+    link: "Link (https://…)",
+    description: "Short description (optional)",
+    saving: "Saving…",
+    saveResource: "Save resource",
+    published: "Published",
+    hidden: "Hidden",
+    delete: "Delete",
+  },
+  zh: {
+    manageResources: "管理资料",
+    lead: "粘贴文档、模板或文件夹的链接（Google Drive、Notion、Dropbox 或文件 URL）。",
+    close: "关闭",
+    addResource: "添加资料",
+    titleRequired: "标题和链接（URL）为必填项。",
+    saveFailed: "无法保存——仅限管理员。",
+    confirmDelete: (title: string) => `删除“${title}”？`,
+    title: "标题",
+    category: "类别（例如 话术）",
+    link: "链接（https://…）",
+    description: "简短描述（可选）",
+    saving: "保存中…",
+    saveResource: "保存资料",
+    published: "已发布",
+    hidden: "隐藏",
+    delete: "删除",
+  },
+} as const;
 
 export function ResourceManager({ initialResources }: { initialResources: Resource[] }) {
   const router = useRouter();
+  const t = M[useLocale()];
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [url, setUrl] = useState("");
@@ -19,7 +60,7 @@ export function ResourceManager({ initialResources }: { initialResources: Resour
   async function add() {
     setError(null);
     if (!title.trim() || !url.trim()) {
-      setError("Title and link (URL) are required.");
+      setError(t.titleRequired);
       return;
     }
     setBusy(true);
@@ -30,7 +71,7 @@ export function ResourceManager({ initialResources }: { initialResources: Resour
     });
     setBusy(false);
     if (!res.ok) {
-      setError("Could not save — admin only.");
+      setError(t.saveFailed);
       return;
     }
     setTitle("");
@@ -50,7 +91,7 @@ export function ResourceManager({ initialResources }: { initialResources: Resour
   }
 
   async function remove(r: Resource) {
-    if (!confirm(`Delete "${r.title}"?`)) return;
+    if (!confirm(t.confirmDelete(r.title))) return;
     await fetch(`/api/resources/${r.id}`, { method: "DELETE" });
     router.refresh();
   }
@@ -60,30 +101,30 @@ export function ResourceManager({ initialResources }: { initialResources: Resour
       <div className="flex items-center justify-between gap-4">
         <div>
           <div className="font-serif" style={{ fontSize: 16, color: tone.ink }}>
-            Manage resources
+            {t.manageResources}
           </div>
           <div className="text-[12px] mt-0.5" style={{ color: tone.ink50 }}>
-            Paste a link to a doc, template, or folder (Google Drive, Notion, Dropbox, or a file URL).
+            {t.lead}
           </div>
         </div>
         <Btn variant="outline" size="sm" onClick={() => setOpen((o) => !o)}>
-          {open ? "Close" : "Add resource"}
+          {open ? t.close : t.addResource}
         </Btn>
       </div>
 
       {open && (
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <EditorialInput value={title} onChange={setTitle} placeholder="Title" />
-          <EditorialInput value={category} onChange={setCategory} placeholder="Category (e.g. Scripts)" />
+          <EditorialInput value={title} onChange={setTitle} placeholder={t.title} />
+          <EditorialInput value={category} onChange={setCategory} placeholder={t.category} />
           <div className="sm:col-span-2">
-            <EditorialInput value={url} onChange={setUrl} placeholder="Link (https://…)" mono />
+            <EditorialInput value={url} onChange={setUrl} placeholder={t.link} mono />
           </div>
           <div className="sm:col-span-2">
-            <EditorialInput value={description} onChange={setDescription} placeholder="Short description (optional)" />
+            <EditorialInput value={description} onChange={setDescription} placeholder={t.description} />
           </div>
           <div className="sm:col-span-2 flex items-center gap-3">
             <Btn variant="primary" size="sm" onClick={add} disabled={busy}>
-              {busy ? "Saving…" : "Save resource"}
+              {busy ? t.saving : t.saveResource}
             </Btn>
             {error && (
               <span className="text-[12.5px]" style={{ color: tone.rose }}>
@@ -116,7 +157,7 @@ export function ResourceManager({ initialResources }: { initialResources: Resour
                 className="text-[12px] px-2.5 py-1 rounded-md"
                 style={{ color: r.isPublished ? tone.green : tone.ink50, background: tone.paperDeep }}
               >
-                {r.isPublished ? "Published" : "Hidden"}
+                {r.isPublished ? t.published : t.hidden}
               </button>
               <button
                 type="button"
@@ -124,7 +165,7 @@ export function ResourceManager({ initialResources }: { initialResources: Resour
                 className="text-[12px] px-2.5 py-1 rounded-md"
                 style={{ color: tone.rose }}
               >
-                Delete
+                {t.delete}
               </button>
             </div>
           ))}

@@ -12,6 +12,54 @@ import {
   type Column,
 } from "@/components/homix/page-kit";
 import { tone, fmtMoney, fmtDate } from "@/components/homix/tokens";
+import { useLocale } from "@/lib/i18n-client";
+
+const M = {
+  en: {
+    eyebrow: "Documents",
+    title: "Invoices",
+    newInvoice: "New Invoice",
+    colInvoice: "Invoice",
+    unit: "Unit",
+    colBuildingTenant: "Building / Tenant",
+    colAgent: "Agent",
+    colIssued: "Issued",
+    colAmount: "Amount",
+    colPayment: "Payment",
+    paid: "Paid",
+    awaitingPayment: "Awaiting payment",
+    failed: "Failed",
+    draft: "Draft",
+    all: "All",
+    sent: "Awaiting",
+    searchPlaceholder: "Search by number, tenant, building…",
+    emptyNone: "No invoices yet",
+    emptyNoResults: "No results match your filters",
+    createFirst: "Create your first invoice",
+  },
+  zh: {
+    eyebrow: "文档",
+    title: "发票",
+    newInvoice: "新建发票",
+    colInvoice: "发票",
+    unit: "单元",
+    colBuildingTenant: "楼盘 / 租客",
+    colAgent: "经纪人",
+    colIssued: "开具日期",
+    colAmount: "金额",
+    colPayment: "付款",
+    paid: "已付款",
+    awaitingPayment: "待付款",
+    failed: "失败",
+    draft: "草稿",
+    all: "全部",
+    sent: "待付款",
+    searchPlaceholder: "按编号、租客、楼盘搜索…",
+    emptyNone: "还没有发票",
+    emptyNoResults: "没有符合筛选条件的结果",
+    createFirst: "创建第一张发票",
+  },
+} as const;
 
 type InvoiceRow = {
   invoice: {
@@ -34,6 +82,7 @@ export default function InvoicesPage() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<"all" | "draft" | "sent" | "paid" | "failed">("all");
   const [loading, setLoading] = useState(true);
+  const t = M[useLocale()];
 
   useEffect(() => {
     fetch("/api/invoices")
@@ -70,7 +119,7 @@ export default function InvoicesPage() {
   const columns: Column<InvoiceRow>[] = [
     {
       key: "invoice",
-      label: "Invoice",
+      label: t.colInvoice,
       width: "1.5fr",
       render: ({ invoice }) => (
         <div>
@@ -78,14 +127,14 @@ export default function InvoicesPage() {
             {invoice.invoiceNumber}
           </div>
           <div className="text-[11.5px] mt-0.5" style={{ color: tone.ink50 }}>
-            Unit {invoice.unit}
+            {t.unit} {invoice.unit}
           </div>
         </div>
       ),
     },
     {
       key: "building",
-      label: "Building / Tenant",
+      label: t.colBuildingTenant,
       width: "2fr",
       render: ({ invoice, buildingName }) => (
         <div>
@@ -100,7 +149,7 @@ export default function InvoicesPage() {
     },
     {
       key: "agent",
-      label: "Agent",
+      label: t.colAgent,
       width: "1fr",
       render: ({ invoice }) => (
         <div className="text-[12.5px]" style={{ color: tone.ink70 }}>
@@ -110,7 +159,7 @@ export default function InvoicesPage() {
     },
     {
       key: "issued",
-      label: "Issued",
+      label: t.colIssued,
       width: "1fr",
       render: ({ invoice }) => (
         <div className="text-[12.5px] font-mono" style={{ color: tone.ink70 }}>
@@ -120,7 +169,7 @@ export default function InvoicesPage() {
     },
     {
       key: "amount",
-      label: "Amount",
+      label: t.colAmount,
       width: "1fr",
       align: "right",
       render: ({ invoice }) => (
@@ -131,7 +180,7 @@ export default function InvoicesPage() {
     },
     {
       key: "payment",
-      label: "Payment",
+      label: t.colPayment,
       width: "0.6fr",
       align: "right",
       render: ({ invoice }) => (
@@ -147,12 +196,12 @@ export default function InvoicesPage() {
           }
         >
           {invoice.status === "paid"
-            ? "Paid"
+            ? t.paid
             : invoice.status === "sent"
-            ? "Awaiting payment"
+            ? t.awaitingPayment
             : invoice.status === "failed"
-            ? "Failed"
-            : "Draft"}
+            ? t.failed
+            : t.draft}
         </Pill>
       ),
     },
@@ -161,12 +210,12 @@ export default function InvoicesPage() {
   return (
     <div className="space-y-7">
       <PageHeader
-        eyebrow="Documents"
-        title="Invoices"
+        eyebrow={t.eyebrow}
+        title={t.title}
         actions={
           <Link href="/invoices/new">
             <Btn variant="primary" icon={<Icons.Plus />}>
-              New Invoice
+              {t.newInvoice}
             </Btn>
           </Link>
         }
@@ -177,17 +226,17 @@ export default function InvoicesPage() {
           value={status}
           onChange={setStatus}
           options={[
-            { id: "all", label: "All", count: counts.all },
-            { id: "draft", label: "Draft", count: counts.draft },
-            { id: "sent", label: "Awaiting", count: counts.sent },
-            { id: "paid", label: "Paid", count: counts.paid },
-            { id: "failed", label: "Failed", count: counts.failed },
+            { id: "all", label: t.all, count: counts.all },
+            { id: "draft", label: t.draft, count: counts.draft },
+            { id: "sent", label: t.sent, count: counts.sent },
+            { id: "paid", label: t.paid, count: counts.paid },
+            { id: "failed", label: t.failed, count: counts.failed },
           ]}
         />
         <SearchInput
           value={search}
           onChange={setSearch}
-          placeholder="Search by number, tenant, building…"
+          placeholder={t.searchPlaceholder}
         />
       </Toolbar>
 
@@ -197,11 +246,11 @@ export default function InvoicesPage() {
         getKey={(row) => row.invoice.id}
         getHref={(row) => `/invoices/${row.invoice.id}`}
         loading={loading}
-        emptyTitle={invoices.length === 0 ? "No invoices yet" : "No results match your filters"}
+        emptyTitle={invoices.length === 0 ? t.emptyNone : t.emptyNoResults}
         emptyAction={
           invoices.length === 0 ? (
             <Link href="/invoices/new" className="text-[13px] underline" style={{ color: tone.accent }}>
-              Create your first invoice
+              {t.createFirst}
             </Link>
           ) : undefined
         }

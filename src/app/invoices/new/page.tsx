@@ -16,9 +16,100 @@ import { tone, fmtMoney } from "@/components/homix/tokens";
 import { ScaledInvoiceDoc } from "@/components/homix/invoice-doc";
 import type { Building, LineItem } from "@/db/schema";
 import { invoiceSettingsForDocument } from "@/lib/invoice-settings";
+import { useLocale } from "@/lib/i18n-client";
+
+const M = {
+  en: {
+    selectBuilding: "Please select a building",
+    fillRequired: "Please fill out all required fields",
+    invoiceCreated: "Invoice created",
+    creationFailed: "Creation failed, please try again",
+    eyebrow: "Create",
+    title: "New invoice",
+    back: "Back",
+    cancel: "Cancel",
+    creating: "Creating…",
+    createInvoice: "Create Invoice",
+    tip: "Tip",
+    tipBody: "invoices are now created from a Rental.",
+    browseRental: "Browse rental",
+    building: "Building",
+    billTo: "Bill to:",
+    change: "Change",
+    searchBuildings: "Search buildings…",
+    specialRequirement: "Special requirement: ",
+    submission: "Submission: ",
+    tenantUnit: "Tenant & Unit",
+    unitLabel: "Unit *",
+    unitPlaceholder: "e.g. 12F",
+    moveInDate: "Move-in Date",
+    tenantNameLabel: "Tenant Name *",
+    tenantNamePlaceholder: "Full name(s)",
+    apartmentAddress: "Apartment Address",
+    apartmentAddressPlaceholder: "e.g. 888 Main St, Apt 12F, New York, NY",
+    agent: "Agent",
+    nameLabel: "Name",
+    namePlaceholder: "e.g. Sarah Kim",
+    phoneLabel: "Phone",
+    emailLabel: "Email (Reply-To)",
+    licensedCompanyLabel: "Licensed Company *",
+    commission: "Commission",
+    addLine: "Add line",
+    descriptionPlaceholder: "Description",
+    invoicePreview: "Invoice № preview",
+    total: "Total",
+    notes: "Notes",
+    notesPlaceholder: "Optional notes for this invoice…",
+    livePreview: "Live Preview",
+  },
+  zh: {
+    selectBuilding: "请选择楼盘",
+    fillRequired: "请填写所有必填项",
+    invoiceCreated: "发票已创建",
+    creationFailed: "创建失败，请重试",
+    eyebrow: "创建",
+    title: "新建发票",
+    back: "返回",
+    cancel: "取消",
+    creating: "创建中…",
+    createInvoice: "创建发票",
+    tip: "提示",
+    tipBody: "发票现在从租赁创建。",
+    browseRental: "浏览租赁",
+    building: "楼盘",
+    billTo: "账单寄送：",
+    change: "更改",
+    searchBuildings: "搜索楼盘…",
+    specialRequirement: "特殊要求：",
+    submission: "提交：",
+    tenantUnit: "租客与单元",
+    unitLabel: "单元 *",
+    unitPlaceholder: "例如 12F",
+    moveInDate: "入住日期",
+    tenantNameLabel: "租客姓名 *",
+    tenantNamePlaceholder: "完整姓名",
+    apartmentAddress: "公寓地址",
+    apartmentAddressPlaceholder: "例如 888 Main St, Apt 12F, New York, NY",
+    agent: "经纪人",
+    nameLabel: "姓名",
+    namePlaceholder: "例如 Sarah Kim",
+    phoneLabel: "电话",
+    emailLabel: "邮箱（回复地址）",
+    licensedCompanyLabel: "持牌公司 *",
+    commission: "佣金",
+    addLine: "添加行",
+    descriptionPlaceholder: "描述",
+    invoicePreview: "发票编号预览",
+    total: "合计",
+    notes: "备注",
+    notesPlaceholder: "此发票的可选备注…",
+    livePreview: "实时预览",
+  },
+} as const;
 
 export default function NewInvoicePage() {
   const router = useRouter();
+  const t = M[useLocale()];
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
@@ -143,9 +234,9 @@ export default function NewInvoicePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!buildingId) return toast.error("Please select a building");
+    if (!buildingId) return toast.error(t.selectBuilding);
     if (!unit || !tenantName || !licensedCompany)
-      return toast.error("Please fill out all required fields");
+      return toast.error(t.fillRequired);
 
     setLoading(true);
     try {
@@ -170,10 +261,10 @@ export default function NewInvoicePage() {
       });
       if (!res.ok) throw new Error("Failed to create invoice");
       const invoice = await res.json();
-      toast.success("Invoice created");
+      toast.success(t.invoiceCreated);
       router.push(`/invoices/${invoice.id}`);
     } catch {
-      toast.error("Creation failed, please try again");
+      toast.error(t.creationFailed);
     } finally {
       setLoading(false);
     }
@@ -193,20 +284,20 @@ export default function NewInvoicePage() {
   return (
     <form onSubmit={handleSubmit} className="space-y-7">
       <PageHeader
-        eyebrow="Create"
-        title="New invoice"
+        eyebrow={t.eyebrow}
+        title={t.title}
         actions={
           <>
             <Link href="/invoices">
               <Btn variant="ghost" icon={<Icons.Back />}>
-                Back
+                {t.back}
               </Btn>
             </Link>
             <Btn variant="outline" onClick={() => router.back()}>
-              Cancel
+              {t.cancel}
             </Btn>
             <Btn variant="primary" icon={<Icons.Send />} type="submit" disabled={loading}>
-              {loading ? "Creating…" : "Create Invoice"}
+              {loading ? t.creating : t.createInvoice}
             </Btn>
           </>
         }
@@ -216,12 +307,12 @@ export default function NewInvoicePage() {
         <div className="px-5 py-4 flex items-center justify-between gap-4">
           <div className="text-[13px]" style={{ color: tone.ink70 }}>
             <span className="font-medium" style={{ color: tone.ink }}>
-              Tip
+              {t.tip}
             </span>{" "}
-            invoices are now created from a Rental.
+            {t.tipBody}
           </div>
           <Link href="/rental" className="text-[13px] flex items-center gap-1" style={{ color: tone.accent }}>
-            Browse rental <Icons.Arrow />
+            {t.browseRental} <Icons.Arrow />
           </Link>
         </div>
       </Card>
@@ -231,7 +322,7 @@ export default function NewInvoicePage() {
         <div className="space-y-6">
           {/* Building */}
           <Card>
-            <CardHeader title="Building" />
+            <CardHeader title={t.building} />
             <div className="p-6 space-y-4">
               {selectedBuilding ? (
                 <div
@@ -254,12 +345,12 @@ export default function NewInvoicePage() {
                     </div>
                     {selectedBuilding.billToCompany && (
                       <div className="text-[11.5px] mt-1 font-mono" style={{ color: tone.ink50 }}>
-                        Bill to: {selectedBuilding.billToCompany}
+                        {t.billTo} {selectedBuilding.billToCompany}
                       </div>
                     )}
                   </div>
                   <Btn variant="ghost" size="sm" onClick={() => setBuildingId(null)}>
-                    Change
+                    {t.change}
                   </Btn>
                 </div>
               ) : (
@@ -274,7 +365,7 @@ export default function NewInvoicePage() {
                     <input
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
-                      placeholder="Search buildings…"
+                      placeholder={t.searchBuildings}
                       className="flex-1 bg-transparent outline-none text-[13.5px]"
                       style={{ color: tone.ink }}
                     />
@@ -309,7 +400,7 @@ export default function NewInvoicePage() {
                   className="rounded-lg p-3 text-[12.5px]"
                   style={{ background: tone.roseSoft, color: tone.rose }}
                 >
-                  <strong>Special requirement: </strong>
+                  <strong>{t.specialRequirement}</strong>
                   {selectedBuilding.specialNotes}
                 </div>
               )}
@@ -318,7 +409,7 @@ export default function NewInvoicePage() {
                   className="rounded-lg p-3 text-[12.5px]"
                   style={{ background: tone.amberSoft, color: tone.amber }}
                 >
-                  <strong>Submission: </strong>
+                  <strong>{t.submission}</strong>
                   {selectedBuilding.submissionNotes}
                 </div>
               )}
@@ -327,30 +418,30 @@ export default function NewInvoicePage() {
 
           {/* Tenant & Unit */}
           <Card>
-            <CardHeader title="Tenant & Unit" />
+            <CardHeader title={t.tenantUnit} />
             <div className="p-6 grid grid-cols-2 gap-4">
-              <LabeledField label="Unit *">
-                <EditorialInput value={unit} onChange={setUnit} placeholder="e.g. 12F" />
+              <LabeledField label={t.unitLabel}>
+                <EditorialInput value={unit} onChange={setUnit} placeholder={t.unitPlaceholder} />
               </LabeledField>
-              <LabeledField label="Move-in Date">
+              <LabeledField label={t.moveInDate}>
                 <EditorialInput
                   value={moveInDate}
                   onChange={setMoveInDate}
                   type="date"
                 />
               </LabeledField>
-              <LabeledField label="Tenant Name *" wide>
+              <LabeledField label={t.tenantNameLabel} wide>
                 <EditorialInput
                   value={tenantName}
                   onChange={setTenantName}
-                  placeholder="Full name(s)"
+                  placeholder={t.tenantNamePlaceholder}
                 />
               </LabeledField>
-              <LabeledField label="Apartment Address" wide>
+              <LabeledField label={t.apartmentAddress} wide>
                 <EditorialInput
                   value={apartmentAddress}
                   onChange={setApartmentAddress}
-                  placeholder="e.g. 888 Main St, Apt 12F, New York, NY"
+                  placeholder={t.apartmentAddressPlaceholder}
                 />
               </LabeledField>
             </div>
@@ -358,12 +449,12 @@ export default function NewInvoicePage() {
 
           {/* Agent */}
           <Card>
-            <CardHeader title="Agent" />
+            <CardHeader title={t.agent} />
             <div className="p-6 grid grid-cols-2 gap-4">
-              <LabeledField label="Name">
-                <EditorialInput value={agentName} onChange={setAgentName} placeholder="e.g. Sarah Kim" />
+              <LabeledField label={t.nameLabel}>
+                <EditorialInput value={agentName} onChange={setAgentName} placeholder={t.namePlaceholder} />
               </LabeledField>
-              <LabeledField label="Phone">
+              <LabeledField label={t.phoneLabel}>
                 <EditorialInput
                   value={agentPhone}
                   onChange={setAgentPhone}
@@ -371,7 +462,7 @@ export default function NewInvoicePage() {
                   mono
                 />
               </LabeledField>
-              <LabeledField label="Email (Reply-To)">
+              <LabeledField label={t.emailLabel}>
                 <EditorialInput
                   value={agentEmail}
                   onChange={setAgentEmail}
@@ -379,7 +470,7 @@ export default function NewInvoicePage() {
                   mono
                 />
               </LabeledField>
-              <LabeledField label="Licensed Company *">
+              <LabeledField label={t.licensedCompanyLabel}>
                 <EditorialInput
                   value={licensedCompany}
                   onChange={setLicensedCompany}
@@ -392,10 +483,10 @@ export default function NewInvoicePage() {
           {/* Commission line items */}
           <Card>
             <CardHeader
-              title="Commission"
+              title={t.commission}
               action={
                 <Btn variant="ghost" size="sm" icon={<Icons.Plus />} onClick={addLineItem}>
-                  Add line
+                  {t.addLine}
                 </Btn>
               }
             />
@@ -406,7 +497,7 @@ export default function NewInvoicePage() {
                     <EditorialInput
                       value={item.description}
                       onChange={(v) => updateLineItem(index, "description", v)}
-                      placeholder="Description"
+                      placeholder={t.descriptionPlaceholder}
                     />
                   </div>
                   <div className="col-span-2">
@@ -455,7 +546,7 @@ export default function NewInvoicePage() {
                     className="text-[11px] uppercase tracking-[0.12em]"
                     style={{ color: tone.ink50 }}
                   >
-                    Invoice № preview
+                    {t.invoicePreview}
                   </div>
                   <div className="mt-1 font-mono text-[14px]" style={{ color: tone.ink }}>
                     {previewInvoiceNumber}
@@ -466,7 +557,7 @@ export default function NewInvoicePage() {
                     className="text-[11px] uppercase tracking-[0.12em]"
                     style={{ color: tone.ink50 }}
                   >
-                    Total
+                    {t.total}
                   </div>
                   <div
                     className="font-serif"
@@ -485,12 +576,12 @@ export default function NewInvoicePage() {
 
           {/* Notes */}
           <Card>
-            <CardHeader title="Notes" />
+            <CardHeader title={t.notes} />
             <div className="p-6">
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Optional notes for this invoice…"
+                placeholder={t.notesPlaceholder}
                 rows={3}
                 className="w-full rounded-lg p-3 text-[13.5px] outline-none"
                 style={{
@@ -511,7 +602,7 @@ export default function NewInvoicePage() {
               className="text-[11px] uppercase tracking-[0.14em] mb-3"
               style={{ color: tone.ink50 }}
             >
-              Live Preview
+              {t.livePreview}
             </div>
             <div style={{ background: tone.paperDeep, padding: 16, borderRadius: 12 }}>
               <ScaledInvoiceDoc

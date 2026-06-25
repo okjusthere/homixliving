@@ -9,7 +9,113 @@ import { Btn, Card, EditorialInput, Icons, LabeledField, Pill } from "@/componen
 import { PageHeader, Toolbar, SearchInput, CardHeader } from "@/components/homix/page-kit";
 import { fmtMoney, tone } from "@/components/homix/tokens";
 import { DEFAULT_AGENT_SPLIT_PCT, splitLabel } from "@/lib/splits";
+import { useLocale } from "@/lib/i18n-client";
 import type { Agent, Team } from "@/db/schema";
+
+const M = {
+  en: {
+    agentApproved: "Agent approved",
+    couldNotApprove: "Could not approve",
+    confirmRevoke: "Revoke this agent's access?",
+    accessRevoked: "Access revoked",
+    couldNotRevoke: "Could not revoke",
+    nameRequired: "Name is required",
+    saveFailed: "Save failed",
+    agentSaved: "Agent saved",
+    agentCreated: "Agent created",
+    loading: "Loading…",
+    eyebrow: "Team",
+    title: "Agents",
+    descPrefix: "",
+    activeBrokerSingular: "active broker",
+    activeBrokerPlural: "active brokers",
+    across: "across",
+    teamSingular: "team",
+    teamPlural: "teams",
+    addAgent: "Add Agent",
+    searchPlaceholder: "Search name, team, license, email…",
+    pendingApprovals: "Pending approvals",
+    pendingSubtitle: "New brokers awaiting activation",
+    noEmail: "no email",
+    joined: "joined",
+    edit: "Edit",
+    approve: "Approve",
+    noAgentsYet: "No agents yet",
+    addFirstAgent: "Add your first agent",
+    unassigned: "Unassigned",
+    rentalMtd: "Rental MTD",
+    mtdTake: "MTD Take",
+    noEmailCap: "No email",
+    noLicense: "No license #",
+    newEyebrow: "New",
+    addAgentTitle: "Add agent",
+    labelName: "Name *",
+    labelTeam: "Team",
+    labelEmail: "Email",
+    labelPhone: "Phone",
+    labelLicense: "License #",
+    labelKeep: "Agent keep %",
+    labelCompany: "Licensed company",
+    labelJoined: "Joined",
+    labelNotes: "Notes",
+    namePlaceholder: "e.g. Alice Chen",
+    revokeAccess: "Revoke access",
+    cancel: "Cancel",
+    saving: "Saving…",
+    save: "Save",
+  },
+  zh: {
+    agentApproved: "经纪人已批准",
+    couldNotApprove: "无法批准",
+    confirmRevoke: "撤销该经纪人的访问权限？",
+    accessRevoked: "访问权限已撤销",
+    couldNotRevoke: "无法撤销",
+    nameRequired: "姓名为必填项",
+    saveFailed: "保存失败",
+    agentSaved: "经纪人已保存",
+    agentCreated: "经纪人已创建",
+    loading: "加载中…",
+    eyebrow: "团队",
+    title: "经纪人",
+    descPrefix: "共 ",
+    activeBrokerSingular: "名在职经纪人",
+    activeBrokerPlural: "名在职经纪人",
+    across: "，分布于 ",
+    teamSingular: "个团队",
+    teamPlural: "个团队",
+    addAgent: "添加经纪人",
+    searchPlaceholder: "搜索姓名、团队、执照、邮箱…",
+    pendingApprovals: "待处理审批",
+    pendingSubtitle: "等待激活的新经纪人",
+    noEmail: "无邮箱",
+    joined: "加入于",
+    edit: "编辑",
+    approve: "批准",
+    noAgentsYet: "暂无经纪人",
+    addFirstAgent: "添加第一位经纪人",
+    unassigned: "未分配",
+    rentalMtd: "本月租赁",
+    mtdTake: "本月收入",
+    noEmailCap: "无邮箱",
+    noLicense: "无执照号",
+    newEyebrow: "新建",
+    addAgentTitle: "添加经纪人",
+    labelName: "姓名 *",
+    labelTeam: "团队",
+    labelEmail: "邮箱",
+    labelPhone: "电话",
+    labelLicense: "执照号",
+    labelKeep: "经纪人留存 %",
+    labelCompany: "持照公司",
+    labelJoined: "加入日期",
+    labelNotes: "备注",
+    namePlaceholder: "例如 Alice Chen",
+    revokeAccess: "撤销访问权限",
+    cancel: "取消",
+    saving: "保存中…",
+    save: "保存",
+  },
+} as const;
 
 type AgentRow = {
   agent: Agent;
@@ -41,6 +147,7 @@ function initials(name: string) {
 }
 
 export default function AgentsPage() {
+  const t = M[useLocale()];
   const router = useRouter();
   const { data: session, status } = useSession();
   const [agents, setAgents] = useState<AgentRow[]>([]);
@@ -95,22 +202,22 @@ export default function AgentsPage() {
     try {
       const res = await fetch(`/api/agents/${id}/approve`, { method: "POST" });
       if (!res.ok) throw new Error();
-      toast.success("Agent approved");
+      toast.success(t.agentApproved);
       fetchAgents();
     } catch {
-      toast.error("Could not approve");
+      toast.error(t.couldNotApprove);
     }
   };
 
   const handleRevoke = async (id: number) => {
-    if (!confirm("Revoke this agent's access?")) return;
+    if (!confirm(t.confirmRevoke)) return;
     try {
       const res = await fetch(`/api/agents/${id}/approve`, { method: "DELETE" });
       if (!res.ok) throw new Error();
-      toast.success("Access revoked");
+      toast.success(t.accessRevoked);
       fetchAgents();
     } catch {
-      toast.error("Could not revoke");
+      toast.error(t.couldNotRevoke);
     }
   };
 
@@ -135,7 +242,7 @@ export default function AgentsPage() {
 
   const handleSave = async () => {
     if (!editAgent?.name?.trim()) {
-      toast.error("Name is required");
+      toast.error(t.nameRequired);
       return;
     }
     setSaving(true);
@@ -155,11 +262,11 @@ export default function AgentsPage() {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || `Save failed (HTTP ${res.status})`);
       }
-      toast.success(editAgent.id ? "Agent saved" : "Agent created");
+      toast.success(editAgent.id ? t.agentSaved : t.agentCreated);
       closeDialog();
       fetchAgents();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Save failed";
+      const msg = err instanceof Error ? err.message : t.saveFailed;
       toast.error(msg);
     } finally {
       setSaving(false);
@@ -169,7 +276,7 @@ export default function AgentsPage() {
   if (status !== "authenticated" || !session?.user.isAdmin) {
     return (
       <div className="py-24 text-center text-[13px]" style={{ color: tone.ink50 }}>
-        Loading…
+        {t.loading}
       </div>
     );
   }
@@ -177,12 +284,12 @@ export default function AgentsPage() {
   return (
     <div className="space-y-7">
       <PageHeader
-        eyebrow="Team"
-        title="Agents"
-        description={`${filtered.length} active broker${filtered.length === 1 ? "" : "s"} across ${Object.keys(grouped).length} team${Object.keys(grouped).length === 1 ? "" : "s"}.`}
+        eyebrow={t.eyebrow}
+        title={t.title}
+        description={`${t.descPrefix}${filtered.length} ${filtered.length === 1 ? t.activeBrokerSingular : t.activeBrokerPlural} ${t.across} ${Object.keys(grouped).length} ${Object.keys(grouped).length === 1 ? t.teamSingular : t.teamPlural}.`}
         actions={
           <Btn variant="primary" icon={<Icons.Plus />} onClick={() => setEditAgent(emptyAgent)}>
-            Add Agent
+            {t.addAgent}
           </Btn>
         }
       />
@@ -191,7 +298,7 @@ export default function AgentsPage() {
         <SearchInput
           value={search}
           onChange={setSearch}
-          placeholder="Search name, team, license, email…"
+          placeholder={t.searchPlaceholder}
         />
       </Toolbar>
 
@@ -199,8 +306,8 @@ export default function AgentsPage() {
       {pending.length > 0 && (
         <Card>
           <CardHeader
-            title="Pending approvals"
-            subtitle="New brokers awaiting activation"
+            title={t.pendingApprovals}
+            subtitle={t.pendingSubtitle}
             action={<Pill tone="draft">{pending.length}</Pill>}
           />
           <div className="divide-y" style={{ borderColor: tone.lineSoft }}>
@@ -225,9 +332,9 @@ export default function AgentsPage() {
                     {agent.name}
                   </div>
                   <div className="text-[12px] mt-0.5 font-mono" style={{ color: tone.ink50 }}>
-                    {agent.email || "no email"}
+                    {agent.email || t.noEmail}
                     {agent.joinedAt && (
-                      <span> · joined {agent.joinedAt}</span>
+                      <span> · {t.joined} {agent.joinedAt}</span>
                     )}
                   </div>
                 </div>
@@ -237,7 +344,7 @@ export default function AgentsPage() {
                     size="sm"
                     onClick={() => setEditAgent(agent)}
                   >
-                    Edit
+                    {t.edit}
                   </Btn>
                   <Btn
                     variant="primary"
@@ -245,7 +352,7 @@ export default function AgentsPage() {
                     icon={<Icons.Check />}
                     onClick={() => handleApprove(agent.id)}
                   >
-                    Approve
+                    {t.approve}
                   </Btn>
                 </div>
               </div>
@@ -256,13 +363,13 @@ export default function AgentsPage() {
 
       {loading ? (
         <p className="text-[13px]" style={{ color: tone.ink50 }}>
-          Loading…
+          {t.loading}
         </p>
       ) : filtered.length === 0 ? (
         <Card>
           <div className="px-6 py-16 text-center">
             <div className="font-serif mb-2" style={{ fontSize: 24, color: tone.ink }}>
-              No agents yet
+              {t.noAgentsYet}
             </div>
             <button
               type="button"
@@ -270,7 +377,7 @@ export default function AgentsPage() {
               className="text-[13px] underline"
               style={{ color: tone.accent }}
             >
-              Add your first agent
+              {t.addFirstAgent}
             </button>
           </div>
         </Card>
@@ -279,7 +386,7 @@ export default function AgentsPage() {
           .sort(([a], [b]) => a.localeCompare(b))
           .map(([teamName, rows]) => (
             <Card key={teamName}>
-              <CardHeader title={teamName} action={<Pill tone="neutral">{rows.length}</Pill>} />
+              <CardHeader title={teamName === "Unassigned" ? t.unassigned : teamName} action={<Pill tone="neutral">{rows.length}</Pill>} />
               <div className="p-6 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {rows.map(({ agent, mtdDeals, mtdTake }) => (
                   <Link
@@ -300,7 +407,7 @@ export default function AgentsPage() {
                           {agent.name}
                         </div>
                         <div className="text-[11.5px] mt-1 font-mono truncate" style={{ color: tone.ink50 }}>
-                          {agent.licenseNumber || "No license #"}
+                          {agent.licenseNumber || t.noLicense}
                         </div>
                       </div>
                       <Pill tone="accent">{splitLabel(agent.splitPct)}</Pill>
@@ -308,7 +415,7 @@ export default function AgentsPage() {
                     <div className="mt-4 grid grid-cols-2 gap-3">
                       <div className="rounded-lg p-3" style={{ background: tone.paper }}>
                         <div className="text-[10px] uppercase tracking-[0.1em]" style={{ color: tone.ink50 }}>
-                          Rental MTD
+                          {t.rentalMtd}
                         </div>
                         <div className="mt-1 font-serif" style={{ fontSize: 24, color: tone.ink }}>
                           {mtdDeals}
@@ -316,7 +423,7 @@ export default function AgentsPage() {
                       </div>
                       <div className="rounded-lg p-3" style={{ background: tone.paper }}>
                         <div className="text-[10px] uppercase tracking-[0.1em]" style={{ color: tone.ink50 }}>
-                          MTD Take
+                          {t.mtdTake}
                         </div>
                         <div className="mt-1 font-serif" style={{ fontSize: 24, color: tone.ink }}>
                           ${fmtMoney(Number(mtdTake || 0))}
@@ -324,7 +431,7 @@ export default function AgentsPage() {
                       </div>
                     </div>
                     <div className="mt-4 text-[12px]" style={{ color: tone.ink50 }}>
-                      {agent.email || "No email"} {agent.phone ? `· ${agent.phone}` : ""}
+                      {agent.email || t.noEmailCap} {agent.phone ? `· ${agent.phone}` : ""}
                     </div>
                   </Link>
                 ))}
@@ -339,10 +446,10 @@ export default function AgentsPage() {
             <div className="px-8 py-6 flex items-center justify-between" style={{ borderBottom: `1px solid ${tone.line}` }}>
               <div>
                 <div className="text-[11px] uppercase tracking-[0.14em]" style={{ color: tone.ink50 }}>
-                  New
+                  {t.newEyebrow}
                 </div>
                 <div className="font-serif" style={{ fontSize: 26, color: tone.ink, marginTop: 2 }}>
-                  Add agent
+                  {t.addAgentTitle}
                 </div>
               </div>
               <button onClick={closeDialog} className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: tone.paperDeep, color: tone.ink70 }}>
@@ -351,17 +458,17 @@ export default function AgentsPage() {
             </div>
             <div className="flex-1 overflow-auto px-8 py-6 space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <LabeledField label="Name *">
-                  <EditorialInput value={editAgent.name || ""} onChange={(v) => updateField("name", v)} placeholder="e.g. Alice Chen" />
+                <LabeledField label={t.labelName}>
+                  <EditorialInput value={editAgent.name || ""} onChange={(v) => updateField("name", v)} placeholder={t.namePlaceholder} />
                 </LabeledField>
-                <LabeledField label="Team">
+                <LabeledField label={t.labelTeam}>
                   <select
                     value={editAgent.teamId || ""}
                     onChange={(e) => updateField("teamId", e.target.value ? Number(e.target.value) : null)}
                     className="w-full h-10 rounded-lg px-3 text-[13.5px] outline-none"
                     style={{ background: tone.card, border: `1px solid ${tone.line}`, color: tone.ink }}
                   >
-                    <option value="">Unassigned</option>
+                    <option value="">{t.unassigned}</option>
                     {teams.map((team) => (
                       <option key={team.id} value={team.id}>
                         {team.name}
@@ -369,26 +476,26 @@ export default function AgentsPage() {
                     ))}
                   </select>
                 </LabeledField>
-                <LabeledField label="Email">
+                <LabeledField label={t.labelEmail}>
                   <EditorialInput value={editAgent.email || ""} onChange={(v) => updateField("email", v)} placeholder="agent@homixny.com" mono />
                 </LabeledField>
-                <LabeledField label="Phone">
+                <LabeledField label={t.labelPhone}>
                   <EditorialInput value={editAgent.phone || ""} onChange={(v) => updateField("phone", v)} placeholder="(917) 555-0101" mono />
                 </LabeledField>
-                <LabeledField label="License #">
+                <LabeledField label={t.labelLicense}>
                   <EditorialInput value={editAgent.licenseNumber || ""} onChange={(v) => updateField("licenseNumber", v)} mono />
                 </LabeledField>
-                <LabeledField label="Agent keep %">
+                <LabeledField label={t.labelKeep}>
                   <EditorialInput value={editAgent.splitPct ?? DEFAULT_AGENT_SPLIT_PCT} onChange={(v) => updateField("splitPct", Number(v))} type="number" mono />
                 </LabeledField>
-                <LabeledField label="Licensed company">
+                <LabeledField label={t.labelCompany}>
                   <EditorialInput value={editAgent.licensedCompany || ""} onChange={(v) => updateField("licensedCompany", v)} />
                 </LabeledField>
-                <LabeledField label="Joined">
+                <LabeledField label={t.labelJoined}>
                   <EditorialInput value={editAgent.joinedAt || ""} onChange={(v) => updateField("joinedAt", v)} type="date" mono />
                 </LabeledField>
               </div>
-              <LabeledField label="Notes">
+              <LabeledField label={t.labelNotes}>
                 <textarea
                   value={editAgent.notes || ""}
                   onChange={(e) => updateField("notes", e.target.value)}
@@ -409,16 +516,16 @@ export default function AgentsPage() {
                       closeDialog();
                     }}
                   >
-                    Revoke access
+                    {t.revokeAccess}
                   </Btn>
                 )}
               </div>
               <div className="flex items-center gap-2">
                 <Btn variant="outline" onClick={closeDialog}>
-                  Cancel
+                  {t.cancel}
                 </Btn>
                 <Btn variant="primary" onClick={handleSave} disabled={saving}>
-                  {saving ? "Saving…" : editAgent.id ? "Save" : "Add agent"}
+                  {saving ? t.saving : editAgent.id ? t.save : t.addAgentTitle}
                 </Btn>
               </div>
             </div>

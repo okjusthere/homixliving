@@ -6,6 +6,54 @@ import { Btn, Card, EditorialInput } from "@/components/homix/primitives";
 import { tone } from "@/components/homix/tokens";
 import { TRAINING_CATEGORIES } from "@/lib/training-categories";
 import type { TrainingVideo } from "@/db/schema";
+import { useLocale } from "@/lib/i18n-client";
+
+const M = {
+  en: {
+    titleUidRequired: "Title and Cloudflare UID are required.",
+    saveFailed: "Could not save — admin only.",
+    confirmDelete: (t: string) => `Delete "${t}"?`,
+    manageVideos: "Manage videos",
+    videosAdminOnly: (n: number) => `${n} videos · admin only`,
+    bulkImportHint: "Bulk-import from Cloudflare with the script, or add one by pasting its UID.",
+    close: "Close",
+    addVideo: "Add video",
+    cloudflareWarnPre: "Set ",
+    cloudflareWarnPost: " in Vercel so the videos can play.",
+    titlePlaceholder: "Title",
+    uidPlaceholder: "Cloudflare Stream UID",
+    categoryLabel: "Category",
+    durationPlaceholder: "Duration (e.g. 8 min)",
+    descriptionPlaceholder: "Short description (optional)",
+    saving: "Saving…",
+    saveVideo: "Save video",
+    published: "Published",
+    hidden: "Hidden",
+    delete: "Delete",
+  },
+  zh: {
+    titleUidRequired: "标题和 Cloudflare UID 为必填项。",
+    saveFailed: "无法保存 — 仅限管理员。",
+    confirmDelete: (t: string) => `确定删除「${t}」？`,
+    manageVideos: "管理视频",
+    videosAdminOnly: (n: number) => `${n} 个视频 · 仅限管理员`,
+    bulkImportHint: "使用脚本从 Cloudflare 批量导入，或粘贴 UID 单个添加。",
+    close: "关闭",
+    addVideo: "添加视频",
+    cloudflareWarnPre: "请在 Vercel 中设置 ",
+    cloudflareWarnPost: " 以便视频可以播放。",
+    titlePlaceholder: "标题",
+    uidPlaceholder: "Cloudflare Stream UID",
+    categoryLabel: "类别",
+    durationPlaceholder: "时长（例如 8 分钟）",
+    descriptionPlaceholder: "简短描述（可选）",
+    saving: "保存中…",
+    saveVideo: "保存视频",
+    published: "已发布",
+    hidden: "隐藏",
+    delete: "删除",
+  },
+} as const;
 
 function Chevron({ open }: { open: boolean }) {
   return (
@@ -29,6 +77,7 @@ export function TrainingManager({
   cloudflareConfigured: boolean;
 }) {
   const router = useRouter();
+  const t = M[useLocale()];
   const [panelOpen, setPanelOpen] = useState(false);
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
@@ -42,7 +91,7 @@ export function TrainingManager({
   async function add() {
     setError(null);
     if (!title.trim() || !uid.trim()) {
-      setError("Title and Cloudflare UID are required.");
+      setError(t.titleUidRequired);
       return;
     }
     setBusy(true);
@@ -59,7 +108,7 @@ export function TrainingManager({
     });
     setBusy(false);
     if (!res.ok) {
-      setError("Could not save — admin only.");
+      setError(t.saveFailed);
       return;
     }
     setTitle("");
@@ -80,7 +129,7 @@ export function TrainingManager({
   }
 
   async function remove(v: TrainingVideo) {
-    if (!confirm(`Delete "${v.title}"?`)) return;
+    if (!confirm(t.confirmDelete(v.title))) return;
     await fetch(`/api/training/${v.id}`, { method: "DELETE" });
     router.refresh();
   }
@@ -94,10 +143,10 @@ export function TrainingManager({
       >
         <div>
           <div className="font-serif" style={{ fontSize: 16, color: tone.ink }}>
-            Manage videos
+            {t.manageVideos}
           </div>
           <div className="text-[12px] mt-0.5" style={{ color: tone.ink50 }}>
-            {initialVideos.length} videos · admin only
+            {t.videosAdminOnly(initialVideos.length)}
           </div>
         </div>
         <Chevron open={panelOpen} />
@@ -107,10 +156,10 @@ export function TrainingManager({
         <div className="mt-4">
           <div className="flex items-center justify-between gap-4">
             <div className="text-[12px]" style={{ color: tone.ink50 }}>
-              Bulk-import from Cloudflare with the script, or add one by pasting its UID.
+              {t.bulkImportHint}
             </div>
             <Btn variant="outline" size="sm" onClick={() => setOpen((o) => !o)}>
-              {open ? "Close" : "Add video"}
+              {open ? t.close : t.addVideo}
             </Btn>
           </div>
 
@@ -119,15 +168,16 @@ export function TrainingManager({
               className="mt-3 rounded-lg p-3 text-[12.5px]"
               style={{ background: tone.amberSoft, color: tone.amber }}
             >
-              Set <span className="font-mono">NEXT_PUBLIC_CLOUDFLARE_STREAM_CUSTOMER_CODE</span> in Vercel
-              so the videos can play.
+              {t.cloudflareWarnPre}
+              <span className="font-mono">NEXT_PUBLIC_CLOUDFLARE_STREAM_CUSTOMER_CODE</span>
+              {t.cloudflareWarnPost}
             </div>
           )}
 
           {open && (
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <EditorialInput value={title} onChange={setTitle} placeholder="Title" />
-              <EditorialInput value={uid} onChange={setUid} placeholder="Cloudflare Stream UID" mono />
+              <EditorialInput value={title} onChange={setTitle} placeholder={t.titlePlaceholder} />
+              <EditorialInput value={uid} onChange={setUid} placeholder={t.uidPlaceholder} mono />
               <div
                 className="flex items-center h-10 px-3 rounded-lg"
                 style={{ background: tone.card, border: `1px solid ${tone.line}` }}
@@ -137,7 +187,7 @@ export function TrainingManager({
                   onChange={(e) => setCategory(e.target.value)}
                   className="flex-1 bg-transparent outline-none text-[13.5px]"
                   style={{ color: tone.ink }}
-                  aria-label="Category"
+                  aria-label={t.categoryLabel}
                 >
                   {TRAINING_CATEGORIES.map((c) => (
                     <option key={c} value={c}>
@@ -146,13 +196,13 @@ export function TrainingManager({
                   ))}
                 </select>
               </div>
-              <EditorialInput value={duration} onChange={setDuration} placeholder="Duration (e.g. 8 min)" />
+              <EditorialInput value={duration} onChange={setDuration} placeholder={t.durationPlaceholder} />
               <div className="sm:col-span-2">
-                <EditorialInput value={description} onChange={setDescription} placeholder="Short description (optional)" />
+                <EditorialInput value={description} onChange={setDescription} placeholder={t.descriptionPlaceholder} />
               </div>
               <div className="sm:col-span-2 flex items-center gap-3">
                 <Btn variant="primary" size="sm" onClick={add} disabled={busy}>
-                  {busy ? "Saving…" : "Save video"}
+                  {busy ? t.saving : t.saveVideo}
                 </Btn>
                 {error && (
                   <span className="text-[12.5px]" style={{ color: tone.rose }}>
@@ -188,7 +238,7 @@ export function TrainingManager({
                       onChange={(e) => patch(v, { category: e.target.value })}
                       className="text-[12px] px-2 py-1 rounded-md outline-none"
                       style={{ background: tone.paperDeep, color: tone.ink70, border: `1px solid ${tone.line}` }}
-                      aria-label="Category"
+                      aria-label={t.categoryLabel}
                     >
                       {catOptions.map((c) => (
                         <option key={c} value={c}>
@@ -202,7 +252,7 @@ export function TrainingManager({
                       className="text-[12px] px-2.5 py-1 rounded-md"
                       style={{ color: v.isPublished ? tone.green : tone.ink50, background: tone.paperDeep }}
                     >
-                      {v.isPublished ? "Published" : "Hidden"}
+                      {v.isPublished ? t.published : t.hidden}
                     </button>
                     <button
                       type="button"
@@ -210,7 +260,7 @@ export function TrainingManager({
                       className="text-[12px] px-2.5 py-1 rounded-md"
                       style={{ color: tone.rose }}
                     >
-                      Delete
+                      {t.delete}
                     </button>
                   </div>
                 );

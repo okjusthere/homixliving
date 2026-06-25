@@ -9,7 +9,59 @@ import { fmtMoney, tone } from "@/components/homix/tokens";
 import { AgingSection } from "@/components/homix/aging-section";
 import { getMonthKey } from "@/lib/reporting";
 import { sourceEmoji, sourceLabel } from "@/lib/sources";
+import { useLocale } from "@/lib/i18n-client";
 import type { Agent, Building } from "@/db/schema";
+
+const M = {
+  en: {
+    eyebrow: "Reports",
+    title: "Reports",
+    description: "Monthly commission production by agent and building.",
+    exportCsv: "Export CSV",
+    loading: "Loading…",
+    totalDeals: "Total rental deals",
+    totalCommission: "Total commission",
+    companyPool: "Company pool",
+    agentPayouts: "Agent payouts",
+    topAgents: "Top agents",
+    colAgent: "Agent",
+    colRentalDeals: "Rental Deals",
+    colTake: "Take",
+    noAgentPayouts: "No agent payouts this month.",
+    split: "split",
+    perBuilding: "Per building",
+    colBuilding: "Building",
+    colCommission: "Commission",
+    noBuildingProduction: "No building production this month.",
+    bySource: "By source",
+    bySourceSubtitle: "Where this month’s rental deals came from",
+    unknown: "Unknown",
+  },
+  zh: {
+    eyebrow: "报表",
+    title: "报表",
+    description: "按经纪人和楼盘统计的月度佣金业绩。",
+    exportCsv: "导出 CSV",
+    loading: "加载中…",
+    totalDeals: "租赁交易总数",
+    totalCommission: "佣金合计",
+    companyPool: "公司池",
+    agentPayouts: "经纪人分成",
+    topAgents: "业绩第一",
+    colAgent: "经纪人",
+    colRentalDeals: "租赁交易",
+    colTake: "分成",
+    noAgentPayouts: "本月暂无经纪人分成。",
+    split: "分成比例",
+    perBuilding: "按楼盘",
+    colBuilding: "楼盘",
+    colCommission: "佣金",
+    noBuildingProduction: "本月暂无楼盘业绩。",
+    bySource: "按来源",
+    bySourceSubtitle: "本月租赁交易的来源",
+    unknown: "未知",
+  },
+} as const;
 
 type ReportPayload = {
   month: string;
@@ -27,6 +79,7 @@ type ReportPayload = {
 
 export default function ReportsPage() {
   const router = useRouter();
+  const t = M[useLocale()];
   const { data: session, status } = useSession();
   const [month, setMonth] = useState(getMonthKey());
   const [report, setReport] = useState<ReportPayload | null>(null);
@@ -84,9 +137,9 @@ export default function ReportsPage() {
   return (
     <div className="space-y-7">
       <PageHeader
-        eyebrow="Reports"
-        title="Reports"
-        description="Monthly commission production by agent and building."
+        eyebrow={t.eyebrow}
+        title={t.title}
+        description={t.description}
         actions={
           <>
             <input
@@ -100,7 +153,7 @@ export default function ReportsPage() {
               style={{ background: tone.card, border: `1px solid ${tone.line}`, color: tone.ink }}
             />
             <Btn variant="outline" icon={<Icons.Download />} onClick={exportCsv} disabled={!report}>
-              Export CSV
+              {t.exportCsv}
             </Btn>
           </>
         }
@@ -108,16 +161,16 @@ export default function ReportsPage() {
 
       {loading || !report ? (
         <p className="text-[13px]" style={{ color: tone.ink50 }}>
-          Loading…
+          {t.loading}
         </p>
       ) : (
         <>
           <div className="grid grid-cols-4 gap-4">
             {[
-              ["Total rental deals", report.summary.totalDeals],
-              ["Total commission", `$${fmtMoney(report.summary.totalCommission)}`],
-              ["Company pool", `$${fmtMoney(report.summary.companyPool)}`],
-              ["Agent payouts", `$${fmtMoney(report.summary.agentPayouts)}`],
+              [t.totalDeals, report.summary.totalDeals],
+              [t.totalCommission, `$${fmtMoney(report.summary.totalCommission)}`],
+              [t.companyPool, `$${fmtMoney(report.summary.companyPool)}`],
+              [t.agentPayouts, `$${fmtMoney(report.summary.agentPayouts)}`],
             ].map(([label, value]) => (
               <Card key={label}>
                 <div className="p-5">
@@ -134,15 +187,15 @@ export default function ReportsPage() {
 
           <div className="grid grid-cols-2 gap-6">
             <Card>
-              <CardHeader title="Top agents" />
+              <CardHeader title={t.topAgents} />
               <div className="grid text-[11px] uppercase tracking-[0.1em] px-6 py-3" style={{ gridTemplateColumns: "2fr 1fr 1fr", color: tone.ink50, borderBottom: `1px solid ${tone.lineSoft}` }}>
-                <div>Agent</div>
-                <div>Rental Deals</div>
-                <div className="text-right">Take</div>
+                <div>{t.colAgent}</div>
+                <div>{t.colRentalDeals}</div>
+                <div className="text-right">{t.colTake}</div>
               </div>
               {report.topAgents.length === 0 ? (
                 <div className="px-6 py-12 text-center text-[13px]" style={{ color: tone.ink50 }}>
-                  No agent payouts this month.
+                  {t.noAgentPayouts}
                 </div>
               ) : (
                 report.topAgents.map((row, index) => (
@@ -152,7 +205,7 @@ export default function ReportsPage() {
                         {row.agent.name}
                       </div>
                       <div className="text-[11.5px] mt-0.5" style={{ color: tone.ink50 }}>
-                        {Number(row.agent.splitPct || 0)}% split
+                        {Number(row.agent.splitPct || 0)}% {t.split}
                       </div>
                     </div>
                     <div className="font-serif" style={{ fontSize: 20, color: tone.ink }}>
@@ -167,15 +220,15 @@ export default function ReportsPage() {
             </Card>
 
             <Card>
-              <CardHeader title="Per building" />
+              <CardHeader title={t.perBuilding} />
               <div className="grid text-[11px] uppercase tracking-[0.1em] px-6 py-3" style={{ gridTemplateColumns: "2fr 1fr 1fr", color: tone.ink50, borderBottom: `1px solid ${tone.lineSoft}` }}>
-                <div>Building</div>
-                <div>Rental Deals</div>
-                <div className="text-right">Commission</div>
+                <div>{t.colBuilding}</div>
+                <div>{t.colRentalDeals}</div>
+                <div className="text-right">{t.colCommission}</div>
               </div>
               {report.perBuilding.length === 0 ? (
                 <div className="px-6 py-12 text-center text-[13px]" style={{ color: tone.ink50 }}>
-                  No building production this month.
+                  {t.noBuildingProduction}
                 </div>
               ) : (
                 report.perBuilding.map((row, index) => (
@@ -204,8 +257,8 @@ export default function ReportsPage() {
           {report.perSource && report.perSource.length > 0 && (
             <Card>
               <CardHeader
-                title="By source"
-                subtitle="Where this month’s rental deals came from"
+                title={t.bySource}
+                subtitle={t.bySourceSubtitle}
               />
               <div className="p-6 grid grid-cols-3 gap-3">
                 {report.perSource.map((row) => {
@@ -223,7 +276,7 @@ export default function ReportsPage() {
                           {isUnknown ? "❓" : sourceEmoji(row.source)}
                         </span>
                         <span className="text-[13px] font-medium" style={{ color: tone.ink }}>
-                          {isUnknown ? "Unknown" : sourceLabel(row.source)}
+                          {isUnknown ? t.unknown : sourceLabel(row.source)}
                         </span>
                       </div>
                       <div

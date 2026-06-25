@@ -7,8 +7,30 @@ import { tone } from "@/components/homix/tokens";
 import { Card, Pill } from "@/components/homix/server-primitives";
 import { PageHeader, CardHeader } from "@/components/homix/page-kit";
 import { ResourceManager } from "@/components/resources/resource-manager";
+import { getLocale } from "@/lib/i18n";
 
 export const metadata: Metadata = { title: "Resources · Homix Deals" };
+
+const M = {
+  en: {
+    eyebrow: "Agent resources",
+    title: "Resource library",
+    description: "SOPs, scripts, templates and brand assets.",
+    emptyAdmin: "No resources yet — add one above.",
+    emptyAgent: "Resources are being added. Check back soon.",
+    hidden: "Hidden",
+    open: "Open ↗",
+  },
+  zh: {
+    eyebrow: "经纪人资料",
+    title: "资料库",
+    description: "标准流程、话术、模板和品牌素材。",
+    emptyAdmin: "暂无资料 — 请在上方添加。",
+    emptyAgent: "资料正在添加中，敬请稍后查看。",
+    hidden: "隐藏",
+    open: "打开 ↗",
+  },
+} as const;
 
 function groupByCategory(items: Resource[]): [string, Resource[]][] {
   const map = new Map<string, Resource[]>();
@@ -24,6 +46,7 @@ function groupByCategory(items: Resource[]): [string, Resource[]][] {
 export default async function ResourcesPage() {
   const session = await requireActiveAgent();
   const isAdmin = !!session.user.isAdmin;
+  const t = M[await getLocale()];
 
   const all = await db
     .select()
@@ -35,9 +58,9 @@ export default async function ResourcesPage() {
   return (
     <div className="space-y-7">
       <PageHeader
-        eyebrow="Agent resources"
-        title="Resource library"
-        description="SOPs, scripts, templates and brand assets."
+        eyebrow={t.eyebrow}
+        title={t.title}
+        description={t.description}
       />
 
       {isAdmin && <ResourceManager initialResources={all} />}
@@ -45,9 +68,7 @@ export default async function ResourcesPage() {
       {visible.length === 0 ? (
         <Card className="p-10 text-center">
           <p className="text-[14px]" style={{ color: tone.ink50 }}>
-            {isAdmin
-              ? "No resources yet — add one above."
-              : "Resources are being added. Check back soon."}
+            {isAdmin ? t.emptyAdmin : t.emptyAgent}
           </p>
         </Card>
       ) : (
@@ -62,7 +83,7 @@ export default async function ResourcesPage() {
                   <Card key={r.id} className="flex flex-col">
                     <CardHeader
                       title={r.title}
-                      action={!r.isPublished ? <Pill tone="draft">Hidden</Pill> : undefined}
+                      action={!r.isPublished ? <Pill tone="draft">{t.hidden}</Pill> : undefined}
                     />
                     <div className="flex flex-1 flex-col p-5">
                       {r.description && (
@@ -77,7 +98,7 @@ export default async function ResourcesPage() {
                         className="mt-4 inline-flex items-center gap-1 text-[13px] font-medium"
                         style={{ color: tone.accent }}
                       >
-                        Open ↗
+                        {t.open}
                       </a>
                     </div>
                   </Card>

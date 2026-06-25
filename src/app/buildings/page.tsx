@@ -18,7 +18,101 @@ import {
   type Column,
 } from "@/components/homix/page-kit";
 import { tone } from "@/components/homix/tokens";
+import { useLocale } from "@/lib/i18n-client";
 import type { Building } from "@/db/schema";
+
+const M = {
+  en: {
+    nameRegionRequired: "Name and region are required",
+    added: "added",
+    saved: "saved",
+    saveFailed: "Save failed",
+    deleteConfirm: (name: string) => `Delete "${name}"? This cannot be undone.`,
+    deleted: "deleted",
+    deleteFailed: "Delete failed",
+    colBuilding: "Building",
+    outOfState: "Out of state",
+    colRegion: "Region",
+    colBillTo: "Bill to",
+    colContact: "Contact",
+    noContactEmail: "No contact email",
+    colNotes: "Notes",
+    eyebrow: "Directory",
+    title: "Buildings",
+    buildingsCount: (n: number) => `${n} building${n === 1 ? "" : "s"}`,
+    addBuilding: "Add Building",
+    searchPlaceholder: "Search name, region, management, email…",
+    emptyNone: "No buildings yet",
+    emptyNoResults: "No results match your search",
+    addFirst: "Add your first building",
+    new: "New",
+    edit: "Edit",
+    addBuildingTitle: "Add building",
+    labelName: "Name *",
+    namePlaceholder: "e.g. The Octagon",
+    labelRegion: "Region *",
+    regionPlaceholder: "e.g. NJ, BK, 中城",
+    labelManagement: "Management company",
+    managementPlaceholder: "e.g. Greystar",
+    labelContactEmail: "Contact email",
+    labelBillToCompany: "Bill-to company",
+    labelInvoiceFormat: "Invoice № format",
+    labelBillToAddress: "Bill-to address",
+    labelSubmissionNotes: "Submission notes",
+    submissionNotesPlaceholder: "e.g. CC company inbox when sending",
+    labelSpecialReq: "Special requirements",
+    specialReqPlaceholder: "e.g. Requires broker referral form",
+    delete: "Delete",
+    cancel: "Cancel",
+    saving: "Saving…",
+    save: "Save",
+  },
+  zh: {
+    nameRegionRequired: "姓名和区域为必填项",
+    added: "已添加",
+    saved: "已保存",
+    saveFailed: "保存失败",
+    deleteConfirm: (name: string) => `删除“${name}”？此操作无法撤销。`,
+    deleted: "已删除",
+    deleteFailed: "删除失败",
+    colBuilding: "楼盘",
+    outOfState: "外州",
+    colRegion: "区域",
+    colBillTo: "账单对象",
+    colContact: "联系方式",
+    noContactEmail: "无联系邮箱",
+    colNotes: "备注",
+    eyebrow: "目录",
+    title: "楼盘",
+    buildingsCount: (n: number) => `${n} 个楼盘`,
+    addBuilding: "添加楼盘",
+    searchPlaceholder: "搜索名称、区域、管理公司、邮箱…",
+    emptyNone: "暂无楼盘",
+    emptyNoResults: "没有符合搜索的结果",
+    addFirst: "添加第一个楼盘",
+    new: "新建",
+    edit: "编辑",
+    addBuildingTitle: "添加楼盘",
+    labelName: "名称 *",
+    namePlaceholder: "例如 The Octagon",
+    labelRegion: "区域 *",
+    regionPlaceholder: "例如 NJ、BK、中城",
+    labelManagement: "管理公司",
+    managementPlaceholder: "例如 Greystar",
+    labelContactEmail: "联系邮箱",
+    labelBillToCompany: "账单公司",
+    labelInvoiceFormat: "发票编号格式",
+    labelBillToAddress: "账单地址",
+    labelSubmissionNotes: "提交备注",
+    submissionNotesPlaceholder: "例如 发送时抄送公司邮箱",
+    labelSpecialReq: "特殊要求",
+    specialReqPlaceholder: "例如 需要经纪人推荐表",
+    delete: "删除",
+    cancel: "取消",
+    saving: "保存中…",
+    save: "保存",
+  },
+} as const;
 
 const emptyBuilding: Partial<Building> = {
   name: "",
@@ -35,6 +129,7 @@ const emptyBuilding: Partial<Building> = {
 };
 
 export default function BuildingsPage() {
+  const t = M[useLocale()];
   const { data: session } = useSession();
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [search, setSearch] = useState("");
@@ -75,7 +170,7 @@ export default function BuildingsPage() {
   const handleSave = async () => {
     if (!editBuilding) return;
     if (!editBuilding.name?.trim() || !editBuilding.region?.trim()) {
-      toast.error("Name and region are required");
+      toast.error(t.nameRegionRequired);
       return;
     }
     setSaving(true);
@@ -86,11 +181,11 @@ export default function BuildingsPage() {
         body: JSON.stringify(editBuilding),
       });
       if (!res.ok) throw new Error();
-      toast.success(isNew ? `${editBuilding.name} added` : `${editBuilding.name} saved`);
+      toast.success(isNew ? `${editBuilding.name} ${t.added}` : `${editBuilding.name} ${t.saved}`);
       closeDialog();
       fetchBuildings();
     } catch {
-      toast.error("Save failed");
+      toast.error(t.saveFailed);
     } finally {
       setSaving(false);
     }
@@ -98,7 +193,7 @@ export default function BuildingsPage() {
 
   const handleDelete = async () => {
     if (!editBuilding?.id) return;
-    if (!confirm(`Delete "${editBuilding.name}"? This cannot be undone.`)) return;
+    if (!confirm(t.deleteConfirm(editBuilding.name))) return;
     try {
       const res = await fetch("/api/buildings", {
         method: "DELETE",
@@ -106,11 +201,11 @@ export default function BuildingsPage() {
         body: JSON.stringify({ id: editBuilding.id }),
       });
       if (!res.ok) throw new Error();
-      toast.success(`${editBuilding.name} deleted`);
+      toast.success(`${editBuilding.name} ${t.deleted}`);
       closeDialog();
       fetchBuildings();
     } catch {
-      toast.error("Delete failed");
+      toast.error(t.deleteFailed);
     }
   };
 
@@ -134,7 +229,7 @@ export default function BuildingsPage() {
   const columns: Column<Building>[] = [
     {
       key: "building",
-      label: "Building",
+      label: t.colBuilding,
       width: "2.2fr",
       render: (b) => (
         <div>
@@ -145,7 +240,7 @@ export default function BuildingsPage() {
             >
               {b.name}
             </span>
-            {b.isOutOfState && <Pill tone="accent">Out of state</Pill>}
+            {b.isOutOfState && <Pill tone="accent">{t.outOfState}</Pill>}
           </div>
           {b.managementCompany && (
             <div className="mt-0.5 text-[12px]" style={{ color: tone.ink50 }}>
@@ -157,13 +252,13 @@ export default function BuildingsPage() {
     },
     {
       key: "region",
-      label: "Region",
+      label: t.colRegion,
       width: "0.9fr",
       render: (b) => <Pill tone="neutral">{b.region}</Pill>,
     },
     {
       key: "billTo",
-      label: "Bill to",
+      label: t.colBillTo,
       width: "1.3fr",
       render: (b) => (
         <span className="truncate text-[12.5px]" style={{ color: tone.ink70 }}>
@@ -173,7 +268,7 @@ export default function BuildingsPage() {
     },
     {
       key: "contact",
-      label: "Contact",
+      label: t.colContact,
       width: "1.4fr",
       render: (b) =>
         b.contactEmail ? (
@@ -182,13 +277,13 @@ export default function BuildingsPage() {
           </span>
         ) : (
           <span className="text-[11.5px]" style={{ color: tone.amber }}>
-            No contact email
+            {t.noContactEmail}
           </span>
         ),
     },
     {
       key: "notes",
-      label: "Notes",
+      label: t.colNotes,
       width: "1.4fr",
       render: (b) =>
         b.specialNotes ? (
@@ -206,12 +301,12 @@ export default function BuildingsPage() {
   return (
     <div className="space-y-7">
       <PageHeader
-        eyebrow="Directory"
-        title="Buildings"
-        description={`${buildings.length} building${buildings.length === 1 ? "" : "s"}`}
+        eyebrow={t.eyebrow}
+        title={t.title}
+        description={t.buildingsCount(buildings.length)}
         actions={
           <Btn variant="primary" icon={<Icons.Plus />} onClick={openNew}>
-            Add Building
+            {t.addBuilding}
           </Btn>
         }
       />
@@ -220,7 +315,7 @@ export default function BuildingsPage() {
         <SearchInput
           value={search}
           onChange={setSearch}
-          placeholder="Search name, region, management, email…"
+          placeholder={t.searchPlaceholder}
           className="min-w-[340px]"
         />
       </Toolbar>
@@ -231,7 +326,7 @@ export default function BuildingsPage() {
         getKey={(b) => b.id}
         onRowClick={isAdmin ? openEdit : undefined}
         loading={loading}
-        emptyTitle={buildings.length === 0 ? "No buildings yet" : "No results match your search"}
+        emptyTitle={buildings.length === 0 ? t.emptyNone : t.emptyNoResults}
         emptyAction={
           buildings.length === 0 ? (
             <button
@@ -240,7 +335,7 @@ export default function BuildingsPage() {
               className="text-[13px] underline"
               style={{ color: tone.accent }}
             >
-              Add your first building
+              {t.addFirst}
             </button>
           ) : undefined
         }
@@ -272,7 +367,7 @@ export default function BuildingsPage() {
                   className="text-[11px] uppercase tracking-[0.14em]"
                   style={{ color: tone.ink50 }}
                 >
-                  {isNew ? "New" : "Edit"}
+                  {isNew ? t.new : t.edit}
                 </div>
                 <div
                   className="font-serif"
@@ -283,7 +378,7 @@ export default function BuildingsPage() {
                     marginTop: 2,
                   }}
                 >
-                  {isNew ? "Add building" : editBuilding.name}
+                  {isNew ? t.addBuildingTitle : editBuilding.name}
                 </div>
               </div>
               <button
@@ -298,28 +393,28 @@ export default function BuildingsPage() {
             {/* Body */}
             <div className="flex-1 overflow-auto px-8 py-6 space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <LabeledField label="Name *">
+                <LabeledField label={t.labelName}>
                   <EditorialInput
                     value={editBuilding.name || ""}
                     onChange={(v) => updateField("name", v)}
-                    placeholder="e.g. The Octagon"
+                    placeholder={t.namePlaceholder}
                   />
                 </LabeledField>
-                <LabeledField label="Region *">
+                <LabeledField label={t.labelRegion}>
                   <EditorialInput
                     value={editBuilding.region || ""}
                     onChange={(v) => updateField("region", v)}
-                    placeholder="e.g. NJ, BK, 中城"
+                    placeholder={t.regionPlaceholder}
                   />
                 </LabeledField>
-                <LabeledField label="Management company">
+                <LabeledField label={t.labelManagement}>
                   <EditorialInput
                     value={editBuilding.managementCompany || ""}
                     onChange={(v) => updateField("managementCompany", v)}
-                    placeholder="e.g. Greystar"
+                    placeholder={t.managementPlaceholder}
                   />
                 </LabeledField>
-                <LabeledField label="Contact email">
+                <LabeledField label={t.labelContactEmail}>
                   <EditorialInput
                     value={editBuilding.contactEmail || ""}
                     onChange={(v) => updateField("contactEmail", v)}
@@ -327,13 +422,13 @@ export default function BuildingsPage() {
                     mono
                   />
                 </LabeledField>
-                <LabeledField label="Bill-to company">
+                <LabeledField label={t.labelBillToCompany}>
                   <EditorialInput
                     value={editBuilding.billToCompany || ""}
                     onChange={(v) => updateField("billToCompany", v)}
                   />
                 </LabeledField>
-                <LabeledField label="Invoice № format">
+                <LabeledField label={t.labelInvoiceFormat}>
                   <EditorialInput
                     value={editBuilding.invoiceNumberFormat || ""}
                     onChange={(v) => updateField("invoiceNumberFormat", v)}
@@ -343,7 +438,7 @@ export default function BuildingsPage() {
                 </LabeledField>
               </div>
 
-              <LabeledField label="Bill-to address">
+              <LabeledField label={t.labelBillToAddress}>
                 <EditorialInput
                   value={editBuilding.billToAddress || ""}
                   onChange={(v) => updateField("billToAddress", v)}
@@ -351,12 +446,12 @@ export default function BuildingsPage() {
                 />
               </LabeledField>
 
-              <LabeledField label="Submission notes">
+              <LabeledField label={t.labelSubmissionNotes}>
                 <textarea
                   value={editBuilding.submissionNotes || ""}
                   onChange={(e) => updateField("submissionNotes", e.target.value)}
                   rows={2}
-                  placeholder="e.g. CC company inbox when sending"
+                  placeholder={t.submissionNotesPlaceholder}
                   className="w-full rounded-lg p-3 text-[13.5px] outline-none"
                   style={{
                     background: tone.card,
@@ -367,12 +462,12 @@ export default function BuildingsPage() {
                 />
               </LabeledField>
 
-              <LabeledField label="Special requirements">
+              <LabeledField label={t.labelSpecialReq}>
                 <textarea
                   value={editBuilding.specialNotes || ""}
                   onChange={(e) => updateField("specialNotes", e.target.value)}
                   rows={2}
-                  placeholder="e.g. Requires broker referral form"
+                  placeholder={t.specialReqPlaceholder}
                   className="w-full rounded-lg p-3 text-[13.5px] outline-none"
                   style={{
                     background: tone.card,
@@ -392,16 +487,16 @@ export default function BuildingsPage() {
               <div>
                 {!isNew && isAdmin && (
                   <Btn variant="danger" size="sm" icon={<Icons.Trash />} onClick={handleDelete}>
-                    Delete
+                    {t.delete}
                   </Btn>
                 )}
               </div>
               <div className="flex items-center gap-2">
                 <Btn variant="outline" onClick={closeDialog}>
-                  Cancel
+                  {t.cancel}
                 </Btn>
                 <Btn variant="primary" onClick={handleSave} disabled={saving}>
-                  {saving ? "Saving…" : isNew ? "Add building" : "Save"}
+                  {saving ? t.saving : isNew ? t.addBuildingTitle : t.save}
                 </Btn>
               </div>
             </div>

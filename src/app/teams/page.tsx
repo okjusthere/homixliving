@@ -5,7 +5,77 @@ import { toast } from "sonner";
 import { Btn, Card, EditorialInput, Icons, LabeledField, Pill } from "@/components/homix/primitives";
 import { PageHeader } from "@/components/homix/page-kit";
 import { fmtMoney, tone } from "@/components/homix/tokens";
+import { useLocale } from "@/lib/i18n-client";
 import type { Agent, Team } from "@/db/schema";
+
+const M = {
+  en: {
+    nameRequired: "Name is required",
+    teamSaved: "Team saved",
+    teamCreated: "Team created",
+    saveFailed: "Save failed",
+    confirmDelete: (name?: string | null) => `Delete "${name}"? Members will become unassigned.`,
+    teamDeleted: "Team deleted",
+    deleteFailed: "Delete failed",
+    eyebrow: "Organization",
+    title: "Teams",
+    description: "Member groups with month-to-date production totals.",
+    addTeam: "Add Team",
+    loading: "Loading…",
+    noTeams: "No teams yet",
+    createFirst: "Create your first team",
+    leader: "Leader",
+    unassigned: "Unassigned",
+    members: "members",
+    edit: "Edit",
+    noMembers: "No members assigned.",
+    noLicense: "No license",
+    editLabel: "Edit",
+    newLabel: "New",
+    addTeamModal: "Add team",
+    nameField: "Name *",
+    namePlaceholder: "e.g. Manhattan",
+    leaderField: "Leader",
+    notesField: "Notes",
+    delete: "Delete",
+    cancel: "Cancel",
+    saving: "Saving…",
+    save: "Save",
+  },
+  zh: {
+    nameRequired: "请填写姓名",
+    teamSaved: "团队已保存",
+    teamCreated: "团队已创建",
+    saveFailed: "保存失败",
+    confirmDelete: (name?: string | null) => `删除“${name}”？成员将变为未分配。`,
+    teamDeleted: "团队已删除",
+    deleteFailed: "删除失败",
+    eyebrow: "组织",
+    title: "团队",
+    description: "成员分组及月度至今业绩合计。",
+    addTeam: "添加团队",
+    loading: "加载中…",
+    noTeams: "暂无团队",
+    createFirst: "创建你的第一个团队",
+    leader: "负责人",
+    unassigned: "未分配",
+    members: "名成员",
+    edit: "编辑",
+    noMembers: "暂无分配成员。",
+    noLicense: "无执照",
+    editLabel: "编辑",
+    newLabel: "新建",
+    addTeamModal: "添加团队",
+    nameField: "姓名 *",
+    namePlaceholder: "例如 Manhattan",
+    leaderField: "负责人",
+    notesField: "备注",
+    delete: "删除",
+    cancel: "取消",
+    saving: "保存中…",
+    save: "保存",
+  },
+} as const;
 
 type TeamRow = {
   team: Team;
@@ -28,6 +98,7 @@ export default function TeamsPage() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [editTeam, setEditTeam] = useState<Partial<Team> | null>(null);
   const [saving, setSaving] = useState(false);
+  const t = M[useLocale()];
 
   const load = () => {
     setLoading(true);
@@ -48,7 +119,7 @@ export default function TeamsPage() {
 
   const handleSave = async () => {
     if (!editTeam?.name?.trim()) {
-      toast.error("Name is required");
+      toast.error(t.nameRequired);
       return;
     }
     setSaving(true);
@@ -59,11 +130,11 @@ export default function TeamsPage() {
         body: JSON.stringify(editTeam),
       });
       if (!res.ok) throw new Error();
-      toast.success(editTeam.id ? "Team saved" : "Team created");
+      toast.success(editTeam.id ? t.teamSaved : t.teamCreated);
       setEditTeam(null);
       load();
     } catch {
-      toast.error("Save failed");
+      toast.error(t.saveFailed);
     } finally {
       setSaving(false);
     }
@@ -71,7 +142,7 @@ export default function TeamsPage() {
 
   const handleDelete = async () => {
     if (!editTeam?.id) return;
-    if (!confirm(`Delete "${editTeam.name}"? Members will become unassigned.`)) return;
+    if (!confirm(t.confirmDelete(editTeam.name))) return;
     try {
       const res = await fetch("/api/teams", {
         method: "DELETE",
@@ -79,39 +150,39 @@ export default function TeamsPage() {
         body: JSON.stringify({ id: editTeam.id }),
       });
       if (!res.ok) throw new Error();
-      toast.success("Team deleted");
+      toast.success(t.teamDeleted);
       setEditTeam(null);
       load();
     } catch {
-      toast.error("Delete failed");
+      toast.error(t.deleteFailed);
     }
   };
 
   return (
     <div className="space-y-7">
       <PageHeader
-        eyebrow="Organization"
-        title="Teams"
-        description="Member groups with month-to-date production totals."
+        eyebrow={t.eyebrow}
+        title={t.title}
+        description={t.description}
         actions={
           <Btn variant="primary" icon={<Icons.Plus />} onClick={() => setEditTeam(emptyTeam)}>
-            Add Team
+            {t.addTeam}
           </Btn>
         }
       />
 
       {loading ? (
         <p className="text-[13px]" style={{ color: tone.ink50 }}>
-          Loading…
+          {t.loading}
         </p>
       ) : teams.length === 0 ? (
         <Card>
           <div className="px-6 py-16 text-center">
             <div className="font-serif mb-2" style={{ fontSize: 24, color: tone.ink }}>
-              No teams yet
+              {t.noTeams}
             </div>
             <button className="text-[13px] underline" style={{ color: tone.accent }} onClick={() => setEditTeam(emptyTeam)}>
-              Create your first team
+              {t.createFirst}
             </button>
           </div>
         </Card>
@@ -139,11 +210,11 @@ export default function TeamsPage() {
                       {row.team.name}
                     </div>
                     <div className="text-[12px] mt-1" style={{ color: tone.ink50 }}>
-                      Leader: {row.leader?.name || "Unassigned"}
+                      {t.leader}: {row.leader?.name || t.unassigned}
                     </div>
                   </div>
                   <div>
-                    <Pill tone="neutral">{row.memberCount} members</Pill>
+                    <Pill tone="neutral">{row.memberCount} {t.members}</Pill>
                   </div>
                   <div className="font-serif" style={{ fontSize: 22, color: tone.ink }}>
                     {row.mtdDeals}
@@ -161,7 +232,7 @@ export default function TeamsPage() {
                         setEditTeam(row.team);
                       }}
                     >
-                      Edit
+                      {t.edit}
                     </Btn>
                   </div>
                 </div>
@@ -170,7 +241,7 @@ export default function TeamsPage() {
                     <div className="rounded-xl p-4" style={{ background: tone.paper, border: `1px solid ${tone.lineSoft}` }}>
                       {row.members.length === 0 ? (
                         <div className="text-[13px]" style={{ color: tone.ink50 }}>
-                          No members assigned.
+                          {t.noMembers}
                         </div>
                       ) : (
                         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -180,7 +251,7 @@ export default function TeamsPage() {
                                 {member.name}
                               </div>
                               <div className="mt-1 text-[11.5px] font-mono" style={{ color: tone.ink50 }}>
-                                {member.licenseNumber || "No license"} · {Number(member.splitPct || 0)}%
+                                {member.licenseNumber || t.noLicense} · {Number(member.splitPct || 0)}%
                               </div>
                             </div>
                           ))}
@@ -201,10 +272,10 @@ export default function TeamsPage() {
             <div className="px-8 py-6 flex items-center justify-between" style={{ borderBottom: `1px solid ${tone.line}` }}>
               <div>
                 <div className="text-[11px] uppercase tracking-[0.14em]" style={{ color: tone.ink50 }}>
-                  {editTeam.id ? "Edit" : "New"}
+                  {editTeam.id ? t.editLabel : t.newLabel}
                 </div>
                 <div className="font-serif" style={{ fontSize: 26, color: tone.ink }}>
-                  {editTeam.id ? editTeam.name : "Add team"}
+                  {editTeam.id ? editTeam.name : t.addTeamModal}
                 </div>
               </div>
               <button onClick={() => setEditTeam(null)} className="w-8 h-8 rounded-full" style={{ background: tone.paperDeep, color: tone.ink70 }}>
@@ -212,17 +283,17 @@ export default function TeamsPage() {
               </button>
             </div>
             <div className="px-8 py-6 space-y-4">
-              <LabeledField label="Name *">
-                <EditorialInput value={editTeam.name || ""} onChange={(v) => updateField("name", v)} placeholder="e.g. Manhattan" />
+              <LabeledField label={t.nameField}>
+                <EditorialInput value={editTeam.name || ""} onChange={(v) => updateField("name", v)} placeholder={t.namePlaceholder} />
               </LabeledField>
-              <LabeledField label="Leader">
+              <LabeledField label={t.leaderField}>
                 <select
                   value={editTeam.leaderAgentId || ""}
                   onChange={(e) => updateField("leaderAgentId", e.target.value ? Number(e.target.value) : null)}
                   className="w-full h-10 rounded-lg px-3 text-[13.5px] outline-none"
                   style={{ background: tone.card, border: `1px solid ${tone.line}`, color: tone.ink }}
                 >
-                  <option value="">Unassigned</option>
+                  <option value="">{t.unassigned}</option>
                   {teams.flatMap((row) => row.members).map((agent) => (
                     <option key={agent.id} value={agent.id}>
                       {agent.name}
@@ -230,7 +301,7 @@ export default function TeamsPage() {
                   ))}
                 </select>
               </LabeledField>
-              <LabeledField label="Notes">
+              <LabeledField label={t.notesField}>
                 <textarea
                   value={editTeam.notes || ""}
                   onChange={(e) => updateField("notes", e.target.value)}
@@ -244,16 +315,16 @@ export default function TeamsPage() {
               <div>
                 {editTeam.id && (
                   <Btn variant="danger" size="sm" icon={<Icons.Trash />} onClick={handleDelete}>
-                    Delete
+                    {t.delete}
                   </Btn>
                 )}
               </div>
               <div className="flex items-center gap-2">
                 <Btn variant="outline" onClick={() => setEditTeam(null)}>
-                  Cancel
+                  {t.cancel}
                 </Btn>
                 <Btn variant="primary" onClick={handleSave} disabled={saving}>
-                  {saving ? "Saving…" : "Save"}
+                  {saving ? t.saving : t.save}
                 </Btn>
               </div>
             </div>

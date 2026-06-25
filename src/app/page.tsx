@@ -27,8 +27,165 @@ import { isUpcoming } from "@/lib/renewals";
 import { summarize, totalOutstanding } from "@/lib/aging";
 import { requireActiveAgent } from "@/lib/auth-guards";
 import { dealsVisibleToSql } from "@/lib/visibility";
+import { getLocale } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
+
+const M = {
+  en: {
+    workbench: "Agent Workbench",
+    newRental: "New rental",
+    rentalFile: "Rental file",
+    rentalFileDetail: "Lease, agents, commission split",
+    salesFile: "Sales file",
+    salesFileDetail: "Contract, closing, referral",
+    invoice: "Invoice",
+    invoiceDetail: "Create and send billing",
+    agentPayments: "Agent payments",
+    agentPaymentsDetail: "Desk fees, email, services",
+    priorityQueue: "Priority queue",
+    priorityQueueDetail: "Open items for this account",
+    draftInvoices: "Draft invoices",
+    overdueReceivables: "Overdue receivables",
+    leaseRenewals: "Lease renewals",
+    next90Days: "Next 90 days",
+    sendFailures: "Send failures",
+    sendFailuresDetail: "Email or payment delivery",
+    rentalMtd: "Rental MTD",
+    commissionMtd: "Commission MTD",
+    signedRentalValue: "Signed rental value",
+    topAgent: "Top agent",
+    noRentalsYet: "No rentals yet",
+    buildings: "Buildings",
+    recentInvoices: "Recent invoices",
+    viewAll: "View all",
+    noInvoicesYet: "No invoices yet.",
+    createInvoice: "Create invoice",
+    noBuilding: "No building",
+    unit: "Unit",
+    statusPaid: "Paid",
+    statusAwaiting: "Awaiting",
+    statusFailed: "Failed",
+    statusDraft: "Draft",
+    recentDeals: "Recent deals",
+    activeThisMonth: "active this month",
+    openRental: "Open rental",
+    noRentalDealsYet: "No rental deals yet.",
+    createRental: "Create rental",
+    noAgent: "No agent",
+    billingWorkspace: "Billing & workspace",
+    billingWorkspaceDetail: "Stripe, subscriptions, company email",
+    payments: "Payments",
+    stripeCustomerPortal: "Stripe customer portal",
+    noBillingProfile: "No billing profile connected",
+    connected: "Connected",
+    open: "Open",
+    companyEmail: "Company email",
+    deskFee: "Desk fee",
+    noAnnualPlanYet: "No annual plan yet",
+    latestPayment: "Latest payment",
+    startFromPayments: "Start from the agent payments page",
+    openPayments: "Open payments",
+    notStarted: "Not started",
+    agentTools: "Agent tools",
+    agentToolsDetail: "Learning and operating references",
+    trainingLibrary: "Training library",
+    resources: "Resources",
+    monthlyReport: "Monthly report",
+    goodMorning: "Good morning",
+    goodAfternoon: "Good afternoon",
+    goodEvening: "Good evening",
+    agent: "Agent",
+    queueLead: (draft: number, renewals: number, waiting: string) =>
+      `The queue has ${draft} draft invoice${draft === 1 ? "" : "s"}, ${renewals} renewal${
+        renewals === 1 ? "" : "s"
+      }, and $${waiting} waiting.`,
+    visibleInvoices: (count: number, ytd: string) =>
+      `${count} visible invoices · $${ytd} YTD`,
+    activeCount: (count: number) => `${count} ${count === 1 ? "active" : "active"} this month`,
+    activeSubscriptions: (count: number) =>
+      `${count} active subscription${count === 1 ? "" : "s"}`,
+    draftReady: (amount: string) => `$${amount} ready to review`,
+    pastFirstCycle: (amount: string) => `$${amount} past the first cycle`,
+    outOfState: (count: number) => `${count} out of state`,
+    take: (amount: string) => `$${amount} take`,
+  },
+  zh: {
+    workbench: "经纪人工作台",
+    newRental: "新建租约",
+    rentalFile: "租赁档案",
+    rentalFileDetail: "租约、经纪人、佣金分成",
+    salesFile: "买卖档案",
+    salesFileDetail: "合同、过户、推荐",
+    invoice: "发票",
+    invoiceDetail: "创建并发送账单",
+    agentPayments: "经纪人付款",
+    agentPaymentsDetail: "工位费、邮箱、服务",
+    priorityQueue: "优先队列",
+    priorityQueueDetail: "本账户的待办事项",
+    draftInvoices: "草稿发票",
+    overdueReceivables: "逾期应收款",
+    leaseRenewals: "租约续约",
+    next90Days: "未来 90 天",
+    sendFailures: "发送失败",
+    sendFailuresDetail: "邮件或付款投递",
+    rentalMtd: "本月租赁",
+    commissionMtd: "本月佣金",
+    signedRentalValue: "已签租赁金额",
+    topAgent: "业绩第一",
+    noRentalsYet: "暂无租赁",
+    buildings: "楼盘",
+    recentInvoices: "最近发票",
+    viewAll: "查看全部",
+    noInvoicesYet: "暂无发票。",
+    createInvoice: "创建发票",
+    noBuilding: "无楼盘",
+    unit: "单元",
+    statusPaid: "已付款",
+    statusAwaiting: "待付款",
+    statusFailed: "失败",
+    statusDraft: "草稿",
+    recentDeals: "最近交易",
+    activeThisMonth: "本月进行中",
+    openRental: "打开租赁",
+    noRentalDealsYet: "暂无租赁交易。",
+    createRental: "创建租赁",
+    noAgent: "无经纪人",
+    billingWorkspace: "账单与工作区",
+    billingWorkspaceDetail: "Stripe、订阅、企业邮箱",
+    payments: "付款",
+    stripeCustomerPortal: "Stripe 客户门户",
+    noBillingProfile: "未连接账单资料",
+    connected: "已连接",
+    open: "打开",
+    companyEmail: "企业邮箱",
+    deskFee: "工位费",
+    noAnnualPlanYet: "暂无年度方案",
+    latestPayment: "最近付款",
+    startFromPayments: "从经纪人付款页面开始",
+    openPayments: "打开付款",
+    notStarted: "未开始",
+    agentTools: "经纪人工具",
+    agentToolsDetail: "学习与操作参考",
+    trainingLibrary: "培训资料库",
+    resources: "资料",
+    monthlyReport: "月度报表",
+    goodMorning: "早上好",
+    goodAfternoon: "下午好",
+    goodEvening: "晚上好",
+    agent: "经纪人",
+    queueLead: (draft: number, renewals: number, waiting: string) =>
+      `队列中有 ${draft} 张草稿发票、${renewals} 个续约，以及 $${waiting} 待收。`,
+    visibleInvoices: (count: number, ytd: string) =>
+      `${count} 张可见发票 · 年初至今 $${ytd}`,
+    activeCount: (count: number) => `本月 ${count} 个进行中`,
+    activeSubscriptions: (count: number) => `${count} 个进行中的订阅`,
+    draftReady: (amount: string) => `$${amount} 待审核`,
+    pastFirstCycle: (amount: string) => `$${amount} 已超首个账期`,
+    outOfState: (count: number) => `${count} 个州外`,
+    take: (amount: string) => `分得 $${amount}`,
+  },
+} as const;
 
 type ToneKey = "ink" | "accent" | "green" | "amber" | "rose" | "brand";
 
@@ -233,8 +390,8 @@ function ActivityRow({
   );
 }
 
-function cleanStatus(status?: string | null) {
-  if (!status) return "Not started";
+function cleanStatus(status: string | null | undefined, notStarted: string) {
+  if (!status) return notStarted;
   return status.replaceAll("_", " ");
 }
 
@@ -248,6 +405,8 @@ function billingStatusTone(status?: string | null): "neutral" | "sent" | "draft"
 
 export default async function Dashboard() {
   const session = await requireActiveAgent();
+  const locale = await getLocale();
+  const t = M[locale];
   const now = new Date();
   const currentMonth = getMonthKey(now);
   const visibilityFilter = dealsVisibleToSql(session);
@@ -373,11 +532,11 @@ export default async function Dashboard() {
     year: "numeric",
   });
   const hour = now.getHours();
-  const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  const greeting = hour < 12 ? t.goodMorning : hour < 18 ? t.goodAfternoon : t.goodEvening;
   const firstName =
     session.user.name?.trim().split(/\s+/)[0] ||
     session.user.email?.split("@")[0] ||
-    "Agent";
+    t.agent;
 
   return (
     <div className="space-y-6">
@@ -389,12 +548,11 @@ export default async function Dashboard() {
                 {longDate}
               </div>
               <h1 className="mt-3 font-serif text-[44px] leading-[1.02] md:text-[54px]" style={{ color: tone.ink }}>
-                Agent Workbench
+                {t.workbench}
               </h1>
               <p className="mt-4 max-w-2xl text-[15px] leading-6" style={{ color: tone.ink70 }}>
-                {greeting}, {firstName}. The queue has {draftInvoicesCount} draft invoice
-                {draftInvoicesCount === 1 ? "" : "s"}, {upcomingRenewals.length} renewal
-                {upcomingRenewals.length === 1 ? "" : "s"}, and ${fmtMoney(outstanding.total)} waiting.
+                {greeting}, {firstName}.{" "}
+                {t.queueLead(draftInvoicesCount, upcomingRenewals.length, fmtMoney(outstanding.total))}
               </p>
             </div>
             <Link
@@ -402,7 +560,7 @@ export default async function Dashboard() {
               className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-ink px-4 text-[13px] font-medium text-white transition hover:bg-ink-70"
             >
               <Home className="size-4" />
-              New rental
+              {t.newRental}
             </Link>
           </div>
 
@@ -410,59 +568,59 @@ export default async function Dashboard() {
             <ActionLink
               href="/rental/new"
               icon={<Home className="size-4" />}
-              label="Rental file"
-              detail="Lease, agents, commission split"
+              label={t.rentalFile}
+              detail={t.rentalFileDetail}
               primary
             />
             <ActionLink
               href="/sales/new"
               icon={<Building2 className="size-4" />}
-              label="Sales file"
-              detail="Contract, closing, referral"
+              label={t.salesFile}
+              detail={t.salesFileDetail}
             />
             <ActionLink
               href="/invoices/new"
               icon={<ReceiptText className="size-4" />}
-              label="Invoice"
-              detail="Create and send billing"
+              label={t.invoice}
+              detail={t.invoiceDetail}
             />
             <ActionLink
               href="/pay"
               icon={<CreditCard className="size-4" />}
-              label="Agent payments"
-              detail="Desk fees, email, services"
+              label={t.agentPayments}
+              detail={t.agentPaymentsDetail}
             />
           </div>
         </div>
 
         <Card className="overflow-hidden">
-          <SectionTitle title="Priority queue" detail="Open items for this account" />
+          <SectionTitle title={t.priorityQueue} detail={t.priorityQueueDetail} />
           <QueueRow
             href="/invoices"
-            label="Draft invoices"
+            label={t.draftInvoices}
             value={draftInvoicesCount}
-            detail={`$${fmtMoney(draftAmount)} ready to review`}
+            detail={t.draftReady(fmtMoney(draftAmount))}
             toneKey="amber"
           />
           <QueueRow
             href="/invoices"
-            label="Overdue receivables"
+            label={t.overdueReceivables}
             value={overdueCount}
-            detail={`$${fmtMoney(overdueAmount)} past the first cycle`}
+            detail={t.pastFirstCycle(fmtMoney(overdueAmount))}
             toneKey={overdueCount > 0 ? "rose" : "green"}
           />
           <QueueRow
             href="/rental/renewals"
-            label="Lease renewals"
+            label={t.leaseRenewals}
             value={upcomingRenewals.length}
-            detail="Next 90 days"
+            detail={t.next90Days}
             toneKey="accent"
           />
           <QueueRow
             href="/invoices"
-            label="Send failures"
+            label={t.sendFailures}
             value={failedInvoicesCount}
-            detail="Email or payment delivery"
+            detail={t.sendFailuresDetail}
             toneKey={failedInvoicesCount > 0 ? "rose" : "green"}
           />
         </Card>
@@ -470,27 +628,27 @@ export default async function Dashboard() {
 
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <StatusMetric
-          label="Rental MTD"
+          label={t.rentalMtd}
           value={mtdDeals.length}
           detail={currentMonth}
           toneKey="accent"
         />
         <StatusMetric
-          label="Commission MTD"
+          label={t.commissionMtd}
           value={`$${fmtMoney(commissionMtd)}`}
-          detail="Signed rental value"
+          detail={t.signedRentalValue}
           toneKey="ink"
         />
         <StatusMetric
-          label="Top agent"
+          label={t.topAgent}
           value={topAgent ? topAgent.name.split(" ")[0] : "—"}
-          detail={topAgentEntry ? `$${fmtMoney(topAgentEntry[1])} take` : "No rentals yet"}
+          detail={topAgentEntry ? t.take(fmtMoney(topAgentEntry[1])) : t.noRentalsYet}
           toneKey="green"
         />
         <StatusMetric
-          label="Buildings"
+          label={t.buildings}
           value={totalBuildingsCount}
-          detail={`${outOfStateCount} out of state`}
+          detail={t.outOfState(outOfStateCount)}
           toneKey="brand"
         />
       </section>
@@ -499,17 +657,17 @@ export default async function Dashboard() {
         <div className="grid gap-6 lg:grid-cols-2">
           <Card className="overflow-hidden">
             <SectionTitle
-              title="Recent invoices"
-              detail={`${totalInvoicesCount} visible invoices · $${fmtMoney(totalAmount)} YTD`}
+              title={t.recentInvoices}
+              detail={t.visibleInvoices(totalInvoicesCount, fmtMoney(totalAmount))}
               href="/invoices"
-              action="View all"
+              action={t.viewAll}
             />
             <div>
               {recentInvoices.length === 0 ? (
                 <div className="px-5 py-10 text-center text-[13px]" style={{ color: tone.ink50 }}>
-                  No invoices yet.{" "}
+                  {t.noInvoicesYet}{" "}
                   <Link href="/invoices/new" className="underline">
-                    Create invoice
+                    {t.createInvoice}
                   </Link>
                 </div>
               ) : (
@@ -519,16 +677,16 @@ export default async function Dashboard() {
                     href={`/invoices/${invoice.id}`}
                     icon={<FileText className="size-4" />}
                     title={invoice.invoiceNumber}
-                    detail={`${buildingName || "No building"} · Unit ${invoice.unit} · ${invoice.tenantName}`}
+                    detail={`${buildingName || t.noBuilding} · ${t.unit} ${invoice.unit} · ${invoice.tenantName}`}
                     amount={`$${fmtMoney(invoice.totalAmount)}`}
                     status={
                       invoice.status === "paid"
-                        ? "Paid"
+                        ? t.statusPaid
                         : invoice.status === "sent"
-                        ? "Awaiting"
+                        ? t.statusAwaiting
                         : invoice.status === "failed"
-                        ? "Failed"
-                        : "Draft"
+                        ? t.statusFailed
+                        : t.statusDraft
                     }
                     statusTone={
                       invoice.status === "paid"
@@ -547,17 +705,17 @@ export default async function Dashboard() {
 
           <Card className="overflow-hidden">
             <SectionTitle
-              title="Recent deals"
-              detail={`${mtdDeals.length} active this month`}
+              title={t.recentDeals}
+              detail={t.activeCount(mtdDeals.length)}
               href="/rental"
-              action="Open rental"
+              action={t.openRental}
             />
             <div>
               {recentDeals.length === 0 ? (
                 <div className="px-5 py-10 text-center text-[13px]" style={{ color: tone.ink50 }}>
-                  No rental deals yet.{" "}
+                  {t.noRentalDealsYet}{" "}
                   <Link href="/rental/new" className="underline">
-                    Create rental
+                    {t.createRental}
                   </Link>
                 </div>
               ) : (
@@ -573,8 +731,8 @@ export default async function Dashboard() {
                       key={deal.id}
                       href={`/rental/${deal.id}`}
                       icon={<BadgeDollarSign className="size-4" />}
-                      title={`${buildingName || "No building"} · Unit ${deal.unit}`}
-                      detail={`${deal.tenantName} · ${primaryAgent?.name || "No agent"}`}
+                      title={`${buildingName || t.noBuilding} · ${t.unit} ${deal.unit}`}
+                      detail={`${deal.tenantName} · ${primaryAgent?.name || t.noAgent}`}
                       amount={`$${fmtMoney(Number(deal.totalCommission || 0))}`}
                       status={deal.status}
                       statusTone={
@@ -594,7 +752,7 @@ export default async function Dashboard() {
 
         <div className="space-y-6">
           <Card className="overflow-hidden">
-            <SectionTitle title="Billing & workspace" detail="Stripe, subscriptions, company email" href="/pay" action="Payments" />
+            <SectionTitle title={t.billingWorkspace} detail={t.billingWorkspaceDetail} href="/pay" action={t.payments} />
             <div className="p-5">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-start gap-3">
@@ -606,17 +764,17 @@ export default async function Dashboard() {
                   </span>
                   <div>
                     <div className="text-[13px] font-medium" style={{ color: tone.ink }}>
-                      Stripe customer portal
+                      {t.stripeCustomerPortal}
                     </div>
                     <div className="mt-1 text-[12px] leading-5" style={{ color: tone.ink50 }}>
                       {hasStripeCustomer
-                        ? `${activeSubscriptionCount} active subscription${activeSubscriptionCount === 1 ? "" : "s"}`
-                        : "No billing profile connected"}
+                        ? t.activeSubscriptions(activeSubscriptionCount)
+                        : t.noBillingProfile}
                     </div>
                   </div>
                 </div>
                 <Pill tone={hasStripeCustomer ? "sent" : "draft"}>
-                  {hasStripeCustomer ? "Connected" : "Open"}
+                  {hasStripeCustomer ? t.connected : t.open}
                 </Pill>
               </div>
 
@@ -625,10 +783,10 @@ export default async function Dashboard() {
                   <div className="flex items-center justify-between gap-3">
                     <span className="flex items-center gap-2 text-[12px]" style={{ color: tone.ink50 }}>
                       <Mail className="size-4" />
-                      Company email
+                      {t.companyEmail}
                     </span>
                     <Pill tone={billingStatusTone(workspaceOrder?.workspaceStatus)}>
-                      {cleanStatus(workspaceOrder?.workspaceStatus)}
+                      {cleanStatus(workspaceOrder?.workspaceStatus, t.notStarted)}
                     </Pill>
                   </div>
                   <div className="mt-2 truncate text-[13px]" style={{ color: tone.ink }}>
@@ -640,14 +798,14 @@ export default async function Dashboard() {
                   <div className="flex items-center justify-between gap-3">
                     <span className="flex items-center gap-2 text-[12px]" style={{ color: tone.ink50 }}>
                       <CalendarClock className="size-4" />
-                      Desk fee
+                      {t.deskFee}
                     </span>
                     <Pill tone={billingStatusTone(deskFeeOrder?.status)}>
-                      {cleanStatus(deskFeeOrder?.status)}
+                      {cleanStatus(deskFeeOrder?.status, t.notStarted)}
                     </Pill>
                   </div>
                   <div className="mt-2 truncate text-[13px]" style={{ color: tone.ink }}>
-                    {deskFeeOrder?.productName || "No annual plan yet"}
+                    {deskFeeOrder?.productName || t.noAnnualPlanYet}
                   </div>
                 </div>
 
@@ -655,7 +813,7 @@ export default async function Dashboard() {
                   <div className="flex items-center justify-between gap-3">
                     <span className="flex items-center gap-2 text-[12px]" style={{ color: tone.ink50 }}>
                       <CheckCircle2 className="size-4" />
-                      Latest payment
+                      {t.latestPayment}
                     </span>
                     <span className="text-[12px]" style={{ color: tone.ink50 }}>
                       {latestBillingOrder ? fmtDate(latestBillingOrder.updatedAt || latestBillingOrder.createdAt) : "—"}
@@ -664,7 +822,7 @@ export default async function Dashboard() {
                   <div className="mt-2 truncate text-[13px]" style={{ color: tone.ink }}>
                     {latestBillingOrder
                       ? `${latestBillingOrder.productName} · $${fmtMoney(latestBillingOrder.amountCents / 100)}`
-                      : "Start from the agent payments page"}
+                      : t.startFromPayments}
                   </div>
                 </div>
               </div>
@@ -677,14 +835,14 @@ export default async function Dashboard() {
                   className="mt-5 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-ink px-4 text-[13px] font-medium text-white transition hover:bg-ink-70"
                 >
                   <CreditCard className="size-4" />
-                  Open payments
+                  {t.openPayments}
                 </Link>
               )}
             </div>
           </Card>
 
           <Card className="overflow-hidden">
-            <SectionTitle title="Agent tools" detail="Learning and operating references" />
+            <SectionTitle title={t.agentTools} detail={t.agentToolsDetail} />
             <div className="grid gap-0">
               <Link
                 href="/training"
@@ -693,7 +851,7 @@ export default async function Dashboard() {
               >
                 <span className="flex items-center gap-3 text-[13px]" style={{ color: tone.ink }}>
                   <BookOpenCheck className="size-4 text-homix-green" />
-                  Training library
+                  {t.trainingLibrary}
                 </span>
                 <IconChev />
               </Link>
@@ -704,7 +862,7 @@ export default async function Dashboard() {
               >
                 <span className="flex items-center gap-3 text-[13px]" style={{ color: tone.ink }}>
                   <FileText className="size-4 text-homix-accent" />
-                  Resources
+                  {t.resources}
                 </span>
                 <IconChev />
               </Link>
@@ -714,7 +872,7 @@ export default async function Dashboard() {
               >
                 <span className="flex items-center gap-3 text-[13px]" style={{ color: tone.ink }}>
                   <TrendingUp className="size-4 text-homix-amber" />
-                  Monthly report
+                  {t.monthlyReport}
                 </span>
                 <IconChev />
               </Link>

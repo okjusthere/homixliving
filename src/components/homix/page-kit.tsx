@@ -10,6 +10,12 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { tone } from "./tokens";
 import { Icons } from "./primitives";
+import { useLocale } from "@/lib/i18n-client";
+
+const M = {
+  en: { loading: "Loading…", emptyTitle: "Nothing here yet" },
+  zh: { loading: "加载中…", emptyTitle: "暂无内容" },
+} as const;
 
 /** Standard page header: eyebrow + serif title + right-aligned actions. */
 export function PageHeader({
@@ -175,7 +181,7 @@ export function DataTable<T>({
   onRowClick,
   getKey,
   loading,
-  emptyTitle = "Nothing here yet",
+  emptyTitle,
   emptyAction,
 }: {
   columns: Column<T>[];
@@ -187,6 +193,7 @@ export function DataTable<T>({
   emptyTitle?: string;
   emptyAction?: ReactNode;
 }) {
+  const t = M[useLocale()];
   const gridCols = columns.map((c) => c.width).join(" ");
   const rowClass = "grid w-full items-center px-6 py-4 text-left transition-colors";
   return (
@@ -203,12 +210,12 @@ export function DataTable<T>({
       </div>
       {loading ? (
         <div className="px-6 py-12 text-center text-[13px]" style={{ color: tone.ink50 }}>
-          Loading…
+          {t.loading}
         </div>
       ) : rows.length === 0 ? (
         <div className="px-6 py-16 text-center">
           <div className="font-serif" style={{ fontSize: 22, color: tone.ink }}>
-            {emptyTitle}
+            {emptyTitle ?? t.emptyTitle}
           </div>
           {emptyAction && <div className="mt-3">{emptyAction}</div>}
         </div>

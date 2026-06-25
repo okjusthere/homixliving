@@ -14,7 +14,77 @@ import {
 import { fmtDate, fmtMoney, tone } from "@/components/homix/tokens";
 import { sourceEmoji, sourceLabel } from "@/lib/sources";
 import { invoicePaymentTone, type InvoicePaymentSummary } from "@/lib/invoice-payment";
+import { useLocale } from "@/lib/i18n-client";
 import type { Agent, Building, Deal } from "@/db/schema";
+
+const M = {
+  en: {
+    eyebrow: "Pipeline",
+    title: "Rental",
+    invoices: "Invoices",
+    buildings: "Buildings",
+    renewals: "Renewals",
+    newRental: "New Rental",
+    all: "All",
+    active: "Active",
+    cancelled: "Cancelled",
+    completed: "Completed",
+    searchPlaceholder: "Search tenant, unit, building, agent…",
+    emptyNoDeals: "No rental deals yet",
+    emptyNoResults: "No results match your filters",
+    createFirst: "Create your first rental",
+    colRental: "Rental #",
+    colBuildingTenant: "Building / Tenant",
+    colAgent: "Agent",
+    colMoveIn: "Move-in",
+    colCommission: "Commission",
+    colInvoicePayment: "Invoice / Payment",
+    colStatus: "Status",
+    unit: "Unit",
+    agent: "agent",
+    agents: "agents",
+    outstanding: "outstanding",
+    received: "Received",
+    receivedAmount: "received",
+    draftInvoice: "draft invoice",
+    draftInvoices: "draft invoices",
+    needsResend: "Needs resend",
+    createInvoiceWhenReady: "Create invoice when ready",
+  },
+  zh: {
+    eyebrow: "管道",
+    title: "租赁",
+    invoices: "发票",
+    buildings: "楼盘",
+    renewals: "续约",
+    newRental: "新建租约",
+    all: "全部",
+    active: "进行中",
+    cancelled: "已取消",
+    completed: "已完成",
+    searchPlaceholder: "搜索租客、单元、楼盘、经纪人…",
+    emptyNoDeals: "暂无租赁交易",
+    emptyNoResults: "没有符合筛选条件的结果",
+    createFirst: "创建第一笔租约",
+    colRental: "租约编号",
+    colBuildingTenant: "楼盘 / 租客",
+    colAgent: "经纪人",
+    colMoveIn: "入住",
+    colCommission: "佣金",
+    colInvoicePayment: "发票 / 付款",
+    colStatus: "状态",
+    unit: "单元",
+    agent: "位经纪人",
+    agents: "位经纪人",
+    outstanding: "待付款",
+    received: "已收款",
+    receivedAmount: "已收款",
+    draftInvoice: "张草稿发票",
+    draftInvoices: "张草稿发票",
+    needsResend: "需重新发送",
+    createInvoiceWhenReady: "准备好后创建发票",
+  },
+} as const;
 
 type DealRow = {
   deal: Deal;
@@ -34,23 +104,24 @@ function statusTone(status: string) {
   return "accent";
 }
 
-function paymentDetail(summary: InvoicePaymentSummary) {
+function paymentDetail(summary: InvoicePaymentSummary, t: (typeof M)[keyof typeof M]) {
   if (summary.status === "awaiting_payment") {
-    return `$${fmtMoney(summary.totalOutstanding)} outstanding`;
+    return `$${fmtMoney(summary.totalOutstanding)} ${t.outstanding}`;
   }
   if (summary.status === "paid") {
-    return summary.paidAt ? `Received ${fmtDate(summary.paidAt)}` : `$${fmtMoney(summary.totalPaid)} received`;
+    return summary.paidAt ? `${t.received} ${fmtDate(summary.paidAt)}` : `$${fmtMoney(summary.totalPaid)} ${t.receivedAmount}`;
   }
   if (summary.status === "draft") {
-    return `${summary.invoiceCount} draft invoice${summary.invoiceCount === 1 ? "" : "s"}`;
+    return `${summary.invoiceCount} ${summary.invoiceCount === 1 ? t.draftInvoice : t.draftInvoices}`;
   }
   if (summary.status === "failed") {
-    return "Needs resend";
+    return t.needsResend;
   }
-  return "Create invoice when ready";
+  return t.createInvoiceWhenReady;
 }
 
 export default function DealsPage() {
+  const t = M[useLocale()];
   const [deals, setDeals] = useState<DealRow[]>([]);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<"all" | "active" | "cancelled" | "completed">("all");
@@ -93,7 +164,7 @@ export default function DealsPage() {
   const columns: Column<DealRow>[] = [
     {
       key: "id",
-      label: "Rental #",
+      label: t.colRental,
       width: "0.7fr",
       render: (row) => (
         <span className="font-mono text-[12.5px]" style={{ color: tone.ink }}>
@@ -103,12 +174,12 @@ export default function DealsPage() {
     },
     {
       key: "building",
-      label: "Building / Tenant",
+      label: t.colBuildingTenant,
       width: "1.9fr",
       render: (row) => (
         <div>
           <div className="text-[13px]" style={{ color: tone.ink }}>
-            {row.building?.name || "—"} · Unit {row.deal.unit}
+            {row.building?.name || "—"} · {t.unit} {row.deal.unit}
           </div>
           <div
             className="text-[11.5px] mt-0.5 flex items-center gap-1.5"
@@ -126,7 +197,7 @@ export default function DealsPage() {
     },
     {
       key: "agent",
-      label: "Agent",
+      label: t.colAgent,
       width: "1.2fr",
       render: (row) => {
         const primary = row.agents.find((participant) => participant.isPrimary);
@@ -139,7 +210,7 @@ export default function DealsPage() {
             {others.length > 0 && (
               <div className="mt-1">
                 <Pill tone="neutral">
-                  +{others.length} agent{others.length === 1 ? "" : "s"}
+                  +{others.length} {others.length === 1 ? t.agent : t.agents}
                 </Pill>
               </div>
             )}
@@ -149,7 +220,7 @@ export default function DealsPage() {
     },
     {
       key: "moveIn",
-      label: "Move-in",
+      label: t.colMoveIn,
       width: "0.9fr",
       render: (row) => (
         <span className="text-[12.5px] font-mono" style={{ color: tone.ink70 }}>
@@ -159,7 +230,7 @@ export default function DealsPage() {
     },
     {
       key: "commission",
-      label: "Commission",
+      label: t.colCommission,
       width: "1fr",
       align: "right",
       render: (row) => (
@@ -170,7 +241,7 @@ export default function DealsPage() {
     },
     {
       key: "invoice",
-      label: "Invoice / Payment",
+      label: t.colInvoicePayment,
       width: "1.2fr",
       render: (row) => (
         <div>
@@ -178,14 +249,14 @@ export default function DealsPage() {
             {row.invoiceSummary.label}
           </Pill>
           <div className="mt-1 text-[11.5px]" style={{ color: tone.ink50 }}>
-            {paymentDetail(row.invoiceSummary)}
+            {paymentDetail(row.invoiceSummary, t)}
           </div>
         </div>
       ),
     },
     {
       key: "status",
-      label: "Status",
+      label: t.colStatus,
       width: "0.8fr",
       align: "right",
       render: (row) => <Pill tone={statusTone(row.deal.status)}>{row.deal.status}</Pill>,
@@ -195,22 +266,22 @@ export default function DealsPage() {
   return (
     <div className="space-y-7">
       <PageHeader
-        eyebrow="Pipeline"
-        title="Rental"
+        eyebrow={t.eyebrow}
+        title={t.title}
         actions={
           <>
             <Link href="/invoices">
-              <Btn variant="outline">Invoices</Btn>
+              <Btn variant="outline">{t.invoices}</Btn>
             </Link>
             <Link href="/buildings">
-              <Btn variant="outline">Buildings</Btn>
+              <Btn variant="outline">{t.buildings}</Btn>
             </Link>
             <Link href="/rental/renewals">
-              <Btn variant="outline">Renewals</Btn>
+              <Btn variant="outline">{t.renewals}</Btn>
             </Link>
             <Link href="/rental/new">
               <Btn variant="primary" icon={<Icons.Plus />}>
-                New Rental
+                {t.newRental}
               </Btn>
             </Link>
           </>
@@ -222,16 +293,16 @@ export default function DealsPage() {
           value={status}
           onChange={setStatus}
           options={[
-            { id: "all", label: "All", count: counts.all },
-            { id: "active", label: "Active", count: counts.active },
-            { id: "cancelled", label: "Cancelled", count: counts.cancelled },
-            { id: "completed", label: "Completed", count: counts.completed },
+            { id: "all", label: t.all, count: counts.all },
+            { id: "active", label: t.active, count: counts.active },
+            { id: "cancelled", label: t.cancelled, count: counts.cancelled },
+            { id: "completed", label: t.completed, count: counts.completed },
           ]}
         />
         <SearchInput
           value={search}
           onChange={setSearch}
-          placeholder="Search tenant, unit, building, agent…"
+          placeholder={t.searchPlaceholder}
           className="min-w-[320px]"
         />
       </Toolbar>
@@ -242,11 +313,11 @@ export default function DealsPage() {
         getKey={(row) => row.deal.id}
         getHref={(row) => `/rental/${row.deal.id}`}
         loading={loading}
-        emptyTitle={deals.length === 0 ? "No rental deals yet" : "No results match your filters"}
+        emptyTitle={deals.length === 0 ? t.emptyNoDeals : t.emptyNoResults}
         emptyAction={
           deals.length === 0 ? (
             <Link href="/rental/new" className="text-[13px] underline" style={{ color: tone.accent }}>
-              Create your first rental
+              {t.createFirst}
             </Link>
           ) : undefined
         }

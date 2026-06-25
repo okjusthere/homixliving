@@ -11,6 +11,7 @@ import {
   type Column,
 } from "@/components/homix/page-kit";
 import { fmtDate, fmtMoney, tone } from "@/components/homix/tokens";
+import { useLocale } from "@/lib/i18n-client";
 import {
   RENEWAL_WINDOWS,
   renewalStatusLabel,
@@ -19,6 +20,63 @@ import {
   windowTone,
   type RenewalWindow,
 } from "@/lib/renewals";
+
+const M = {
+  en: {
+    eyebrow: "Rental pipeline",
+    title: "Renewals",
+    description: (n: number, rent: string) =>
+      `${n} lease${
+        n === 1 ? "" : "s"
+      } ending in the next 90 days · $${rent} monthly rent in play`,
+    all: "All",
+    statusPending: "Pending",
+    statusRenewing: "Renewing",
+    statusMovingOut: "Moving out",
+    statusRenewed: "Renewed",
+    statusLost: "Lost",
+    colRental: "Rental",
+    unit: "Unit",
+    colBuildingTenant: "Building / Tenant",
+    colAgent: "Agent",
+    colLeaseEnds: "Lease ends",
+    colWhen: "When",
+    colAction: "Action",
+    dAgo: "d ago",
+    d: "d",
+    reset: "reset",
+    statusUpdated: "Status updated",
+    updateFailed: "Update failed",
+    emptyNothing: "Nothing coming up",
+    emptyNoLeases: "No leases in this window",
+  },
+  zh: {
+    eyebrow: "租赁管道",
+    title: "续约",
+    description: (n: number, rent: string) =>
+      `未来 90 天内有 ${n} 份租约到期 · 涉及月租金 $${rent}`,
+    all: "全部",
+    statusPending: "待处理",
+    statusRenewing: "续约中",
+    statusMovingOut: "搬离中",
+    statusRenewed: "已续约",
+    statusLost: "已流失",
+    colRental: "租赁",
+    unit: "单元",
+    colBuildingTenant: "楼盘 / 租客",
+    colAgent: "经纪人",
+    colLeaseEnds: "租约到期",
+    colWhen: "时间",
+    colAction: "操作",
+    dAgo: "天前",
+    d: "天",
+    reset: "重置",
+    statusUpdated: "状态已更新",
+    updateFailed: "更新失败",
+    emptyNothing: "暂无即将到期",
+    emptyNoLeases: "此时间段没有租约",
+  },
+} as const;
 
 type RenewalRow = {
   deal: {
@@ -42,15 +100,15 @@ type RenewalRow = {
   window: RenewalWindow | null;
 };
 
-const STATUS_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: "pending", label: "Pending" },
-  { value: "renewing", label: "Renewing" },
-  { value: "moving_out", label: "Moving out" },
-  { value: "renewed", label: "Renewed" },
-  { value: "lost", label: "Lost" },
-];
-
 export default function RenewalsPage() {
+  const t = M[useLocale()];
+  const STATUS_OPTIONS: Array<{ value: string; label: string }> = [
+    { value: "pending", label: t.statusPending },
+    { value: "renewing", label: t.statusRenewing },
+    { value: "moving_out", label: t.statusMovingOut },
+    { value: "renewed", label: t.statusRenewed },
+    { value: "lost", label: t.statusLost },
+  ];
   const [items, setItems] = useState<RenewalRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeWindow, setActiveWindow] = useState<RenewalWindow | "all">("all");
@@ -102,10 +160,10 @@ export default function RenewalsPage() {
         body: JSON.stringify({ renewalStatus }),
       });
       if (!res.ok) throw new Error();
-      toast.success("Status updated");
+      toast.success(t.statusUpdated);
       await fetchItems();
     } catch {
-      toast.error("Update failed");
+      toast.error(t.updateFailed);
     } finally {
       setSavingDeal(null);
     }
@@ -114,7 +172,7 @@ export default function RenewalsPage() {
   const columns: Column<RenewalRow>[] = [
     {
       key: "rental",
-      label: "Rental",
+      label: t.colRental,
       width: "1.4fr",
       render: (row) => (
         <div>
@@ -122,14 +180,14 @@ export default function RenewalsPage() {
             #{row.deal.id}
           </span>
           <div className="mt-0.5 text-[11.5px]" style={{ color: tone.ink50 }}>
-            Unit {row.deal.unit}
+            {t.unit} {row.deal.unit}
           </div>
         </div>
       ),
     },
     {
       key: "building",
-      label: "Building / Tenant",
+      label: t.colBuildingTenant,
       width: "1.6fr",
       render: (row) => (
         <div>
@@ -147,7 +205,7 @@ export default function RenewalsPage() {
     },
     {
       key: "agent",
-      label: "Agent",
+      label: t.colAgent,
       width: "1fr",
       render: (row) => (
         <span className="text-[12.5px]" style={{ color: tone.ink70 }}>
@@ -157,7 +215,7 @@ export default function RenewalsPage() {
     },
     {
       key: "leaseEnds",
-      label: "Lease ends",
+      label: t.colLeaseEnds,
       width: "0.9fr",
       render: (row) => (
         <span className="font-mono text-[12.5px]" style={{ color: tone.ink70 }}>
@@ -167,7 +225,7 @@ export default function RenewalsPage() {
     },
     {
       key: "when",
-      label: "When",
+      label: t.colWhen,
       width: "1fr",
       render: (row) => {
         const days = row.daysUntil;
@@ -175,15 +233,15 @@ export default function RenewalsPage() {
         return win ? (
           <Pill tone={windowTone(win)}>
             {days !== null && days < 0
-              ? `${Math.abs(days)} d ago`
-              : `${days} d`}
+              ? `${Math.abs(days)} ${t.dAgo}`
+              : `${days} ${t.d}`}
           </Pill>
         ) : null;
       },
     },
     {
       key: "action",
-      label: "Action",
+      label: t.colAction,
       width: "1.2fr",
       align: "right",
       render: (row) => (
@@ -223,7 +281,7 @@ export default function RenewalsPage() {
               className="text-[11px] underline"
               style={{ color: tone.ink50 }}
             >
-              reset
+              {t.reset}
             </button>
           )}
         </div>
@@ -234,13 +292,9 @@ export default function RenewalsPage() {
   return (
     <div className="space-y-7">
       <PageHeader
-        eyebrow="Rental pipeline"
-        title="Renewals"
-        description={`${items.length} lease${
-          items.length === 1 ? "" : "s"
-        } ending in the next 90 days · $${fmtMoney(
-          totalRent
-        )} monthly rent in play`}
+        eyebrow={t.eyebrow}
+        title={t.title}
+        description={t.description(items.length, fmtMoney(totalRent))}
       />
 
       <Toolbar>
@@ -249,7 +303,7 @@ export default function RenewalsPage() {
           onChange={setActiveWindow}
           options={(["all", ...RENEWAL_WINDOWS] as const).map((w) => ({
             id: w,
-            label: w === "all" ? "All" : windowLabel(w),
+            label: w === "all" ? t.all : windowLabel(w),
             count: counts[w],
           }))}
         />
@@ -262,7 +316,7 @@ export default function RenewalsPage() {
         getHref={(row) => `/rental/${row.deal.id}`}
         loading={loading}
         emptyTitle={
-          items.length === 0 ? "Nothing coming up" : "No leases in this window"
+          items.length === 0 ? t.emptyNothing : t.emptyNoLeases
         }
       />
     </div>
