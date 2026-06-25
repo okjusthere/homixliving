@@ -29,6 +29,11 @@
   --color-homix-rose-soft: #F1D9D6;
   --color-homix-green: #3E6B4D;
   --color-homix-green-soft: #DBE7DC;
+  /* Tokens for the ported marketing pages (homixweb palette) */
+  --color-bronze: #9A6A3C;
+  --color-bronze-dark: #845426;
+  --color-surface: #FCFAF5;
+  --color-pine: #2C4A40;
 
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -130,6 +135,35 @@
 }
 .font-mono {
   font-family: var(--font-geist-mono), 'SF Mono', Menlo, monospace;
+}
+
+/* Utilities for the ported marketing pages (eyebrow label + scroll reveal) */
+.eyebrow {
+  font-size: 0.75rem;
+  line-height: 1;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 500;
+  color: #7a756c;
+}
+.reveal {
+  opacity: 0;
+  transform: translateY(14px);
+  transition:
+    opacity 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+}
+.reveal[data-visible="true"] {
+  opacity: 1;
+  transform: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
 }
 
 /* Print style for invoice */
