@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { HomixMark, Icons } from "@/components/homix/primitives";
 import { tone } from "@/components/homix/tokens";
@@ -13,10 +13,17 @@ const navItems = [
   { href: "/rental", label: "Rental" },
   { href: "/training", label: "Training" },
   { href: "/resources", label: "Resources" },
+  { href: "/onboarding", label: "Onboarding" },
+  { href: "/buyercoach", label: "Coach" },
+  { href: "/offer", label: "Offer" },
   { href: "/agents", label: "Agents", adminOnly: true },
   { href: "/reports", label: "Reports", adminOnly: true },
   { href: "/settings", label: "Settings", adminOnly: true },
 ];
+
+// The locale lives in a cookie; no external subscription needed (our toggle
+// calls router.refresh(), which re-renders and re-reads the snapshot).
+const subscribeLocale = () => () => {};
 
 function getInitials(name: string | null | undefined, email: string | null | undefined): string {
   const source = (name || email || "?").trim();
@@ -29,8 +36,22 @@ function getInitials(name: string | null | undefined, email: string | null | und
 export function Nav() {
   const pathname = usePathname();
   const { data: session } = useSession();
+  const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const locale = useSyncExternalStore(
+    subscribeLocale,
+    () =>
+      typeof document !== "undefined" && /(?:^|;\s*)locale=zh/.test(document.cookie)
+        ? "zh"
+        : "en",
+    () => "en",
+  );
+  const toggleLocale = () => {
+    const next = locale === "zh" ? "en" : "zh";
+    document.cookie = `locale=${next}; path=/; max-age=31536000; samesite=lax`;
+    router.refresh();
+  };
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -54,6 +75,7 @@ export function Nav() {
       );
     if (href === "/sales") return pathname === "/sales" || /^\/sales\/\d+/.test(pathname) || pathname === "/sales/new";
     if (href === "/agents") return pathname === "/agents" || /^\/agents\/\d+/.test(pathname);
+    if (href === "/onboarding") return pathname === "/onboarding" || pathname.startsWith("/onboarding/");
     return pathname === href;
   };
 
@@ -92,6 +114,15 @@ export function Nav() {
             </div>
           </div>
           <div className="flex items-center gap-3" ref={menuRef}>
+            <button
+              type="button"
+              onClick={toggleLocale}
+              className="h-9 px-3 rounded-md text-[13px] font-medium transition-colors hover:opacity-80"
+              style={{ border: `1px solid ${tone.line}`, color: tone.ink50 }}
+              aria-label="Switch language"
+            >
+              {locale === "zh" ? "EN" : "中文"}
+            </button>
             <div
               className="flex items-center gap-2 h-9 px-3 rounded-md"
               style={{ border: `1px solid ${tone.line}`, color: tone.ink50 }}
