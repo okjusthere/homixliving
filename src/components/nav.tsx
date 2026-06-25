@@ -2,28 +2,40 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { HomixMark, Icons } from "@/components/homix/primitives";
 import { tone } from "@/components/homix/tokens";
+import { useLocale } from "@/lib/i18n-client";
 
 const navItems = [
-  { href: "/", label: "Overview" },
-  { href: "/sales", label: "Sales" },
-  { href: "/rental", label: "Rental" },
-  { href: "/training", label: "Training" },
-  { href: "/resources", label: "Resources" },
-  { href: "/onboarding", label: "Onboarding" },
-  { href: "/buyercoach", label: "Coach" },
-  { href: "/offer", label: "Offer" },
-  { href: "/agents", label: "Agents", adminOnly: true },
-  { href: "/reports", label: "Reports", adminOnly: true },
-  { href: "/settings", label: "Settings", adminOnly: true },
-];
+  { href: "/", key: "overview", adminOnly: false },
+  { href: "/sales", key: "sales", adminOnly: false },
+  { href: "/rental", key: "rental", adminOnly: false },
+  { href: "/training", key: "training", adminOnly: false },
+  { href: "/resources", key: "resources", adminOnly: false },
+  { href: "/onboarding", key: "onboarding", adminOnly: false },
+  { href: "/buyercoach", key: "coach", adminOnly: false },
+  { href: "/offer", key: "offer", adminOnly: false },
+  { href: "/agents", key: "agents", adminOnly: true },
+  { href: "/reports", key: "reports", adminOnly: true },
+  { href: "/settings", key: "settings", adminOnly: true },
+] as const;
 
-// The locale lives in a cookie; no external subscription needed (our toggle
-// calls router.refresh(), which re-renders and re-reads the snapshot).
-const subscribeLocale = () => () => {};
+const LABELS = {
+  en: {
+    overview: "Overview", sales: "Sales", rental: "Rental", training: "Training",
+    resources: "Resources", onboarding: "Onboarding", coach: "Coach", offer: "Offer",
+    agents: "Agents", reports: "Reports", settings: "Settings",
+    search: "Search", signedIn: "Signed in", signOut: "Sign out", admin: "Admin",
+  },
+  zh: {
+    overview: "概览", sales: "买卖", rental: "租赁", training: "培训",
+    resources: "资料", onboarding: "入职", coach: "AI 教练", offer: "报价",
+    agents: "经纪人", reports: "报表", settings: "设置",
+    search: "搜索", signedIn: "已登录", signOut: "退出登录", admin: "管理员",
+  },
+} as const;
 
 function getInitials(name: string | null | undefined, email: string | null | undefined): string {
   const source = (name || email || "?").trim();
@@ -39,14 +51,8 @@ export function Nav() {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const locale = useSyncExternalStore(
-    subscribeLocale,
-    () =>
-      typeof document !== "undefined" && /(?:^|;\s*)locale=zh/.test(document.cookie)
-        ? "zh"
-        : "en",
-    () => "en",
-  );
+  const locale = useLocale();
+  const t = LABELS[locale];
   const toggleLocale = () => {
     const next = locale === "zh" ? "en" : "zh";
     document.cookie = `locale=${next}; path=/; max-age=31536000; samesite=lax`;
@@ -107,7 +113,7 @@ export function Nav() {
                       background: active ? tone.paperDeep : "transparent",
                     }}
                   >
-                    {item.label}
+                    {t[item.key]}
                   </Link>
                 );
               })}
@@ -130,7 +136,7 @@ export function Nav() {
               <span style={{ color: tone.ink30 }}>
                 <Icons.Search />
               </span>
-              <span className="text-[13px]">Search</span>
+              <span className="text-[13px]">{t.search}</span>
               <span
                 className="text-[10px] px-1.5 py-0.5 rounded font-mono"
                 style={{ background: tone.paperDeep, color: tone.ink50 }}
@@ -163,7 +169,7 @@ export function Nav() {
                       className="font-serif"
                       style={{ fontSize: 16, color: tone.ink, letterSpacing: "-0.01em" }}
                     >
-                      {session?.user?.name || "Signed in"}
+                      {session?.user?.name || t.signedIn}
                     </div>
                     <div className="text-[12px] mt-0.5 truncate" style={{ color: tone.ink50 }}>
                       {session?.user?.email}
@@ -173,7 +179,7 @@ export function Nav() {
                         className="mt-2 inline-block px-2 py-0.5 rounded-full text-[10px] uppercase tracking-wider"
                         style={{ background: tone.accentSoft, color: tone.accent }}
                       >
-                        Admin
+                        {t.admin}
                       </div>
                     )}
                   </div>
@@ -183,7 +189,7 @@ export function Nav() {
                     className="w-full text-left px-4 py-3 text-[13px] hover:bg-[#FAF7F0] transition-colors"
                     style={{ color: tone.ink70 }}
                   >
-                    Sign out
+                    {t.signOut}
                   </button>
                 </div>
               )}
