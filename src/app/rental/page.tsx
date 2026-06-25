@@ -52,12 +52,12 @@ const M = {
     createInvoiceWhenReady: "Create invoice when ready",
   },
   zh: {
-    eyebrow: "管道",
+    eyebrow: "业务流",
     title: "租赁",
     invoices: "发票",
     buildings: "楼盘",
     renewals: "续约",
-    newRental: "新建租约",
+    newRental: "新建租赁",
     all: "全部",
     active: "进行中",
     cancelled: "已取消",
@@ -65,7 +65,7 @@ const M = {
     searchPlaceholder: "搜索租客、单元、楼盘、经纪人…",
     emptyNoDeals: "暂无租赁交易",
     emptyNoResults: "没有符合筛选条件的结果",
-    createFirst: "创建第一笔租约",
+    createFirst: "新建第一笔租赁",
     colRental: "租约编号",
     colBuildingTenant: "楼盘 / 租客",
     colAgent: "经纪人",
@@ -82,7 +82,7 @@ const M = {
     draftInvoice: "张草稿发票",
     draftInvoices: "张草稿发票",
     needsResend: "需重新发送",
-    createInvoiceWhenReady: "准备好后创建发票",
+    createInvoiceWhenReady: "待开具发票",
   },
 } as const;
 

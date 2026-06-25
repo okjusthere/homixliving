@@ -51,14 +51,14 @@ const M = {
     emptyNoLeases: "No leases in this window",
   },
   zh: {
-    eyebrow: "租赁管道",
+    eyebrow: "租赁动态",
     title: "续约",
     description: (n: number, rent: string) =>
       `未来 90 天内有 ${n} 份租约到期 · 涉及月租金 $${rent}`,
     all: "全部",
     statusPending: "待处理",
     statusRenewing: "续约中",
-    statusMovingOut: "搬离中",
+    statusMovingOut: "退租中",
     statusRenewed: "已续约",
     statusLost: "已流失",
     colRental: "租赁",
@@ -73,8 +73,8 @@ const M = {
     reset: "重置",
     statusUpdated: "状态已更新",
     updateFailed: "更新失败",
-    emptyNothing: "暂无即将到期",
-    emptyNoLeases: "此时间段没有租约",
+    emptyNothing: "近期暂无到期租约",
+    emptyNoLeases: "该时段暂无租约",
   },
 } as const;
 

@@ -26,7 +26,7 @@ const M = {
     title: "资料库",
     description: "标准流程、话术、模板和品牌素材。",
     emptyAdmin: "暂无资料 — 请在上方添加。",
-    emptyAgent: "资料正在添加中，敬请稍后查看。",
+    emptyAgent: "资料陆续上传中，请稍后再来查看。",
     hidden: "隐藏",
     open: "打开 ↗",
   },

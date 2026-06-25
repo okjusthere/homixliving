@@ -56,7 +56,7 @@ const M = {
     sent: "待付款",
     searchPlaceholder: "按编号、租客、楼盘搜索…",
     emptyNone: "还没有发票",
-    emptyNoResults: "没有符合筛选条件的结果",
+    emptyNoResults: "没有符合条件的发票",
     createFirst: "创建第一张发票",
   },
 } as const;
