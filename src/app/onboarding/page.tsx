@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { CSSProperties } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/marketing/Button";
@@ -111,7 +112,7 @@ export default async function OnboardingPage() {
                   />
                 </div>
                 <div>
-                  <p className="text-xs font-medium uppercase tracking-[0.14em] text-ink-50">
+                  <p className="text-xs font-semibold uppercase leading-snug tracking-[0.12em] text-bronze">
                     {person.role}
                   </p>
                   <h3 className="mt-3 font-serif text-2xl leading-tight text-ink">
@@ -156,7 +157,7 @@ export default async function OnboardingPage() {
                 <Reveal key={member.name} delay={i * 50} className="bg-paper">
                   <div className="flex h-full flex-col p-6">
                     {member.image ? (
-                      <div className="relative size-16 overflow-hidden rounded-sm bg-line">
+                      <div className="relative size-16 overflow-hidden rounded-full bg-line">
                         <Image
                           src={member.image}
                           alt={member.name}
@@ -172,12 +173,12 @@ export default async function OnboardingPage() {
                         />
                       </div>
                     ) : (
-                      <div className="flex size-12 items-center justify-center rounded-sm bg-ink font-serif text-lg text-paper">
+                      <div className="flex size-12 items-center justify-center rounded-full bg-ink font-serif text-lg text-paper">
                         {initials(member.name)}
                       </div>
                     )}
                     <p className="mt-5 font-serif text-xl text-ink">{member.name}</p>
-                    <p className="mt-1 text-xs font-medium uppercase tracking-[0.14em] text-ink-50">
+                    <p className="mt-1 text-xs font-semibold uppercase tracking-[0.14em] text-bronze">
                       {member.role}
                     </p>
                     <p className="mt-4 text-sm leading-relaxed text-ink-50">
@@ -291,14 +292,29 @@ export default async function OnboardingPage() {
                   {o.socialMedia.lead}
                 </p>
                 <div className="mt-7 grid grid-cols-3 gap-px overflow-hidden rounded-sm border border-line bg-line">
-                  {o.socialMedia.stats.map((stat) => (
+                  {o.socialMedia.stats.map((stat, i) => (
                     <div key={stat.label} className="bg-paper p-4">
-                      <p className="font-serif text-2xl leading-none text-bronze">
-                        {stat.value}
-                      </p>
-                      <p className="mt-2 text-xs leading-snug text-ink-50">
-                        {stat.label}
-                      </p>
+                      <div
+                        className="stat-roll h-20 overflow-hidden"
+                        style={{ "--stat-roll-delay": `${i * 360}ms` } as CSSProperties}
+                      >
+                        <div className="stat-roll-track">
+                          {[0, 1].map((copy) => (
+                            <div
+                              key={copy}
+                              aria-hidden={copy === 1}
+                              className="flex h-20 flex-col justify-center"
+                            >
+                              <p className="font-serif text-2xl leading-none text-bronze">
+                                {stat.value}
+                              </p>
+                              <p className="mt-2 text-xs leading-snug text-ink-50">
+                                {stat.label}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -434,12 +450,12 @@ export default async function OnboardingPage() {
       {/* Guides */}
       <section className="border-t border-line bg-surface py-16 sm:py-20">
         <Container>
-          <Eyebrow>Client Guides · New York · OneKey MLS</Eyebrow>
+          <Eyebrow>{o.clientGuides.eyebrow}</Eyebrow>
           <h2 className="mt-5 font-serif text-3xl font-normal leading-tight text-ink sm:text-[2.55rem]">
-            Buyer & Seller playbooks
+            {o.clientGuides.title}
           </h2>
           <p className="mt-5 max-w-2xl text-lg leading-relaxed text-ink-50">
-            Step-by-step guides grounded in New York Real Property Law and OneKey MLS standards — ready to share with clients or use as a reference in consultations.
+            {o.clientGuides.lead}
           </p>
           <div className="mt-10 grid gap-px overflow-hidden rounded-sm border border-line bg-line sm:grid-cols-2">
             <Reveal className="bg-paper">
@@ -448,7 +464,7 @@ export default async function OnboardingPage() {
                 <h3 className="mt-5 font-serif text-2xl leading-tight text-ink">{o.buyerGuide.title}</h3>
                 <p className="mt-3 flex-1 text-base leading-relaxed text-ink-50">{o.buyerGuide.lead}</p>
                 <span className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-bronze transition-[gap] group-hover:gap-3">
-                  Read the buyer guide
+                  {o.clientGuides.buyerCta}
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
                     <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
@@ -461,7 +477,7 @@ export default async function OnboardingPage() {
                 <h3 className="mt-5 font-serif text-2xl leading-tight text-ink">{o.sellerGuide.title}</h3>
                 <p className="mt-3 flex-1 text-base leading-relaxed text-ink-50">{o.sellerGuide.lead}</p>
                 <span className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-pine transition-[gap] group-hover:gap-3">
-                  Read the seller guide
+                  {o.clientGuides.sellerCta}
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
                     <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>

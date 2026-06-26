@@ -898,7 +898,6 @@ const en = {
             "Signed Independent Contractor Agreement and commission tier recorded.",
             "W-9, direct deposit, emergency contact, and internal profile created.",
             "License transfer or sponsorship steps confirmed in eAccessNY.",
-            "E&O coverage, Fair Housing acknowledgment, and policy manual receipt logged.",
           ],
         },
         {
@@ -915,9 +914,8 @@ const en = {
           title: "Branding & marketing",
           owner: "Marketing Coordinator",
           items: [
-            "Headshot and intro reel session scheduled with the media team.",
             "Agent bio rewritten, translated where needed, and approved for the website.",
-            "Business cards, email signature, social bios, and license/EHO disclosures prepared.",
+            "Business cards, email signature, social bios, license details, and Equal Housing Opportunity disclosures prepared.",
             "For Sale sign, Open House sign, riders, QR codes, and print templates ready for first listing.",
           ],
         },
@@ -925,7 +923,6 @@ const en = {
           title: "Training & mentor handoff",
           owner: "Leadership + Mentor",
           items: [
-            "Mentor assigned and first 30/60/90-day check-ins scheduled.",
             "Training video path assigned: foundations, buyer/seller playbooks, compliance, and media.",
             "Shadowing appointments, role-play sessions, and first consultation review scheduled.",
             "First-deal support path documented: who reviews offer terms, files, and timelines.",
@@ -1391,11 +1388,9 @@ const en = {
         blurb: "This is where Homix is different. Most brokerages hand you a logo and wish you luck. We put you in front of a camera. Our in-house studio and 1M+ audience exist to make you visible from day one — so the market meets a Homix professional, not an anonymous new agent. This phase turns you into recognizable, on-brand media.",
         items: [
           "Book your in-house studio session: professional headshots, a short intro reel, and on-brand profile photography.",
-          "Publish your agent profile on the Homix website and connect it to your listings.",
-          "Complete your self-branding procedure: custom business cards, compliant email signature rewrite, agent bio polish, and social profile cleanup.",
-          "Order field marketing assets for listings and events: For Sale signs, Open House signs, directional riders, QR codes, and branded print templates.",
-          "Plan your first content with the media team: a Flushing/Queens neighborhood feature or a listing tour for our channels.",
-          "Set up your social handles to brand standards, with bilingual captions ready to go.",
+          "Publish your agent profile with approved bio, contact details, license disclosure, and listing connection.",
+          "Finalize brand essentials: business card proof, compliant email signature, social handles, and consistent bilingual profile copy.",
+          "Prepare first-use marketing: For Sale and Open House sign assets, QR codes, reusable flyer templates, and one launch content plan with the media team.",
         ],
       },
       {
@@ -1406,7 +1401,7 @@ const en = {
           "Shadow your mentor on live appointments and a closing, and debrief each one together.",
           "Run role-play scripts for buyer consultations and listing presentations in English and 中文.",
           "Build your 90-day business plan: lead sources, content cadence, and weekly activity targets.",
-          "Learn the compliance essentials in practice — agency disclosure, Fair Housing in conversation, and accurate listing attribution.",
+          "Practice compliance in client-facing scenarios — agency disclosure timing, Fair Housing language, listing attribution, and when to escalate for broker review.",
         ],
         showVisualsOnOnboarding: false,
         visuals: [
@@ -1512,16 +1507,23 @@ const en = {
         title: "Phase 6 — First Deal & Beyond",
         blurb: "Onboarding ends where your career begins: a real client and a real transaction, with the whole brokerage behind you. Your mentor, the media engine, the AI tools, and our operations desk stay close while you take a deal across the line. After it closes, we review what worked and set the rhythm that carries you into a steady, growing book of business.",
         items: [
-          "Take your first lead from intake to signed agreement with mentor support at each step.",
+          "Take your first lead from intake to signed agreement with mentor support at key decision points.",
           "Use the operations desk for contract review, timelines, and a smooth, compliant closing.",
           "Turn the win into content: a closing announcement and client story for the Homix channels.",
-          "Hold a first-deal debrief with your mentor and lock in your ongoing growth plan.",
+          "Hold a first-deal debrief with your mentor, then set the next 30-day activity rhythm.",
           "Map your path up the commission tiers and into Homix's advanced and leadership tracks.",
         ],
       },
     ],
     closingTitle: "You're never onboarding alone",
     closingBody: "Every phase here is something Homix does with you, not a checklist we hand off and forget. By the time you finish, you have an active New York license sponsored by Homix Realty, full OneKey MLS access, a complete tech and AI stack, a studio-built personal brand in front of a 1M+ audience, and a mentor who has already walked the same road. That is the difference between getting a job and being set up to win. Welcome to Homix.",
+    clientGuides: {
+      eyebrow: "Client Guides · New York · OneKey MLS",
+      title: "Buyer & Seller playbooks",
+      lead: "Step-by-step guides grounded in New York Real Property Law and OneKey MLS standards — ready to share with clients or use as a reference in consultations.",
+      buyerCta: "Read the buyer guide",
+      sellerCta: "Read the seller guide",
+    },
     buyerGuide: {
       eyebrow: "New York Buyer Guide · Homix Realty",
       title: "How to buy a home in New York State",
@@ -2256,7 +2258,7 @@ const zh: Dict = {
         },
         {
           name: "Heidi Liu",
-          role: "Co-Founder · Licensed Real Estate Associate Broker",
+          role: "联合创始人 · 持牌地产副经纪",
           image: "/onboarding/heidi-liu.jpg",
           bio: "Heidi 拥有 13 年以上纽约地产全职经验，曾担任 broker、branch manager、coach 与 mentor，同时也是投资人与业主。她以市场判断、持续跟进、空间审美、营销能力和长期 Top Producer 记录著称，帮助经纪人学会一笔干净交易背后的服务标准。",
           focus: ["导师带教", "交易标准", "客户体验"],
@@ -2270,21 +2272,21 @@ const zh: Dict = {
       members: [
         {
           name: "Grace Xia",
-          role: "Office Manager",
+          role: "办公室经理",
           image: "/onboarding/grace.jpg",
           imagePosition: "50% 35%",
           body: "负责办公室协调、入职清单、账号开通、日程安排、文件流转，以及把问题及时交到对的人手上。",
         },
         {
           name: "Zoey Zhang",
-          role: "Marketing Coordinator",
+          role: "市场协调",
           image: "/onboarding/zoey.jpg",
           imagePosition: "50% 22%",
           body: "支持经纪人主页、内容日历、房源营销需求、社交媒体协调，以及确保每位经纪人的对外形象保持品牌一致。",
         },
         {
           name: "Henry Ju",
-          role: "Accounting / 财务",
+          role: "会计 / 财务",
           image: "/onboarding/henry-ju.jpg",
           imagePosition: "50% 26%",
           body: "协助佣金、报销、发票、交易相关款项与财务问题，确保记录清楚、跟进及时。",
@@ -2292,23 +2294,22 @@ const zh: Dict = {
       ],
     },
     adminChecklist: {
-      eyebrow: "Admin onboarding checklist",
+      eyebrow: "内部行政入职清单",
       title: "内部行政入职清单，确保每位新经纪人顺利推进。",
       lead: "这是一份办公室端使用的 tracker。每一项都有负责人、交接节点和明确目的，确保经纪人在开始跟进线索前，执照、系统、品牌和支持路径都已经准备好。",
       groups: [
         {
           title: "文件与执照档案",
-          owner: "Office Manager",
+          owner: "办公室经理",
           items: [
             "签署 Independent Contractor Agreement，并记录佣金档位。",
             "完成 W-9、direct deposit、紧急联系人与内部档案建立。",
             "确认 eAccessNY 中的执照转挂靠或 sponsorship 步骤。",
-            "记录 E&O 保险、公平住房确认、政策手册签收。",
           ],
         },
         {
           title: "系统权限",
-          owner: "Office Manager + Operations",
+          owner: "办公室经理 + 运营",
           items: [
             "开通 @homix 邮箱、agent portal、CRM、AI workspace 与 shared drive 权限。",
             "跟进 OneKey MLS onboarding 状态，并安排 MLS rules orientation。",
@@ -2318,27 +2319,25 @@ const zh: Dict = {
         },
         {
           title: "品牌与营销",
-          owner: "Marketing Coordinator",
+          owner: "市场协调",
           items: [
-            "预约形象照与 intro reel 拍摄。",
             "经纪人 bio 改写、必要时翻译，并确认官网版本。",
-            "准备名片、邮件签名、社交账号 bio、执照与 EHO 披露。",
+            "准备名片、邮件签名、社交账号 bio、执照信息与平等住房机会声明。",
             "准备 For Sale sign、Open House sign、riders、二维码与首个房源可用的印刷模板。",
           ],
         },
         {
           title: "培训与导师交接",
-          owner: "Leadership + Mentor",
+          owner: "领导团队 + 导师",
           items: [
-            "指定导师，并安排 30/60/90 天 check-in。",
             "分配培训视频路径：基础课程、买卖双方流程、合规与媒体课程。",
-            "安排 shadowing、话术演练与第一次客户咨询复盘。",
+            "安排跟随资深经纪人观摩实战、话术演练与第一次客户咨询复盘。",
             "明确第一单支持路径：报价条款、文件与时间线由谁复核。",
           ],
         },
         {
           title: "财务设置",
-          owner: "Accounting / Finance",
+          owner: "会计 / 财务",
           items: [
             "录入佣金分成、付款方式与交易财务备注。",
             "说明 invoice、报销与 referral fee 流程。",
@@ -2456,7 +2455,7 @@ const zh: Dict = {
         {
           slug: "mentorship-deal-support",
           title: "导师与交易支持",
-          body: "跟单 shadowing、话术演练、首次客户电话复盘、listing presentation 准备、交易时间线支持，以及成交后的复盘。",
+          body: "跟随资深经纪人观摩实战、话术演练、首次客户电话复盘、listing presentation 准备、交易时间线支持，以及成交后的复盘。",
         },
       ],
       mentorshipDealSupportDetail: {
@@ -2474,7 +2473,7 @@ const zh: Dict = {
           },
           {
             title: "一对一带教",
-            body: "与资深经纪人紧密合作——跟单 shadowing、角色扮演、话术演练，以及真实成交复盘。",
+            body: "与资深经纪人紧密合作——跟岗观摩、角色扮演、话术演练，以及真实成交复盘。",
           },
           {
             title: "交易支持",
@@ -2796,11 +2795,9 @@ const zh: Dict = {
         blurb: "这是 Homix 与众不同之处。多数经纪公司只给你一个 logo，然后祝你好运。我们把你请到镜头前。我们的自有摄影棚与百万级（1M+）受众，就是为了让你从第一天起就被看见——市场遇见的是一位 Homix 专业人士，而非一个无名的新人。本阶段，把你打造成可被识别、契合品牌的媒体形象。",
         items: [
           "预约自有摄影棚拍摄：专业形象照、一段简短自我介绍影片，以及契合品牌的个人照片。",
-          "在 Homix 官网发布你的经纪人主页，并关联到你的房源。",
-          "完成个人品牌流程：定制名片、合规邮件签名/后缀改写、经纪人 bio 润色，以及社交账号整理。",
-          "为房源与活动准备线下物料：For Sale sign、Open House sign、指示牌、二维码与品牌印刷模板。",
-          "与媒体团队规划你的首批内容：一期法拉盛/皇后区社区特辑，或一支登上我们频道的房源导览。",
-          "按品牌规范建立你的社交账号，并备好中英双语文案。",
+          "发布经纪人主页：确认 bio、联系方式、执照披露，并关联到你的房源。",
+          "完成品牌基础：名片 proof、合规邮件签名、社交账号名称，以及统一的中英双语主页文案。",
+          "准备首批营销物料：For Sale 与 Open House sign、二维码、常用 flyer 模板，并和媒体团队定下第一组选题计划。",
         ],
       },
       {
@@ -2811,7 +2808,7 @@ const zh: Dict = {
           "跟随导师实地参与真实约访与一场成交，并在每次结束后共同复盘。",
           "用中英双语演练买方咨询与房源推介的话术剧本。",
           "制定你的 90 天业务计划：线索来源、内容节奏与每周行动目标。",
-          "在实操中掌握合规要点——代理关系披露、对话中的公平住房原则，以及准确的房源署名。",
+          "在客户场景中演练合规判断——代理关系披露时间点、公平住房表达、房源署名，以及何时升级给 broker review。",
         ],
         showVisualsOnOnboarding: false,
         visuals: [
@@ -2917,16 +2914,23 @@ const zh: Dict = {
         title: "第六阶段 · 第一单及之后",
         blurb: "入职在你的事业起点处收尾：一位真实客户、一笔真实交易，整家公司做你的后盾。在你把一单送过终点线时，导师、媒体引擎、AI 工具与运营台始终在你身边。成交之后，我们一起复盘哪些奏效，并定下能带你走向稳定、持续增长业务的节奏。",
         items: [
-          "在导师每一步的支持下，把你的第一条线索从接洽推进到签约。",
+          "在关键决策点有导师支持，把你的第一条线索从接洽推进到签约。",
           "借助运营台完成合同审阅、时间节点把控，达成顺畅而合规的成交。",
           "把成功转化为内容：在 Homix 频道发布成交喜讯与客户故事。",
-          "与导师进行首单复盘，并敲定你的长期成长计划。",
+          "与导师进行首单复盘，并定下接下来 30 天的行动节奏。",
           "规划你晋升佣金档位、迈入 Homix 进阶与带队领导路线的路径。",
         ],
       },
     ],
     closingTitle: "入职路上，你从不孤单",
     closingBody: "这里的每一个阶段，都是 Homix 与你一起完成的，而非交出一张清单便不再过问。当你走完全程，你将拥有：由 Homix Realty 挂靠的有效纽约执照、完整的 OneKey MLS 权限、一整套技术与 AI 工具、在摄影棚打造并面向百万级受众的个人品牌，以及一位早已走过同一条路的导师。这正是\"找到一份工作\"与\"被托举着去赢\"之间的差别。欢迎加入 Homix。",
+    clientGuides: {
+      eyebrow: "客户指南 · 纽约 · OneKey MLS",
+      title: "买家与卖家流程手册",
+      lead: "基于纽约房地产法律与 OneKey MLS 标准整理的分步指南，可直接分享给客户，也可作为咨询时的参考。",
+      buyerCta: "阅读买家指南",
+      sellerCta: "阅读卖家指南",
+    },
     buyerGuide: {
       eyebrow: "纽约买家购房全指南 · Homix Realty",
       title: "在纽约买房，完整流程详解",

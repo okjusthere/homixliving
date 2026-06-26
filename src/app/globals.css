@@ -158,11 +158,38 @@
   opacity: 1;
   transform: none;
 }
+
+/* Onboarding social stats vertical roll */
+.stat-roll-track {
+  animation: stat-roll 5.4s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  animation-delay: var(--stat-roll-delay, 0ms);
+  will-change: transform;
+}
+
+@keyframes stat-roll {
+  0%,
+  24% {
+    transform: translateY(0);
+  }
+  42%,
+  64% {
+    transform: translateY(-5rem);
+  }
+  82%,
+  100% {
+    transform: translateY(0);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .reveal {
     opacity: 1;
     transform: none;
     transition: none;
+  }
+  .stat-roll-track {
+    animation: none;
+    transform: none;
   }
 }
 
