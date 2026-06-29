@@ -1,11 +1,13 @@
 import crypto from "crypto";
 import { google } from "googleapis";
 import { Resend } from "resend";
-import { eq } from "drizzle-orm";
+import { and, eq, lte } from "drizzle-orm";
 import { db } from "@/db";
 import { commerceOrders, type CommerceOrder } from "@/db/schema";
 
 const DIRECTORY_SCOPE = "https://www.googleapis.com/auth/admin.directory.user";
+const DEFAULT_WORKSPACE_RETENTION_DAYS = 30;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 type ServiceAccountWorkspaceConfig = {
   mode: "service_account";
@@ -22,6 +24,24 @@ type OAuthWorkspaceConfig = {
 };
 
 type WorkspaceConfig = ServiceAccountWorkspaceConfig | OAuthWorkspaceConfig;
+
+export function resolveWorkspaceRetentionDays(value: string | null | undefined): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 1) return DEFAULT_WORKSPACE_RETENTION_DAYS;
+  return Math.floor(parsed);
+}
+
+export function getWorkspaceRetentionDays(): number {
+  return resolveWorkspaceRetentionDays(process.env.GOOGLE_WORKSPACE_RETENTION_DAYS);
+}
+
+export function getWorkspaceDeleteAfter(now = new Date()): Date {
+  return new Date(now.getTime() + getWorkspaceRetentionDays() * DAY_MS);
+}
+
+export function getWorkspaceDeletionCutoff(now = new Date()): Date {
+  return new Date(now.getTime() - getWorkspaceRetentionDays() * DAY_MS);
+}
 
 export function getWorkspaceAllowedDomains(): string[] {
   const configured =
@@ -102,6 +122,10 @@ function createWorkspaceAuth(config: WorkspaceConfig) {
   });
 }
 
+function createWorkspaceAdmin(config: WorkspaceConfig) {
+  return google.admin({ version: "directory_v1", auth: createWorkspaceAuth(config) });
+}
+
 function splitFullName(fullName: string): { givenName: string; familyName: string } {
   const parts = fullName.trim().split(/\s+/).filter(Boolean);
   if (parts.length <= 1) {
@@ -169,6 +193,15 @@ async function updateWorkspaceStatus(
       workspaceUserId: fields.workspaceUserId ?? undefined,
       workspaceError: fields.workspaceError ?? null,
       updatedAt: new Date().toISOString(),
+    })
+    .where(eq(commerceOrders.id, orderId));
+}
+
+async function updateWorkspaceError(orderId: number, workspaceError: string) {
+  await db
+    .update(commerceOrders)
+    .set({
+      workspaceError,
     })
     .where(eq(commerceOrders.id, orderId));
 }
@@ -274,8 +307,7 @@ export async function provisionWorkspaceForOrder(order: CommerceOrder) {
 
   const temporaryPassword = generateTemporaryPassword();
   const name = splitFullName(order.customerName || primaryEmail.split("@")[0]!);
-  const auth = createWorkspaceAuth(config);
-  const admin = google.admin({ version: "directory_v1", auth });
+  const admin = createWorkspaceAdmin(config);
   const recoveryPhone = normalizeWorkspaceRecoveryPhone(order.phone);
 
   try {
@@ -297,9 +329,22 @@ export async function provisionWorkspaceForOrder(order: CommerceOrder) {
     });
   } catch (error) {
     if (errorStatus(error) === 409) {
-      await updateWorkspaceStatus(order.id, "provisioned", {
-        workspaceError: "Google Workspace user already existed.",
-      });
+      try {
+        await admin.users.update({
+          userKey: primaryEmail,
+          requestBody: {
+            suspended: false,
+          },
+        });
+
+        await updateWorkspaceStatus(order.id, "provisioned", {
+          workspaceError: "Google Workspace user already existed and was reactivated.",
+        });
+      } catch (reactivationError) {
+        await updateWorkspaceStatus(order.id, "failed", {
+          workspaceError: errorMessage(reactivationError).slice(0, 1000),
+        });
+      }
       return;
     }
 
@@ -311,7 +356,7 @@ export async function provisionWorkspaceForOrder(order: CommerceOrder) {
 
 export async function suspendWorkspaceForOrder(order: CommerceOrder) {
   const primaryEmail = order.requestedWorkspaceEmail?.trim().toLowerCase();
-  if (!primaryEmail || order.workspaceStatus === "not_required") return;
+  if (!primaryEmail || order.workspaceStatus === "not_required" || order.workspaceStatus === "deleted") return;
 
   const domain = primaryEmail.split("@")[1]?.toLowerCase();
   if (!domain || !getWorkspaceAllowedDomains().includes(domain)) {
@@ -329,8 +374,7 @@ export async function suspendWorkspaceForOrder(order: CommerceOrder) {
     return;
   }
 
-  const auth = createWorkspaceAuth(config);
-  const admin = google.admin({ version: "directory_v1", auth });
+  const admin = createWorkspaceAdmin(config);
 
   try {
     await admin.users.update({
@@ -340,10 +384,12 @@ export async function suspendWorkspaceForOrder(order: CommerceOrder) {
       },
     });
 
-    await updateWorkspaceStatus(order.id, "suspended");
+    await updateWorkspaceStatus(order.id, "suspended", {
+      workspaceError: `Google Workspace user suspended after subscription cancellation. Scheduled for deletion after ${getWorkspaceDeleteAfter().toISOString()}.`,
+    });
   } catch (error) {
     if (errorStatus(error) === 404) {
-      await updateWorkspaceStatus(order.id, "suspended", {
+      await updateWorkspaceStatus(order.id, "deleted", {
         workspaceError: "Google Workspace user was already missing.",
       });
       return;
@@ -353,4 +399,91 @@ export async function suspendWorkspaceForOrder(order: CommerceOrder) {
       workspaceError: errorMessage(error).slice(0, 1000),
     });
   }
+}
+
+export async function deleteWorkspaceUserForOrder(order: CommerceOrder): Promise<boolean> {
+  const primaryEmail = order.requestedWorkspaceEmail?.trim().toLowerCase();
+  if (!primaryEmail || order.workspaceStatus === "not_required" || order.workspaceStatus === "deleted") {
+    return false;
+  }
+
+  const domain = primaryEmail.split("@")[1]?.toLowerCase();
+  if (!domain || !getWorkspaceAllowedDomains().includes(domain)) {
+    await updateWorkspaceError(order.id, "Workspace deletion skipped because the requested email is outside the allowed company domains.");
+    return false;
+  }
+
+  const config = getWorkspaceConfig();
+  if (!config) {
+    await updateWorkspaceError(order.id, getWorkspaceConfigError());
+    return false;
+  }
+
+  const admin = createWorkspaceAdmin(config);
+
+  try {
+    await admin.users.delete({
+      userKey: primaryEmail,
+    });
+
+    await updateWorkspaceStatus(order.id, "deleted");
+    return true;
+  } catch (error) {
+    if (errorStatus(error) === 404) {
+      await updateWorkspaceStatus(order.id, "deleted", {
+        workspaceError: "Google Workspace user was already missing.",
+      });
+      return true;
+    }
+
+    const message = errorMessage(error).slice(0, 1000);
+    await updateWorkspaceError(order.id, `Workspace deletion failed: ${message}`);
+    throw error;
+  }
+}
+
+export async function cleanupExpiredSuspendedWorkspaceUsers(now = new Date()) {
+  const cutoffIso = getWorkspaceDeletionCutoff(now).toISOString();
+  const orders = await db
+    .select()
+    .from(commerceOrders)
+    .where(
+      and(
+        eq(commerceOrders.productKey, "company_domain_email"),
+        eq(commerceOrders.workspaceStatus, "suspended"),
+        lte(commerceOrders.updatedAt, cutoffIso)
+      )
+    )
+    .limit(50);
+
+  const failures: Array<{ orderId: number; email: string | null; error: string }> = [];
+  let deleted = 0;
+  let skipped = 0;
+
+  for (const order of orders) {
+    try {
+      const wasDeleted = await deleteWorkspaceUserForOrder(order);
+      if (wasDeleted) {
+        deleted += 1;
+      } else {
+        skipped += 1;
+      }
+    } catch (error) {
+      failures.push({
+        orderId: order.id,
+        email: order.requestedWorkspaceEmail,
+        error: errorMessage(error).slice(0, 500),
+      });
+    }
+  }
+
+  return {
+    retentionDays: getWorkspaceRetentionDays(),
+    cutoffIso,
+    scanned: orders.length,
+    deleted,
+    skipped,
+    failed: failures.length,
+    failures,
+  };
 }

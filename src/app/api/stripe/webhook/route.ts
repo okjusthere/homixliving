@@ -168,16 +168,29 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription): Pro
   if (!order) return null;
 
   const isPendingCancellation = Boolean(subscription.cancel_at_period_end || subscription.cancel_at);
+  const now = new Date().toISOString();
   const status = isPendingCancellation
     ? "canceling"
     : subscription.status === "active" || subscription.status === "trialing"
     ? "active"
     : subscription.status;
+  const updatedOrder = {
+    ...order,
+    status,
+    updatedAt: now,
+  };
 
   await db
     .update(commerceOrders)
-    .set({ status, updatedAt: new Date().toISOString() })
+    .set({ status, updatedAt: now })
     .where(eq(commerceOrders.id, order.id));
+
+  if (isPendingCancellation) {
+    await maybeSuspendWorkspace(updatedOrder);
+  } else if (status === "active") {
+    await maybeProvisionWorkspace(updatedOrder);
+  }
+
   return order.id;
 }
 

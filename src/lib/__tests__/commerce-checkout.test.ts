@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { validateCheckoutPayload } from "../commerce/checkout";
-import { normalizeWorkspaceRecoveryPhone } from "../google-workspace";
+import { normalizeWorkspaceRecoveryPhone, resolveWorkspaceRetentionDays } from "../google-workspace";
 
 process.env.GOOGLE_WORKSPACE_ALLOWED_DOMAINS = "homixny.com";
 
@@ -41,5 +41,11 @@ assert.equal(normalizeWorkspaceRecoveryPhone("(929) 666-9886"), "+19296669886");
 assert.equal(normalizeWorkspaceRecoveryPhone("1 929 666 9886"), "+19296669886");
 assert.equal(normalizeWorkspaceRecoveryPhone("+44 20 7946 0958"), "+442079460958");
 assert.equal(normalizeWorkspaceRecoveryPhone("12345"), undefined);
+
+assert.equal(resolveWorkspaceRetentionDays(undefined), 30);
+assert.equal(resolveWorkspaceRetentionDays("45"), 45);
+assert.equal(resolveWorkspaceRetentionDays("7.8"), 7);
+assert.equal(resolveWorkspaceRetentionDays("0"), 30);
+assert.equal(resolveWorkspaceRetentionDays("not-a-number"), 30);
 
 console.log("commerce checkout tests passed");

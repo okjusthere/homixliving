@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { HomixMark } from "@/components/homix/server-primitives";
 import { tone } from "@/components/homix/tokens";
+import { Copy, Smartphone } from "lucide-react";
 import { toast } from "sonner";
 
 export default function LoginPage() {
@@ -43,20 +44,78 @@ type Providers = Record<
   { id: string; name: string; type: string }
 > | null;
 
+type InAppBrowserWarning = {
+  name: string;
+  instruction: string;
+};
+
+function detectInAppBrowser(userAgent: string): InAppBrowserWarning | null {
+  if (/MicroMessenger/i.test(userAgent)) {
+    return {
+      name: "WeChat",
+      instruction: "Tap the top-right menu and choose Open in Safari or Open in Browser.",
+    };
+  }
+
+  if (/Instagram/i.test(userAgent)) {
+    return {
+      name: "Instagram",
+      instruction: "Use the menu to open this page in Safari or Chrome.",
+    };
+  }
+
+  if (/FBAN|FBAV|FB_IAB/i.test(userAgent)) {
+    return {
+      name: "Facebook",
+      instruction: "Use the menu to open this page in Safari or Chrome.",
+    };
+  }
+
+  if (/Line\//i.test(userAgent)) {
+    return {
+      name: "LINE",
+      instruction: "Use the menu to open this page in Safari or Chrome.",
+    };
+  }
+
+  if (/TikTok|Bytedance/i.test(userAgent)) {
+    return {
+      name: "TikTok",
+      instruction: "Use the menu to open this page in Safari or Chrome.",
+    };
+  }
+
+  return null;
+}
+
 function LoginInner() {
   const params = useSearchParams();
   const error = params.get("error");
   const [submittingGoogle, setSubmittingGoogle] = useState(false);
   const [providers, setProviders] = useState<Providers>(null);
+  const [inAppBrowser, setInAppBrowser] = useState<InAppBrowserWarning | null>(null);
 
   useEffect(() => {
     fetch("/api/auth/providers")
-      .then((r) => r.json())
-      .then(setProviders)
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Provider request failed");
+        const data: unknown = await response.json();
+        if (!data || typeof data !== "object" || Array.isArray(data)) return {};
+        return data as NonNullable<Providers>;
+      })
+      .then((data) => setProviders(data))
       .catch(() => setProviders({}));
   }, []);
 
-  const hasGoogle = providers && "google" in providers;
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setInAppBrowser(detectInAppBrowser(window.navigator.userAgent));
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  const hasGoogle = Boolean(providers && "google" in providers);
 
   const handleGoogleSubmit = async () => {
     setSubmittingGoogle(true);
@@ -65,6 +124,15 @@ function LoginInner() {
     } catch {
       toast.error("Could not sign in with Google");
       setSubmittingGoogle(false);
+    }
+  };
+
+  const copyLoginLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      toast.success("Login link copied");
+    } catch {
+      toast.error("Could not copy the login link");
     }
   };
 
@@ -100,6 +168,45 @@ function LoginInner() {
           <p className="text-[13.5px]" style={{ color: tone.ink70 }}>
             Use your Google account to access Homix Deals.
           </p>
+
+          {inAppBrowser && (
+            <div
+              className="mt-5 rounded-xl p-4"
+              style={{
+                background: "#FFF4EF",
+                color: "#8A3A20",
+                border: "1px solid #F0B7A6",
+              }}
+            >
+              <div className="flex gap-3">
+                <Smartphone className="mt-0.5 size-4 shrink-0" aria-hidden />
+                <div className="min-w-0">
+                  <p className="text-[13px] font-medium">
+                    You are using {inAppBrowser.name}&apos;s in-app browser.
+                  </p>
+                  <p className="mt-1 text-[12.5px] leading-5">
+                    Google sign-in may not finish here. {inAppBrowser.instruction}
+                  </p>
+                  <p className="mt-1 text-[12.5px] leading-5">
+                    正在使用 App 内置浏览器时，Google 登录可能无法完成。
+                  </p>
+                  <button
+                    type="button"
+                    onClick={copyLoginLink}
+                    className="mt-3 inline-flex h-8 items-center gap-2 rounded-lg px-3 text-[12px] font-medium transition-colors hover:opacity-90"
+                    style={{
+                      background: "#FFFFFF",
+                      border: "1px solid #F0B7A6",
+                      color: "#8A3A20",
+                    }}
+                  >
+                    <Copy className="size-3.5" aria-hidden />
+                    Copy login link
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {error && (
             <div
