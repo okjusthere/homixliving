@@ -53,7 +53,7 @@ function detectInAppBrowser(userAgent: string): InAppBrowserWarning | null {
   if (/MicroMessenger/i.test(userAgent)) {
     return {
       name: "WeChat",
-      instruction: "Tap the top-right menu and choose Open in Safari or Open in Browser.",
+      instruction: "Tap the top-right “...” menu, then choose “Open in default browser”.",
     };
   }
 
@@ -188,7 +188,7 @@ function LoginInner() {
                     Google sign-in may not finish here. {inAppBrowser.instruction}
                   </p>
                   <p className="mt-1 text-[12.5px] leading-5">
-                    正在使用 App 内置浏览器时，Google 登录可能无法完成。
+                    正在使用 App 内置浏览器时，Google 登录可能无法完成。请点右上角的三个点“...”，然后选择“用默认浏览器打开”。
                   </p>
                   <button
                     type="button"
