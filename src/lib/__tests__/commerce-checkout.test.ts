@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { validateCheckoutPayload } from "../commerce/checkout";
+import { normalizeWorkspaceRecoveryPhone } from "../google-workspace";
 
 process.env.GOOGLE_WORKSPACE_ALLOWED_DOMAINS = "homixny.com";
 
@@ -35,5 +36,10 @@ const validReferral = validateCheckoutPayload({
   referralAgentName: "Alex Referral",
 });
 assert.equal(validReferral.ok, true);
+
+assert.equal(normalizeWorkspaceRecoveryPhone("(929) 666-9886"), "+19296669886");
+assert.equal(normalizeWorkspaceRecoveryPhone("1 929 666 9886"), "+19296669886");
+assert.equal(normalizeWorkspaceRecoveryPhone("+44 20 7946 0958"), "+442079460958");
+assert.equal(normalizeWorkspaceRecoveryPhone("12345"), undefined);
 
 console.log("commerce checkout tests passed");

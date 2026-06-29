@@ -118,6 +118,20 @@ function generateTemporaryPassword(): string {
   return `${crypto.randomBytes(18).toString("base64url")}Aa1!`;
 }
 
+export function normalizeWorkspaceRecoveryPhone(phone: string | null | undefined): string | undefined {
+  const trimmed = phone?.trim();
+  if (!trimmed) return undefined;
+
+  const digits = trimmed.replace(/\D/g, "");
+  if (trimmed.startsWith("+") && digits.length >= 8 && digits.length <= 15) {
+    return `+${digits}`;
+  }
+
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`;
+  return undefined;
+}
+
 function escapeHtml(value: string): string {
   return value
     .replaceAll("&", "&amp;")
@@ -211,6 +225,18 @@ async function sendWorkspaceWelcomeEmail(order: CommerceOrder, temporaryPassword
   }
 }
 
+function getWorkspaceWelcomeConfigError(order: CommerceOrder): string | null {
+  if (!process.env.RESEND_API_KEY?.trim()) {
+    return "RESEND_API_KEY is not configured; Google user was not created.";
+  }
+
+  if (!order.customerEmail?.trim()) {
+    return "Customer email missing; Google user was not created.";
+  }
+
+  return null;
+}
+
 export async function provisionWorkspaceForOrder(order: CommerceOrder) {
   if (order.workspaceStatus === "provisioned") return;
 
@@ -238,10 +264,19 @@ export async function provisionWorkspaceForOrder(order: CommerceOrder) {
     return;
   }
 
+  const welcomeConfigError = getWorkspaceWelcomeConfigError(order);
+  if (welcomeConfigError) {
+    await updateWorkspaceStatus(order.id, "pending_config", {
+      workspaceError: welcomeConfigError,
+    });
+    return;
+  }
+
   const temporaryPassword = generateTemporaryPassword();
   const name = splitFullName(order.customerName || primaryEmail.split("@")[0]!);
   const auth = createWorkspaceAuth(config);
   const admin = google.admin({ version: "directory_v1", auth });
+  const recoveryPhone = normalizeWorkspaceRecoveryPhone(order.phone);
 
   try {
     const created = await admin.users.insert({
@@ -251,7 +286,7 @@ export async function provisionWorkspaceForOrder(order: CommerceOrder) {
         password: temporaryPassword,
         changePasswordAtNextLogin: true,
         recoveryEmail: order.customerEmail || undefined,
-        recoveryPhone: order.phone || undefined,
+        recoveryPhone,
       },
     });
 
