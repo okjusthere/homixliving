@@ -46,6 +46,8 @@ export default async function ResourcePage({
     slug === "brokerage-operations" ? o.resources.brokerageOperationsDetail : null;
   const marketingMedia =
     slug === "marketing-media" ? o.resources.marketingMediaDetail : null;
+  const eoDirectives =
+    slug === "eo-directives" ? o.resources.eoDirectivesDetail : null;
   const selfBranding =
     slug === "self-branding" ? o.resources.selfBrandingDetail : null;
   const mentorshipDealSupport =
@@ -73,7 +75,54 @@ export default async function ResourcePage({
         </div>
       </Container>
 
-      {marketingMedia ? (
+      {eoDirectives ? (
+        <section className="border-t border-line bg-surface py-16 sm:py-20">
+          <Container>
+            <div className="grid gap-10 lg:grid-cols-[0.72fr_1.28fr]">
+              <div className="max-w-xl">
+                <Eyebrow>{eoDirectives.eyebrow}</Eyebrow>
+                <h2 className="mt-5 font-serif text-3xl font-normal leading-tight text-ink sm:text-[2.45rem]">
+                  {eoDirectives.title}
+                </h2>
+                <p className="mt-5 text-base leading-relaxed text-ink-50">
+                  {eoDirectives.lead}
+                </p>
+                <p className="mt-6 border-l-2 border-bronze pl-4 text-sm leading-relaxed text-ink/75">
+                  {eoDirectives.note}
+                </p>
+              </div>
+
+              <div className="grid gap-px overflow-hidden rounded-sm border border-line bg-line sm:grid-cols-2">
+                {eoDirectives.items.map((entry, i) => (
+                  <article key={entry.title} className="flex h-full flex-col bg-paper p-6">
+                    <p className="font-serif text-3xl text-bronze/70">
+                      {String(i + 1).padStart(2, "0")}
+                    </p>
+                    <h3 className="mt-4 font-serif text-xl leading-tight text-ink">
+                      {entry.title}
+                    </h3>
+                    <p className="mt-3 text-sm leading-relaxed text-ink-50">
+                      {entry.body}
+                    </p>
+                    <ul className="mt-5 space-y-3">
+                      {entry.items.map((line) => (
+                        <li key={line} className="flex gap-3 text-sm leading-relaxed text-ink/85">
+                          <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-bronze" />
+                          <span>{line}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </article>
+                ))}
+              </div>
+            </div>
+            <div className="mt-10 flex flex-wrap gap-4">
+              <Button href="https://www.homixny.com/contact">{t.common.contact}</Button>
+              <Button href="/onboarding" variant="outline">{o.eyebrow}</Button>
+            </div>
+          </Container>
+        </section>
+      ) : marketingMedia ? (
         <>
           <section className="border-t border-line bg-surface py-16 sm:py-20">
             <Container>

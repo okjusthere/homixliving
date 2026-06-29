@@ -243,7 +243,7 @@ export default async function OnboardingPage() {
           </h2>
           <p className="mt-5 text-lg leading-relaxed text-ink-50">{o.resources.lead}</p>
         </div>
-        <div className="mt-10 grid gap-px overflow-hidden rounded-sm border border-line bg-line sm:grid-cols-2 lg:grid-cols-5">
+        <div className="mt-10 grid gap-px overflow-hidden rounded-sm border border-line bg-line sm:grid-cols-2 lg:grid-cols-3">
           {o.resources.items.map((item, i) => (
             <Reveal key={item.title} delay={i * 45} className="bg-surface">
               <Link
