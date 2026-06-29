@@ -940,6 +940,50 @@ const en = {
         },
       ],
     },
+    eoDirectives: {
+      eyebrow: "E&O / EO directives",
+      title: "Compliance instructions before any client-facing work.",
+      lead: "This section gathers the non-negotiables around Errors & Omissions coverage, Equal Opportunity and Fair Housing language, advertising review, and when to pause for broker guidance.",
+      items: [
+        {
+          title: "E&O coverage first",
+          body: "No agent should begin client work until the office confirms their license file and E&O coverage status.",
+          items: [
+            "E&O coverage, Fair Housing acknowledgment, and policy manual receipt logged.",
+            "License sponsorship, legal name, license number, and company identity checked before public use.",
+            "Any claim, threatened claim, or unusual complaint escalated to leadership immediately.",
+          ],
+        },
+        {
+          title: "Equal Opportunity language",
+          body: "Every public touchpoint should support Fair Housing and Equal Opportunity standards.",
+          items: [
+            "Use Equal Housing Opportunity language, logo, and disclosures where required.",
+            "Do not steer, screen, discourage, or describe people by protected class.",
+            "Keep neighborhood, school, safety, and demographic comments factual and source-based.",
+          ],
+        },
+        {
+          title: "Advertising & media review",
+          body: "Listings, social posts, flyers, signs, and agent profiles must stay accurate, licensed, and on brand.",
+          items: [
+            "Confirm brokerage name, agent title, license details, and contact information before publishing.",
+            "Use approved photos, claims, pricing, availability, and listing attribution.",
+            "Route sensitive captions, guarantees, testimonials, or comparison claims for review first.",
+          ],
+        },
+        {
+          title: "Pause-and-ask rule",
+          body: "If a situation feels legal, discriminatory, privacy-related, or financially sensitive, stop and escalate before replying.",
+          items: [
+            "Ask operations or leadership before sending unusual forms or nonstandard language.",
+            "Do not make legal, tax, mortgage, immigration, or insurance promises.",
+            "Document the question, the answer received, and the final client-facing response.",
+          ],
+        },
+      ],
+      note: "When unsure, pause first. Broker review is part of the workflow, not a last resort.",
+    },
     socialMedia: {
       eyebrow: "HOMIX social media",
       title: "A media engine agents can grow inside.",
@@ -1029,6 +1073,11 @@ const en = {
           slug: "brokerage-operations",
           title: "Brokerage operations",
           body: "License sponsorship steps, compliance reminders, E&O guidance, forms, disclosure standards, and a clear escalation path when something feels sensitive.",
+        },
+        {
+          slug: "eo-directives",
+          title: "E&O / EO directives",
+          body: "A clear operating standard for E&O coverage, Equal Opportunity and Fair Housing language, advertising review, and when to pause for broker guidance.",
         },
         {
           slug: "marketing-media",
@@ -2347,6 +2396,50 @@ const zh: Dict = {
         },
       ],
     },
+    eoDirectives: {
+      eyebrow: "E&O / EO 指令",
+      title: "开始面对客户前，必须先确认的合规指令。",
+      lead: "这个板块集中说明 E&O 保险、Equal Opportunity / Fair Housing 表达、广告审核，以及哪些情况必须暂停并升级给 broker review。",
+      items: [
+        {
+          title: "先确认 E&O 保障",
+          body: "经纪人开始服务客户前，办公室必须确认执照档案和 E&O coverage 状态。",
+          items: [
+            "记录 E&O 保险、公平住房确认、政策手册签收。",
+            "公开使用前，核对挂靠状态、法定姓名、执照号和公司身份。",
+            "任何索赔、潜在索赔、客户正式投诉或异常争议，立即升级给 leadership。",
+          ],
+        },
+        {
+          title: "Equal Opportunity 表达",
+          body: "所有对外触点都必须符合公平住房与平等机会原则。",
+          items: [
+            "在需要的位置使用 Equal Housing Opportunity 语言、标识和披露。",
+            "不得基于受保护类别进行引导、筛选、劝退或描述客户/社区。",
+            "涉及社区、学校、安全或人口结构时，只使用事实和可核实来源。",
+          ],
+        },
+        {
+          title: "广告与媒体审核",
+          body: "房源、社交内容、flyer、sign 和经纪人主页都必须准确、持牌、符合品牌标准。",
+          items: [
+            "发布前确认 brokerage 名称、经纪人 title、执照信息和联系方式。",
+            "使用已批准的图片、价格、房源状态、卖点表述和 listing attribution。",
+            "敏感 caption、保证性说法、客户评价或对比性宣传，先交给公司复核。",
+          ],
+        },
+        {
+          title: "暂停并询问原则",
+          body: "只要情况涉及法律、歧视、隐私或财务敏感问题，先暂停，不要直接回复客户。",
+          items: [
+            "发送特殊表格或非标准条款前，先问 operations 或 leadership。",
+            "不得承诺法律、税务、贷款、移民或保险结果。",
+            "记录问题、收到的内部回复，以及最终发给客户的版本。",
+          ],
+        },
+      ],
+      note: "不确定时先停下来问。Broker review 是流程的一部分，不是最后补救。",
+    },
     socialMedia: {
       eyebrow: "HOMIX social media",
       title: "经纪人可以在公司媒体体系里成长。",
@@ -2436,6 +2529,11 @@ const zh: Dict = {
           slug: "brokerage-operations",
           title: "经纪公司运营支持",
           body: "执照挂靠步骤、合规提醒、E&O 指引、表单、披露标准，以及遇到敏感问题时清晰的升级路径。",
+        },
+        {
+          slug: "eo-directives",
+          title: "E&O / EO 指令",
+          body: "明确 E&O 保障、Equal Opportunity / Fair Housing 表达、广告审核，以及何时必须暂停并升级给 broker review。",
         },
         {
           slug: "marketing-media",

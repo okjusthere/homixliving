@@ -233,6 +233,50 @@ export default async function OnboardingPage() {
         </div>
       </Container>
 
+      {/* E&O / EO directives */}
+      <section className="border-y border-line bg-surface py-16 sm:py-20">
+        <Container>
+          <div className="grid gap-10 lg:grid-cols-[0.72fr_1.28fr]">
+            <div className="max-w-xl">
+              <Eyebrow>{o.eoDirectives.eyebrow}</Eyebrow>
+              <h2 className="mt-5 font-serif text-3xl font-normal leading-tight text-ink sm:text-[2.45rem]">
+                {o.eoDirectives.title}
+              </h2>
+              <p className="mt-5 text-base leading-relaxed text-ink-50">
+                {o.eoDirectives.lead}
+              </p>
+              <p className="mt-6 border-l-2 border-bronze pl-4 text-sm leading-relaxed text-ink/75">
+                {o.eoDirectives.note}
+              </p>
+            </div>
+
+            <div className="grid gap-px overflow-hidden rounded-sm border border-line bg-line sm:grid-cols-2">
+              {o.eoDirectives.items.map((item, i) => (
+                <Reveal key={item.title} delay={i * 45} className="bg-paper">
+                  <article className="flex h-full flex-col p-6">
+                    <p className="font-serif text-3xl text-bronze/70">{n2(i)}</p>
+                    <h3 className="mt-4 font-serif text-xl leading-tight text-ink">
+                      {item.title}
+                    </h3>
+                    <p className="mt-3 text-sm leading-relaxed text-ink-50">
+                      {item.body}
+                    </p>
+                    <ul className="mt-5 space-y-3">
+                      {item.items.map((line) => (
+                        <li key={line} className="flex gap-3 text-sm leading-relaxed text-ink/85">
+                          <Check />
+                          <span>{line}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </article>
+                </Reveal>
+              ))}
+            </div>
+          </div>
+        </Container>
+      </section>
+
       {/* Resources */}
       <section className="border-t border-line bg-surface py-16 sm:py-20">
         <Container>
@@ -243,7 +287,7 @@ export default async function OnboardingPage() {
           </h2>
           <p className="mt-5 text-lg leading-relaxed text-ink-50">{o.resources.lead}</p>
         </div>
-        <div className="mt-10 grid gap-px overflow-hidden rounded-sm border border-line bg-line sm:grid-cols-2 lg:grid-cols-5">
+        <div className="mt-10 grid gap-px overflow-hidden rounded-sm border border-line bg-line sm:grid-cols-2 lg:grid-cols-3">
           {o.resources.items.map((item, i) => (
             <Reveal key={item.title} delay={i * 45} className="bg-surface">
               <Link
