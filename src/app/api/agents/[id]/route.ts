@@ -50,7 +50,7 @@ export async function DELETE(
 
   await db
     .update(agents)
-    .set({ isActive: false, updatedAt: new Date().toISOString() })
+    .set({ isActive: false, approvalStatus: "revoked", updatedAt: new Date().toISOString() })
     .where(eq(agents.id, parsedId));
   return NextResponse.json({ success: true });
 }

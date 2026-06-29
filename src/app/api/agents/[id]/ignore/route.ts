@@ -10,32 +10,17 @@ export async function POST(
 ) {
   const authResult = await requireAdminApi();
   if ("error" in authResult) return authResult.error;
-  const { id } = await params;
-  const parsedId = parseInt(String(id), 10);
-  if (!Number.isFinite(parsedId)) {
-    return NextResponse.json({ error: "Invalid agent id" }, { status: 400 });
-  }
-  await db
-    .update(agents)
-    .set({ isActive: true, approvalStatus: "approved", updatedAt: new Date().toISOString() })
-    .where(eq(agents.id, parsedId));
-  return NextResponse.json({ success: true });
-}
 
-export async function DELETE(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const authResult = await requireAdminApi();
-  if ("error" in authResult) return authResult.error;
   const { id } = await params;
   const parsedId = parseInt(String(id), 10);
   if (!Number.isFinite(parsedId)) {
     return NextResponse.json({ error: "Invalid agent id" }, { status: 400 });
   }
+
   await db
     .update(agents)
-    .set({ isActive: false, approvalStatus: "revoked", updatedAt: new Date().toISOString() })
+    .set({ isActive: false, approvalStatus: "ignored", updatedAt: new Date().toISOString() })
     .where(eq(agents.id, parsedId));
+
   return NextResponse.json({ success: true });
 }

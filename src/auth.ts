@@ -34,6 +34,7 @@ async function upsertAgentFromGoogle(user: {
       name: user.name || email.split("@")[0],
       isAdmin: admin,
       isActive: admin,
+      approvalStatus: admin ? "approved" : "pending",
       splitPct: DEFAULT_AGENT_SPLIT_PCT,
       joinedAt: now.slice(0, 10),
       createdAt: now,
@@ -60,7 +61,8 @@ async function upsertAgentFromGoogle(user: {
       .update(agents)
       .set({
         isAdmin: admin,
-        ...(needsActiveForce ? { isActive: true } : {}),
+        ...(admin ? { approvalStatus: "approved" } : {}),
+        ...(needsActiveForce ? { isActive: true, approvalStatus: "approved" } : {}),
         ...(needsNameFill ? { name: user.name! } : {}),
         updatedAt: now,
       })

@@ -3375,6 +3375,7 @@ async function seed() {
       team_id INTEGER REFERENCES teams(id) ON DELETE SET NULL,
       is_admin INTEGER NOT NULL DEFAULT 0,
       is_active INTEGER NOT NULL DEFAULT 0,
+      approval_status TEXT NOT NULL DEFAULT 'pending',
       joined_at TEXT,
       notes TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -3639,6 +3640,14 @@ async function seed() {
   if (await addColumnIfMissing(`ALTER TABLE agents ADD COLUMN is_admin INTEGER DEFAULT 0`)) {
     console.log("Added agents.is_admin column.");
   }
+  if (await addColumnIfMissing(`ALTER TABLE agents ADD COLUMN approval_status TEXT NOT NULL DEFAULT 'pending'`)) {
+    console.log("Added agents.approval_status column.");
+  }
+  await client.execute(`
+    UPDATE agents
+    SET approval_status = 'approved'
+    WHERE is_active = 1 AND approval_status = 'pending'
+  `);
   if (await addColumnIfMissing(`ALTER TABLE rental_deals ADD COLUMN referrer_name TEXT`)) {
     console.log("Added rental_deals.referrer_name column.");
   }

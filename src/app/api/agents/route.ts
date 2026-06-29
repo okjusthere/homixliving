@@ -13,6 +13,18 @@ import {
 } from "@/lib/reporting";
 import { DEFAULT_AGENT_SPLIT_PCT } from "@/lib/splits";
 
+const AGENT_APPROVAL_STATUSES = ["pending", "approved", "ignored", "revoked"] as const;
+
+function approvalStatusOrDefault(value: unknown, isActive: boolean) {
+  if (
+    typeof value === "string" &&
+    AGENT_APPROVAL_STATUSES.includes(value as (typeof AGENT_APPROVAL_STATUSES)[number])
+  ) {
+    return value as (typeof AGENT_APPROVAL_STATUSES)[number];
+  }
+  return isActive ? "approved" : "pending";
+}
+
 function numberOrNull(value: unknown) {
   if (value === undefined || value === null || value === "") return null;
   const parsed = Number(value);
@@ -32,6 +44,7 @@ function normalizeEmail(value: unknown) {
 function cleanAdminAgentPayload(body: Record<string, unknown>) {
   const splitPct = numberOrNull(body.splitPct);
   const teamId = numberOrNull(body.teamId);
+  const isActive = body.isActive === undefined ? true : Boolean(body.isActive);
   return {
     name: String(body.name || "").trim(),
     email: normalizeEmail(body.email),
@@ -40,7 +53,8 @@ function cleanAdminAgentPayload(body: Record<string, unknown>) {
     licensedCompany: stringOrNull(body.licensedCompany),
     splitPct: splitPct ?? DEFAULT_AGENT_SPLIT_PCT,
     teamId,
-    isActive: body.isActive === undefined ? true : Boolean(body.isActive),
+    isActive,
+    approvalStatus: approvalStatusOrDefault(body.approvalStatus, isActive),
     joinedAt: stringOrNull(body.joinedAt),
     notes: stringOrNull(body.notes),
     updatedAt: new Date().toISOString(),
@@ -178,6 +192,7 @@ export async function PUT(req: NextRequest) {
       "joinedAt",
       "notes",
       "isActive",
+      "approvalStatus",
     ];
     if (!isAdmin && restrictedFields.some((field) => field in body)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -193,6 +208,10 @@ export async function PUT(req: NextRequest) {
           splitPct: cleaned.splitPct,
           teamId: cleaned.teamId,
           isActive: body.isActive === undefined ? existing.isActive : cleaned.isActive,
+          approvalStatus:
+            (body.isActive === undefined ? existing.isActive : cleaned.isActive)
+              ? "approved"
+              : cleaned.approvalStatus,
           joinedAt: cleaned.joinedAt,
           notes: cleaned.notes,
           updatedAt: cleaned.updatedAt,
@@ -238,7 +257,7 @@ export async function DELETE(req: NextRequest) {
     }
     await db
       .update(agents)
-      .set({ isActive: false, updatedAt: new Date().toISOString() })
+      .set({ isActive: false, approvalStatus: "revoked", updatedAt: new Date().toISOString() })
       .where(and(eq(agents.id, parsedId), eq(agents.isActive, true)));
     return NextResponse.json({ success: true });
   } catch {

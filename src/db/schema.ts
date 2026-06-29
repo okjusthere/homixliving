@@ -66,6 +66,8 @@ export const teams = sqliteTable("teams", {
   notes: text("notes"),
 });
 
+export type AgentApprovalStatus = "pending" | "approved" | "ignored" | "revoked";
+
 export const agents = sqliteTable("agents", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   name: text("name").notNull(),
@@ -77,6 +79,10 @@ export const agents = sqliteTable("agents", {
   teamId: integer("team_id").references((): AnySQLiteColumn => teams.id, { onDelete: "set null" }),
   isAdmin: integer("is_admin", { mode: "boolean" }).notNull().default(false),
   isActive: integer("is_active", { mode: "boolean" }).notNull().default(false),
+  approvalStatus: text("approval_status")
+    .$type<AgentApprovalStatus>()
+    .notNull()
+    .default("pending"),
   joinedAt: text("joined_at"),
   notes: text("notes"),
   createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),

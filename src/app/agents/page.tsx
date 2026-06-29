@@ -16,6 +16,9 @@ const M = {
   en: {
     agentApproved: "Agent approved",
     couldNotApprove: "Could not approve",
+    confirmIgnore: "Ignore this request? The account will stay inactive and be removed from pending approvals.",
+    agentIgnored: "Request ignored",
+    couldNotIgnore: "Could not ignore",
     confirmRevoke: "Revoke this agent's access?",
     accessRevoked: "Access revoked",
     couldNotRevoke: "Could not revoke",
@@ -39,6 +42,7 @@ const M = {
     noEmail: "no email",
     joined: "joined",
     edit: "Edit",
+    ignore: "Ignore",
     approve: "Approve",
     noAgentsYet: "No agents yet",
     addFirstAgent: "Add your first agent",
@@ -67,6 +71,9 @@ const M = {
   zh: {
     agentApproved: "经纪人已批准",
     couldNotApprove: "无法批准",
+    confirmIgnore: "确定忽略这条申请？该账号会保持未激活，并从待审批列表移除。",
+    agentIgnored: "已忽略申请",
+    couldNotIgnore: "无法忽略",
     confirmRevoke: "确定撤销该经纪人的访问权限？",
     accessRevoked: "已撤销访问权限",
     couldNotRevoke: "无法撤销",
@@ -90,6 +97,7 @@ const M = {
     noEmail: "无邮箱",
     joined: "加入于",
     edit: "编辑",
+    ignore: "忽略",
     approve: "批准",
     noAgentsYet: "暂无经纪人",
     addFirstAgent: "添加第一位经纪人",
@@ -181,7 +189,12 @@ export default function AgentsPage() {
   }, [router, session?.user.isAdmin, status]);
 
   const pending = useMemo(
-    () => agents.filter((row) => row.agent.isActive === false),
+    () =>
+      agents.filter(
+        (row) =>
+          row.agent.isActive === false &&
+          (row.agent.approvalStatus || "pending") === "pending"
+      ),
     [agents]
   );
 
@@ -206,6 +219,18 @@ export default function AgentsPage() {
       fetchAgents();
     } catch {
       toast.error(t.couldNotApprove);
+    }
+  };
+
+  const handleIgnore = async (id: number) => {
+    if (!confirm(t.confirmIgnore)) return;
+    try {
+      const res = await fetch(`/api/agents/${id}/ignore`, { method: "POST" });
+      if (!res.ok) throw new Error();
+      toast.success(t.agentIgnored);
+      fetchAgents();
+    } catch {
+      toast.error(t.couldNotIgnore);
     }
   };
 
@@ -338,13 +363,20 @@ export default function AgentsPage() {
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center justify-end gap-2">
                   <Btn
                     variant="outline"
                     size="sm"
                     onClick={() => setEditAgent(agent)}
                   >
                     {t.edit}
+                  </Btn>
+                  <Btn
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleIgnore(agent.id)}
+                  >
+                    {t.ignore}
                   </Btn>
                   <Btn
                     variant="primary"
