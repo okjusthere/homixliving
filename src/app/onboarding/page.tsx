@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import type { CSSProperties } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Button } from "@/components/marketing/Button";
 import { Container } from "@/components/marketing/Container";
 import { Eyebrow } from "@/components/marketing/Eyebrow";
 import { Reveal } from "@/components/marketing/Reveal";
@@ -498,14 +497,6 @@ export default async function OnboardingPage() {
             <p className="mt-5 text-lg leading-relaxed text-paper/75">
               {o.closingBody}
             </p>
-            <div className="mt-8 flex flex-wrap gap-4">
-              <Button href="https://www.homixny.com/join" onDark>
-                {t.join.heroCta}
-              </Button>
-              <Button href="https://www.homixny.com/contact" variant="outline" onDark>
-                {t.common.contact}
-              </Button>
-            </div>
           </div>
         </Container>
       </section>
