@@ -1091,11 +1091,13 @@ const en = {
         items: [
           {
             title: "E&O coverage first",
-            body: "No agent should begin client work until the office confirms their license file and E&O coverage status.",
+            body: "E&O may respond when a client complaint or claim arises from professional-service issues such as mistakes, omissions, negligence, document handling, communication misunderstandings, or insufficient disclosure.",
             items: [
               "E&O coverage, Fair Housing acknowledgment, and policy manual receipt logged.",
-              "License sponsorship, legal name, license number, and company identity checked before public use.",
-              "Any claim, threatened claim, or unusual complaint escalated to leadership immediately.",
+              "It is not a universal liability shield, and it does not allow an agent to admit fault, promise payment, or resolve a claim privately.",
+              "Report the same day if a client says they want to complain, sue, or report the agent.",
+              "Report attorney letters, demand letters, court documents, DOS complaints, MLS complaints, board complaints, or any request for money, commission refund, or compensation.",
+              "Do not privately admit fault, promise compensation, or delete texts, WeChat messages, emails, recordings, or files.",
             ],
           },
           {
@@ -1105,6 +1107,8 @@ const en = {
               "Use Equal Housing Opportunity language, logo, and disclosures where required.",
               "Do not steer, screen, discourage, or describe people by protected class.",
               "Keep neighborhood, school, safety, and demographic comments factual and source-based.",
+              "Report the same day if a client alleges discrimination, misrepresentation, concealment, conflict of interest, or unclear dual-agency disclosure.",
+              "Do not discuss client privacy details in group chats.",
             ],
           },
           {
@@ -1114,15 +1118,17 @@ const en = {
               "Confirm brokerage name, agent title, license details, and contact information before publishing.",
               "Use approved photos, claims, pricing, availability, and listing attribution.",
               "Route sensitive captions, guarantees, testimonials, or comparison claims for review first.",
+              "Report the same day if listing information may be wrong, including price, size, taxes, school district, HOA, co-op, or condo information.",
             ],
           },
           {
             title: "Pause-and-ask rule",
             body: "If a situation feels legal, discriminatory, privacy-related, or financially sensitive, stop and escalate before replying.",
             items: [
-              "Ask operations or leadership before sending unusual forms or nonstandard language.",
-              "Do not make legal, tax, mortgage, immigration, or insurance promises.",
-              "Document the question, the answer received, and the final client-facing response.",
+              "Report the same day if a key document may be missing or signed incorrectly, including contract, offer, agency disclosure, lead paint, Fair Housing, or commission agreement paperwork.",
+              "Report major disputes around deposit, closing date, contingency, mortgage commitment, inspection, or walkthrough.",
+              "Do not argue with the client, privately reply to attorney letters or regulator emails, backfill documents, change dates, or edit chat records after the fact.",
+              "Use this holding reply: \"I understand your concern. I will submit this issue to the company broker / office for formal review right away. To make sure the information is accurate, I will not judge responsibility or make any promises here. The company will respond as soon as possible.\"",
             ],
           },
         ],
@@ -2547,11 +2553,13 @@ const zh: Dict = {
         items: [
           {
             title: "先确认 E&O 保障",
-            body: "经纪人开始服务客户前，办公室必须确认执照档案和 E&O coverage 状态。",
+            body: "这是公司和经纪人在专业服务中，如果因为错误、遗漏、疏忽、文件处理、沟通误解、披露不足等引发客户投诉或索赔时，可能会启动的保险机制。",
             items: [
               "记录 E&O 保险、公平住房确认、政策手册签收。",
-              "公开使用前，核对挂靠状态、法定姓名、执照号和公司身份。",
-              "任何索赔、潜在索赔、客户正式投诉或异常争议，立即升级给 leadership。",
+              "它不是“万能免责卡”，也不代表经纪人可以自己承认责任或私下解决。",
+              "客户说“我要投诉你 / sue you / report you”时，当天通知 broker / office。",
+              "收到律师信、demand letter、法院文件、DOS / MLS / board complaint，或客户要求赔钱、退佣金、补偿损失时，当天上报。",
+              "不要私自承认“是我的错”，不要承诺赔钱、退佣金、补偿，也不要删除短信、微信、邮件、录音、文件。",
             ],
           },
           {
@@ -2561,6 +2569,8 @@ const zh: Dict = {
               "在需要的位置使用 Equal Housing Opportunity 语言、标识和披露。",
               "不得基于受保护类别进行引导、筛选、劝退或描述客户/社区。",
               "涉及社区、学校、安全或人口结构时，只使用事实和可核实来源。",
+              "客户指控歧视、误导、隐瞒、利益冲突、双重代理没讲清楚时，当天通知 broker / office。",
+              "不要把问题发到群里讨论客户隐私。",
             ],
           },
           {
@@ -2570,15 +2580,17 @@ const zh: Dict = {
               "发布前确认 brokerage 名称、经纪人 title、执照信息和联系方式。",
               "使用已批准的图片、价格、房源状态、卖点表述和 listing attribution。",
               "敏感 caption、保证性说法、客户评价或对比性宣传，先交给公司复核。",
+              "房源信息、价格、面积、税费、学区、HOA、co-op / condo 信息可能说错时，当天通知 broker / office。",
             ],
           },
           {
             title: "暂停并询问原则",
             body: "只要情况涉及法律、歧视、隐私或财务敏感问题，先暂停，不要直接回复客户。",
             items: [
-              "发送特殊表格或非标准条款前，先问 operations 或 leadership。",
-              "不得承诺法律、税务、贷款、移民或保险结果。",
-              "记录问题、收到的内部回复，以及最终发给客户的版本。",
+              "合同、offer、agency disclosure、lead paint、Fair Housing、commission agreement 等关键文件可能漏签或签错时，当天上报。",
+              "交易快出问题：deposit、closing date、contingency、mortgage commitment、inspection、walkthrough 产生重大争议时，当天上报。",
+              "不要和客户争吵或长篇解释责任归属；不要私下回复律师信、投诉信、监管机构邮件；不要事后补文件、改日期、改聊天记录。",
+              "统一回复：“我理解你的担心。这个问题我会马上提交给公司 broker / office 做正式 review。为了确保信息准确，我先不在这里判断责任或作出承诺，我们会尽快由公司统一回复。”",
             ],
           },
         ],
