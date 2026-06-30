@@ -459,7 +459,6 @@ const brokerageSubmissionGroups = [
       "Listing Agreement",
       "Agency Disclosure",
       "Lead Paint Disclosure",
-      "Property Disclosure Statement",
       "Fair Housing Disclosure",
     ],
   },
@@ -469,6 +468,7 @@ const brokerageSubmissionGroups = [
       "Agency Disclosure signed by buyer",
       "Lead Paint signed by buyer",
       "Lead Paint Booklet for buyer to keep",
+      "Property Disclosure Statement",
       "Fair Housing Disclosure signed by buyer",
       "Deal Sheet / control card to office",
     ],
@@ -915,7 +915,7 @@ const en = {
           owner: "Marketing Coordinator",
           items: [
             "Agent bio rewritten, translated where needed, and approved for the website.",
-            "Business cards, email signature, social bios, license details, and Equal Housing Opportunity disclosures prepared.",
+            "Business cards, email signature, WeChat profile avatar creation, social bios, license details, and Equal Housing Opportunity disclosures prepared.",
             "For Sale sign, Open House sign, riders, QR codes, and print templates ready for first listing.",
           ],
         },
@@ -2377,7 +2377,7 @@ const zh: Dict = {
           owner: "市场协调",
           items: [
             "经纪人 bio 改写、必要时翻译，并确认官网版本。",
-            "准备名片、邮件签名、社交账号 bio、执照信息与平等住房机会声明。",
+            "准备名片、邮件签名、微信头像制作、社交账号 bio、执照信息与平等住房机会声明。",
             "准备 For Sale sign、Open House sign、riders、二维码与首个房源可用的印刷模板。",
           ],
         },
