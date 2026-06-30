@@ -465,8 +465,9 @@ const brokerageSubmissionGroups = [
   {
     title: "Pending / Under Contract",
     items: [
+      "Contract",
       "Agency Disclosure signed by buyer",
-      "Lead Paint signed by buyer",
+      "Lead Paint signed by seller and buyer",
       "Lead Paint Booklet for buyer to keep",
       "Property Disclosure Statement",
       "Fair Housing Disclosure signed by buyer",
