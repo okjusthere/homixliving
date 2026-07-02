@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/libsql";
 import * as schema from "./schema";
 import { agents, buildings, settings, teams } from "./schema";
+import { DEFAULT_INVOICE_SETTINGS } from "../lib/invoice-settings";
 
 const client = createClient({
   url: process.env.TURSO_DATABASE_URL || "file:local.db",
@@ -3149,30 +3150,14 @@ const buildingsData: schema.NewBuilding[] = [
   },
 ];
 
-const defaultSettings = [
-  { key: "cc_email", value: "homix@homixny.com" },
-  { key: "from_email", value: "invoice@homixny.com" },
-  { key: "company_name", value: "Homix Living" },
-  { key: "company_address", value: "" },
-  { key: "default_year", value: "2026" },
-  { key: "payable_to", value: "Homix Living Inc." },
-  { key: "tax_id", value: "" },
-  { key: "mail_check_address", value: "Homix Living Inc." },
-  { key: "ach_account_name", value: "Homix Living Inc." },
-  { key: "ach_bank_name", value: "" },
-  { key: "ach_routing_number", value: "021000089" },
-  { key: "ach_account_number", value: "6883209576" },
-  // Wire transfer — distinct from ACH because wire usually requires bank
-  // address, sometimes a different routing (e.g. Chase ACH vs wire), and
-  // SWIFT/BIC for international receipts. Keys default to "" so existing
-  // installs get the new fields without overwriting current values.
-  { key: "wire_account_name", value: "Homix Living Inc." },
-  { key: "wire_bank_name", value: "" },
-  { key: "wire_routing_number", value: "021000089" },
-  { key: "wire_account_number", value: "6883209576" },
-  { key: "wire_bank_address", value: "" },
-  { key: "wire_swift_code", value: "" },
-];
+// Seed invoice settings from the single source of truth (DEFAULT_INVOICE_SETTINGS)
+// so the seeded DB and the app's runtime fallbacks can't drift — they previously
+// disagreed on company_address ("" here vs the real address in that map). Keys
+// that a real install should fill in (bank names, SWIFT/BIC, tax id) default to
+// "" there, so existing installs still get new fields without overwrites.
+const defaultSettings = Object.entries(DEFAULT_INVOICE_SETTINGS).map(
+  ([key, value]) => ({ key, value })
+);
 
 const demoTeams: schema.NewTeam[] = [
   { name: "Manhattan", notes: "Core Manhattan rental team" },
@@ -3596,6 +3581,39 @@ async function seed() {
       type TEXT NOT NULL,
       commerce_order_id INTEGER REFERENCES commerce_orders(id) ON DELETE SET NULL,
       received_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Training video catalog (gated /training). Defined in schema.ts (trainingVideos)
+  // but was previously absent here — a fresh db:seed produced a DB where /training
+  // and /api/training crashed. Keep columns in sync with schema.ts.
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS training_videos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      description TEXT,
+      category TEXT NOT NULL DEFAULT 'General',
+      cloudflare_uid TEXT NOT NULL,
+      duration_label TEXT,
+      sort_order INTEGER NOT NULL DEFAULT 100,
+      is_published INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Agent resource library (gated /resources). Same story as training_videos.
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS resources (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      description TEXT,
+      category TEXT NOT NULL DEFAULT 'General',
+      url TEXT NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 100,
+      is_published INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
