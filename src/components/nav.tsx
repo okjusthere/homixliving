@@ -18,6 +18,7 @@ const navItems = [
   { href: "/buyercoach", key: "coach", adminOnly: false },
   { href: "/offer", key: "offer", adminOnly: false },
   { href: "/agents", key: "agents", adminOnly: true },
+  { href: "/teams", key: "teams", adminOnly: true },
   { href: "/reports", key: "reports", adminOnly: true },
   { href: "/settings", key: "settings", adminOnly: true },
 ] as const;
@@ -26,13 +27,13 @@ const LABELS = {
   en: {
     overview: "Overview", sales: "Sales", rental: "Rental", training: "Training",
     resources: "Resources", onboarding: "Onboarding", coach: "Coach", offer: "Offer",
-    agents: "Agents", reports: "Reports", settings: "Settings",
+    agents: "Agents", teams: "Teams", reports: "Reports", settings: "Settings",
     search: "Search", signedIn: "Signed in", signOut: "Sign out", admin: "Admin",
   },
   zh: {
     overview: "概览", sales: "买卖", rental: "租赁", training: "培训",
     resources: "资料", onboarding: "入职", coach: "AI 教练", offer: "报价",
-    agents: "经纪人", reports: "报表", settings: "设置",
+    agents: "经纪人", teams: "团队", reports: "报表", settings: "设置",
     search: "搜索", signedIn: "已登录", signOut: "退出登录", admin: "管理员",
   },
 } as const;
