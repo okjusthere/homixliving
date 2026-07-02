@@ -4,16 +4,16 @@ import { cleanupExpiredSuspendedWorkspaceUsers } from "@/lib/google-workspace";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const WORKSPACE_RETENTION_CRON_SCHEDULE = "17 13 * * *";
-
 function isAuthorizedCronRequest(request: Request): boolean {
+  // Fail closed: require the CRON_SECRET bearer. Vercel Cron automatically sends
+  // `Authorization: Bearer $CRON_SECRET` when the CRON_SECRET env var is set.
+  // The previous fallback trusted `User-Agent: vercel-cron` + a schedule header,
+  // both of which any client can spoof — that let any logged-in (even pending)
+  // user trigger permanent Google Workspace mailbox deletion.
   const configuredSecret = process.env.CRON_SECRET?.trim();
+  if (!configuredSecret) return false;
   const authorization = request.headers.get("authorization") || "";
-  if (configuredSecret && authorization === `Bearer ${configuredSecret}`) return true;
-
-  const userAgent = request.headers.get("user-agent") || "";
-  const schedule = request.headers.get("x-vercel-cron-schedule") || "";
-  return userAgent.includes("vercel-cron/1.0") && schedule === WORKSPACE_RETENTION_CRON_SCHEDULE;
+  return authorization === `Bearer ${configuredSecret}`;
 }
 
 export async function GET(request: Request) {

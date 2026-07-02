@@ -15,6 +15,18 @@ function getResend(): Resend {
   return _resend;
 }
 
+// buildingName/unit/tenantName come from user-entered deal data and are
+// interpolated into the HTML email body — escape them so a value like
+// `<img onerror=...>` can't inject markup into the recipient's inbox.
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 type SendInvoiceEmailParams = {
   to: string[];
   cc?: string[];
@@ -90,9 +102,9 @@ export async function sendInvoiceEmail({
         <p>Dear Property Management,</p>
         <p>Please find the attached OP Invoice for the following:</p>
         <ul>
-          <li><strong>Building:</strong> ${buildingName}</li>
-          <li><strong>Unit:</strong> ${unit}</li>
-          <li><strong>Tenant:</strong> ${tenantName}</li>
+          <li><strong>Building:</strong> ${escapeHtml(buildingName)}</li>
+          <li><strong>Unit:</strong> ${escapeHtml(unit)}</li>
+          <li><strong>Tenant:</strong> ${escapeHtml(tenantName)}</li>
         </ul>
         <p>Please see the attached invoice PDF and W-9 for details.</p>
         <p>Best regards,<br/>Homix Living</p>

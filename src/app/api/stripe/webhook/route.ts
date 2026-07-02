@@ -185,9 +185,11 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription): Pro
     .set({ status, updatedAt: now })
     .where(eq(commerceOrders.id, order.id));
 
-  if (isPendingCancellation) {
-    await maybeSuspendWorkspace(updatedOrder);
-  } else if (status === "active") {
+  // Do NOT suspend on a *scheduled* cancellation: the customer has paid through
+  // the current period and keeps their mailbox until the subscription actually
+  // ends (customer.subscription.deleted, handled separately). Suspending here
+  // would cut off email the instant they click "cancel".
+  if (!isPendingCancellation && status === "active") {
     await maybeProvisionWorkspace(updatedOrder);
   }
 
@@ -251,26 +253,46 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid Stripe signature." }, { status: 400 });
   }
 
-  const [existingEvent] = await db
-    .select({ id: stripeEvents.id })
-    .from(stripeEvents)
-    .where(eq(stripeEvents.id, event.id))
-    .limit(1);
+  // Claim the event atomically BEFORE processing. Stripe delivers at-least-once
+  // and can fan two deliveries of the same event.id in concurrently; a
+  // select-then-process-then-insert let both pass the check and run the handler
+  // twice (double provisioning, duplicate side effects). Insert-first with
+  // onConflictDoNothing means exactly one delivery wins the claim.
+  const claimed = await db
+    .insert(stripeEvents)
+    .values({
+      id: event.id,
+      type: event.type,
+      orderId: null,
+      receivedAt: new Date().toISOString(),
+    })
+    .onConflictDoNothing()
+    .returning({ id: stripeEvents.id });
 
-  if (existingEvent) {
+  if (claimed.length === 0) {
     return NextResponse.json({ received: true, duplicate: true });
   }
 
   try {
     const orderId = await processStripeEvent(event);
-    await db.insert(stripeEvents).values({
-      id: event.id,
-      type: event.type,
-      orderId,
-      receivedAt: new Date().toISOString(),
-    });
+    if (orderId !== null) {
+      try {
+        await db
+          .update(stripeEvents)
+          .set({ orderId })
+          .where(eq(stripeEvents.id, event.id));
+      } catch (linkError) {
+        // The orderId comes from event metadata and may reference an order from
+        // another environment (FK violation). The event is already processed, so
+        // don't fail — and retry — the webhook over a cosmetic link.
+        console.warn("Could not link Stripe event to order", event.id, linkError);
+      }
+    }
   } catch (error) {
+    // Release the claim so Stripe's retry can reprocess this event; otherwise the
+    // claimed-but-unprocessed row would swallow every retry as a "duplicate".
     console.error("Stripe webhook processing failed", error);
+    await db.delete(stripeEvents).where(eq(stripeEvents.id, event.id));
     return NextResponse.json({ error: "Webhook processing failed." }, { status: 500 });
   }
 

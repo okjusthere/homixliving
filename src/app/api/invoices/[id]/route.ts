@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { invoices, buildings } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { requireActiveAgentApi } from "@/lib/auth-guards";
-import { canViewDeal } from "@/lib/visibility";
+import { canViewDeal, canEditDeal } from "@/lib/visibility";
 
 export async function GET(
   _req: NextRequest,
@@ -54,7 +54,9 @@ export async function DELETE(
   const { id } = await params;
   const invoice = await db.select().from(invoices).where(eq(invoices.id, Number(id))).get();
   if (!invoice) return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
-  if (invoice.dealId && !(await canViewDeal(authResult.session, invoice.dealId))) {
+  // Deleting a financial record requires EDIT rights, not just view — team-leader
+  // read access must not grant deletion of a team member's invoice.
+  if (invoice.dealId && !(await canEditDeal(authResult.session, invoice.dealId))) {
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
   if (

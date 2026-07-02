@@ -61,7 +61,12 @@ export async function POST(
     },
   ];
   const yearSource = deal.dealDate || new Date().toISOString();
-  const year = Number.isFinite(new Date(yearSource).getFullYear())
+  // Read the year off a date-only string directly: `new Date("2026-01-01")`
+  // parses as UTC, so on any non-UTC server getFullYear() can be a year early.
+  const yearMatch = /^(\d{4})-\d{2}-\d{2}/.exec(yearSource.trim());
+  const year = yearMatch
+    ? Number(yearMatch[1])
+    : Number.isFinite(new Date(yearSource).getFullYear())
     ? new Date(yearSource).getFullYear()
     : new Date().getFullYear();
   const invoiceNumber = generateInvoiceNumber(deal.unit, building, year);

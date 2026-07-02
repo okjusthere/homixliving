@@ -23,15 +23,26 @@ export async function POST(
   if (!invoice) {
     return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
   }
-  const paidAt: string =
-    typeof body.paidAt === "string" && body.paidAt
-      ? body.paidAt
-      : new Date().toISOString();
+  // Validate paidAt: reject non-date strings (e.g. "banana") rather than
+  // persisting them; default to now when omitted.
+  let paidAt = new Date().toISOString();
+  if (typeof body.paidAt === "string" && body.paidAt.trim()) {
+    const parsed = new Date(body.paidAt);
+    if (isNaN(parsed.getTime())) {
+      return NextResponse.json({ error: "Invalid paidAt date." }, { status: 400 });
+    }
+    paidAt = parsed.toISOString();
+  }
 
-  const paidAmount: number =
-    typeof body.paidAmount === "number" && !isNaN(body.paidAmount)
-      ? body.paidAmount
-      : invoice.totalAmount;
+  // Validate paidAmount: reject NaN/negative/non-finite; default to the invoice total.
+  let paidAmount = invoice.totalAmount;
+  if (body.paidAmount !== undefined && body.paidAmount !== null) {
+    const amount = Number(body.paidAmount);
+    if (!Number.isFinite(amount) || amount < 0) {
+      return NextResponse.json({ error: "Invalid paidAmount." }, { status: 400 });
+    }
+    paidAmount = amount;
+  }
 
   await db
     .update(invoices)

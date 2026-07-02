@@ -389,13 +389,20 @@ const styles = StyleSheet.create({
 function fmtMoney(n: number): string {
   return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
+// Parse "YYYY-MM-DD" as LOCAL midnight so US-timezone servers/clients don't
+// render date-only fields (invoice date, dates on the PDF) one day early.
+function toLocalDate(s: string): Date {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s.trim());
+  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return new Date(s);
+}
 function fmtDateShort(s: string): string {
-  const d = new Date(s);
+  const d = toLocalDate(s);
   if (isNaN(d.getTime())) return s;
   return `${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}/${d.getFullYear()}`;
 }
 function fmtDateLong(s: string): string {
-  const d = new Date(s);
+  const d = toLocalDate(s);
   if (isNaN(d.getTime())) return s;
   return d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 }

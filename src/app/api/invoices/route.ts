@@ -42,14 +42,40 @@ export async function POST(req: NextRequest) {
   if ("error" in authResult) return authResult.error;
 
   const body = await req.json();
-  const { buildingId, unit, tenantName, agentEmail, agentName, agentPhone, apartmentAddress, moveInDate, licensedCompany, year, lineItems, totalAmount, notes } = body;
+  const { buildingId, unit, tenantName, agentEmail, agentName, agentPhone, apartmentAddress, moveInDate, licensedCompany, year, lineItems, notes } = body;
 
   const building = await db.select().from(buildings).where(eq(buildings.id, buildingId)).get();
   if (!building) {
     return NextResponse.json({ error: "Building not found" }, { status: 404 });
   }
 
-  const invoiceNumber = generateInvoiceNumber(unit, building, year || 2026);
+  // Validate line items and compute the authoritative total server-side rather
+  // than trusting the client's `totalAmount` (which arrived unvalidated — a
+  // string or NaN would land straight in the numeric column, and a total that
+  // disagreed with the line items would misstate the receivable).
+  if (!Array.isArray(lineItems) || lineItems.length === 0) {
+    return NextResponse.json({ error: "At least one line item is required." }, { status: 400 });
+  }
+  let totalAmount = 0;
+  for (const item of lineItems) {
+    const amount = Number(item?.amount);
+    if (!Number.isFinite(amount)) {
+      return NextResponse.json({ error: "Each line item needs a numeric amount." }, { status: 400 });
+    }
+    totalAmount += amount;
+  }
+  totalAmount = Math.round(totalAmount * 100) / 100;
+
+  // Bind the invoice's agent to the caller for non-admins so an agent can't
+  // create an invoice attributed to (and later visible to) a colleague. Admins
+  // may set it explicitly (e.g. filing on behalf of an agent).
+  const boundAgentEmail = authResult.session.user.isAdmin
+    ? agentEmail || authResult.session.user.email || null
+    : authResult.session.user.email || null;
+
+  const invoiceYear =
+    Number.isInteger(year) && year > 2000 ? year : new Date().getFullYear();
+  const invoiceNumber = generateInvoiceNumber(unit, building, invoiceYear);
   const fileName = generateFileName(unit, building, licensedCompany);
   const emailSubject = generateEmailSubject(unit, building, licensedCompany);
 
@@ -60,13 +86,13 @@ export async function POST(req: NextRequest) {
     emailSubject,
     unit,
     tenantName,
-    agentEmail,
+    agentEmail: boundAgentEmail,
     agentName,
     agentPhone,
     apartmentAddress,
     moveInDate,
     licensedCompany,
-    year: year || 2026,
+    year: invoiceYear,
     lineItems,
     totalAmount,
     notes,

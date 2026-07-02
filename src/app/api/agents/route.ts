@@ -78,9 +78,30 @@ export async function GET(req: NextRequest) {
     .where(teamId && Number.isFinite(teamId) ? eq(agents.teamId, teamId) : undefined)
     .orderBy(teams.name, agents.name);
 
-  const visibleRows = authResult.session.user.isAdmin
-    ? rows
-    : rows.filter((row) => row.agent.isActive);
+  // Non-admins get a slim roster: enough to pick co-agents and preview a deal's
+  // commission split (id, name, split %), but NOT colleagues' month-to-date
+  // earnings, license numbers, phones, or admin notes. Only admins see the
+  // enriched, per-agent MTD figures below.
+  if (!authResult.session.user.isAdmin) {
+    const slim = rows
+      .filter((row) => row.agent.isActive)
+      .map((row) => ({
+        agent: {
+          id: row.agent.id,
+          name: row.agent.name,
+          email: row.agent.email,
+          splitPct: row.agent.splitPct,
+          teamId: row.agent.teamId,
+          isActive: row.agent.isActive,
+        },
+        teamName: row.teamName,
+        mtdDeals: 0,
+        mtdTake: 0,
+      }));
+    return NextResponse.json(slim);
+  }
+
+  const visibleRows = rows;
 
   const allDeals = await db.select().from(deals);
   const allDealAgents = await db.select().from(dealAgents);

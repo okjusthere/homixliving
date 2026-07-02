@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import { google } from "googleapis";
 import { Resend } from "resend";
-import { and, eq, lte } from "drizzle-orm";
+import { and, eq, lte, ne } from "drizzle-orm";
 import { db } from "@/db";
 import { commerceOrders, type CommerceOrder } from "@/db/schema";
 
@@ -329,6 +329,22 @@ export async function provisionWorkspaceForOrder(order: CommerceOrder) {
     });
   } catch (error) {
     if (errorStatus(error) === 409) {
+      // A Google Workspace user with this email already exists.
+      //
+      // SECURITY: only "adopt" it when THIS order created it on a prior attempt
+      // (workspaceUserId already recorded). Otherwise the address belongs to
+      // someone else — silently un-suspending it and marking the order
+      // "provisioned" let any buyer check out a colleague's company email, take
+      // ownership, then cancel the subscription to get that colleague's mailbox
+      // suspended and (via the retention cron) permanently deleted. Never mutate
+      // an account we did not create; flag it for manual admin review instead.
+      if (!order.workspaceUserId) {
+        await updateWorkspaceStatus(order.id, "needs_review", {
+          workspaceError:
+            "A Google Workspace user with this email already exists and was not created by this order. Manual review required before provisioning.",
+        });
+        return;
+      }
       try {
         await admin.users.update({
           userKey: primaryEmail,
@@ -338,7 +354,8 @@ export async function provisionWorkspaceForOrder(order: CommerceOrder) {
         });
 
         await updateWorkspaceStatus(order.id, "provisioned", {
-          workspaceError: "Google Workspace user already existed and was reactivated.",
+          workspaceUserId: order.workspaceUserId,
+          workspaceError: "Existing Google Workspace user (created by this order) was reactivated.",
         });
       } catch (reactivationError) {
         await updateWorkspaceStatus(order.id, "failed", {
@@ -357,6 +374,11 @@ export async function provisionWorkspaceForOrder(order: CommerceOrder) {
 export async function suspendWorkspaceForOrder(order: CommerceOrder) {
   const primaryEmail = order.requestedWorkspaceEmail?.trim().toLowerCase();
   if (!primaryEmail || order.workspaceStatus === "not_required" || order.workspaceStatus === "deleted") return;
+
+  // SECURITY: never suspend an account this order did not create. workspaceUserId
+  // is recorded only after a successful users.insert, so its absence means the
+  // mailbox belongs to a third party (buy-a-colleague's-email attack) — leave it.
+  if (!order.workspaceUserId) return;
 
   const domain = primaryEmail.split("@")[1]?.toLowerCase();
   if (!domain || !getWorkspaceAllowedDomains().includes(domain)) {
@@ -404,6 +426,39 @@ export async function suspendWorkspaceForOrder(order: CommerceOrder) {
 export async function deleteWorkspaceUserForOrder(order: CommerceOrder): Promise<boolean> {
   const primaryEmail = order.requestedWorkspaceEmail?.trim().toLowerCase();
   if (!primaryEmail || order.workspaceStatus === "not_required" || order.workspaceStatus === "deleted") {
+    return false;
+  }
+
+  // SECURITY: only delete accounts this order created (workspaceUserId recorded
+  // by a real users.insert). Without it we'd be permanently deleting a third
+  // party's mailbox.
+  if (!order.workspaceUserId) {
+    await updateWorkspaceError(
+      order.id,
+      "Workspace deletion skipped: this order never created a Google account (no workspaceUserId)."
+    );
+    return false;
+  }
+
+  // Never delete an email that a *different* order has since re-provisioned:
+  // customer cancels (this order → suspended), then re-subscribes (new order →
+  // provisioned) reusing the same address. Deleting here would wipe a live,
+  // paying mailbox. Release this order's claim without touching Google.
+  const activeElsewhere = await db
+    .select({ id: commerceOrders.id })
+    .from(commerceOrders)
+    .where(
+      and(
+        eq(commerceOrders.requestedWorkspaceEmail, order.requestedWorkspaceEmail!),
+        eq(commerceOrders.workspaceStatus, "provisioned"),
+        ne(commerceOrders.id, order.id)
+      )
+    )
+    .limit(1);
+  if (activeElsewhere.length > 0) {
+    await updateWorkspaceStatus(order.id, "deleted", {
+      workspaceError: "Deletion skipped: another active order still provisions this workspace email.",
+    });
     return false;
   }
 

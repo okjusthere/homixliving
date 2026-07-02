@@ -51,6 +51,16 @@ export async function POST(
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
 
+  // Never let a re-send regress a paid invoice. Without this, re-sending flips
+  // status back to "sent" (deal shows "Awaiting payment" again), and a Resend
+  // error would flip a *paid* invoice to "failed".
+  if (invoice.status === "paid") {
+    return NextResponse.json(
+      { error: "This invoice is already marked paid. Un-mark it as paid before re-sending." },
+      { status: 409 }
+    );
+  }
+
   // Allow custom recipients from request body, fallback to building config
   const toEmails: string = body.to || building.contactEmail || "";
   const ccEmails: string = body.cc || "";

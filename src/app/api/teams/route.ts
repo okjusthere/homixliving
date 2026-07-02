@@ -28,6 +28,27 @@ export async function GET() {
     db.select().from(dealAgents),
   ]);
   const agentById = new Map(agentRows.map((agent) => [agent.id, agent]));
+
+  // Non-admins get team names + membership only — never per-team month-to-date
+  // earnings or member compensation/PII. Only admins see the enriched figures.
+  if (!authResult.session.user.isAdmin) {
+    const slim = teamRows.map((team) => {
+      const members = agentRows
+        .filter((agent) => agent.teamId === team.id && agent.isActive !== false)
+        .map((agent) => ({ id: agent.id, name: agent.name }));
+      const leaderAgent = team.leaderAgentId ? agentById.get(team.leaderAgentId) : null;
+      return {
+        team: { id: team.id, name: team.name },
+        leader: leaderAgent ? { id: leaderAgent.id, name: leaderAgent.name } : null,
+        members,
+        memberCount: members.length,
+        mtdDeals: 0,
+        mtdTake: 0,
+      };
+    });
+    return NextResponse.json(slim);
+  }
+
   const month = getMonthKey();
 
   const result = teamRows.map((team) => {

@@ -38,6 +38,9 @@ export const authConfig: NextAuthConfig = {
     },
     async authorized({ request, auth }) {
       const { pathname } = request.nextUrl;
+      // Genuinely public — no session required. Cron routes are unauthenticated
+      // at the edge and enforce their own CRON_SECRET; the Stripe webhook
+      // verifies its signature; checkout/pay is public by design.
       const PUBLIC_PATHS = [
         "/login",
         "/pending",
@@ -45,13 +48,19 @@ export const authConfig: NextAuthConfig = {
         "/api/auth",
         "/api/checkout",
         "/api/stripe/webhook",
+        "/api/cron",
         "/_next",
         "/favicon",
       ];
       const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
       if (isPublic) return true;
       if (!auth) return false;
-      if (pathname.startsWith("/api")) return true;
+      // Default-DENY for data APIs: only active/admin users clear the edge, so a
+      // route that forgets its own guard is no longer wide open to any signed-in
+      // (including pending, self-registered) Google account.
+      if (pathname.startsWith("/api")) {
+        return Boolean(auth.user?.isAdmin || auth.user?.isActive);
+      }
       if (!auth.user?.isAdmin && !auth.user?.isActive) {
         return NextResponse.redirect(new URL("/pending", request.nextUrl));
       }
