@@ -18,6 +18,7 @@ const M = {
     bulkImportHint: "Bulk-import from Cloudflare with the script, or add one by pasting its UID.",
     close: "Close",
     addVideo: "Add video",
+    moveToEnd: "Move to end",
     cloudflareWarnPre: "Set ",
     cloudflareWarnPost: " in Vercel so the videos can play.",
     titlePlaceholder: "Title",
@@ -40,6 +41,7 @@ const M = {
     bulkImportHint: "用脚本从 Cloudflare 批量导入，或粘贴 UID 逐个添加。",
     close: "关闭",
     addVideo: "添加视频",
+    moveToEnd: "移到末尾",
     cloudflareWarnPre: "请在 Vercel 中设置 ",
     cloudflareWarnPost: "，视频才能播放。",
     titlePlaceholder: "标题",
@@ -132,6 +134,16 @@ export function TrainingManager({
     if (!confirm(t.confirmDelete(v.title))) return;
     await fetch(`/api/training/${v.id}`, { method: "DELETE" });
     router.refresh();
+  }
+
+  // Push a video past every other video in its own category (used to fix
+  // upload-order vs. intended-viewing-order mismatches without hand-editing
+  // every sibling's sortOrder).
+  async function moveToEnd(v: TrainingVideo) {
+    const maxOrder = initialVideos
+      .filter((x) => x.category === v.category && x.id !== v.id)
+      .reduce((max, x) => Math.max(max, x.sortOrder), 0);
+    await patch(v, { sortOrder: maxOrder + 10 });
   }
 
   return (
@@ -253,6 +265,14 @@ export function TrainingManager({
                       style={{ color: v.isPublished ? tone.green : tone.ink50, background: tone.paperDeep }}
                     >
                       {v.isPublished ? t.published : t.hidden}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => moveToEnd(v)}
+                      className="text-[12px] px-2.5 py-1 rounded-md"
+                      style={{ color: tone.ink50, background: tone.paperDeep }}
+                    >
+                      {t.moveToEnd}
                     </button>
                     <button
                       type="button"
