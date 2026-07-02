@@ -5,8 +5,18 @@ import * as schema from "./schema";
 // In production, refuse to silently fall back to an ephemeral on-disk SQLite
 // file: on a serverless host `file:local.db` lives on the instance's throwaway
 // disk, so every write (deals, invoices, orders) vanishes when the instance
-// recycles — with no error to signal it. Fail fast instead.
-if (process.env.NODE_ENV === "production" && !process.env.TURSO_DATABASE_URL?.trim()) {
+// recycles — with no error to signal it. Fail fast at runtime instead.
+//
+// Exempt the build phase: `next build` runs with NODE_ENV=production but env
+// vars like TURSO_DATABASE_URL aren't injected until runtime, and page-data
+// collection imports this module. A throw here would break the build; the
+// fallback is harmless during build (no real writes happen).
+const isBuildPhase = process.env.NEXT_PHASE === "phase-production-build";
+if (
+  process.env.NODE_ENV === "production" &&
+  !isBuildPhase &&
+  !process.env.TURSO_DATABASE_URL?.trim()
+) {
   throw new Error(
     "TURSO_DATABASE_URL is required in production. Refusing to fall back to the ephemeral file:local.db."
   );
