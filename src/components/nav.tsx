@@ -54,6 +54,7 @@ export function Nav() {
   const { data: session } = useSession();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const locale = useLocale();
   const t = LABELS[locale];
@@ -98,13 +99,30 @@ export function Nav() {
       className="sticky top-0 z-30"
       style={{ background: tone.card, borderBottom: `1px solid ${tone.line}` }}
     >
-      <div className="mx-auto max-w-[1280px] px-8">
+      <div className="mx-auto max-w-[1280px] px-4 sm:px-8">
         <div className="h-16 flex items-center justify-between">
-          <div className="flex items-center gap-10">
-            <Link href="/">
+          <div className="flex items-center gap-4 lg:gap-10 min-w-0">
+            {/* Hamburger for the nav items on small screens */}
+            <button
+              type="button"
+              onClick={() => setMobileOpen((v) => !v)}
+              aria-label="Menu"
+              className="lg:hidden h-9 w-9 rounded-md flex items-center justify-center flex-none"
+              style={{ border: `1px solid ${tone.line}`, color: tone.ink50 }}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
+                <path
+                  d="M2 4h12M2 8h12M2 12h12"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </button>
+            <Link href="/" className="flex-none">
               <HomixMark />
             </Link>
-            <div className="flex items-center gap-0.5">
+            <div className="hidden lg:flex items-center gap-0.5">
               {visibleItems.map((item) => {
                 const active = isActive(item.href);
                 return (
@@ -191,6 +209,31 @@ export function Nav() {
             </div>
           </div>
         </div>
+
+        {mobileOpen && (
+          <div
+            className="lg:hidden pb-3 grid grid-cols-2 gap-1"
+            style={{ borderTop: `1px solid ${tone.lineSoft}` }}
+          >
+            {visibleItems.map((item) => {
+              const active = isActive(item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setMobileOpen(false)}
+                  className="px-3 h-10 rounded-md text-[13.5px] font-medium flex items-center"
+                  style={{
+                    color: active ? tone.ink : tone.ink50,
+                    background: active ? tone.paperDeep : "transparent",
+                  }}
+                >
+                  {t[item.key]}
+                </Link>
+              );
+            })}
+          </div>
+        )}
       </div>
     </nav>
   );
