@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/workspace-retention",
       "schedule": "17 13 * * *"
+    },
+    {
+      "path": "/api/cron/renewal-reminders",
+      "schedule": "5 13 * * *"
     }
   ]
 }
