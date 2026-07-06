@@ -18,6 +18,7 @@ import {
   type InvoicePaymentSummary,
 } from "@/lib/invoice-payment";
 import { useLocale } from "@/lib/i18n-client";
+import { DealDocuments } from "@/components/deal-documents";
 
 const M = {
   en: {
@@ -578,6 +579,8 @@ export default function DealDetailPage() {
                 )}
               </div>
             </Card>
+
+            <DealDocuments dealType="rental" dealId={deal.id} />
           </div>
         </div>
       </div>

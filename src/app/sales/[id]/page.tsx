@@ -11,6 +11,7 @@ import { fmtDate, fmtLongDate, fmtMoney, tone } from "@/components/homix/tokens"
 import { computeCommission } from "@/lib/commission";
 import { saleRepresentationLabel, saleStageLabel } from "@/lib/sales";
 import { useLocale } from "@/lib/i18n-client";
+import { DealDocuments } from "@/components/deal-documents";
 import type { Agent, SaleDeal } from "@/db/schema";
 
 const M = {
@@ -428,6 +429,8 @@ export default function SaleDetailPage() {
                 </div>
               </div>
             </Card>
+
+            <DealDocuments dealType="sale" dealId={saleDeal.id} />
           </div>
         </div>
       </div>
