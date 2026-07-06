@@ -12,6 +12,7 @@ import {
   type DealForReporting,
 } from "@/lib/reporting";
 import { DEFAULT_AGENT_SPLIT_PCT } from "@/lib/splits";
+import { logAudit } from "@/lib/audit";
 
 const AGENT_APPROVAL_STATUSES = ["pending", "approved", "ignored", "revoked"] as const;
 
@@ -260,6 +261,14 @@ export async function PUT(req: NextRequest) {
     }
 
     const [updated] = await db.update(agents).set(data).where(eq(agents.id, id)).returning();
+    await logAudit(
+      authResult.session,
+      "update",
+      "agent",
+      id,
+      `更新经纪人 ${updated.name} (#${id})`,
+      data
+    );
     return NextResponse.json(updated);
   } catch {
     return NextResponse.json({ error: "Agent update failed" }, { status: 500 });

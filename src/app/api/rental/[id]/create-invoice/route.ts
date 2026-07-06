@@ -5,6 +5,7 @@ import { and, eq } from "drizzle-orm";
 import { generateEmailSubject, generateFileName, generateInvoiceNumber } from "@/lib/invoice-generator";
 import { requireActiveAgentApi } from "@/lib/auth-guards";
 import { canEditDeal } from "@/lib/visibility";
+import { logAudit } from "@/lib/audit";
 
 export async function POST(
   _req: NextRequest,
@@ -99,6 +100,16 @@ export async function POST(
       updatedAt: now,
     })
     .returning();
+
+  await logAudit(
+    authResult.session,
+    "create",
+    "invoice",
+    invoice.id,
+    `从租赁成交 #${deal.id} 生成发票 ${invoiceNumber} · ${building.name} ${deal.unit} · $${Number(
+      deal.totalCommission || 0
+    ).toLocaleString("en-US")}`
+  );
 
   return NextResponse.json({ invoiceId: invoice.id, invoiceNumber });
 }

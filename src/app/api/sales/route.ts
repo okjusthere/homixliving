@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { agents, saleDealAgents, saleDeals } from "@/db/schema";
 import { requireActiveAgentApi } from "@/lib/auth-guards";
 import { saleDealsVisibleToSql } from "@/lib/visibility";
+import { logAudit } from "@/lib/audit";
 
 type SaleAgentPayload = {
   agentId: number;
@@ -232,7 +233,16 @@ export async function POST(req: NextRequest) {
     ]);
 
     const createdRows = batchResult[0] as (typeof saleDeals.$inferSelect)[];
-    return NextResponse.json(createdRows[0], { status: 201 });
+    const created = createdRows[0];
+    await logAudit(
+      authResult.session,
+      "create",
+      "sale_deal",
+      created.id,
+      `新建买卖成交 #${created.id} · ${created.propertyAddress}`,
+      result.data
+    );
+    return NextResponse.json(created, { status: 201 });
   } catch {
     return NextResponse.json({ error: "Sale creation failed" }, { status: 500 });
   }

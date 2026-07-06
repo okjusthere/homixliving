@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { requireActiveAgentApi } from "@/lib/auth-guards";
 import { canEditDeal, canViewDeal } from "@/lib/visibility";
 import { summarizeInvoicePayment } from "@/lib/invoice-payment";
+import { logAudit } from "@/lib/audit";
 
 type DealAgentPayload = {
   agentId: number;
@@ -218,6 +219,15 @@ export async function PUT(
       ),
     ]);
 
+    await logAudit(
+      authResult.session,
+      "update",
+      "rental_deal",
+      parsedId,
+      `更新租赁成交 #${parsedId} · ${result.data.unit} · 租客 ${result.data.tenantName}`,
+      body
+    );
+
     const updated = await serializeDeal(parsedId);
     return NextResponse.json(updated);
   } catch {
@@ -242,5 +252,12 @@ export async function DELETE(
 
   await db.update(invoices).set({ dealId: null, updatedAt: new Date().toISOString() }).where(eq(invoices.dealId, parsedId));
   await db.delete(deals).where(eq(deals.id, parsedId));
+  await logAudit(
+    authResult.session,
+    "delete",
+    "rental_deal",
+    parsedId,
+    `删除租赁成交 #${parsedId}（关联发票已解除绑定）`
+  );
   return NextResponse.json({ success: true });
 }

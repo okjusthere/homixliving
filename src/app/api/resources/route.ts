@@ -3,6 +3,7 @@ import { asc } from "drizzle-orm";
 import { db } from "@/db";
 import { resources } from "@/db/schema";
 import { requireActiveAgentApi, requireAdminApi } from "@/lib/auth-guards";
+import { logAudit } from "@/lib/audit";
 
 export async function GET() {
   const auth = await requireActiveAgentApi();
@@ -39,6 +40,8 @@ export async function POST(req: NextRequest) {
       description: String(body.description || "").trim() || null,
     })
     .returning();
+
+  await logAudit(auth.session, "create", "resource", row.id, `新建资源 ${row.title}`);
 
   return NextResponse.json(row);
 }

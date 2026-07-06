@@ -6,6 +6,7 @@ import { getDealDate } from "@/lib/reporting";
 import { requireActiveAgentApi } from "@/lib/auth-guards";
 import { dealsVisibleToSql } from "@/lib/visibility";
 import { summarizeInvoicePayment } from "@/lib/invoice-payment";
+import { logAudit } from "@/lib/audit";
 
 type DealAgentPayload = {
   agentId: number;
@@ -229,7 +230,16 @@ export async function POST(req: NextRequest) {
     ]);
 
     const createdRows = batchResult[0] as (typeof deals.$inferSelect)[];
-    return NextResponse.json(createdRows[0], { status: 201 });
+    const created = createdRows[0];
+    await logAudit(
+      authResult.session,
+      "create",
+      "rental_deal",
+      created.id,
+      `新建租赁成交 #${created.id} · ${created.unit} · 租客 ${created.tenantName}`,
+      result.data
+    );
+    return NextResponse.json(created, { status: 201 });
   } catch {
     return NextResponse.json({ error: "Deal creation failed" }, { status: 500 });
   }

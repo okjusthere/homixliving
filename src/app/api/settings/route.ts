@@ -4,6 +4,7 @@ import { settings } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { requireActiveAgentApi, requireAdminApi } from "@/lib/auth-guards";
 import { withInvoiceSettingDefaults } from "@/lib/invoice-settings";
+import { logAudit } from "@/lib/audit";
 
 export async function GET() {
   const authResult = await requireActiveAgentApi();
@@ -26,6 +27,15 @@ export async function PUT(req: NextRequest) {
     } else {
       await db.insert(settings).values({ key, value: String(value) });
     }
+    // Never write bank account/routing details into the audit trail.
+    await logAudit(
+      authResult.session,
+      "update",
+      "setting",
+      key,
+      `更新系统设置 ${key}`,
+      /account|routing|swift/i.test(key) ? { redacted: true } : { value: String(value) }
+    );
   }
   return NextResponse.json({ success: true });
 }

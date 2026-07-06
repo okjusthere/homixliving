@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { agents } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { requireAdminApi } from "@/lib/auth-guards";
+import { logAudit } from "@/lib/audit";
 
 export async function POST(
   _req: NextRequest,
@@ -21,6 +22,8 @@ export async function POST(
     .update(agents)
     .set({ isActive: false, approvalStatus: "ignored", updatedAt: new Date().toISOString() })
     .where(eq(agents.id, parsedId));
+
+  await logAudit(authResult.session, "ignore", "agent", parsedId, `忽略经纪人申请 #${parsedId}`);
 
   return NextResponse.json({ success: true });
 }

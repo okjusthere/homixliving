@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { buildings, type NewBuilding } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { requireActiveAgentApi, requireAdminApi } from "@/lib/auth-guards";
+import { logAudit } from "@/lib/audit";
 
 const submissionTypes = new Set(["email", "system_upload", "both"]);
 
@@ -90,6 +91,14 @@ export async function POST(req: NextRequest) {
   if ("error" in cleaned) return cleaned.error;
 
   const result = await db.insert(buildings).values(cleaned.data).returning();
+  await logAudit(
+    authResult.session,
+    "create",
+    "building",
+    result[0].id,
+    `新建楼盘 ${cleaned.data.name} · ${cleaned.data.region}`,
+    cleaned.data
+  );
   return NextResponse.json(result[0], { status: 201 });
 }
 
@@ -109,6 +118,14 @@ export async function PUT(req: NextRequest) {
     .set({ ...cleaned.data, updatedAt: new Date().toISOString() })
     .where(eq(buildings.id, id))
     .returning();
+  await logAudit(
+    authResult.session,
+    "update",
+    "building",
+    id,
+    `更新楼盘 ${cleaned.data.name} · ${cleaned.data.region}`,
+    cleaned.data
+  );
   return NextResponse.json(result[0]);
 }
 
@@ -121,5 +138,6 @@ export async function DELETE(req: NextRequest) {
   if (!buildingId) return badRequest("Building id is required");
 
   await db.delete(buildings).where(eq(buildings.id, buildingId));
+  await logAudit(authResult.session, "delete", "building", buildingId, `删除楼盘 #${buildingId}`);
   return NextResponse.json({ success: true });
 }

@@ -4,6 +4,7 @@ import { deals } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { requireActiveAgentApi } from "@/lib/auth-guards";
 import { canEditDeal } from "@/lib/visibility";
+import { logAudit } from "@/lib/audit";
 
 const VALID_STATUSES = new Set([
   "pending",
@@ -59,6 +60,15 @@ export async function PATCH(
       updatedAt: new Date().toISOString(),
     })
     .where(eq(deals.id, dealId));
+
+  await logAudit(
+    authResult.session,
+    "renewal_update",
+    "rental_deal",
+    dealId,
+    `租赁成交 #${dealId} · ${deal.unit} · 租客 ${deal.tenantName} 续租状态更新为 ${status ?? "未设置"}`,
+    { renewalStatus: status, renewedToDealId }
+  );
 
   return NextResponse.json({ success: true });
 }

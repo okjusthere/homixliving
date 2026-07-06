@@ -4,6 +4,7 @@ import { agents } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { requireAdminApi } from "@/lib/auth-guards";
 import { notify } from "@/lib/notify";
+import { logAudit } from "@/lib/audit";
 
 export async function POST(
   _req: NextRequest,
@@ -20,6 +21,8 @@ export async function POST(
     .update(agents)
     .set({ isActive: true, approvalStatus: "approved", updatedAt: new Date().toISOString() })
     .where(eq(agents.id, parsedId));
+
+  await logAudit(authResult.session, "approve", "agent", parsedId, `批准经纪人 #${parsedId} 账号`);
 
   // Tell the agent their account is live. No dedupeKey: re-approval after a
   // revoke is a real event and should notify again.
@@ -54,5 +57,6 @@ export async function DELETE(
     .update(agents)
     .set({ isActive: false, approvalStatus: "revoked", updatedAt: new Date().toISOString() })
     .where(eq(agents.id, parsedId));
+  await logAudit(authResult.session, "revoke", "agent", parsedId, `撤销经纪人 #${parsedId} 账号权限`);
   return NextResponse.json({ success: true });
 }

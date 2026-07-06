@@ -11,6 +11,7 @@ import {
   type DealForReporting,
 } from "@/lib/reporting";
 import { requireActiveAgentApi, requireAdminApi } from "@/lib/auth-guards";
+import { logAudit } from "@/lib/audit";
 
 function parseId(value: unknown) {
   const parsed = parseInt(String(value), 10);
@@ -118,6 +119,7 @@ export async function POST(req: NextRequest) {
         notes: body.notes ? String(body.notes) : null,
       })
       .returning();
+    await logAudit(authResult.session, "create", "team", created.id, `新建团队 ${created.name}`);
     return NextResponse.json(created, { status: 201 });
   } catch {
     return NextResponse.json({ error: "Team creation failed" }, { status: 500 });
@@ -145,6 +147,7 @@ export async function PUT(req: NextRequest) {
       .where(eq(teams.id, id))
       .returning();
     if (!updated) return NextResponse.json({ error: "Team not found" }, { status: 404 });
+    await logAudit(authResult.session, "update", "team", updated.id, `更新团队 ${updated.name}`, body);
     return NextResponse.json(updated);
   } catch {
     return NextResponse.json({ error: "Team update failed" }, { status: 500 });
@@ -161,6 +164,7 @@ export async function DELETE(req: NextRequest) {
     if (!parsedId) return NextResponse.json({ error: "Valid team id is required" }, { status: 400 });
     await db.update(agents).set({ teamId: null }).where(eq(agents.teamId, parsedId));
     await db.delete(teams).where(eq(teams.id, parsedId));
+    await logAudit(authResult.session, "delete", "team", parsedId, `删除团队 #${parsedId}（成员已移出）`);
     return NextResponse.json({ success: true });
   } catch {
     return NextResponse.json({ error: "Team delete failed" }, { status: 500 });

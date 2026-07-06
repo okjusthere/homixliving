@@ -8,6 +8,7 @@ import {
   canViewDealOfType,
   parseDealType,
 } from "@/lib/deal-access";
+import { logAudit } from "@/lib/audit";
 
 async function parseParams(params: Promise<{ type: string; id: string }>) {
   const { type, id } = await params;
@@ -99,5 +100,12 @@ export async function POST(
       uploadedByEmail: authResult.session.user.email || null,
     })
     .returning();
+  await logAudit(
+    authResult.session,
+    "upload",
+    "deal_document",
+    created.id,
+    `上传成交文件 ${created.fileName} · ${parsed.dealType === "rental" ? "租赁" : "买卖"}成交 #${parsed.dealId}`
+  );
   return NextResponse.json(created, { status: 201 });
 }

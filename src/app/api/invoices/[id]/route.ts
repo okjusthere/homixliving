@@ -4,6 +4,7 @@ import { invoices, buildings } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { requireActiveAgentApi } from "@/lib/auth-guards";
 import { canViewDeal, canEditDeal } from "@/lib/visibility";
+import { logAudit } from "@/lib/audit";
 
 export async function GET(
   _req: NextRequest,
@@ -67,5 +68,13 @@ export async function DELETE(
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
   await db.delete(invoices).where(eq(invoices.id, Number(id)));
+  await logAudit(
+    authResult.session,
+    "delete",
+    "invoice",
+    invoice.id,
+    `删除发票 ${invoice.invoiceNumber} · $${Number(invoice.totalAmount || 0).toLocaleString("en-US")}`,
+    invoice
+  );
   return NextResponse.json({ success: true });
 }

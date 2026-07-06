@@ -4,6 +4,7 @@ import { dealAgents, invoices } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { requireAdminApi } from "@/lib/auth-guards";
 import { notify } from "@/lib/notify";
+import { logAudit } from "@/lib/audit";
 
 export async function POST(
   req: NextRequest,
@@ -55,6 +56,15 @@ export async function POST(
     })
     .where(eq(invoices.id, Number(id)));
 
+  await logAudit(
+    authResult.session,
+    "mark_paid",
+    "invoice",
+    invoice.id,
+    `发票 ${invoice.invoiceNumber} 标记已收款 $${Number(paidAmount || 0).toLocaleString("en-US")}`,
+    { paidAt, paidAmount }
+  );
+
   // In-app heads-up for the agents on the deal — their commission cleared.
   if (invoice.dealId) {
     try {
@@ -98,5 +108,12 @@ export async function DELETE(
       updatedAt: new Date().toISOString(),
     })
     .where(eq(invoices.id, Number(id)));
+  await logAudit(
+    authResult.session,
+    "unmark_paid",
+    "invoice",
+    invoice.id,
+    `发票 ${invoice.invoiceNumber} 取消已收款标记`
+  );
   return NextResponse.json({ success: true });
 }

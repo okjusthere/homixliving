@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { resources } from "@/db/schema";
 import { requireAdminApi } from "@/lib/auth-guards";
+import { logAudit } from "@/lib/audit";
 
 export async function PATCH(
   req: NextRequest,
@@ -30,6 +31,7 @@ export async function PATCH(
   if (typeof body.sortOrder === "number") patch.sortOrder = body.sortOrder;
 
   await db.update(resources).set(patch).where(eq(resources.id, pid));
+  await logAudit(auth.session, "update", "resource", pid, `更新资源 #${pid}`, patch);
   return NextResponse.json({ success: true });
 }
 
@@ -43,5 +45,6 @@ export async function DELETE(
   const pid = parseInt(String(id), 10);
   if (!Number.isFinite(pid)) return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   await db.delete(resources).where(eq(resources.id, pid));
+  await logAudit(auth.session, "delete", "resource", pid, `删除资源 #${pid}`);
   return NextResponse.json({ success: true });
 }

@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { agents, saleDealAgents, saleDeals } from "@/db/schema";
 import { requireActiveAgentApi } from "@/lib/auth-guards";
 import { canEditSaleDeal, canViewSaleDeal } from "@/lib/visibility";
+import { logAudit } from "@/lib/audit";
 
 type SaleAgentPayload = {
   agentId: number;
@@ -228,6 +229,15 @@ export async function PUT(
       ),
     ]);
 
+    await logAudit(
+      authResult.session,
+      "update",
+      "sale_deal",
+      parsedId,
+      `更新买卖成交 #${parsedId} · ${result.data.propertyAddress}`,
+      body
+    );
+
     const updated = await serializeSaleDeal(parsedId);
     return NextResponse.json(updated);
   } catch {
@@ -251,5 +261,6 @@ export async function DELETE(
   }
 
   await db.delete(saleDeals).where(eq(saleDeals.id, parsedId));
+  await logAudit(authResult.session, "delete", "sale_deal", parsedId, `删除买卖成交 #${parsedId}`);
   return NextResponse.json({ success: true });
 }

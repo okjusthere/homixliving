@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { dealDocuments } from "@/db/schema";
 import { requireActiveAgentApi } from "@/lib/auth-guards";
 import { canEditDealOfType, parseDealType } from "@/lib/deal-access";
+import { logAudit } from "@/lib/audit";
 
 export async function DELETE(
   _req: NextRequest,
@@ -47,5 +48,13 @@ export async function DELETE(
     return NextResponse.json({ error: "Storage deletion failed" }, { status: 500 });
   }
   await db.delete(dealDocuments).where(eq(dealDocuments.id, documentId));
+  await logAudit(
+    authResult.session,
+    "delete",
+    "deal_document",
+    documentId,
+    `删除成交文件 ${doc.fileName} · ${dealType === "rental" ? "租赁" : "买卖"}成交 #${dealId}`,
+    doc
+  );
   return NextResponse.json({ success: true });
 }
