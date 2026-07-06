@@ -4,10 +4,11 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { signOut, useSession } from "next-auth/react";
-import { HomixMark, Icons } from "@/components/homix/primitives";
+import { HomixMark } from "@/components/homix/primitives";
 import { tone } from "@/components/homix/tokens";
 import { useLocale } from "@/lib/i18n-client";
 import { NotificationBell } from "@/components/notification-bell";
+import { SearchCommand } from "@/components/search-command";
 
 const navItems = [
   { href: "/", key: "overview", adminOnly: false },
@@ -131,22 +132,12 @@ export function Nav() {
             >
               {locale === "zh" ? "EN" : "中文"}
             </button>
-            <div
-              className="flex items-center gap-2 h-9 px-3 rounded-md"
-              style={{ border: `1px solid ${tone.line}`, color: tone.ink50 }}
-            >
-              <span style={{ color: tone.ink30 }}>
-                <Icons.Search />
-              </span>
-              <span className="text-[13px]">{t.search}</span>
-              <span
-                className="text-[10px] px-1.5 py-0.5 rounded font-mono"
-                style={{ background: tone.paperDeep, color: tone.ink50 }}
-              >
-                ⌘K
-              </span>
-            </div>
-            {(session?.user?.isActive || session?.user?.isAdmin) && <NotificationBell />}
+            {(session?.user?.isActive || session?.user?.isAdmin) && (
+              <>
+                <SearchCommand />
+                <NotificationBell />
+              </>
+            )}
             <div className="relative">
               <button
                 type="button"
