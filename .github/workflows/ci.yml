@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Build-time stand-ins only — no real services are contacted in CI.
+      TURSO_DATABASE_URL: file:local.db
+      AUTH_SECRET: ci-only-secret-not-used-in-prod
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Seed schema into throwaway DB
+        # Doubles as a smoke test that db:seed creates every table the app
+        # expects (the schema-drift class of bug).
+        run: npm run db:seed
+
+      - name: Tests
+        run: npm test
+
+      - name: Build
+        run: npm run build

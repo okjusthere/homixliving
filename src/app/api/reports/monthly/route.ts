@@ -2,16 +2,24 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { agents, buildings, dealAgents, deals } from "@/db/schema";
 import { computeCommission } from "@/lib/commission";
-import { activeDeal, commissionAgentsForDeal, dealInMonth, getMonthKey } from "@/lib/reporting";
+import {
+  activeDeal,
+  commissionAgentsForDeal,
+  dealInMonth,
+  dealInYear,
+  getMonthKey,
+} from "@/lib/reporting";
 import { requireAdminApi } from "@/lib/auth-guards";
 
 export async function GET(req: NextRequest) {
   const authResult = await requireAdminApi();
   if ("error" in authResult) return authResult.error;
 
+  // Accepts YYYY-MM (single month) or YYYY (whole year / YTD view).
   const month = req.nextUrl.searchParams.get("month") || getMonthKey();
-  if (!/^\d{4}-\d{2}$/.test(month)) {
-    return NextResponse.json({ error: "month must be YYYY-MM" }, { status: 400 });
+  const isYear = /^\d{4}$/.test(month);
+  if (!isYear && !/^\d{4}-\d{2}$/.test(month)) {
+    return NextResponse.json({ error: "month must be YYYY-MM or YYYY" }, { status: 400 });
   }
 
   const [dealRows, agentRows, buildingRows, dealAgentRows] = await Promise.all([
@@ -21,7 +29,11 @@ export async function GET(req: NextRequest) {
     db.select().from(dealAgents),
   ]);
   const buildingById = new Map(buildingRows.map((building) => [building.id, building]));
-  const monthDeals = dealRows.filter((deal) => activeDeal(deal) && dealInMonth(deal, month));
+  const monthDeals = dealRows.filter(
+    (deal) =>
+      activeDeal(deal) &&
+      (isYear ? dealInYear(deal, month) : dealInMonth(deal, month))
+  );
 
   const agentStats = new Map<number, { agent: (typeof agentRows)[number]; deals: Set<number>; take: number }>();
   const buildingStats = new Map<number, { building: (typeof buildingRows)[number]; deals: number; totalCommission: number }>();

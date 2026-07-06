@@ -17,7 +17,7 @@ const M = {
     eyebrow: "Reports",
     title: "Reports",
     description: "Monthly commission production by agent and building.",
-    exportCsv: "Export CSV",
+    exportCsv: "Export CSV", yearToggle: "Full year", yearMode: "YTD",
     loading: "Loading…",
     totalDeals: "Total rental deals",
     totalCommission: "Total commission",
@@ -41,7 +41,7 @@ const M = {
     eyebrow: "报表",
     title: "报表",
     description: "按经纪人和楼盘统计的月度佣金业绩。",
-    exportCsv: "导出 CSV",
+    exportCsv: "导出 CSV", yearToggle: "看全年", yearMode: "全年",
     loading: "加载中…",
     totalDeals: "租赁交易总数",
     totalCommission: "佣金合计",
@@ -142,16 +142,36 @@ export default function ReportsPage() {
         description={t.description}
         actions={
           <>
-            <input
-              value={month}
-              onChange={(e) => {
+            {/* Year mode: month value "YYYY" switches the API to a whole-year rollup */}
+            {!/^\d{4}$/.test(month) && (
+              <input
+                value={month}
+                onChange={(e) => {
+                  setLoading(true);
+                  setMonth(e.target.value);
+                }}
+                type="month"
+                className="h-10 rounded-lg px-3 text-[13.5px] font-mono outline-none"
+                style={{ background: tone.card, border: `1px solid ${tone.line}`, color: tone.ink }}
+              />
+            )}
+            <button
+              type="button"
+              onClick={() => {
                 setLoading(true);
-                setMonth(e.target.value);
+                setMonth((prev) =>
+                  /^\d{4}$/.test(prev) ? getMonthKey() : prev.slice(0, 4)
+                );
               }}
-              type="month"
-              className="h-10 rounded-lg px-3 text-[13.5px] font-mono outline-none"
-              style={{ background: tone.card, border: `1px solid ${tone.line}`, color: tone.ink }}
-            />
+              className="h-10 px-3 rounded-lg text-[13px] font-medium"
+              style={{
+                background: /^\d{4}$/.test(month) ? tone.ink : tone.card,
+                color: /^\d{4}$/.test(month) ? "#fff" : tone.ink70,
+                border: `1px solid ${tone.line}`,
+              }}
+            >
+              {/^\d{4}$/.test(month) ? `${month} ${t.yearMode}` : t.yearToggle}
+            </button>
             <Btn variant="outline" icon={<Icons.Download />} onClick={exportCsv} disabled={!report}>
               {t.exportCsv}
             </Btn>

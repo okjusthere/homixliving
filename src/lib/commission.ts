@@ -28,11 +28,16 @@ export type CommissionBreakdown = {
 };
 
 function moneyInput(value: number) {
-  return Number.isFinite(value) ? Math.max(0, value) : 0;
+  return Number.isFinite(value) ? roundCents(Math.max(0, value)) : 0;
 }
 
 function percentInput(value: number) {
   return Number.isFinite(value) ? Math.min(100, Math.max(0, value)) : 0;
+}
+
+/** Round to cents, canonicalizing float noise (0.30000000000000004 → 0.3). */
+export function roundCents(value: number): number {
+  return Math.round(value * 100) / 100;
 }
 
 export function computeCommission(input: CommissionInput): CommissionBreakdown {
@@ -44,25 +49,41 @@ export function computeCommission(input: CommissionInput): CommissionBreakdown {
       : input.referrer?.type === "flat"
       ? moneyInput(input.referrer.amount)
       : 0;
-  const referrerCut = Math.min(totalCommission, rawReferrerCut);
-  const afterReferrer = totalCommission - referrerCut;
+  const referrerCut = roundCents(Math.min(totalCommission, rawReferrerCut));
+  const afterReferrer = roundCents(totalCommission - referrerCut);
 
-  const agentRows = input.agents.map((agent) => {
-    const sharePct = percentInput(agent.sharePct);
-    const splitPct = percentInput(agent.splitPct);
-    const gross = afterReferrer * (sharePct / 100);
-    const agentTake = gross * (splitPct / 100);
-    const companyPool = gross - agentTake;
+  // Every persisted/displayed figure is cents-exact. Grosses are allocated
+  // with the largest-remainder method so they sum EXACTLY to the (rounded)
+  // pool they came from — no penny drift between a displayed total and the
+  // sum of its displayed parts.
+  const normalized = input.agents.map((agent) => ({
+    ...agent,
+    sharePct: percentInput(agent.sharePct),
+    splitPct: percentInput(agent.splitPct),
+    isPrimary: Boolean(agent.isPrimary),
+  }));
+  const rawGrosses = normalized.map(
+    (agent) => afterReferrer * (agent.sharePct / 100)
+  );
+  const targetCents = Math.round(
+    rawGrosses.reduce((sum, g) => sum + g, 0) * 100
+  );
+  const floorCents = rawGrosses.map((g) => Math.floor(g * 100 + 1e-9));
+  let leftover = targetCents - floorCents.reduce((sum, c) => sum + c, 0);
+  const byRemainder = rawGrosses
+    .map((g, i) => ({ i, rem: g * 100 - Math.floor(g * 100 + 1e-9) }))
+    .sort((a, b) => b.rem - a.rem);
+  for (const { i } of byRemainder) {
+    if (leftover <= 0) break;
+    floorCents[i] += 1;
+    leftover -= 1;
+  }
 
-    return {
-      ...agent,
-      sharePct,
-      splitPct,
-      gross,
-      agentTake,
-      companyPool,
-      isPrimary: Boolean(agent.isPrimary),
-    };
+  const agentRows = normalized.map((agent, i) => {
+    const gross = floorCents[i] / 100;
+    const agentTake = roundCents(gross * (agent.splitPct / 100));
+    const companyPool = roundCents(gross - agentTake);
+    return { ...agent, gross, agentTake, companyPool };
   });
 
   return {
@@ -70,7 +91,11 @@ export function computeCommission(input: CommissionInput): CommissionBreakdown {
     referrerCut,
     afterReferrer,
     agents: agentRows,
-    companyPoolTotal: agentRows.reduce((sum, agent) => sum + agent.companyPool, 0),
-    agentTakeTotal: agentRows.reduce((sum, agent) => sum + agent.agentTake, 0),
+    companyPoolTotal: roundCents(
+      agentRows.reduce((sum, agent) => sum + agent.companyPool, 0)
+    ),
+    agentTakeTotal: roundCents(
+      agentRows.reduce((sum, agent) => sum + agent.agentTake, 0)
+    ),
   };
 }
