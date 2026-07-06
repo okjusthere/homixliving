@@ -21,7 +21,7 @@ const M = {
     uploadFailed: "Upload failed",
     deleteFailed: "Delete failed — edit rights required.",
     uploaded: "Uploaded",
-    notConfigured: "Document storage is not configured yet (BLOB_READ_WRITE_TOKEN).",
+    notConfigured: "Document storage is not configured yet (connect a Vercel Blob store).",
   },
   zh: {
     title: "成交文件",
@@ -34,7 +34,7 @@ const M = {
     uploadFailed: "上传失败",
     deleteFailed: "删除失败——需要该单的编辑权限。",
     uploaded: "已上传",
-    notConfigured: "文件存储尚未配置（缺少 BLOB_READ_WRITE_TOKEN）。",
+    notConfigured: "文件存储尚未配置（需在 Vercel 关联 Blob store）。",
   },
 } as const;
 

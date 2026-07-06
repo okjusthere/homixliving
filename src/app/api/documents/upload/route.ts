@@ -21,10 +21,18 @@ const ALLOWED_CONTENT_TYPES = [
 // Token endpoint for direct browser→Blob uploads (bypasses the 4.5MB
 // serverless body limit). The pathname is pinned to the deal the caller can
 // edit, so a token can't be reused to write elsewhere in the store.
+//
+// Two Vercel Blob connection modes exist: the classic static
+// BLOB_READ_WRITE_TOKEN, and the newer OIDC mode where the store connection
+// injects BLOB_STORE_ID and the SDK authenticates with the runtime
+// VERCEL_OIDC_TOKEN. Either counts as configured.
 export async function POST(request: Request) {
-  if (!process.env.BLOB_READ_WRITE_TOKEN?.trim()) {
+  const blobConfigured = Boolean(
+    process.env.BLOB_READ_WRITE_TOKEN?.trim() || process.env.BLOB_STORE_ID?.trim()
+  );
+  if (!blobConfigured) {
     return NextResponse.json(
-      { error: "Document storage is not configured (BLOB_READ_WRITE_TOKEN missing)." },
+      { error: "Document storage is not configured (connect a Vercel Blob store)." },
       { status: 503 }
     );
   }

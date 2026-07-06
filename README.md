@@ -99,7 +99,9 @@ CRON_SECRET=...   # required — cron routes fail closed without it
 **Storage (deal documents)**
 
 ```bash
-BLOB_READ_WRITE_TOKEN=...   # Vercel Blob; uploads are disabled until set
+# Vercel Blob (deal documents): connect a Blob store to the project. Newer
+# stores inject BLOB_STORE_ID (OIDC mode) automatically; classic stores use:
+# BLOB_READ_WRITE_TOKEN=...
 ```
 
 **Stripe (public `/pay` checkout + webhook)**
@@ -167,7 +169,16 @@ against a throwaway SQLite file, and the full test suite.
   `/api/cron/renewal-reminders`, both daily). Vercel sends `CRON_SECRET`
   automatically; the routes reject anything without it.
 - The Stripe webhook must point at `https://<domain>/api/stripe/webhook`.
-- **After adding tables/columns to `src/db/seed.ts`, run `npm run db:seed`
-  against the production Turso URL** — the seed is idempotent (`CREATE TABLE
-  IF NOT EXISTS` plus add-column-if-missing migrations), and the app assumes
-  the schema already exists. Verify with `npx tsx scripts/verify-tables.ts`.
+- **Schema rollouts**: after adding tables/columns to
+  `src/db/ensure-schema.ts`, deploy and then hit the rollout endpoint — it
+  runs the idempotent DDL with the deployment's own credentials (Turso env
+  vars are Sensitive in Vercel and can't be pulled locally):
+
+  ```bash
+  curl -X POST https://agents.homixny.com/api/admin/ensure-schema \
+    -H "Authorization: Bearer $CRON_SECRET"
+  ```
+
+  (An admin browser session works too.) Alternatively run `npm run db:seed`
+  against the production Turso URL if you have direct credentials. Verify
+  with `npx tsx scripts/verify-tables.ts`.
