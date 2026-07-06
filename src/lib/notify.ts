@@ -78,7 +78,7 @@ export async function notify(input: NotifyInput): Promise<number> {
         const from =
           process.env.NOTIFY_FROM_EMAIL?.trim() || "Homix <invoice@homixny.com>";
         const base = (
-          process.env.APP_BASE_URL?.trim() || "https://deals.homixny.com"
+          process.env.APP_BASE_URL?.trim() || "https://agents.homixny.com"
         ).replace(/\/$/, "");
         await Promise.allSettled(
           recipients

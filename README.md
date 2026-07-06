@@ -87,7 +87,7 @@ RESEND_API_KEY=re_...
 FROM_EMAIL=invoice@homixny.com      # optional; invoice-send from address
 CC_EMAIL=homix@homixny.com          # optional; invoice-send CC
 NOTIFY_FROM_EMAIL="Homix <invoice@homixny.com>"  # optional; notification emails
-APP_BASE_URL=https://deals.homixny.com           # optional; links inside notification emails
+APP_BASE_URL=https://agents.homixny.com          # optional; links inside notification emails (defaults to agents.homixny.com)
 ```
 
 **Cron**

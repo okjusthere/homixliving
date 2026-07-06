@@ -49,6 +49,9 @@ export const authConfig: NextAuthConfig = {
         "/api/checkout",
         "/api/stripe/webhook",
         "/api/cron",
+        // Self-enforces admin session OR CRON_SECRET bearer (schema rollouts
+        // must be triggerable without a browser session).
+        "/api/admin/ensure-schema",
         "/_next",
         "/favicon",
       ];
