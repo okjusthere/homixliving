@@ -16,7 +16,7 @@ This is a living document of features we've discussed but haven't built. Each en
 - Aging report (outstanding invoices by bucket + by building)
 - Renewal pipeline (60/90 day windows + status tracking)
 - Lead source attribution (xiaohongshu / WeChat / school / referral / website / other)
-- Self-registration with magic-link auth + admin approval
+- Self-registration via Google sign-in (OAuth) + admin approval — no passwords or magic links; new accounts start as pending agents
 - Row-level access (agents see only their deals; admins see all)
 
 ---
@@ -65,7 +65,7 @@ This is a living document of features we've discussed but haven't built. Each en
   - Per-file progress bar
   - Auto-categorize by filename heuristics (e.g. "I-20.pdf" → I-20)
   - Manual category override
-- Storage: **Cloudflare R2** (already in use for listings).
+- Storage: **Cloudflare R2** (proposed — today only deal documents exist, stored in Vercel Blob).
   ```
   homix-r2-bucket/
   └── client-docs/
@@ -78,7 +78,6 @@ This is a living document of features we've discussed but haven't built. Each en
 **Why R2 (not Turso BLOBs):**
 - Documents are 1–5 MB each; ~10–20 MB per client; ~5–15 GB/year
 - DB-stored BLOBs make queries slow, backups massive, free quota fill fast
-- R2 already in use for listings → zero new account
 - $0 egress fees (cheap downloads forever)
 
 **Effort:** ~4 hours
@@ -268,7 +267,7 @@ Tenants log in to see their lease, download W9/DOS copies, request maintenance. 
 
 ### 11. Multi-language UX (中英双语)
 
-Most agents are bilingual; clients vary. Adding Chinese to forms + emails would help. Not urgent because today's flows happen in WeChat where language is auto-handled.
+The internal app UI is already bilingual (zh/en toggle). Remaining scope is client-facing forms + emails. Not urgent because today's client flows happen in WeChat where language is auto-handled.
 
 ### 12. Mobile PWA
 
@@ -305,7 +304,7 @@ We mark invoices as paid manually. A future state imports bank statements (CSV) 
 
 **Rejected because:** `@react-pdf/renderer` (our invoice PDF generator) depends on Node `Buffer` / `fs` / system fonts. Cloudflare Workers V8-isolate runtime doesn't support these. Risk of core feature break > savings.
 
-We DO use Cloudflare R2 for object storage (no compute, just storage; works fine).
+We DO use Cloudflare Stream for training videos (no compute, just hosted video; works fine). Deal documents are stored in Vercel Blob.
 
 ### Supabase migration (post-Auth implementation)
 
@@ -324,11 +323,11 @@ We DO use Cloudflare R2 for object storage (no compute, just storage; works fine
 ## 🔧 Technical debt to address before scaling
 
 - [ ] Demo data toggle (`SEED_DEMO=1`) is fragile — replace with real fixtures
-- [ ] No automated tests beyond commission math — at least add API smoke tests
+- [x] ~~No automated tests beyond commission math~~ — done: 8 unit suites (commission, visibility, email-sender, invoice-payment, commerce, aging, reporting, renewals) run in CI; API smoke tests still open
 - [ ] Error boundaries on every page (currently only some)
 - [ ] `pdf-lib` upgrades watch — major version bumps break rendering
 - [ ] Storage retention policy for old invoices/docs (currently: forever)
-- [ ] Audit log for admin actions (approval/revoke/delete)
+- [x] ~~Audit log for admin actions~~ — done: append-only `audit_log` on money/roster mutations, browsable at `/audit`
 
 ---
 

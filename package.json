@@ -17,7 +17,6 @@
     "test:reporting": "tsx src/lib/__tests__/reporting.test.ts",
     "test:renewals": "tsx src/lib/__tests__/renewals.test.ts",
     "db:seed": "tsx src/db/seed.ts",
-    "db:push": "tsx src/db/seed.ts",
     "stripe:products": "tsx scripts/create-stripe-products.ts",
     "google:workspace:oauth": "tsx scripts/google-workspace-oauth.ts"
   },

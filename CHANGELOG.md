@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-07-06
+
+- Security hardening: edge middleware is now default-deny for data APIs (only active/admin users pass), cron endpoints fail closed when `CRON_SECRET` is unset, and workspace-order routes enforce ownership guards.
+- Fixed schema drift between `src/db/seed.ts`, the Drizzle schema, and production; removed dead code left over from the old deals/referrers data model.
+- In-app notifications with a nav bell, plus email fan-out via Resend.
+- Renewal reminder cron (`/api/cron/renewal-reminders`) notifies deal agents at lease-end windows.
+- Global ⌘K search across deals, invoices, buildings, and agents.
+- Deal document uploads (lease/application files) stored in Vercel Blob.
+- Append-only audit log wired into every money/roster mutation, browsable at `/audit`.
+- Commission math is now cents-exact (integer cents, no floating-point drift).
+- Three new test suites (aging, reporting, renewals) — `npm test` now runs 8 suites.
+- CI workflow (typecheck, lint, seed smoke test, tests) on push/PR.
+- Reports support a year mode alongside monthly views.
+- `/teams` added to the main navigation.
+
 ## 2026-05-01
 
 - Added Deals & Commissions V1 data model: `teams`, `agents`, `referrers`, `deals`, `deal_invoices`, and nullable `invoices.deal_id`.

@@ -12,17 +12,25 @@ async function main() {
   const names = tables.rows.map((row) => String(row.name));
   console.log(`Tables (${names.length}): ${names.join(", ")}`);
 
+  // Keep in sync with the CREATE TABLE statements in src/db/seed.ts.
   const expected = [
     "agents",
+    "audit_log",
     "buildings",
+    "commerce_orders",
+    "deal_documents",
     "invoice_send_log",
     "invoices",
+    "notifications",
     "rental_deal_agents",
     "rental_deals",
+    "resources",
     "sale_deal_agents",
     "sale_deals",
     "settings",
+    "stripe_events",
     "teams",
+    "training_videos",
   ];
   const missing = expected.filter((t) => !names.includes(t));
   const extra = names.filter(
