@@ -5,6 +5,7 @@ import { agents } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { authConfig } from "./auth.config";
 import { DEFAULT_AGENT_SPLIT_PCT } from "@/lib/splits";
+import { adminAgentIds, notify } from "@/lib/notify";
 
 const adminEmails = (process.env.ADMIN_EMAILS ?? "")
   .split(",")
@@ -27,6 +28,14 @@ async function upsertAgentFromGoogle(user: {
   const admin = isAdminEmail(email);
   const now = new Date().toISOString();
 
+  // Detect a genuinely new signup (the jwt callback runs on every token
+  // refresh, so the "notify admins" event must fire only on first creation).
+  const [preExisting] = await db
+    .select({ id: agents.id })
+    .from(agents)
+    .where(sql`lower(${agents.email}) = ${email}`)
+    .limit(1);
+
   await db
     .insert(agents)
     .values({
@@ -41,6 +50,23 @@ async function upsertAgentFromGoogle(user: {
       updatedAt: now,
     })
     .onConflictDoNothing({ target: agents.email });
+
+  if (!preExisting && !admin) {
+    // New pending agent — tell the admins so approval doesn't sit unnoticed.
+    try {
+      await notify({
+        recipientAgentIds: await adminAgentIds(),
+        type: "agent_pending",
+        title: `新经纪人待审批：${user.name || email}`,
+        body: `${email} 刚通过 Google 登录注册，等待开通。`,
+        href: "/agents",
+        dedupeKey: `agent-pending:${email}`,
+        email: true,
+      });
+    } catch (error) {
+      console.error("agent_pending notification failed", error);
+    }
+  }
 
   const [existing] = await db
     .select()

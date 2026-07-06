@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { invoices } from "@/db/schema";
+import { dealAgents, invoices } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { requireAdminApi } from "@/lib/auth-guards";
+import { notify } from "@/lib/notify";
 
 export async function POST(
   req: NextRequest,
@@ -53,6 +54,26 @@ export async function POST(
       updatedAt: new Date().toISOString(),
     })
     .where(eq(invoices.id, Number(id)));
+
+  // In-app heads-up for the agents on the deal — their commission cleared.
+  if (invoice.dealId) {
+    try {
+      const participants = await db
+        .select({ agentId: dealAgents.agentId })
+        .from(dealAgents)
+        .where(eq(dealAgents.dealId, invoice.dealId));
+      await notify({
+        recipientAgentIds: participants.map((p) => p.agentId),
+        type: "invoice_paid",
+        title: `发票已收款：${invoice.invoiceNumber}`,
+        body: `${invoice.tenantName} · $${Number(paidAmount || 0).toLocaleString("en-US")}`,
+        href: `/invoices/${invoice.id}`,
+        dedupeKey: `invoice-paid:${invoice.id}:${paidAt}`,
+      });
+    } catch (error) {
+      console.error("invoice_paid notification failed", error);
+    }
+  }
 
   return NextResponse.json({ success: true });
 }

@@ -298,6 +298,57 @@ export type LineItem = {
   amount: number;
 };
 
+// ============================================================
+// In-app notifications — one row per recipient. dedupe_key makes a logical
+// event fire at most once per recipient (e.g. "renewal:12:60:a5"), so daily
+// crons can re-scan without spamming.
+// ============================================================
+export const notifications = sqliteTable("notifications", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  recipientAgentId: integer("recipient_agent_id")
+    .notNull()
+    .references(() => agents.id, { onDelete: "cascade" }),
+  type: text("type").notNull(), // agent_pending | agent_approved | renewal_window | invoice_paid | ...
+  title: text("title").notNull(),
+  body: text("body"),
+  href: text("href"), // in-app path, e.g. /rental/123
+  dedupeKey: text("dedupe_key").unique(),
+  readAt: text("read_at"),
+  createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
+});
+
+// ============================================================
+// Audit log — who changed what, when. Append-only; writes are best-effort
+// (a failed log write must never fail the underlying request).
+// ============================================================
+export const auditLog = sqliteTable("audit_log", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  actorEmail: text("actor_email"),
+  action: text("action").notNull(), // create | update | delete | send | mark_paid | approve | ...
+  entityType: text("entity_type").notNull(), // rental_deal | sale_deal | invoice | agent | team | setting | ...
+  entityId: text("entity_id"),
+  summary: text("summary").notNull(),
+  detail: text("detail"), // optional JSON snapshot of the change
+  createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
+});
+
+// ============================================================
+// Deal documents — files (lease, application, guarantor docs) attached to a
+// rental or sale deal. Blobs live in Vercel Blob storage; this table is the
+// index. url is the full blob URL; deletion removes both.
+// ============================================================
+export const dealDocuments = sqliteTable("deal_documents", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  dealType: text("deal_type").notNull(), // 'rental' | 'sale'
+  dealId: integer("deal_id").notNull(),
+  fileName: text("file_name").notNull(),
+  url: text("url").notNull(),
+  contentType: text("content_type"),
+  size: integer("size"),
+  uploadedByEmail: text("uploaded_by_email"),
+  createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
+});
+
 export type Building = typeof buildings.$inferSelect;
 export type NewBuilding = typeof buildings.$inferInsert;
 export type Invoice = typeof invoices.$inferSelect;
@@ -328,3 +379,9 @@ export type CommerceOrder = typeof commerceOrders.$inferSelect;
 export type NewCommerceOrder = typeof commerceOrders.$inferInsert;
 export type StripeEvent = typeof stripeEvents.$inferSelect;
 export type NewStripeEvent = typeof stripeEvents.$inferInsert;
+export type Notification = typeof notifications.$inferSelect;
+export type NewNotification = typeof notifications.$inferInsert;
+export type AuditLogEntry = typeof auditLog.$inferSelect;
+export type NewAuditLogEntry = typeof auditLog.$inferInsert;
+export type DealDocument = typeof dealDocuments.$inferSelect;
+export type NewDealDocument = typeof dealDocuments.$inferInsert;

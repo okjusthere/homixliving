@@ -7,6 +7,7 @@ import { signOut, useSession } from "next-auth/react";
 import { HomixMark, Icons } from "@/components/homix/primitives";
 import { tone } from "@/components/homix/tokens";
 import { useLocale } from "@/lib/i18n-client";
+import { NotificationBell } from "@/components/notification-bell";
 
 const navItems = [
   { href: "/", key: "overview", adminOnly: false },
@@ -145,6 +146,7 @@ export function Nav() {
                 ⌘K
               </span>
             </div>
+            {(session?.user?.isActive || session?.user?.isAdmin) && <NotificationBell />}
             <div className="relative">
               <button
                 type="button"

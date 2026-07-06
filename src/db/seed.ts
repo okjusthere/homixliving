@@ -3617,6 +3617,62 @@ async function seed() {
     )
   `);
 
+  // In-app notifications (bell + email). Keep columns in sync with schema.ts.
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      recipient_agent_id INTEGER NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+      type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      body TEXT,
+      href TEXT,
+      dedupe_key TEXT UNIQUE,
+      read_at TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await client.execute(`
+    CREATE INDEX IF NOT EXISTS idx_notifications_recipient
+      ON notifications(recipient_agent_id, read_at)
+  `);
+
+  // Append-only audit log of who changed what.
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS audit_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      actor_email TEXT,
+      action TEXT NOT NULL,
+      entity_type TEXT NOT NULL,
+      entity_id TEXT,
+      summary TEXT NOT NULL,
+      detail TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await client.execute(`
+    CREATE INDEX IF NOT EXISTS idx_audit_log_entity
+      ON audit_log(entity_type, entity_id)
+  `);
+
+  // Deal document index (files live in Vercel Blob).
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS deal_documents (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      deal_type TEXT NOT NULL,
+      deal_id INTEGER NOT NULL,
+      file_name TEXT NOT NULL,
+      url TEXT NOT NULL,
+      content_type TEXT,
+      size INTEGER,
+      uploaded_by_email TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await client.execute(`
+    CREATE INDEX IF NOT EXISTS idx_deal_documents_deal
+      ON deal_documents(deal_type, deal_id)
+  `);
+
   // Helper to add a column if it doesn't exist
   const addColumnIfMissing = async (sql: string) => {
     try {

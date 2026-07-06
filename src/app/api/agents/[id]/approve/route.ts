@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { agents } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { requireAdminApi } from "@/lib/auth-guards";
+import { notify } from "@/lib/notify";
 
 export async function POST(
   _req: NextRequest,
@@ -19,6 +20,22 @@ export async function POST(
     .update(agents)
     .set({ isActive: true, approvalStatus: "approved", updatedAt: new Date().toISOString() })
     .where(eq(agents.id, parsedId));
+
+  // Tell the agent their account is live. No dedupeKey: re-approval after a
+  // revoke is a real event and should notify again.
+  try {
+    await notify({
+      recipientAgentIds: [parsedId],
+      type: "agent_approved",
+      title: "你的 Homix 账号已开通 / Your Homix account is approved",
+      body: "现在可以登录使用全部功能了。You now have full access.",
+      href: "/",
+      email: true,
+    });
+  } catch (error) {
+    console.error("agent_approved notification failed", error);
+  }
+
   return NextResponse.json({ success: true });
 }
 
