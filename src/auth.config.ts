@@ -54,6 +54,7 @@ export const authConfig: NextAuthConfig = {
         "/api/admin/ensure-schema",
         "/_next",
         "/favicon",
+        "/auth",
       ];
       const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
       if (isPublic) return true;
