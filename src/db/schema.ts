@@ -4,6 +4,7 @@ import {
   integer,
   real,
   primaryKey,
+  uniqueIndex,
   type AnySQLiteColumn,
 } from "drizzle-orm/sqlite-core";
 
@@ -237,6 +238,29 @@ export const trainingVideos = sqliteTable("training_videos", {
   updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
 });
 
+export const trainingVideoViews = sqliteTable(
+  "training_video_views",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    videoId: integer("video_id")
+      .notNull()
+      .references(() => trainingVideos.id, { onDelete: "cascade" }),
+    agentId: integer("agent_id").references(() => agents.id, { onDelete: "set null" }),
+    agentEmail: text("agent_email").notNull(),
+    firstViewedAt: text("first_viewed_at").notNull(),
+    lastViewedAt: text("last_viewed_at").notNull(),
+    openCount: integer("open_count").notNull().default(1),
+    createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
+    updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => [
+    uniqueIndex("idx_training_video_views_unique_viewer").on(
+      table.videoId,
+      table.agentEmail
+    ),
+  ]
+);
+
 // ============================================================
 // Agent resource library — links to SOPs, scripts, templates, brand assets.
 // Shown in the gated /resources section; managed by admins.
@@ -373,6 +397,8 @@ export type InvoiceSendLog = typeof invoiceSendLog.$inferSelect;
 export type NewInvoiceSendLog = typeof invoiceSendLog.$inferInsert;
 export type TrainingVideo = typeof trainingVideos.$inferSelect;
 export type NewTrainingVideo = typeof trainingVideos.$inferInsert;
+export type TrainingVideoView = typeof trainingVideoViews.$inferSelect;
+export type NewTrainingVideoView = typeof trainingVideoViews.$inferInsert;
 export type Resource = typeof resources.$inferSelect;
 export type NewResource = typeof resources.$inferInsert;
 export type CommerceOrder = typeof commerceOrders.$inferSelect;

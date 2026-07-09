@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "npm run test:commission && npm run test:visibility && npm run test:email-sender && npm run test:invoice-payment && npm run test:commerce && npm run test:aging && npm run test:reporting && npm run test:renewals",
+    "test": "npm run test:commission && npm run test:visibility && npm run test:email-sender && npm run test:invoice-payment && npm run test:commerce && npm run test:aging && npm run test:reporting && npm run test:renewals && npm run test:training-views",
     "test:commission": "tsx src/lib/__tests__/commission.test.ts",
     "test:visibility": "tsx src/lib/__tests__/visibility.test.ts",
     "test:email-sender": "tsx src/lib/__tests__/email-sender.test.ts",
@@ -16,6 +16,7 @@
     "test:aging": "tsx src/lib/__tests__/aging.test.ts",
     "test:reporting": "tsx src/lib/__tests__/reporting.test.ts",
     "test:renewals": "tsx src/lib/__tests__/renewals.test.ts",
+    "test:training-views": "tsx src/lib/__tests__/training-views.test.ts",
     "db:seed": "tsx src/db/seed.ts",
     "stripe:products": "tsx scripts/create-stripe-products.ts",
     "google:workspace:oauth": "tsx scripts/google-workspace-oauth.ts"

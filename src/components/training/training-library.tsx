@@ -118,6 +118,13 @@ function VideoCover({ video, onPlay }: { video: TrainingVideo; onPlay: () => voi
 /** How many videos make up one row at the widest grid (xl:grid-cols-4). */
 const ROW = 4;
 
+function recordVideoOpen(videoId: number) {
+  void fetch(`/api/training/${videoId}/view`, {
+    method: "POST",
+    keepalive: true,
+  }).catch(() => undefined);
+}
+
 export function TrainingLibrary({
   groups,
   watermark,
@@ -157,7 +164,14 @@ export function TrainingLibrary({
 
             <div className="grid gap-4 px-5 pt-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {shown.map((v) => (
-                <VideoCover key={v.id} video={v} onPlay={() => setActive(v)} />
+                <VideoCover
+                  key={v.id}
+                  video={v}
+                  onPlay={() => {
+                    recordVideoOpen(v.id);
+                    setActive(v);
+                  }}
+                />
               ))}
             </div>
 

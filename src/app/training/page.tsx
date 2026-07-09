@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
-import { asc } from "drizzle-orm";
+import { asc, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { trainingVideos, type TrainingVideo } from "@/db/schema";
+import {
+  agents,
+  trainingVideoViews,
+  trainingVideos,
+  type TrainingVideo,
+} from "@/db/schema";
 import { requireActiveAgent } from "@/lib/auth-guards";
 import { tone } from "@/components/homix/tokens";
 import { Card } from "@/components/homix/server-primitives";
@@ -11,6 +16,7 @@ import { TrainingLibrary } from "@/components/training/training-library";
 import { cloudflareStreamConfigured } from "@/lib/cloudflare-stream";
 import { TRAINING_CATEGORIES } from "@/lib/training-categories";
 import { getLocale } from "@/lib/i18n";
+import { summarizeTrainingVideoViews } from "@/lib/training-views";
 
 const M = {
   en: {
@@ -55,6 +61,27 @@ export default async function TrainingPage() {
     .select()
     .from(trainingVideos)
     .orderBy(asc(trainingVideos.sortOrder), asc(trainingVideos.id));
+  const viewRows = isAdmin
+    ? await db
+        .select({
+          view: trainingVideoViews,
+          agentName: agents.name,
+        })
+        .from(trainingVideoViews)
+        .leftJoin(agents, eq(trainingVideoViews.agentId, agents.id))
+        .orderBy(desc(trainingVideoViews.lastViewedAt))
+    : [];
+  const viewSummaries = summarizeTrainingVideoViews(
+    viewRows.map((row) => ({
+      videoId: row.view.videoId,
+      agentId: row.view.agentId,
+      agentEmail: row.view.agentEmail,
+      agentName: row.agentName,
+      firstViewedAt: row.view.firstViewedAt,
+      lastViewedAt: row.view.lastViewedAt,
+      openCount: row.view.openCount,
+    }))
+  );
   const visible = isAdmin ? all : all.filter((v) => v.isPublished);
   const order = (c: string) => {
     const i = TRAINING_CATEGORIES.indexOf(c);
@@ -71,7 +98,11 @@ export default async function TrainingPage() {
       />
 
       {isAdmin && (
-        <TrainingManager initialVideos={all} cloudflareConfigured={cloudflareStreamConfigured} />
+        <TrainingManager
+          initialVideos={all}
+          initialViewSummaries={viewSummaries}
+          cloudflareConfigured={cloudflareStreamConfigured}
+        />
       )}
 
       {visible.length === 0 ? (

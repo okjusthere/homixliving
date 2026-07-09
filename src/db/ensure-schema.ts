@@ -337,6 +337,29 @@ async function renameColumnIfNeeded(
     )
   `);
 
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS training_video_views (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      video_id INTEGER NOT NULL REFERENCES training_videos(id) ON DELETE CASCADE,
+      agent_id INTEGER REFERENCES agents(id) ON DELETE SET NULL,
+      agent_email TEXT NOT NULL,
+      first_viewed_at TEXT NOT NULL,
+      last_viewed_at TEXT NOT NULL,
+      open_count INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(video_id, agent_email)
+    )
+  `);
+  await client.execute(`
+    CREATE INDEX IF NOT EXISTS idx_training_video_views_video
+      ON training_video_views(video_id, last_viewed_at)
+  `);
+  await client.execute(`
+    CREATE INDEX IF NOT EXISTS idx_training_video_views_agent
+      ON training_video_views(agent_email)
+  `);
+
   // Agent resource library (gated /resources). Same story as training_videos.
   await client.execute(`
     CREATE TABLE IF NOT EXISTS resources (
