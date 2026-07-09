@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import Image from "next/image";
 import { signIn } from "next-auth/react";
 import { HomixMark } from "@/components/homix/server-primitives";
 import { tone } from "@/components/homix/tokens";
@@ -47,6 +48,7 @@ type Providers = Record<
 type InAppBrowserWarning = {
   name: string;
   instruction: string;
+  guideImageSrc?: string;
 };
 
 function detectInAppBrowser(userAgent: string): InAppBrowserWarning | null {
@@ -54,6 +56,7 @@ function detectInAppBrowser(userAgent: string): InAppBrowserWarning | null {
     return {
       name: "WeChat",
       instruction: "Tap the top-right “...” menu, then choose “Open in default browser”.",
+      guideImageSrc: "/auth/wechat-open-default-browser.jpg",
     };
   }
 
@@ -190,6 +193,24 @@ function LoginInner() {
                   <p className="mt-1 text-[12.5px] leading-5">
                     正在使用 App 内置浏览器时，Google 登录可能无法完成。请点右上角的三个点“...”，然后选择“用默认浏览器打开”。
                   </p>
+                  {inAppBrowser.guideImageSrc && (
+                    <a
+                      href={inAppBrowser.guideImageSrc}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-3 block overflow-hidden rounded-xl"
+                      style={{ border: "1px solid #F0B7A6", background: "#FFFFFF" }}
+                    >
+                      <Image
+                        src={inAppBrowser.guideImageSrc}
+                        alt="WeChat menu showing how to open this login page in the default browser"
+                        width={1179}
+                        height={2556}
+                        className="max-h-[360px] w-full object-contain"
+                        sizes="(max-width: 768px) 100vw, 360px"
+                      />
+                    </a>
+                  )}
                   <button
                     type="button"
                     onClick={copyLoginLink}
