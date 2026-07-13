@@ -49,18 +49,46 @@ function groupByCategory(items: Resource[]): [string, Resource[]][] {
   return Array.from(map.entries());
 }
 
-export default async function ResourcesPage() {
-  const session = await requireActiveAgent();
-  const isAdmin = !!session.user.isAdmin;
-  const t = M[await getLocale()];
-
-  const [all, checklist] = await Promise.all([
+async function queryLibrary() {
+  return Promise.all([
     db.select().from(resources).orderBy(asc(resources.sortOrder), asc(resources.id)),
     db
       .select()
       .from(checklistItems)
       .orderBy(asc(checklistItems.sortOrder), asc(checklistItems.id)),
   ]);
+}
+
+/**
+ * Self-healing load: right after a deploy that adds columns/tables, the
+ * production database hasn't run the DDL yet (Turso credentials are Sensitive
+ * in Vercel, so migrations run where the credentials live — here). On the
+ * first failed query, apply the idempotent ensure-schema and retry once,
+ * instead of 500ing until someone remembers to hit the admin endpoint.
+ */
+async function loadLibrary() {
+  try {
+    return await queryLibrary();
+  } catch {
+    const [{ createClient }, { ensureSchema }] = await Promise.all([
+      import("@libsql/client"),
+      import("@/db/ensure-schema"),
+    ]);
+    const client = createClient({
+      url: process.env.TURSO_DATABASE_URL || "file:local.db",
+      authToken: process.env.TURSO_AUTH_TOKEN,
+    });
+    await ensureSchema(client);
+    return queryLibrary();
+  }
+}
+
+export default async function ResourcesPage() {
+  const session = await requireActiveAgent();
+  const isAdmin = !!session.user.isAdmin;
+  const t = M[await getLocale()];
+
+  const [all, checklist] = await loadLibrary();
   const visible = isAdmin ? all : all.filter((r) => r.isPublished);
   const groups = groupByCategory(visible);
 
