@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-07-13
+
+- Resource library imports the "HOMIX 常用做单表格" Google Sheet: 60 deal forms
+  (blank template + filled sample Drive links, 8 categories incl. the Homix
+  Living section) and the per-stage required-documents checklists (5 stages,
+  27 items). Files stay in Google Drive; the portal owns metadata + display.
+- Resources cards now pair "空白表格 ↗ / 查看样本 ↗" links (`resources.sample_url`).
+- New required-documents section on `/resources` (做单必交文件) with stage tabs,
+  backed by the new `checklist_items` table and an admin manager.
+- Admin "同步做单表格数据" button → `POST /api/admin/import-resources` (same
+  operational model as ensure-schema: idempotent, runs where the Sensitive
+  Turso credentials live; also applies the schema DDL first).
+
 ## 2026-07-06
 
 - Security hardening: edge middleware is now default-deny for data APIs (only active/admin users pass), cron endpoints fail closed when `CRON_SECRET` is unset, and workspace-order routes enforce ownership guards.

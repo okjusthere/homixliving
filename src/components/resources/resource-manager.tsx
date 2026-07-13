@@ -14,11 +14,17 @@ const M = {
     close: "Close",
     addResource: "Add resource",
     titleRequired: "Title and link (URL) are required.",
+    syncSheet: "Sync form library",
+    syncing: "Syncing…",
+    syncDone: (msg: string) => `Library synced: ${msg}`,
+    syncFailed: "Sync failed — please retry.",
+    confirmSync: "Import/refresh the 做单表格 library (60 forms + checklists)? Existing entries are updated in place.",
     saveFailed: "Could not save — admin only.",
     confirmDelete: (title: string) => `Delete "${title}"?`,
     title: "Title",
     category: "Category (e.g. Scripts)",
     link: "Link (https://…)",
+    sampleLink: "Sample link (optional, e.g. a filled-in example)",
     description: "Short description (optional)",
     saving: "Saving…",
     saveResource: "Save resource",
@@ -32,11 +38,17 @@ const M = {
     close: "关闭",
     addResource: "添加资料",
     titleRequired: "请填写标题和链接（URL）。",
+    syncSheet: "同步做单表格数据",
+    syncing: "同步中…",
+    syncDone: (msg: string) => `已同步：${msg}`,
+    syncFailed: "同步失败，请重试。",
+    confirmSync: "导入/刷新做单表格库（60 个表格 + 必交清单）？已有条目会原位更新，不会重复。",
     saveFailed: "保存失败，仅管理员可操作。",
     confirmDelete: (title: string) => `删除“${title}”？`,
     title: "标题",
     category: "类别（例如：话术）",
     link: "链接（https://…）",
+    sampleLink: "样本链接（可选，如已填写的示例）",
     description: "简短描述（可选）",
     saving: "保存中…",
     saveResource: "保存资料",
@@ -52,10 +64,30 @@ export function ResourceManager({ initialResources }: { initialResources: Resour
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [url, setUrl] = useState("");
+  const [sampleUrl, setSampleUrl] = useState("");
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
+
+  async function syncSheet() {
+    if (!confirm(t.confirmSync)) return;
+    setSyncing(true);
+    setSyncMsg(null);
+    const res = await fetch("/api/admin/import-resources", { method: "POST" });
+    setSyncing(false);
+    if (!res.ok) {
+      setSyncMsg(t.syncFailed);
+      return;
+    }
+    const s = await res.json();
+    setSyncMsg(
+      t.syncDone(`+${s.formsInserted}/${s.formsUpdated} · +${s.checklistInserted}`),
+    );
+    router.refresh();
+  }
 
   async function add() {
     setError(null);
@@ -67,7 +99,7 @@ export function ResourceManager({ initialResources }: { initialResources: Resour
     const res = await fetch("/api/resources", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, url, category, description }),
+      body: JSON.stringify({ title, url, sampleUrl, category, description }),
     });
     setBusy(false);
     if (!res.ok) {
@@ -76,6 +108,7 @@ export function ResourceManager({ initialResources }: { initialResources: Resour
     }
     setTitle("");
     setUrl("");
+    setSampleUrl("");
     setCategory("");
     setDescription("");
     router.refresh();
@@ -107,10 +140,20 @@ export function ResourceManager({ initialResources }: { initialResources: Resour
             {t.lead}
           </div>
         </div>
-        <Btn variant="outline" size="sm" onClick={() => setOpen((o) => !o)}>
-          {open ? t.close : t.addResource}
-        </Btn>
+        <div className="flex items-center gap-2">
+          <Btn variant="outline" size="sm" onClick={syncSheet} disabled={syncing}>
+            {syncing ? t.syncing : t.syncSheet}
+          </Btn>
+          <Btn variant="outline" size="sm" onClick={() => setOpen((o) => !o)}>
+            {open ? t.close : t.addResource}
+          </Btn>
+        </div>
       </div>
+      {syncMsg && (
+        <p className="mt-2 text-[12.5px]" style={{ color: tone.ink70 }}>
+          {syncMsg}
+        </p>
+      )}
 
       {open && (
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -118,6 +161,9 @@ export function ResourceManager({ initialResources }: { initialResources: Resour
           <EditorialInput value={category} onChange={setCategory} placeholder={t.category} />
           <div className="sm:col-span-2">
             <EditorialInput value={url} onChange={setUrl} placeholder={t.link} mono />
+          </div>
+          <div className="sm:col-span-2">
+            <EditorialInput value={sampleUrl} onChange={setSampleUrl} placeholder={t.sampleLink} mono />
           </div>
           <div className="sm:col-span-2">
             <EditorialInput value={description} onChange={setDescription} placeholder={t.description} />

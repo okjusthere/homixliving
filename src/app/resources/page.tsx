@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import { asc } from "drizzle-orm";
 import { db } from "@/db";
-import { resources, type Resource } from "@/db/schema";
+import { checklistItems, resources, type Resource } from "@/db/schema";
 import { requireActiveAgent } from "@/lib/auth-guards";
 import { tone } from "@/components/homix/tokens";
 import { Card, Pill } from "@/components/homix/server-primitives";
 import { PageHeader, CardHeader } from "@/components/homix/page-kit";
 import { ResourceManager } from "@/components/resources/resource-manager";
+import { ChecklistManager } from "@/components/resources/checklist-manager";
+import { RequiredDocs } from "@/components/resources/required-docs";
 import { getLocale } from "@/lib/i18n";
 
 export const metadata: Metadata = { title: "Resources · Homix Deals" };
@@ -20,6 +22,8 @@ const M = {
     emptyAgent: "Resources are being added. Check back soon.",
     hidden: "Hidden",
     open: "Open ↗",
+    blank: "Blank form ↗",
+    sample: "View sample ↗",
   },
   zh: {
     eyebrow: "经纪人资料",
@@ -29,6 +33,8 @@ const M = {
     emptyAgent: "资料陆续上传中，请稍后再来查看。",
     hidden: "隐藏",
     open: "打开 ↗",
+    blank: "空白表格 ↗",
+    sample: "查看样本 ↗",
   },
 } as const;
 
@@ -48,10 +54,13 @@ export default async function ResourcesPage() {
   const isAdmin = !!session.user.isAdmin;
   const t = M[await getLocale()];
 
-  const all = await db
-    .select()
-    .from(resources)
-    .orderBy(asc(resources.sortOrder), asc(resources.id));
+  const [all, checklist] = await Promise.all([
+    db.select().from(resources).orderBy(asc(resources.sortOrder), asc(resources.id)),
+    db
+      .select()
+      .from(checklistItems)
+      .orderBy(asc(checklistItems.sortOrder), asc(checklistItems.id)),
+  ]);
   const visible = isAdmin ? all : all.filter((r) => r.isPublished);
   const groups = groupByCategory(visible);
 
@@ -64,6 +73,9 @@ export default async function ResourcesPage() {
       />
 
       {isAdmin && <ResourceManager initialResources={all} />}
+      {isAdmin && <ChecklistManager initialItems={checklist} />}
+
+      <RequiredDocs items={checklist} />
 
       {visible.length === 0 ? (
         <Card className="p-10 text-center">
@@ -91,15 +103,28 @@ export default async function ResourcesPage() {
                           {r.description}
                         </p>
                       )}
-                      <a
-                        href={r.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="mt-4 inline-flex items-center gap-1 text-[13px] font-medium"
-                        style={{ color: tone.accent }}
-                      >
-                        {t.open}
-                      </a>
+                      <div className="mt-4 flex items-center gap-4">
+                        <a
+                          href={r.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-[13px] font-medium"
+                          style={{ color: tone.accent }}
+                        >
+                          {r.sampleUrl ? t.blank : t.open}
+                        </a>
+                        {r.sampleUrl && (
+                          <a
+                            href={r.sampleUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-[13px] font-medium"
+                            style={{ color: tone.ink50 }}
+                          >
+                            {t.sample}
+                          </a>
+                        )}
+                      </div>
                     </div>
                   </Card>
                 ))}

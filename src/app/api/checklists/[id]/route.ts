@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { resources } from "@/db/schema";
+import { checklistItems } from "@/db/schema";
 import { requireAdminApi } from "@/lib/auth-guards";
 import { logAudit } from "@/lib/audit";
 
@@ -23,16 +23,11 @@ export async function PATCH(
   }
 
   const patch: Record<string, unknown> = { updatedAt: new Date().toISOString() };
-  if (typeof body.isPublished === "boolean") patch.isPublished = body.isPublished;
-  if (typeof body.title === "string" && body.title.trim()) patch.title = body.title.trim();
-  if (typeof body.category === "string") patch.category = body.category.trim() || "General";
-  if (typeof body.description === "string") patch.description = body.description.trim() || null;
-  if (typeof body.url === "string" && body.url.trim()) patch.url = body.url.trim();
-  if (typeof body.sampleUrl === "string") patch.sampleUrl = body.sampleUrl.trim() || null;
+  if (typeof body.label === "string" && body.label.trim()) patch.label = body.label.trim();
   if (typeof body.sortOrder === "number") patch.sortOrder = body.sortOrder;
 
-  await db.update(resources).set(patch).where(eq(resources.id, pid));
-  await logAudit(auth.session, "update", "resource", pid, `更新资源 #${pid}`, patch);
+  await db.update(checklistItems).set(patch).where(eq(checklistItems.id, pid));
+  await logAudit(auth.session, "update", "checklist_item", pid, `更新清单项 #${pid}`, patch);
   return NextResponse.json({ success: true });
 }
 
@@ -45,7 +40,7 @@ export async function DELETE(
   const { id } = await params;
   const pid = parseInt(String(id), 10);
   if (!Number.isFinite(pid)) return NextResponse.json({ error: "Invalid id" }, { status: 400 });
-  await db.delete(resources).where(eq(resources.id, pid));
-  await logAudit(auth.session, "delete", "resource", pid, `删除资源 #${pid}`);
+  await db.delete(checklistItems).where(eq(checklistItems.id, pid));
+  await logAudit(auth.session, "delete", "checklist_item", pid, `删除清单项 #${pid}`);
   return NextResponse.json({ success: true });
 }

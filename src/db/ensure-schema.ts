@@ -368,11 +368,29 @@ async function renameColumnIfNeeded(
       description TEXT,
       category TEXT NOT NULL DEFAULT 'General',
       url TEXT NOT NULL,
+      sample_url TEXT,
       sort_order INTEGER NOT NULL DEFAULT 100,
       is_published INTEGER NOT NULL DEFAULT 1,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
+  `);
+
+  // Required-documents checklists (做单必交文件) shown on /resources; group
+  // keys/labels are defined in src/lib/checklist-groups.ts.
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS checklist_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      group_key TEXT NOT NULL,
+      label TEXT NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 100,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await client.execute(`
+    CREATE INDEX IF NOT EXISTS idx_checklist_items_group
+      ON checklist_items(group_key, sort_order)
   `);
 
   // In-app notifications (bell + email). Keep columns in sync with schema.ts.
@@ -450,6 +468,9 @@ async function renameColumnIfNeeded(
     ADD COLUMN rental_deal_id INTEGER REFERENCES rental_deals(id) ON DELETE SET NULL
   `)) {
     console.log("Added invoices.rental_deal_id column.");
+  }
+  if (await addColumnIfMissing(`ALTER TABLE resources ADD COLUMN sample_url TEXT`)) {
+    console.log("Added resources.sample_url column.");
   }
   if (await addColumnIfMissing(`ALTER TABLE invoices ADD COLUMN paid_at TEXT`)) {
     console.log("Added invoices.paid_at column.");

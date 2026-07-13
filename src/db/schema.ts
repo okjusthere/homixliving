@@ -271,8 +271,24 @@ export const resources = sqliteTable("resources", {
   description: text("description"),
   category: text("category").notNull().default("General"),
   url: text("url").notNull(),
+  // Optional companion link: a filled-in sample of the same form (the blank
+  // template lives in `url`). Rendered as a second button on the card.
+  sampleUrl: text("sample_url"),
   sortOrder: integer("sort_order").notNull().default(100),
   isPublished: integer("is_published", { mode: "boolean" }).notNull().default(true),
+  createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
+  updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
+});
+
+// Required-documents checklists (做单必交文件), grouped by deal stage — e.g.
+// "new-listing-residential" → the ordered list of documents an agent must
+// submit to the office at that stage. Group keys/labels live in
+// src/lib/checklist-groups.ts; items are admin-managed rows.
+export const checklistItems = sqliteTable("checklist_items", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  groupKey: text("group_key").notNull(),
+  label: text("label").notNull(),
+  sortOrder: integer("sort_order").notNull().default(100),
   createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
   updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
 });
@@ -401,6 +417,8 @@ export type TrainingVideoView = typeof trainingVideoViews.$inferSelect;
 export type NewTrainingVideoView = typeof trainingVideoViews.$inferInsert;
 export type Resource = typeof resources.$inferSelect;
 export type NewResource = typeof resources.$inferInsert;
+export type ChecklistItem = typeof checklistItems.$inferSelect;
+export type NewChecklistItem = typeof checklistItems.$inferInsert;
 export type CommerceOrder = typeof commerceOrders.$inferSelect;
 export type NewCommerceOrder = typeof commerceOrders.$inferInsert;
 export type StripeEvent = typeof stripeEvents.$inferSelect;

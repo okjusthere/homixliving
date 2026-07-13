@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { asc } from "drizzle-orm";
 import { db } from "@/db";
-import { resources } from "@/db/schema";
+import { checklistItems } from "@/db/schema";
 import { requireActiveAgentApi, requireAdminApi } from "@/lib/auth-guards";
+import { isChecklistGroupKey } from "@/lib/checklist-groups";
 import { logAudit } from "@/lib/audit";
 
 export async function GET() {
@@ -10,8 +11,8 @@ export async function GET() {
   if ("error" in auth) return auth.error;
   const rows = await db
     .select()
-    .from(resources)
-    .orderBy(asc(resources.sortOrder), asc(resources.id));
+    .from(checklistItems)
+    .orderBy(asc(checklistItems.sortOrder), asc(checklistItems.id));
   return NextResponse.json(rows);
 }
 
@@ -26,23 +27,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid body" }, { status: 400 });
   }
 
-  const title = String(body.title || "").trim();
-  const url = String(body.url || "").trim();
-  if (!title) return NextResponse.json({ error: "Title is required" }, { status: 400 });
-  if (!url) return NextResponse.json({ error: "Link (URL) is required" }, { status: 400 });
+  const groupKey = String(body.groupKey || "").trim();
+  const label = String(body.label || "").trim();
+  if (!isChecklistGroupKey(groupKey)) {
+    return NextResponse.json({ error: "Unknown checklist group" }, { status: 400 });
+  }
+  if (!label) return NextResponse.json({ error: "Label is required" }, { status: 400 });
 
   const [row] = await db
-    .insert(resources)
+    .insert(checklistItems)
     .values({
-      title,
-      url,
-      sampleUrl: String(body.sampleUrl || "").trim() || null,
-      category: String(body.category || "").trim() || "General",
-      description: String(body.description || "").trim() || null,
+      groupKey,
+      label,
+      ...(typeof body.sortOrder === "number" ? { sortOrder: body.sortOrder } : {}),
     })
     .returning();
 
-  await logAudit(auth.session, "create", "resource", row.id, `新建资源 ${row.title}`);
-
+  await logAudit(auth.session, "create", "checklist_item", row.id, `新建清单项 ${row.label}`);
   return NextResponse.json(row);
 }
