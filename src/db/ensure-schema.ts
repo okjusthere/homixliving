@@ -376,6 +376,14 @@ async function renameColumnIfNeeded(
     )
   `);
 
+  // agents.email must be UNIQUE: the sign-in upsert uses
+  // onConflictDoNothing(target: email), which ERRORS on SQLite without a
+  // matching constraint. Production got it from the original drizzle push;
+  // this covers fresh databases built purely through ensure-schema.
+  await client.execute(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_agents_email_unique ON agents(email)
+  `);
+
   // Required-documents checklists (做单必交文件) shown on /resources; group
   // keys/labels are defined in src/lib/checklist-groups.ts.
   await client.execute(`
