@@ -43,6 +43,8 @@ export default async function PayoutsPage() {
     hasW9: Boolean(profile.w9ObjectKey),
     hasAch: Boolean(profile.routingNumber && profile.accountNumber),
     accountLast4: profile.accountNumber ? profile.accountNumber.slice(-4) : null,
+    payeeType: profile.payeeType,
+    payeeName: profile.payeeName,
   }));
 
   return (

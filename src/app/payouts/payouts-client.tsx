@@ -9,11 +9,25 @@ import { useLocale } from "@/lib/i18n-client";
 import type { Agent, AgentPayout } from "@/db/schema";
 
 // Masked readiness snapshot — full bank digits never reach the client.
+// Full digits come only from the audited on-demand reveal endpoint.
 type PaymentReadiness = {
   agentId: number;
   hasW9: boolean;
   hasAch: boolean;
   accountLast4: string | null;
+  payeeType: string | null;
+  payeeName: string | null;
+};
+
+type RevealedPayment = {
+  agentId: number;
+  agentName: string;
+  payeeType: string | null;
+  payeeName: string | null;
+  bankName: string | null;
+  accountType: string | null;
+  routingNumber: string | null;
+  accountNumber: string | null;
 };
 
 const M = {
@@ -36,8 +50,20 @@ const M = {
     readinessLead: "W-9 and ACH info must be on file before money goes out.",
     w9: "W-9",
     ach: "ACH",
+    payee: "Payee",
+    payeeBusinessTag: "LLC/Corp",
     view: "View ↗",
     missing: "Missing",
+    reveal: "Show full account",
+    revealTitle: (name: string) => `Full payout details — ${name}`,
+    revealNote:
+      "For entering into QuickBooks. This access has been written to the audit log.",
+    revealPayee: "Payee",
+    revealBank: "Bank",
+    revealRouting: "Routing",
+    revealAccount: "Account",
+    revealClose: "Close",
+    revealFailed: "Could not load details.",
     ledgerTitle: "Payout ledger",
     allAgents: "All agents",
     allYears: "All years",
@@ -74,8 +100,19 @@ const M = {
     readinessLead: "发钱前先确认 W-9 与收款账户已登记。",
     w9: "W-9",
     ach: "收款账户",
+    payee: "收款主体",
+    payeeBusinessTag: "LLC/公司",
     view: "查看 ↗",
     missing: "缺",
+    reveal: "查看完整账号",
+    revealTitle: (name: string) => `完整收款信息 — ${name}`,
+    revealNote: "用于录入 QuickBooks。本次查看已写入审计日志。",
+    revealPayee: "收款抬头",
+    revealBank: "银行",
+    revealRouting: "Routing",
+    revealAccount: "账号",
+    revealClose: "关闭",
+    revealFailed: "加载失败。",
     ledgerTitle: "发放台账",
     allAgents: "全部经纪人",
     allYears: "全部年份",
@@ -168,6 +205,30 @@ export function PayoutsClient({
     if (res.ok) router.refresh();
   }
 
+  // --- audited full-account reveal (held only in transient state) ---
+  const [revealed, setRevealed] = useState<RevealedPayment | null>(null);
+  const [revealBusy, setRevealBusy] = useState(false);
+  const [revealErr, setRevealErr] = useState<string | null>(null);
+
+  async function reveal(agentId: number) {
+    setRevealBusy(true);
+    setRevealErr(null);
+    try {
+      const res = await fetch(`/api/agents/${agentId}/payment`, { cache: "no-store" });
+      if (!res.ok) {
+        setRevealed(null);
+        setRevealErr(t.revealFailed);
+        return;
+      }
+      setRevealed(await res.json());
+    } catch {
+      setRevealed(null);
+      setRevealErr(t.revealFailed);
+    } finally {
+      setRevealBusy(false);
+    }
+  }
+
   // --- filters ---
   const [filterAgent, setFilterAgent] = useState("");
   const years = useMemo(() => {
@@ -200,17 +261,27 @@ export function PayoutsClient({
       .sort((a, b) => b.cents - a.cents);
   }, [payouts, totalsYear, agentById]);
 
+  // RFC 4180: wrap in quotes, double any embedded quotes (JSON.stringify's
+  // backslash escaping corrupts fields in Excel/QuickBooks).
+  function csvField(value: string): string {
+    return `"${value.replace(/"/g, '""')}"`;
+  }
+
   function exportCsv() {
-    const header = "Year,Agent,Email,License,Total Paid (USD)";
-    const lines = totals.map((row) =>
-      [
+    // "Payee" is the 1099 recipient — the agent's LLC when one is on file.
+    const header = "Year,Agent,Payee (1099 recipient),Payee Type,Email,License,Total Paid (USD)";
+    const lines = totals.map((row) => {
+      const p = profileByAgent.get(row.agentId);
+      return [
         totalsYear,
-        JSON.stringify(row.agent?.name ?? `#${row.agentId}`),
-        row.agent?.email ?? "",
-        JSON.stringify(row.agent?.licenseNumber ?? ""),
+        csvField(row.agent?.name ?? `#${row.agentId}`),
+        csvField(p?.payeeName || row.agent?.name || `#${row.agentId}`),
+        p?.payeeType || "individual",
+        csvField(row.agent?.email ?? ""),
+        csvField(row.agent?.licenseNumber ?? ""),
         (row.cents / 100).toFixed(2),
-      ].join(","),
-    );
+      ].join(",");
+    });
     const blob = new Blob([[header, ...lines].join("\n")], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -289,6 +360,7 @@ export function PayoutsClient({
                 <thead>
                   <tr style={{ color: tone.ink50 }}>
                     <th className="text-left font-medium py-1.5 pr-4">{t.agent}</th>
+                    <th className="text-left font-medium py-1.5 pr-4">{t.payee}</th>
                     <th className="text-left font-medium py-1.5 pr-4">{t.w9}</th>
                     <th className="text-left font-medium py-1.5">{t.ach}</th>
                   </tr>
@@ -300,6 +372,17 @@ export function PayoutsClient({
                       <tr key={a.id} style={{ borderTop: `1px solid ${tone.lineSoft}` }}>
                         <td className="py-1.5 pr-4" style={{ color: tone.ink }}>
                           {a.name}
+                        </td>
+                        <td className="py-1.5 pr-4" style={{ color: tone.ink70 }}>
+                          {p?.payeeName || "—"}
+                          {p?.payeeType === "business" && (
+                            <span
+                              className="ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium align-middle"
+                              style={{ background: tone.amberSoft, color: tone.amber }}
+                            >
+                              {t.payeeBusinessTag}
+                            </span>
+                          )}
                         </td>
                         <td className="py-1.5 pr-4">
                           {p?.hasW9 ? (
@@ -320,6 +403,14 @@ export function PayoutsClient({
                           {p?.hasAch ? (
                             <span style={{ color: tone.green }}>
                               ✓ ****{p.accountLast4}
+                              <button
+                                onClick={() => reveal(a.id)}
+                                disabled={revealBusy}
+                                className="ml-2 text-[12px] font-medium underline decoration-dotted"
+                                style={{ color: tone.accent }}
+                              >
+                                {t.reveal}
+                              </button>
                             </span>
                           ) : (
                             <span style={{ color: tone.rose }}>✗ {t.missing}</span>
@@ -331,6 +422,49 @@ export function PayoutsClient({
                 </tbody>
               </table>
             </div>
+            {revealErr && (
+              <p className="text-[12.5px]" style={{ color: tone.rose }}>
+                {revealErr}
+              </p>
+            )}
+            {revealed && (
+              <div
+                className="rounded-lg p-4 space-y-1.5"
+                style={{ background: tone.paperDeep, border: `1px solid ${tone.line}` }}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[13px] font-medium" style={{ color: tone.ink }}>
+                    {t.revealTitle(revealed.agentName)}
+                  </span>
+                  <button
+                    onClick={() => setRevealed(null)}
+                    className="text-[12px] font-medium"
+                    style={{ color: tone.ink50 }}
+                  >
+                    {t.revealClose}
+                  </button>
+                </div>
+                <div className="text-[13px] font-mono" style={{ color: tone.ink }}>
+                  <div>
+                    {t.revealPayee}: {revealed.payeeName || revealed.agentName}
+                    {revealed.payeeType === "business" ? `（${t.payeeBusinessTag}）` : ""}
+                  </div>
+                  <div>
+                    {t.revealBank}: {revealed.bankName || "—"}
+                    {revealed.accountType ? ` · ${revealed.accountType}` : ""}
+                  </div>
+                  <div>
+                    {t.revealRouting}: {revealed.routingNumber || "—"}
+                  </div>
+                  <div>
+                    {t.revealAccount}: {revealed.accountNumber || "—"}
+                  </div>
+                </div>
+                <p className="text-[11.5px]" style={{ color: tone.ink50 }}>
+                  {t.revealNote}
+                </p>
+              </div>
+            )}
           </div>
         </Card>
       </div>
@@ -354,15 +488,23 @@ export function PayoutsClient({
                 {t.noRows}
               </p>
             ) : (
-              totals.map((row) => (
-                <span
-                  key={row.agentId}
-                  className="rounded-full px-3 py-1.5 text-[12.5px] font-medium"
-                  style={{ background: tone.paperDeep, color: tone.ink }}
-                >
-                  {row.agent?.name ?? `#${row.agentId}`} · ${fmtMoney(row.cents / 100)}
-                </span>
-              ))
+              totals.map((row) => {
+                const agentName = row.agent?.name ?? `#${row.agentId}`;
+                const payeeName = profileByAgent.get(row.agentId)?.payeeName;
+                return (
+                  <span
+                    key={row.agentId}
+                    className="rounded-full px-3 py-1.5 text-[12.5px] font-medium"
+                    style={{ background: tone.paperDeep, color: tone.ink }}
+                  >
+                    {payeeName || agentName}
+                    {payeeName && payeeName !== agentName ? (
+                      <span style={{ color: tone.ink50 }}>（{agentName}）</span>
+                    ) : null}{" "}
+                    · ${fmtMoney(row.cents / 100)}
+                  </span>
+                );
+              })
             )}
           </div>
         </div>

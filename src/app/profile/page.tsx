@@ -50,6 +50,8 @@ export default async function ProfilePage() {
   // is serialized into the page payload. The UI only needs masked state.
   const safeProfile = profile
     ? {
+        payeeType: profile.payeeType,
+        payeeName: profile.payeeName,
         bankName: profile.bankName,
         accountType: profile.accountType,
         accountLast4: profile.accountNumber ? profile.accountNumber.slice(-4) : null,

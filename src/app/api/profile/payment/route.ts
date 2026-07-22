@@ -26,6 +26,8 @@ export async function GET() {
   return NextResponse.json({
     profile: profile
       ? {
+          payeeType: profile.payeeType,
+          payeeName: profile.payeeName,
           bankName: profile.bankName,
           accountType: profile.accountType,
           accountLast4: profile.accountNumber ? profile.accountNumber.slice(-4) : null,
@@ -55,7 +57,17 @@ export async function PUT(req: NextRequest) {
   const accountType = String(body.accountType || "").trim();
   const routingNumber = String(body.routingNumber || "").replace(/\D/g, "");
   const accountNumber = String(body.accountNumber || "").replace(/\D/g, "");
+  // Payee entity: the name on the bank account and the 1099 recipient —
+  // often the agent's LLC rather than their personal name. Must match the W-9.
+  const payeeType = String(body.payeeType || "").trim();
+  const payeeName = String(body.payeeName || "").trim().slice(0, 160);
 
+  if (payeeType && !["individual", "business"].includes(payeeType)) {
+    return NextResponse.json({ error: "payeeType must be individual or business" }, { status: 400 });
+  }
+  if (payeeType === "business" && !payeeName) {
+    return NextResponse.json({ error: "Business payee requires the entity name" }, { status: 400 });
+  }
   if (accountType && !["checking", "savings"].includes(accountType)) {
     return NextResponse.json({ error: "accountType must be checking or savings" }, { status: 400 });
   }
@@ -81,6 +93,8 @@ export async function PUT(req: NextRequest) {
     .insert(agentPaymentProfiles)
     .values({
       agentId,
+      payeeType: payeeType || null,
+      payeeName: payeeName || null,
       bankName: bankName || null,
       accountType: accountType || null,
       routingNumber: finalRouting,
@@ -90,6 +104,8 @@ export async function PUT(req: NextRequest) {
     .onConflictDoUpdate({
       target: agentPaymentProfiles.agentId,
       set: {
+        payeeType: payeeType || null,
+        payeeName: payeeName || null,
         bankName: bankName || null,
         accountType: accountType || null,
         routingNumber: finalRouting,

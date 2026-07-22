@@ -411,6 +411,8 @@ async function renameColumnIfNeeded(
     CREATE TABLE IF NOT EXISTS agent_payment_profiles (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       agent_id INTEGER NOT NULL UNIQUE REFERENCES agents(id) ON DELETE CASCADE,
+      payee_type TEXT,
+      payee_name TEXT,
       bank_name TEXT,
       account_type TEXT,
       routing_number TEXT,
@@ -567,6 +569,13 @@ async function renameColumnIfNeeded(
   }
   if (await addColumnIfMissing(`ALTER TABLE sale_deals ADD COLUMN created_by_email TEXT`)) {
     console.log("Added sale_deals.created_by_email column.");
+  }
+  // Payee entity — ACH title / 1099 recipient may be the agent's LLC.
+  if (await addColumnIfMissing(`ALTER TABLE agent_payment_profiles ADD COLUMN payee_type TEXT`)) {
+    console.log("Added agent_payment_profiles.payee_type column.");
+  }
+  if (await addColumnIfMissing(`ALTER TABLE agent_payment_profiles ADD COLUMN payee_name TEXT`)) {
+    console.log("Added agent_payment_profiles.payee_name column.");
   }
   // Backfill 登单人 for deals created before the column existed, from the
   // audit log's create events. Idempotent: only fills NULLs; deals older

@@ -10,6 +10,8 @@ import type { Agent, AgentPayout } from "@/db/schema";
 
 // Masked payment state — full routing/account digits never reach the client.
 export type SafePaymentProfile = {
+  payeeType: string | null;
+  payeeName: string | null;
   bankName: string | null;
   accountType: string | null;
   accountLast4: string | null;
@@ -35,6 +37,12 @@ const M = {
     achTitle: "Payout account (ACH)",
     achLead:
       "Payouts run through QuickBooks/checks — this tells the office where to send your money. Only you and admins can see it.",
+    payeeType: "Payee",
+    payeeIndividual: "Individual (my own name)",
+    payeeBusiness: "Business entity (LLC / Corp)",
+    payeeName: "Payee name (as on the bank account & W-9)",
+    payeeHint:
+      "If you get paid through your LLC, put the LLC's exact legal name here — the ACH and your 1099 will be issued to it. It must match your bank account title and your W-9.",
     bankName: "Bank name",
     accountType: "Account type",
     checking: "Checking",
@@ -77,6 +85,12 @@ const M = {
     saveFailed: "保存失败，请重试。",
     achTitle: "收款账户（ACH）",
     achLead: "打款走 QuickBooks/支票——这里告诉公司把钱打到哪。仅你本人和管理员可见。",
+    payeeType: "收款主体",
+    payeeIndividual: "个人（本人姓名）",
+    payeeBusiness: "公司主体（LLC / Corp）",
+    payeeName: "收款抬头（与银行账户、W-9 一致）",
+    payeeHint:
+      "如果你通过自己的 LLC 收款，这里填 LLC 的准确注册名——ACH 打款和年末 1099 都以此抬头开出，须与银行账户户名及 W-9 完全一致。",
     bankName: "银行名称",
     accountType: "账户类型",
     checking: "支票账户 Checking",
@@ -141,6 +155,8 @@ export function ProfileClient({
   }
 
   // --- ACH ---
+  const [payeeType, setPayeeType] = useState(profile?.payeeType ?? "individual");
+  const [payeeName, setPayeeName] = useState(profile?.payeeName ?? "");
   const [bankName, setBankName] = useState(profile?.bankName ?? "");
   const [accountType, setAccountType] = useState(profile?.accountType ?? "checking");
   const [routing, setRouting] = useState("");
@@ -157,6 +173,8 @@ export function ProfileClient({
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        payeeType,
+        payeeName,
         bankName,
         accountType,
         routingNumber: routing,
@@ -255,6 +273,31 @@ export function ProfileClient({
           <p className="text-[13px]" style={{ color: achLast4 ? tone.green : tone.ink50 }}>
             {achLast4 ? t.achOnFile(achLast4) : t.achNone}
             {profile?.bankName && achLast4 ? ` · ${profile.bankName}` : ""}
+            {profile?.payeeName && achLast4 ? ` · ${profile.payeeName}` : ""}
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <select
+              value={payeeType}
+              onChange={(e) => {
+                const next = e.target.value;
+                setPayeeType(next);
+                // Switching back to individual must not silently keep the old
+                // LLC as the authoritative 1099/ACH payee.
+                if (next === "individual" && payeeName === (profile?.payeeName ?? "")) {
+                  setPayeeName("");
+                }
+              }}
+              className="rounded-md px-3 py-2 text-[13px]"
+              style={inputStyle}
+              aria-label={t.payeeType}
+            >
+              <option value="individual">{t.payeeIndividual}</option>
+              <option value="business">{t.payeeBusiness}</option>
+            </select>
+            <EditorialInput value={payeeName} onChange={setPayeeName} placeholder={t.payeeName} />
+          </div>
+          <p className="text-[12px]" style={{ color: tone.ink50 }}>
+            {t.payeeHint}
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
             <EditorialInput value={bankName} onChange={setBankName} placeholder={t.bankName} />

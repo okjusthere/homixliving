@@ -361,6 +361,11 @@ export const agentPaymentProfiles = sqliteTable("agent_payment_profiles", {
     .notNull()
     .unique()
     .references(() => agents.id, { onDelete: "cascade" }),
+  // Who actually gets paid — often the agent's own LLC, not their personal
+  // name. ACH account title and the 1099 recipient follow payee_name (must
+  // match the W-9), so displays/exports should prefer it over the agent name.
+  payeeType: text("payee_type"), // individual | business
+  payeeName: text("payee_name"),
   bankName: text("bank_name"),
   accountType: text("account_type"), // checking | savings
   routingNumber: text("routing_number"),
