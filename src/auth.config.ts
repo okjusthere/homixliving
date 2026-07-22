@@ -3,6 +3,10 @@
 import type { NextAuthConfig } from "next-auth";
 import { NextResponse } from "next/server";
 
+function isPathOrChild(pathname: string, prefix: string) {
+  return pathname === prefix || pathname.startsWith(`${prefix}/`);
+}
+
 export const authConfig: NextAuthConfig = {
   providers: [], // Real providers are added in src/auth.ts
   // Custom domains (e.g. deals.homixny.com) need explicit trust.
@@ -53,10 +57,12 @@ export const authConfig: NextAuthConfig = {
         // must be triggerable without a browser session).
         "/api/admin/ensure-schema",
         "/_next",
-        "/favicon",
+        "/favicon.ico",
+        "/icon.png",
+        "/apple-icon",
         "/auth",
       ];
-      const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
+      const isPublic = PUBLIC_PATHS.some((p) => isPathOrChild(pathname, p));
       if (isPublic) return true;
       if (!auth) return false;
       // Default-DENY for data APIs: only active/admin users clear the edge, so a

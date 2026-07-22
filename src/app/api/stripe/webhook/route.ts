@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { commerceCharges, commerceOrders, stripeEvents, type CommerceOrder } from "@/db/schema";
+import { settledCheckoutAmountCents } from "@/lib/commerce/settlement";
 import { getStripe, getStripeWebhookSecret, stripeId } from "@/lib/stripe";
 import { provisionWorkspaceForOrder, suspendWorkspaceForOrder } from "@/lib/google-workspace";
 
@@ -81,9 +82,14 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
       : "paid"
     : "open";
   const now = new Date().toISOString();
+  const amountCents = isPaid
+    ? settledCheckoutAmountCents(session.amount_total, order.amountCents)
+    : order.amountCents;
   const updatedOrder = {
     ...order,
     status: nextStatus,
+    amountCents,
+    currency: session.currency || order.currency,
     stripeCheckoutSessionId: session.id,
     stripeCustomerId: stripeId(session.customer),
     stripeSubscriptionId: stripeId(session.subscription),
@@ -96,6 +102,8 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
     .update(commerceOrders)
     .set({
       status: updatedOrder.status,
+      amountCents: updatedOrder.amountCents,
+      currency: updatedOrder.currency,
       stripeCheckoutSessionId: updatedOrder.stripeCheckoutSessionId,
       stripeCustomerId: updatedOrder.stripeCustomerId,
       stripeSubscriptionId: updatedOrder.stripeSubscriptionId,

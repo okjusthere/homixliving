@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { validateCheckoutPayload } from "../commerce/checkout";
+import { settledCheckoutAmountCents } from "../commerce/settlement";
 import { normalizeWorkspaceRecoveryPhone, resolveWorkspaceRetentionDays } from "../google-workspace";
 
 process.env.GOOGLE_WORKSPACE_ALLOWED_DOMAINS = "homixny.com";
@@ -47,5 +48,10 @@ assert.equal(resolveWorkspaceRetentionDays("45"), 45);
 assert.equal(resolveWorkspaceRetentionDays("7.8"), 7);
 assert.equal(resolveWorkspaceRetentionDays("0"), 30);
 assert.equal(resolveWorkspaceRetentionDays("not-a-number"), 30);
+
+assert.equal(settledCheckoutAmountCents(8_400, 10_000), 8_400);
+assert.equal(settledCheckoutAmountCents(0, 10_000), 0);
+assert.equal(settledCheckoutAmountCents(null, 10_000), 10_000);
+assert.equal(settledCheckoutAmountCents(8_400.5, 10_000), 10_000);
 
 console.log("commerce checkout tests passed");

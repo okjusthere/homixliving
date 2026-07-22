@@ -7,6 +7,10 @@ import { Nav } from "@/components/nav";
 
 const NAV_FREE_PREFIXES = ["/login", "/pending", "/pay"];
 
+function isPathOrChild(pathname: string, prefix: string) {
+  return pathname === prefix || pathname.startsWith(`${prefix}/`);
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -16,14 +20,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (status !== "authenticated" || !session) return;
     const onPending = pathname === "/pending";
-    const onPublic = NAV_FREE_PREFIXES.some((p) => pathname.startsWith(p));
+    const onPublic = NAV_FREE_PREFIXES.some((p) => isPathOrChild(pathname, p));
     if (onPublic) return;
     if (!session.user.isActive && !session.user.isAdmin && !onPending) {
       router.replace("/pending");
     }
   }, [session, status, pathname, router]);
 
-  const noShell = NAV_FREE_PREFIXES.some((p) => pathname.startsWith(p));
+  const noShell = NAV_FREE_PREFIXES.some((p) => isPathOrChild(pathname, p));
   if (noShell) {
     return <>{children}</>;
   }

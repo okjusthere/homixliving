@@ -234,21 +234,19 @@ function ActionLink({
   icon,
   label,
   detail,
-  primary,
 }: {
   href: string;
   icon: ReactNode;
   label: string;
   detail: string;
-  primary?: boolean;
 }) {
   return (
     <Link
       href={href}
       className="group flex min-h-[92px] items-start justify-between rounded-xl border p-4 transition hover:-translate-y-0.5 hover:shadow-sm"
       style={{
-        background: primary ? tone.accentSoft : tone.card,
-        borderColor: primary ? tone.accent : tone.line,
+        background: tone.card,
+        borderColor: tone.line,
         color: tone.ink,
       }}
     >
@@ -256,8 +254,8 @@ function ActionLink({
         <span
           className="flex size-9 shrink-0 items-center justify-center rounded-md"
           style={{
-            background: primary ? tone.accent : tone.paperDeep,
-            color: primary ? "#fff" : tone.accent,
+            background: tone.paperDeep,
+            color: tone.accent,
           }}
         >
           {icon}
@@ -557,7 +555,8 @@ export default async function Dashboard() {
             </div>
             <Link
               href="/rental/new"
-              className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-ink px-4 text-[13px] font-medium text-white transition hover:bg-ink-70"
+              className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md border px-4 text-[13px] font-medium transition hover:bg-[#FAF7F0]"
+              style={{ borderColor: tone.line, color: tone.ink }}
             >
               <Home className="size-4" />
               {t.newRental}
@@ -570,7 +569,6 @@ export default async function Dashboard() {
               icon={<Home className="size-4" />}
               label={t.rentalFile}
               detail={t.rentalFileDetail}
-              primary
             />
             <ActionLink
               href="/sales/new"

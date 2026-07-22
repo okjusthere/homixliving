@@ -8,19 +8,21 @@ import { useLocale } from "@/lib/i18n-client";
 
 const M = {
   en: {
-    sync: "Sync Stripe invoices",
+    sync: "Sync Stripe payments",
     syncing: "Syncing…",
-    done: (n: number, seen: number) => `Synced ${n}/${seen} invoices.`,
+    done: (orders: number, invoices: number, errors: number) =>
+      `Synced ${orders} one-time payments and ${invoices} invoices${errors ? `; ${errors} failed` : ""}.`,
     failed: "Sync failed — please retry.",
     confirm:
-      "Pull the full invoice history (including every subscription renewal) from Stripe? Existing rows update in place.",
+      "Pull one-time payments and the full subscription invoice history from Stripe? Existing rows update in place.",
   },
   zh: {
-    sync: "同步 Stripe 账单",
+    sync: "同步 Stripe 收款",
     syncing: "同步中…",
-    done: (n: number, seen: number) => `已入账 ${n}/${seen} 张发票。`,
+    done: (orders: number, invoices: number, errors: number) =>
+      `已同步 ${orders} 笔一次性付款及 ${invoices} 张订阅账单${errors ? `；${errors} 项失败` : ""}。`,
     failed: "同步失败，请重试。",
-    confirm: "从 Stripe 拉取全部账单历史（含每期订阅续费）？已有记录会原位更新，不会重复。",
+    confirm: "从 Stripe 拉取一次性付款及全部订阅账单历史？已有记录会原位更新，不会重复。",
   },
 } as const;
 
@@ -41,7 +43,7 @@ export function SyncInvoicesButton() {
       return;
     }
     const s = await res.json();
-    setMsg(t.done(s.upserted ?? 0, s.invoicesSeen ?? 0));
+    setMsg(t.done(s.ordersReconciled ?? 0, s.upserted ?? 0, s.errors?.length ?? 0));
     router.refresh();
   }
 
