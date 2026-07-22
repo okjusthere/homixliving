@@ -405,6 +405,43 @@ async function renameColumnIfNeeded(
       ON commerce_charges(stripe_subscription_id)
   `);
 
+  // Agent payment profiles (W-9 in private R2 + ACH details) and the manual
+  // payout ledger (money moves in QuickBooks/checks; these rows are the record).
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS agent_payment_profiles (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      agent_id INTEGER NOT NULL UNIQUE REFERENCES agents(id) ON DELETE CASCADE,
+      bank_name TEXT,
+      account_type TEXT,
+      routing_number TEXT,
+      account_number TEXT,
+      w9_object_key TEXT,
+      w9_file_name TEXT,
+      w9_uploaded_at TEXT,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS agent_payouts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      agent_id INTEGER NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+      amount_cents INTEGER NOT NULL,
+      method TEXT NOT NULL DEFAULT 'ach',
+      reference TEXT,
+      memo TEXT,
+      deal_type TEXT,
+      deal_id INTEGER,
+      paid_at TEXT NOT NULL,
+      created_by_email TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await client.execute(`
+    CREATE INDEX IF NOT EXISTS idx_agent_payouts_agent_paid
+      ON agent_payouts(agent_id, paid_at DESC)
+  `);
+
   // agents.email must be UNIQUE: the sign-in upsert uses
   // onConflictDoNothing(target: email), which ERRORS on SQLite without a
   // matching constraint. Production got it from the original drizzle push;

@@ -23,6 +23,7 @@ const navItems = [
   { href: "/teams", key: "teams", adminOnly: true },
   { href: "/reports", key: "reports", adminOnly: true },
   { href: "/finance", key: "finance", adminOnly: true },
+  { href: "/payouts", key: "payouts", adminOnly: true },
   { href: "/audit", key: "audit", adminOnly: true },
   { href: "/settings", key: "settings", adminOnly: true },
 ] as const;
@@ -31,14 +32,14 @@ const LABELS = {
   en: {
     overview: "Overview", sales: "Sales", rental: "Rental", training: "Training",
     resources: "Resources", onboarding: "Onboarding", coach: "Coach", offer: "Offer",
-    agents: "Agents", teams: "Teams", reports: "Reports", finance: "Finance", audit: "Audit", settings: "Settings",
-    search: "Search", signedIn: "Signed in", signOut: "Sign out", admin: "Admin",
+    agents: "Agents", teams: "Teams", reports: "Reports", finance: "Finance", payouts: "Payouts", audit: "Audit", settings: "Settings",
+    search: "Search", signedIn: "Signed in", signOut: "Sign out", admin: "Admin", profile: "My profile",
   },
   zh: {
     overview: "概览", sales: "买卖", rental: "租赁", training: "培训",
     resources: "资料", onboarding: "入职", coach: "AI 教练", offer: "报价",
-    agents: "经纪人", teams: "团队", reports: "报表", finance: "财务", audit: "审计", settings: "设置",
-    search: "搜索", signedIn: "已登录", signOut: "退出登录", admin: "管理员",
+    agents: "经纪人", teams: "团队", reports: "报表", finance: "财务", payouts: "发放", audit: "审计", settings: "设置",
+    search: "搜索", signedIn: "已登录", signOut: "退出登录", admin: "管理员", profile: "我的档案",
   },
 } as const;
 
@@ -197,6 +198,16 @@ export function Nav() {
                       </div>
                     )}
                   </div>
+                  {(session?.user?.isActive || session?.user?.isAdmin) && (
+                    <Link
+                      href="/profile"
+                      onClick={() => setMenuOpen(false)}
+                      className="block px-4 py-3 text-[13px] hover:bg-[#FAF7F0] transition-colors"
+                      style={{ color: tone.ink70, borderBottom: `1px solid ${tone.lineSoft}` }}
+                    >
+                      {t.profile}
+                    </Link>
+                  )}
                   <button
                     type="button"
                     onClick={() => signOut({ callbackUrl: "/login" })}

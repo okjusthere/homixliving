@@ -19,13 +19,16 @@ const M = {
     description: "Monthly commission production by agent and building.",
     exportCsv: "Export CSV", yearToggle: "Full year", yearMode: "YTD",
     loading: "Loading…",
-    totalDeals: "Total rental deals",
+    totalDeals: "Total deals",
+    rentalShort: "rental",
+    saleShort: "sale",
     totalCommission: "Total commission",
+    salesGrossNote: "incl. sales gross",
     companyPool: "Company pool",
     agentPayouts: "Agent payouts",
     topAgents: "Top agents",
     colAgent: "Agent",
-    colRentalDeals: "Rental Deals",
+    colRentalDeals: "Deals",
     colTake: "Take",
     noAgentPayouts: "No agent payouts this month.",
     split: "split",
@@ -43,13 +46,16 @@ const M = {
     description: "按经纪人和楼盘统计的月度佣金业绩。",
     exportCsv: "导出 CSV", yearToggle: "看全年", yearMode: "全年",
     loading: "加载中…",
-    totalDeals: "租赁交易总数",
+    totalDeals: "交易总数",
+    rentalShort: "租赁",
+    saleShort: "买卖",
     totalCommission: "佣金合计",
+    salesGrossNote: "含买卖毛佣",
     companyPool: "公司分成",
     agentPayouts: "经纪人分成",
     topAgents: "业绩排行",
     colAgent: "经纪人",
-    colRentalDeals: "租赁交易",
+    colRentalDeals: "交易",
     colTake: "分成",
     noAgentPayouts: "本月暂无经纪人分成。",
     split: "分成",
@@ -67,7 +73,11 @@ type ReportPayload = {
   month: string;
   summary: {
     totalDeals: number;
+    rentalDeals: number;
+    salesDeals: number;
     totalCommission: number;
+    salesGrossCommission: number;
+    salesCommissionBase: number;
     companyPool: number;
     agentPayouts: number;
     referrerPayouts: number;
@@ -186,12 +196,24 @@ export default function ReportsPage() {
       ) : (
         <>
           <div className="grid grid-cols-4 gap-4">
-            {[
-              [t.totalDeals, report.summary.totalDeals],
-              [t.totalCommission, `$${fmtMoney(report.summary.totalCommission)}`],
-              [t.companyPool, `$${fmtMoney(report.summary.companyPool)}`],
-              [t.agentPayouts, `$${fmtMoney(report.summary.agentPayouts)}`],
-            ].map(([label, value]) => (
+            {(
+              [
+                [
+                  t.totalDeals,
+                  String(report.summary.totalDeals),
+                  `${report.summary.rentalDeals ?? report.summary.totalDeals} ${t.rentalShort} · ${report.summary.salesDeals ?? 0} ${t.saleShort}`,
+                ],
+                [
+                  t.totalCommission,
+                  `$${fmtMoney(report.summary.totalCommission)}`,
+                  report.summary.salesGrossCommission
+                    ? `${t.salesGrossNote} $${fmtMoney(report.summary.salesGrossCommission)}`
+                    : "",
+                ],
+                [t.companyPool, `$${fmtMoney(report.summary.companyPool)}`, ""],
+                [t.agentPayouts, `$${fmtMoney(report.summary.agentPayouts)}`, ""],
+              ] as const
+            ).map(([label, value, sub]) => (
               <Card key={label}>
                 <div className="p-5">
                   <div className="text-[11px] uppercase tracking-[0.12em]" style={{ color: tone.ink50 }}>
@@ -200,6 +222,11 @@ export default function ReportsPage() {
                   <div className="mt-2 font-serif" style={{ fontSize: 34, lineHeight: 1, color: tone.ink }}>
                     {value}
                   </div>
+                  {sub ? (
+                    <div className="mt-1.5 text-[11.5px]" style={{ color: tone.ink50 }}>
+                      {sub}
+                    </div>
+                  ) : null}
                 </div>
               </Card>
             ))}

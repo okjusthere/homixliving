@@ -116,3 +116,61 @@ export async function deleteDealDocument(objectKey: string) {
     new DeleteObjectCommand({ Bucket: r2.bucket, Key: objectKey })
   );
 }
+
+// ---------------------------------------------------------------------------
+// Agent documents (W-9). Same private bucket, separate prefix. Uploads go
+// server-side (small files) rather than presigned — no CORS dependency.
+// ---------------------------------------------------------------------------
+
+const AGENT_DOC_PREFIX = "agent-docs/";
+const AGENT_DOC_KEY_PATTERN = /^agent-docs\/\d+\/[A-Za-z0-9._-]+$/;
+
+export function agentW9ObjectKey(agentId: number, fileName: string): string {
+  const sanitized = fileName.replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 80) || "w9.pdf";
+  return `${AGENT_DOC_PREFIX}${agentId}/w9-${crypto.randomUUID()}-${sanitized}`;
+}
+
+export function isAgentDocKeyForAgent(objectKey: string, agentId: number): boolean {
+  return (
+    AGENT_DOC_KEY_PATTERN.test(objectKey) &&
+    objectKey.startsWith(`${AGENT_DOC_PREFIX}${agentId}/`)
+  );
+}
+
+export async function putAgentDocument(
+  objectKey: string,
+  body: Buffer,
+  contentType: string,
+): Promise<void> {
+  const { client, bucket } = getClient();
+  await client.send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: objectKey,
+      Body: body,
+      ContentType: contentType,
+    }),
+  );
+}
+
+export async function createAgentDocumentDownloadUrl(
+  objectKey: string,
+  fileName: string,
+): Promise<string> {
+  const { client, bucket } = getClient();
+  const encoded = encodeURIComponent(fileName).replace(/['()]/g, escape);
+  return getSignedUrl(
+    client,
+    new GetObjectCommand({
+      Bucket: bucket,
+      Key: objectKey,
+      ResponseContentDisposition: `inline; filename*=UTF-8''${encoded}`,
+    }),
+    { expiresIn: DOWNLOAD_URL_TTL_SECONDS },
+  );
+}
+
+export async function deleteAgentDocument(objectKey: string): Promise<void> {
+  const { client, bucket } = getClient();
+  await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: objectKey }));
+}

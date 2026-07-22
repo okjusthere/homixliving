@@ -351,6 +351,48 @@ export const commerceCharges = sqliteTable("commerce_charges", {
   createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
 });
 
+// Agent payment profile — self-service W-9 + ACH details so the office can
+// cut checks / QuickBooks ACH and file 1099s. The W-9 file lives in the
+// PRIVATE R2 bucket (agent-docs/ prefix); only the agent and admins can read
+// it. Bank fields render masked (last 4) everywhere except the edit form.
+export const agentPaymentProfiles = sqliteTable("agent_payment_profiles", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  agentId: integer("agent_id")
+    .notNull()
+    .unique()
+    .references(() => agents.id, { onDelete: "cascade" }),
+  bankName: text("bank_name"),
+  accountType: text("account_type"), // checking | savings
+  routingNumber: text("routing_number"),
+  accountNumber: text("account_number"),
+  w9ObjectKey: text("w9_object_key"),
+  w9FileName: text("w9_file_name"),
+  w9UploadedAt: text("w9_uploaded_at"),
+  updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
+});
+
+// Commission disbursements to agents. The actual money moves OUTSIDE the
+// system (QuickBooks ACH / paper check) — these rows are the admin's manual
+// record of each payment, and the yearly per-agent sum is the 1099 figure.
+// Amounts are frozen at record time, so later splitPct edits never rewrite
+// tax history.
+export const agentPayouts = sqliteTable("agent_payouts", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  agentId: integer("agent_id")
+    .notNull()
+    .references(() => agents.id, { onDelete: "cascade" }),
+  amountCents: integer("amount_cents").notNull(),
+  method: text("method").notNull().default("ach"), // ach | check | quickbooks | zelle | other
+  reference: text("reference"), // check # / ACH trace / QuickBooks txn id
+  memo: text("memo"),
+  dealType: text("deal_type"), // rental | sale (optional link)
+  dealId: integer("deal_id"),
+  paidAt: text("paid_at").notNull(), // date the money actually moved
+  createdByEmail: text("created_by_email"),
+  createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
+  updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
+});
+
 export const stripeEvents = sqliteTable("stripe_events", {
   id: text("id").primaryKey(),
   type: text("type").notNull(),
@@ -454,6 +496,8 @@ export type ChecklistItem = typeof checklistItems.$inferSelect;
 export type NewChecklistItem = typeof checklistItems.$inferInsert;
 export type CommerceOrder = typeof commerceOrders.$inferSelect;
 export type CommerceCharge = typeof commerceCharges.$inferSelect;
+export type AgentPaymentProfile = typeof agentPaymentProfiles.$inferSelect;
+export type AgentPayout = typeof agentPayouts.$inferSelect;
 export type NewCommerceOrder = typeof commerceOrders.$inferInsert;
 export type StripeEvent = typeof stripeEvents.$inferSelect;
 export type NewStripeEvent = typeof stripeEvents.$inferInsert;
