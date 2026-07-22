@@ -1,0 +1,13 @@
+[
+  {
+    "AllowedOrigins": [
+      "https://agents.homixny.com",
+      "https://deals.homixny.com",
+      "http://localhost:3000"
+    ],
+    "AllowedMethods": ["GET", "HEAD", "PUT"],
+    "AllowedHeaders": ["Content-Type"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3600
+  }
+]

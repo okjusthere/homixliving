@@ -403,15 +403,19 @@ export const auditLog = sqliteTable("audit_log", {
 
 // ============================================================
 // Deal documents — files (lease, application, guarantor docs) attached to a
-// rental or sale deal. Blobs live in Vercel Blob storage; this table is the
-// index. url is the full blob URL; deletion removes both.
+// rental or sale deal. Objects live in a private Cloudflare R2 bucket and are
+// reached through short-lived signed URLs after the deal visibility check.
+// legacyUrl keeps the old non-null Vercel Blob column compatible without a
+// destructive table rebuild; new rows store the R2 key there as a placeholder.
 // ============================================================
 export const dealDocuments = sqliteTable("deal_documents", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   dealType: text("deal_type").notNull(), // 'rental' | 'sale'
   dealId: integer("deal_id").notNull(),
   fileName: text("file_name").notNull(),
-  url: text("url").notNull(),
+  legacyUrl: text("url").notNull().default(""),
+  storageProvider: text("storage_provider").notNull().default("r2"),
+  objectKey: text("object_key").notNull().default(""),
   contentType: text("content_type"),
   size: integer("size"),
   uploadedByEmail: text("uploaded_by_email"),

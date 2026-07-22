@@ -1,13 +1,22 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { upload } from "@vercel/blob/client";
 import { toast } from "sonner";
 import { Btn, Card } from "@/components/homix/primitives";
 import { CardHeader } from "@/components/homix/page-kit";
 import { tone } from "@/components/homix/tokens";
 import { useLocale } from "@/lib/i18n-client";
-import type { DealDocument } from "@/db/schema";
+
+type DealDocumentItem = {
+  id: number;
+  dealType: string;
+  dealId: number;
+  fileName: string;
+  contentType: string | null;
+  size: number | null;
+  uploadedByEmail: string | null;
+  createdAt: string | null;
+};
 
 const M = {
   en: {
@@ -21,7 +30,7 @@ const M = {
     uploadFailed: "Upload failed",
     deleteFailed: "Delete failed — edit rights required.",
     uploaded: "Uploaded",
-    notConfigured: "Document storage is not configured yet (connect a Vercel Blob store).",
+    notConfigured: "Document storage is not configured yet (configure the private R2 bucket).",
   },
   zh: {
     title: "成交文件",
@@ -34,7 +43,7 @@ const M = {
     uploadFailed: "上传失败",
     deleteFailed: "删除失败——需要该单的编辑权限。",
     uploaded: "已上传",
-    notConfigured: "文件存储尚未配置（需在 Vercel 关联 Blob store）。",
+    notConfigured: "文件存储尚未配置（需配置私有 Cloudflare R2 bucket）。",
   },
 } as const;
 
@@ -52,7 +61,7 @@ export function DealDocuments({
   dealId: number;
 }) {
   const t = M[useLocale()];
-  const [docs, setDocs] = useState<DealDocument[]>([]);
+  const [docs, setDocs] = useState<DealDocumentItem[]>([]);
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -75,20 +84,34 @@ export function DealDocuments({
     setBusy(true);
     try {
       for (const file of files) {
-        const blob = await upload(
-          `deal-docs/${dealType}/${dealId}/${file.name}`,
-          file,
-          {
-            access: "public",
-            handleUploadUrl: "/api/documents/upload",
-            clientPayload: JSON.stringify({ dealType, dealId }),
-          }
-        );
+        const prepareRes = await fetch("/api/documents/upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            dealType,
+            dealId,
+            fileName: file.name,
+            contentType: file.type,
+            size: file.size,
+          }),
+        });
+        const prepared = await prepareRes.json().catch(() => ({}));
+        if (!prepareRes.ok) {
+          throw new Error(prepared.error || "prepare failed");
+        }
+
+        const uploadRes = await fetch(prepared.uploadUrl, {
+          method: "PUT",
+          headers: { "Content-Type": file.type },
+          body: file,
+        });
+        if (!uploadRes.ok) throw new Error("storage upload failed");
+
         const res = await fetch(`/api/deals/${dealType}/${dealId}/documents`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            url: blob.url,
+            objectKey: prepared.objectKey,
             fileName: file.name,
             contentType: file.type || null,
             size: file.size,
@@ -101,7 +124,7 @@ export function DealDocuments({
     } catch (error) {
       const message = error instanceof Error ? error.message : "";
       toast.error(
-        /BLOB_READ_WRITE_TOKEN|not configured/i.test(message)
+        /not configured/i.test(message)
           ? t.notConfigured
           : `${t.uploadFailed}${message ? `: ${message}` : ""}`
       );
@@ -111,7 +134,7 @@ export function DealDocuments({
     }
   }
 
-  async function remove(doc: DealDocument) {
+  async function remove(doc: DealDocumentItem) {
     if (!confirm(t.confirmDelete(doc.fileName))) return;
     const res = await fetch(
       `/api/deals/${dealType}/${dealId}/documents/${doc.id}`,
@@ -164,7 +187,7 @@ export function DealDocuments({
               style={{ borderTop: `1px solid ${tone.lineSoft}` }}
             >
               <a
-                href={doc.url}
+                href={`/api/deals/${dealType}/${dealId}/documents/${doc.id}/download`}
                 target="_blank"
                 rel="noreferrer"
                 className="flex-1 min-w-0 text-[13px] truncate hover:underline"

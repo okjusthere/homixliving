@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { dealDocuments } from "@/db/schema";
+import { dealDocuments, type DealDocument } from "@/db/schema";
 import { requireActiveAgentApi } from "@/lib/auth-guards";
 import {
   canEditDealOfType,
@@ -9,6 +9,26 @@ import {
   parseDealType,
 } from "@/lib/deal-access";
 import { logAudit } from "@/lib/audit";
+import {
+  isDealDocumentKeyForDeal,
+  validateDealDocumentMetadata,
+} from "@/lib/deal-document-storage";
+import {
+  deleteDealDocument,
+  headDealDocument,
+  R2ConfigurationError,
+} from "@/lib/r2-storage";
+
+const documentFields = {
+  id: dealDocuments.id,
+  dealType: dealDocuments.dealType,
+  dealId: dealDocuments.dealId,
+  fileName: dealDocuments.fileName,
+  contentType: dealDocuments.contentType,
+  size: dealDocuments.size,
+  uploadedByEmail: dealDocuments.uploadedByEmail,
+  createdAt: dealDocuments.createdAt,
+};
 
 async function parseParams(params: Promise<{ type: string; id: string }>) {
   const { type, id } = await params;
@@ -32,7 +52,7 @@ export async function GET(
   }
 
   const docs = await db
-    .select()
+    .select(documentFields)
     .from(dealDocuments)
     .where(
       and(
@@ -44,10 +64,8 @@ export async function GET(
   return NextResponse.json(docs);
 }
 
-// Register an uploaded blob as a document row. The URL must point into THIS
-// deal's folder in our Vercel Blob store — that binds the row to a blob the
-// caller was actually authorized to upload (cross-deal or external URLs are
-// rejected).
+// Register an uploaded R2 object only after checking the object still matches
+// the signed request's deal, size, and content type.
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ type: string; id: string }> }
@@ -62,44 +80,78 @@ export async function POST(
   }
 
   const body = await req.json().catch(() => ({}));
-  const url = typeof body.url === "string" ? body.url : "";
-  const fileName = typeof body.fileName === "string" ? body.fileName.trim() : "";
-  if (!url || !fileName) {
-    return NextResponse.json({ error: "url and fileName are required" }, { status: 400 });
-  }
-
-  let hostOk = false;
-  let pathOk = false;
-  try {
-    const u = new URL(url);
-    hostOk =
-      u.protocol === "https:" &&
-      u.hostname.endsWith(".public.blob.vercel-storage.com");
-    pathOk = u.pathname.startsWith(
-      `/deal-docs/${parsed.dealType}/${parsed.dealId}/`
-    );
-  } catch {
-    // not a URL
-  }
-  if (!hostOk || !pathOk) {
+  const objectKey = typeof body.objectKey === "string" ? body.objectKey : "";
+  if (!isDealDocumentKeyForDeal(objectKey, parsed.dealType, parsed.dealId)) {
     return NextResponse.json(
-      { error: "URL is not a blob belonging to this deal" },
+      { error: "Object key does not belong to this deal" },
       { status: 400 }
     );
   }
 
-  const [created] = await db
-    .insert(dealDocuments)
-    .values({
-      dealType: parsed.dealType,
-      dealId: parsed.dealId,
-      fileName: fileName.slice(0, 300),
-      url,
-      contentType: typeof body.contentType === "string" ? body.contentType : null,
-      size: Number.isFinite(Number(body.size)) ? Number(body.size) : null,
-      uploadedByEmail: authResult.session.user.email || null,
-    })
-    .returning();
+  const validated = validateDealDocumentMetadata({
+    fileName: body.fileName,
+    contentType: body.contentType,
+    size: body.size,
+  });
+  if (!validated.ok) {
+    return NextResponse.json({ error: validated.error }, { status: 400 });
+  }
+
+  const existing = await db
+    .select(documentFields)
+    .from(dealDocuments)
+    .where(eq(dealDocuments.objectKey, objectKey))
+    .get();
+  if (existing) return NextResponse.json(existing);
+
+  try {
+    const uploaded = await headDealDocument(objectKey);
+    const uploadedType = uploaded.ContentType?.split(";", 1)[0].toLowerCase();
+    if (
+      uploaded.ContentLength !== validated.value.size ||
+      uploadedType !== validated.value.contentType
+    ) {
+      await deleteDealDocument(objectKey).catch(() => {});
+      return NextResponse.json(
+        { error: "Uploaded file metadata does not match the request" },
+        { status: 400 }
+      );
+    }
+  } catch (error) {
+    if (error instanceof R2ConfigurationError) {
+      return NextResponse.json({ error: error.message }, { status: 503 });
+    }
+    console.error("R2 object verification failed", error);
+    return NextResponse.json(
+      { error: "Uploaded object could not be verified" },
+      { status: 502 }
+    );
+  }
+
+  let created: DealDocument;
+  try {
+    [created] = await db
+      .insert(dealDocuments)
+      .values({
+        dealType: parsed.dealType,
+        dealId: parsed.dealId,
+        fileName: validated.value.fileName,
+        legacyUrl: objectKey,
+        storageProvider: "r2",
+        objectKey,
+        contentType: validated.value.contentType,
+        size: validated.value.size,
+        uploadedByEmail: authResult.session.user.email || null,
+      })
+      .returning();
+  } catch (error) {
+    await deleteDealDocument(objectKey).catch(() => {});
+    console.error("Deal document registration failed", error);
+    return NextResponse.json(
+      { error: "Could not register uploaded document" },
+      { status: 500 }
+    );
+  }
   await logAudit(
     authResult.session,
     "upload",
@@ -107,5 +159,17 @@ export async function POST(
     created.id,
     `上传成交文件 ${created.fileName} · ${parsed.dealType === "rental" ? "租赁" : "买卖"}成交 #${parsed.dealId}`
   );
-  return NextResponse.json(created, { status: 201 });
+  return NextResponse.json(
+    {
+      id: created.id,
+      dealType: created.dealType,
+      dealId: created.dealId,
+      fileName: created.fileName,
+      contentType: created.contentType,
+      size: created.size,
+      uploadedByEmail: created.uploadedByEmail,
+      createdAt: created.createdAt,
+    },
+    { status: 201 }
+  );
 }

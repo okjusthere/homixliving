@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
-import { del } from "@vercel/blob";
 import { db } from "@/db";
 import { dealDocuments } from "@/db/schema";
 import { requireActiveAgentApi } from "@/lib/auth-guards";
 import { canEditDealOfType, parseDealType } from "@/lib/deal-access";
 import { logAudit } from "@/lib/audit";
+import { deleteDealDocument, R2ConfigurationError } from "@/lib/r2-storage";
 
 export async function DELETE(
   _req: NextRequest,
@@ -39,12 +39,21 @@ export async function DELETE(
     .get();
   if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  // Remove the blob first; if that fails we keep the row so the file stays
+  // Remove the object first; if that fails we keep the row so the file stays
   // reachable rather than orphaned-but-invisible.
   try {
-    await del(doc.url);
+    if (!doc.objectKey) {
+      return NextResponse.json(
+        { error: "This document has no R2 object key" },
+        { status: 409 }
+      );
+    }
+    await deleteDealDocument(doc.objectKey);
   } catch (error) {
-    console.error("Blob delete failed", doc.url, error);
+    if (error instanceof R2ConfigurationError) {
+      return NextResponse.json({ error: error.message }, { status: 503 });
+    }
+    console.error("R2 document delete failed", doc.objectKey, error);
     return NextResponse.json({ error: "Storage deletion failed" }, { status: 500 });
   }
   await db.delete(dealDocuments).where(eq(dealDocuments.id, documentId));

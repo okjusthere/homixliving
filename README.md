@@ -24,8 +24,8 @@ as admins. There are no passwords or magic links.
 ## Stack
 
 Next.js 16 (App Router) · React 19 · TypeScript · Tailwind v4 · Drizzle ORM +
-Turso/libsql · next-auth v5 (Google, JWT sessions) · Stripe · Resend · Vercel Blob ·
-Cloudflare Stream · deployed on Vercel.
+Turso/libsql · next-auth v5 (Google, JWT sessions) · Stripe · Resend · Cloudflare
+R2 + Stream · deployed on Vercel.
 
 ## Getting started
 
@@ -99,9 +99,24 @@ CRON_SECRET=...   # required — cron routes fail closed without it
 **Storage (deal documents)**
 
 ```bash
-# Vercel Blob (deal documents): connect a Blob store to the project. Newer
-# stores inject BLOB_STORE_ID (OIDC mode) automatically; classic stores use:
-# BLOB_READ_WRITE_TOKEN=...
+# Private Cloudflare R2 bucket for rental and sale deal documents.
+R2_ACCOUNT_ID=...
+R2_ACCESS_KEY_ID=...
+R2_SECRET_ACCESS_KEY=...
+R2_BUCKET_NAME=homix-deal-documents
+```
+
+The R2 token should be scoped to Object Read & Write for this bucket only. The
+bucket stays private. Configure CORS for `https://agents.homixny.com` (and
+`http://localhost:3000` for local development), allowing `PUT` and the
+`Content-Type` request header. Upload URLs expire after five minutes; download
+URLs expire after one minute and are issued only after the deal visibility
+check.
+
+Apply the checked-in CORS policy after authenticating Wrangler:
+
+```bash
+npx wrangler r2 bucket cors set homix-deal-documents --file infra/r2-cors.json
 ```
 
 **Stripe (public `/pay` checkout + webhook)**

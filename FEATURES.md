@@ -65,7 +65,7 @@ This is a living document of features we've discussed but haven't built. Each en
   - Per-file progress bar
   - Auto-categorize by filename heuristics (e.g. "I-20.pdf" → I-20)
   - Manual category override
-- Storage: **Cloudflare R2** (proposed — today only deal documents exist, stored in Vercel Blob).
+- Storage: **Cloudflare R2** (implemented for rental and sale deal documents).
   ```
   homix-r2-bucket/
   └── client-docs/
@@ -304,7 +304,7 @@ We mark invoices as paid manually. A future state imports bank statements (CSV) 
 
 **Rejected because:** `@react-pdf/renderer` (our invoice PDF generator) depends on Node `Buffer` / `fs` / system fonts. Cloudflare Workers V8-isolate runtime doesn't support these. Risk of core feature break > savings.
 
-We DO use Cloudflare Stream for training videos (no compute, just hosted video; works fine). Deal documents are stored in Vercel Blob.
+We DO use Cloudflare Stream for training videos (no compute, just hosted video; works fine). Deal documents are stored in a private Cloudflare R2 bucket and served through short-lived signed URLs.
 
 ### Supabase migration (post-Auth implementation)
 

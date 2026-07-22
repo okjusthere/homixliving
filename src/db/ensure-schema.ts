@@ -467,14 +467,16 @@ async function renameColumnIfNeeded(
       ON audit_log(entity_type, entity_id)
   `);
 
-  // Deal document index (files live in Vercel Blob).
+  // Deal document index (files live in a private Cloudflare R2 bucket).
   await client.execute(`
     CREATE TABLE IF NOT EXISTS deal_documents (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       deal_type TEXT NOT NULL,
       deal_id INTEGER NOT NULL,
       file_name TEXT NOT NULL,
-      url TEXT NOT NULL,
+      url TEXT NOT NULL DEFAULT '',
+      storage_provider TEXT NOT NULL DEFAULT 'r2',
+      object_key TEXT NOT NULL DEFAULT '',
       content_type TEXT,
       size INTEGER,
       uploaded_by_email TEXT,
@@ -499,6 +501,23 @@ async function renameColumnIfNeeded(
       return false;
     }
   };
+
+  if (await addColumnIfMissing(`
+    ALTER TABLE deal_documents
+    ADD COLUMN storage_provider TEXT NOT NULL DEFAULT 'r2'
+  `)) {
+    console.log("Added deal_documents.storage_provider column.");
+  }
+  if (await addColumnIfMissing(`
+    ALTER TABLE deal_documents
+    ADD COLUMN object_key TEXT NOT NULL DEFAULT ''
+  `)) {
+    console.log("Added deal_documents.object_key column.");
+  }
+  await client.execute(`
+    CREATE INDEX IF NOT EXISTS idx_deal_documents_object_key
+      ON deal_documents(object_key)
+  `);
 
   if (await addColumnIfMissing(`
     ALTER TABLE invoices
