@@ -477,6 +477,31 @@ async function renameColumnIfNeeded(
   `)) {
     console.log("Added invoices.rental_deal_id column.");
   }
+  if (await addColumnIfMissing(`ALTER TABLE rental_deals ADD COLUMN created_by_email TEXT`)) {
+    console.log("Added rental_deals.created_by_email column.");
+  }
+  if (await addColumnIfMissing(`ALTER TABLE sale_deals ADD COLUMN created_by_email TEXT`)) {
+    console.log("Added sale_deals.created_by_email column.");
+  }
+  // Backfill 登单人 for deals created before the column existed, from the
+  // audit log's create events. Idempotent: only fills NULLs; deals older
+  // than the audit feature simply stay unattributed.
+  await client.execute(`
+    UPDATE rental_deals SET created_by_email = (
+      SELECT actor_email FROM audit_log
+      WHERE entity_type = 'rental_deal' AND action = 'create'
+        AND entity_id = CAST(rental_deals.id AS TEXT)
+      ORDER BY id ASC LIMIT 1
+    ) WHERE created_by_email IS NULL
+  `);
+  await client.execute(`
+    UPDATE sale_deals SET created_by_email = (
+      SELECT actor_email FROM audit_log
+      WHERE entity_type = 'sale_deal' AND action = 'create'
+        AND entity_id = CAST(sale_deals.id AS TEXT)
+      ORDER BY id ASC LIMIT 1
+    ) WHERE created_by_email IS NULL
+  `);
   if (await addColumnIfMissing(`ALTER TABLE resources ADD COLUMN sample_url TEXT`)) {
     console.log("Added resources.sample_url column.");
   }

@@ -217,7 +217,14 @@ export async function POST(req: NextRequest) {
 
     const now = new Date().toISOString();
     const batchResult = await db.batch([
-      db.insert(deals).values({ ...result.data, createdAt: now }).returning(),
+      db
+        .insert(deals)
+        .values({
+          ...result.data,
+          createdByEmail: authResult.session.user.email ?? null,
+          createdAt: now,
+        })
+        .returning(),
       ...result.agents.map((agent) =>
         db.insert(dealAgents).values({
           dealId: sql`(SELECT id FROM rental_deals ORDER BY id DESC LIMIT 1)`,

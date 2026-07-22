@@ -37,6 +37,7 @@ const M = {
     closingDate: "Closing date",
     purchasePrice: "Purchase price",
     created: "Created",
+    enteredBy: "Entered by",
     parties: "Parties",
     buyers: "Buyer(s)",
     sellers: "Seller(s)",
@@ -89,6 +90,7 @@ const M = {
     closingDate: "过户日期",
     purchasePrice: "成交价",
     created: "创建时间",
+    enteredBy: "登单人",
     parties: "交易方",
     buyers: "买家",
     sellers: "卖家",
@@ -307,6 +309,7 @@ export default function SaleDetailPage() {
                 <SoftField label={t.closingDate} value={saleDeal.closingDate ? fmtLongDate(saleDeal.closingDate) : "—"} />
                 <SoftField label={t.purchasePrice} value={saleDeal.purchasePrice ? `$${fmtMoney(Number(saleDeal.purchasePrice))}` : "—"} mono />
                 <SoftField label={t.created} value={fmtDate(saleDeal.createdAt)} mono />
+                <SoftField label={t.enteredBy} value={saleDeal.createdByEmail || "—"} mono />
               </div>
             </Card>
           </div>

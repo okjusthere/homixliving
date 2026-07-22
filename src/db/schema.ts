@@ -123,6 +123,8 @@ export const rentalDeals = sqliteTable("rental_deals", {
   renewalStatus: text("renewal_status"), // null | 'pending' | 'renewing' | 'moving_out' | 'renewed' | 'lost'
   renewalNotedAt: text("renewal_noted_at"),
   renewedToDealId: integer("renewed_to_rental_deal_id"), // FK to rental_deals.id once renewal closes
+  // 登单人 — the signed-in account that entered this deal.
+  createdByEmail: text("created_by_email"),
   createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
   updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
 });
@@ -180,6 +182,8 @@ export const saleDeals = sqliteTable("sale_deals", {
   escrowHolder: text("escrow_holder"),
   source: text("source"),
   notes: text("notes"),
+  // 登单人 — the signed-in account that entered this deal.
+  createdByEmail: text("created_by_email"),
   createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
   updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
 });

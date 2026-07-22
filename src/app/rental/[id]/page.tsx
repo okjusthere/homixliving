@@ -35,6 +35,7 @@ const M = {
     building: "Building",
     unit: "Unit",
     tenant: "Tenant",
+    enteredBy: "Entered by",
     address: "Address",
     leaseDetails: "Lease Details",
     moveIn: "Move-in",
@@ -97,6 +98,7 @@ const M = {
     building: "楼盘",
     unit: "单元",
     tenant: "租客",
+    enteredBy: "登单人",
     address: "地址",
     leaseDetails: "租约详情",
     moveIn: "入住",
@@ -339,6 +341,7 @@ export default function DealDetailPage() {
                 <SoftField label={t.unit} value={deal.unit} mono />
                 <SoftField label={t.tenant} value={deal.tenantName} />
                 <SoftField label={t.address} value={deal.apartmentAddress || building.billToAddress || "—"} />
+                <SoftField label={t.enteredBy} value={deal.createdByEmail || "—"} mono />
               </div>
             </Card>
             <Card>
