@@ -376,6 +376,35 @@ async function renameColumnIfNeeded(
     )
   `);
 
+  // Per-invoice charge ledger (subscription renewals + first payments).
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS commerce_charges (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      commerce_order_id INTEGER REFERENCES commerce_orders(id) ON DELETE SET NULL,
+      stripe_invoice_id TEXT NOT NULL UNIQUE,
+      stripe_subscription_id TEXT,
+      stripe_customer_id TEXT,
+      amount_cents INTEGER NOT NULL,
+      currency TEXT NOT NULL DEFAULT 'usd',
+      status TEXT NOT NULL,
+      product_name TEXT,
+      customer_email TEXT,
+      customer_name TEXT,
+      period_start TEXT,
+      period_end TEXT,
+      paid_at TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await client.execute(`
+    CREATE INDEX IF NOT EXISTS idx_commerce_charges_paid_at
+      ON commerce_charges(paid_at DESC)
+  `);
+  await client.execute(`
+    CREATE INDEX IF NOT EXISTS idx_commerce_charges_subscription
+      ON commerce_charges(stripe_subscription_id)
+  `);
+
   // agents.email must be UNIQUE: the sign-in upsert uses
   // onConflictDoNothing(target: email), which ERRORS on SQLite without a
   // matching constraint. Production got it from the original drizzle push;

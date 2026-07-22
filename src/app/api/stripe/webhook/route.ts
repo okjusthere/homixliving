@@ -2,7 +2,7 @@ import type Stripe from "stripe";
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { commerceOrders, stripeEvents, type CommerceOrder } from "@/db/schema";
+import { commerceCharges, commerceOrders, stripeEvents, type CommerceOrder } from "@/db/schema";
 import { getStripe, getStripeWebhookSecret, stripeId } from "@/lib/stripe";
 import { provisionWorkspaceForOrder, suspendWorkspaceForOrder } from "@/lib/google-workspace";
 
@@ -125,11 +125,55 @@ async function handleCheckoutExpired(session: Stripe.Checkout.Session): Promise<
   return order.id;
 }
 
+function epochToIso(v: unknown): string | null {
+  return typeof v === "number" && v > 0 ? new Date(v * 1000).toISOString() : null;
+}
+
+/**
+ * One ledger row per Stripe invoice, idempotent on stripe_invoice_id (webhook
+ * retries and the admin backfill can both write it safely). Recorded even
+ * when no local order matches — reconciliation must never drop money.
+ */
+async function recordInvoiceCharge(
+  invoice: Stripe.Invoice,
+  status: "paid" | "failed",
+  order: CommerceOrder | null,
+) {
+  if (!invoice.id) return;
+  const transitions = invoice.status_transitions as { paid_at?: number | null } | null;
+  const values = {
+    orderId: order?.id ?? null,
+    stripeInvoiceId: invoice.id,
+    stripeSubscriptionId: invoiceSubscriptionId(invoice),
+    stripeCustomerId: stripeId(invoice.customer),
+    amountCents: status === "paid" ? invoice.amount_paid : invoice.amount_due,
+    currency: invoice.currency || "usd",
+    status,
+    productName: order?.productName ?? invoice.lines?.data?.[0]?.description ?? null,
+    customerEmail: invoice.customer_email ?? order?.customerEmail ?? null,
+    customerName: invoice.customer_name ?? order?.customerName ?? null,
+    periodStart: epochToIso(invoice.period_start),
+    periodEnd: epochToIso(invoice.period_end),
+    paidAt: status === "paid" ? epochToIso(transitions?.paid_at) ?? new Date().toISOString() : null,
+  };
+  await db
+    .insert(commerceCharges)
+    .values(values)
+    .onConflictDoUpdate({
+      target: commerceCharges.stripeInvoiceId,
+      set: {
+        status: values.status,
+        amountCents: values.amountCents,
+        paidAt: values.paidAt,
+        orderId: values.orderId,
+      },
+    });
+}
+
 async function handleInvoicePaid(invoice: Stripe.Invoice): Promise<number | null> {
   const subscriptionId = invoiceSubscriptionId(invoice);
-  if (!subscriptionId) return null;
-
-  const order = await findOrderBySubscription(subscriptionId);
+  const order = subscriptionId ? await findOrderBySubscription(subscriptionId) : null;
+  await recordInvoiceCharge(invoice, "paid", order);
   if (!order) return null;
 
   const now = new Date().toISOString();
@@ -151,9 +195,8 @@ async function handleInvoicePaid(invoice: Stripe.Invoice): Promise<number | null
 
 async function handleInvoiceFailed(invoice: Stripe.Invoice): Promise<number | null> {
   const subscriptionId = invoiceSubscriptionId(invoice);
-  if (!subscriptionId) return null;
-
-  const order = await findOrderBySubscription(subscriptionId);
+  const order = subscriptionId ? await findOrderBySubscription(subscriptionId) : null;
+  await recordInvoiceCharge(invoice, "failed", order);
   if (!order) return null;
 
   await db

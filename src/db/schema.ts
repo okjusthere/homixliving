@@ -326,6 +326,31 @@ export const commerceOrders = sqliteTable("commerce_orders", {
   updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
 });
 
+// Every real money movement on a commerce order — one row per Stripe
+// invoice (idempotent on stripe_invoice_id). Subscription renewals arrive via
+// the invoice webhooks; history can be re-pulled with
+// /api/admin/sync-stripe-invoices. One-time (non-invoice) payments live on
+// commerce_orders only, so reconciliation reads BOTH sources.
+export const commerceCharges = sqliteTable("commerce_charges", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  orderId: integer("commerce_order_id").references(() => commerceOrders.id, {
+    onDelete: "set null",
+  }),
+  stripeInvoiceId: text("stripe_invoice_id").notNull().unique(),
+  stripeSubscriptionId: text("stripe_subscription_id"),
+  stripeCustomerId: text("stripe_customer_id"),
+  amountCents: integer("amount_cents").notNull(),
+  currency: text("currency").notNull().default("usd"),
+  status: text("status").notNull(), // paid | failed | open | void | uncollectible
+  productName: text("product_name"),
+  customerEmail: text("customer_email"),
+  customerName: text("customer_name"),
+  periodStart: text("period_start"),
+  periodEnd: text("period_end"),
+  paidAt: text("paid_at"),
+  createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
+});
+
 export const stripeEvents = sqliteTable("stripe_events", {
   id: text("id").primaryKey(),
   type: text("type").notNull(),
@@ -424,6 +449,7 @@ export type NewResource = typeof resources.$inferInsert;
 export type ChecklistItem = typeof checklistItems.$inferSelect;
 export type NewChecklistItem = typeof checklistItems.$inferInsert;
 export type CommerceOrder = typeof commerceOrders.$inferSelect;
+export type CommerceCharge = typeof commerceCharges.$inferSelect;
 export type NewCommerceOrder = typeof commerceOrders.$inferInsert;
 export type StripeEvent = typeof stripeEvents.$inferSelect;
 export type NewStripeEvent = typeof stripeEvents.$inferInsert;

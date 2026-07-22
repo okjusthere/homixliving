@@ -9,8 +9,8 @@
  * MARKER: bump `LATEST_COLUMN` whenever ensure-schema gains a new
  * table/column, so fresh deploys detect the gap.
  */
-const LATEST_TABLE = "rental_deals";
-const LATEST_COLUMN = "created_by_email";
+const LATEST_TABLE = "commerce_charges";
+const LATEST_COLUMN = "stripe_invoice_id";
 
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
