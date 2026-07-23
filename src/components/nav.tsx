@@ -19,6 +19,7 @@ const navItems = [
   { href: "/onboarding", key: "onboarding", adminOnly: false },
   { href: "/buyercoach", key: "coach", adminOnly: false },
   { href: "/offer", key: "offer", adminOnly: false },
+  { href: "/profile", key: "profile", adminOnly: false },
   { href: "/agents", key: "agents", adminOnly: true },
   { href: "/teams", key: "teams", adminOnly: true },
   { href: "/reports", key: "reports", adminOnly: true },
