@@ -31,6 +31,7 @@ const M = {
     split: "split",
     unassigned: "Unassigned",
     edit: "Edit",
+    editPublic: "Public profile",
     deactivate: "Deactivate",
     mtdRental: "MTD Rental",
     mtdTake: "MTD Take",
@@ -78,6 +79,7 @@ const M = {
     split: "分成",
     unassigned: "未分配",
     edit: "编辑",
+    editPublic: "对外主页",
     deactivate: "停用",
     mtdRental: "本月租赁",
     mtdTake: "本月收入",
@@ -260,6 +262,9 @@ export default function AgentDetailPage() {
               </span>
               <Btn variant="outline" icon={<Icons.Edit />} onClick={() => setEditAgent(agent)}>
                 {t.edit}
+              </Btn>
+              <Btn variant="outline" onClick={() => router.push(`/profile/public?agentId=${agent.id}`)}>
+                {t.editPublic}
               </Btn>
               <Btn variant="danger" icon={<Icons.Trash />} onClick={handleDelete}>
                 {t.deactivate}

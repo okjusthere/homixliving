@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { agentPaymentProfiles, agentPayouts, agents } from "@/db/schema";
@@ -65,6 +66,23 @@ export default async function ProfilePage() {
   return (
     <div className="space-y-7">
       <PageHeader eyebrow={t.eyebrow} title={t.title} description={t.description} />
+      <Link
+        href="/profile/public"
+        className="flex items-center justify-between gap-4 rounded-xl px-5 py-4 transition-colors hover:bg-[#FAF7F0]"
+        style={{ background: "#FCFAF5", border: "1px solid #E4DED2" }}
+      >
+        <div>
+          <div className="font-serif" style={{ fontSize: 17, color: "#1A1814" }}>
+            对外主页 · Public profile
+          </div>
+          <div className="mt-0.5 text-[12.5px]" style={{ color: "#7A756C" }}>
+            编辑访客在 www.homixny.com 上看到的照片、简介、评价——直接同步,无需管理员链接。
+          </div>
+        </div>
+        <span aria-hidden style={{ color: "#5C6B3A", fontSize: 18 }}>
+          →
+        </span>
+      </Link>
       <ProfileClient agent={agent ?? null} profile={safeProfile} payouts={payouts} />
     </div>
   );
