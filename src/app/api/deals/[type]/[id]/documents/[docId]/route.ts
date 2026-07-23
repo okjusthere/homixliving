@@ -36,7 +36,7 @@ export async function DELETE(
         eq(dealDocuments.dealId, dealId)
       )
     )
-    .get();
+    .then((rows) => rows[0]);
   if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   // Remove the object first; if that fails we keep the row so the file stays

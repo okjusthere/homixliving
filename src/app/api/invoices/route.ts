@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const { buildingId, unit, tenantName, agentEmail, agentName, agentPhone, apartmentAddress, moveInDate, licensedCompany, year, lineItems, notes } = body;
 
-  const building = await db.select().from(buildings).where(eq(buildings.id, buildingId)).get();
+  const building = await db.select().from(buildings).where(eq(buildings.id, buildingId)).then((rows) => rows[0]);
   if (!building) {
     return NextResponse.json({ error: "Building not found" }, { status: 404 });
   }

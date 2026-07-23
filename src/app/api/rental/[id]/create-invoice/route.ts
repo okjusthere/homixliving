@@ -24,7 +24,7 @@ export async function POST(
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
 
-  const deal = await db.select().from(deals).where(eq(deals.id, parsedId)).get();
+  const deal = await db.select().from(deals).where(eq(deals.id, parsedId)).then((rows) => rows[0]);
   if (!deal) return NextResponse.json({ error: "Deal not found" }, { status: 404 });
 
   if (deal.status === "cancelled") {
@@ -38,7 +38,7 @@ export async function POST(
   }
 
   const [building, primaryRow] = await Promise.all([
-    db.select().from(buildings).where(eq(buildings.id, deal.buildingId)).get(),
+    db.select().from(buildings).where(eq(buildings.id, deal.buildingId)).then((rows) => rows[0]),
     db
       .select({
         dealAgent: dealAgents,
@@ -47,7 +47,7 @@ export async function POST(
       .from(dealAgents)
       .innerJoin(agents, eq(agents.id, dealAgents.agentId))
       .where(and(eq(dealAgents.dealId, deal.id), eq(dealAgents.isPrimary, true)))
-      .get(),
+      .then((rows) => rows[0]),
   ]);
   if (!building) return NextResponse.json({ error: "Building not found" }, { status: 404 });
   if (!primaryRow) return NextResponse.json({ error: "Primary agent not found" }, { status: 404 });

@@ -49,7 +49,7 @@ export async function GET(
         eq(dealDocuments.dealId, dealId)
       )
     )
-    .get();
+    .then((rows) => rows[0]);
   if (!doc?.objectKey) {
     return NextResponse.json({ error: "Document not found" }, { status: 404 });
   }

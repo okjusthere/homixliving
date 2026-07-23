@@ -70,15 +70,11 @@ async function loadLibrary() {
   try {
     return await queryLibrary();
   } catch {
-    const [{ createClient }, { ensureSchema }] = await Promise.all([
-      import("@libsql/client"),
+    const [{ pgClient }, { ensureSchema }] = await Promise.all([
+      import("@/db"),
       import("@/db/ensure-schema"),
     ]);
-    const client = createClient({
-      url: process.env.TURSO_DATABASE_URL || "file:local.db",
-      authToken: process.env.TURSO_AUTH_TOKEN,
-    });
-    await ensureSchema(client);
+    await ensureSchema(pgClient);
     return queryLibrary();
   }
 }

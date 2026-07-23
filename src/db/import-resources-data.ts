@@ -8,9 +8,9 @@
  * Callers: scripts/import-resources.ts (CLI) and
  * /api/admin/import-resources (production, where Turso credentials live).
  */
-import type { Client } from "@libsql/client";
+import type { Sql } from "postgres";
 import { and, eq } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/libsql";
+import { drizzle } from "drizzle-orm/postgres-js";
 import * as schema from "./schema";
 import { checklistItems, resources } from "./schema";
 import { ensureSchema } from "./ensure-schema";
@@ -493,7 +493,7 @@ export interface ImportSummary {
   checklistSkipped: number;
 }
 
-export async function runResourcesImport(client: Client): Promise<ImportSummary> {
+export async function runResourcesImport(client: Sql): Promise<ImportSummary> {
   // Schema first, so one call works on a fresh database too.
   await ensureSchema(client);
   const db = drizzle(client, { schema });

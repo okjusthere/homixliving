@@ -1,30 +1,31 @@
-import { drizzle } from "drizzle-orm/libsql";
-import { createClient } from "@libsql/client";
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
 import * as schema from "./schema";
 
-// In production, refuse to silently fall back to an ephemeral on-disk SQLite
-// file: on a serverless host `file:local.db` lives on the instance's throwaway
-// disk, so every write (deals, invoices, orders) vanishes when the instance
-// recycles — with no error to signal it. Fail fast at runtime instead.
+// Supabase Postgres. In production DATABASE_URL must point at the Supabase
+// pooler (transaction mode) — refuse to boot without it rather than silently
+// writing to a local database. Fail fast at runtime, but exempt the build
+// phase: `next build` runs with NODE_ENV=production before runtime env is
+// injected, and page-data collection imports this module.
 //
-// Exempt the build phase: `next build` runs with NODE_ENV=production but env
-// vars like TURSO_DATABASE_URL aren't injected until runtime, and page-data
-// collection imports this module. A throw here would break the build; the
-// fallback is harmless during build (no real writes happen).
+// Local dev/E2E runs against the throwaway Postgres on :5499
+// (initdb'd per-machine; see the pg-migration runbook).
+const LOCAL_DEV_URL = "postgres://postgres@localhost:5499/homixliving";
+
+const url = process.env.DATABASE_URL?.trim() || "";
 const isBuildPhase = process.env.NEXT_PHASE === "phase-production-build";
-if (
-  process.env.NODE_ENV === "production" &&
-  !isBuildPhase &&
-  !process.env.TURSO_DATABASE_URL?.trim()
-) {
+if (process.env.NODE_ENV === "production" && !isBuildPhase && !url) {
   throw new Error(
-    "TURSO_DATABASE_URL is required in production. Refusing to fall back to the ephemeral file:local.db."
+    "DATABASE_URL is required in production. Refusing to fall back to a local database."
   );
 }
 
-const client = createClient({
-  url: process.env.TURSO_DATABASE_URL || "file:local.db",
-  authToken: process.env.TURSO_AUTH_TOKEN,
+// Supabase's transaction-mode pooler (pgbouncer) does not support prepared
+// statements — `prepare: false` is required there and harmless locally.
+export const pgClient = postgres(url || LOCAL_DEV_URL, {
+  prepare: false,
+  max: 5,
+  onnotice: () => {},
 });
 
-export const db = drizzle(client, { schema });
+export const db = drizzle(pgClient, { schema });

@@ -1,22 +1,25 @@
-import { createClient } from "@libsql/client";
+import postgres from "postgres";
 
 async function main() {
-  const client = createClient({
-    url: process.env.TURSO_DATABASE_URL!,
-    authToken: process.env.TURSO_AUTH_TOKEN,
-  });
+  const url =
+    process.env.DATABASE_URL?.trim() || "postgres://postgres@localhost:5499/homixliving";
+  const sql = postgres(url, { prepare: false, max: 1, onnotice: () => {} });
 
-  const tables = await client.execute(
-    "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
-  );
-  const names = tables.rows.map((row) => String(row.name));
-  console.log(`Tables (${names.length}): ${names.join(", ")}`);
+  const tables = await sql`
+    SELECT table_name FROM information_schema.tables
+    WHERE table_schema = 'portal' ORDER BY table_name`;
+  const names = tables.map((row) => String(row.table_name));
+  console.log(`portal tables (${names.length}): ${names.join(", ")}`);
 
-  // Keep in sync with the CREATE TABLE statements in src/db/seed.ts.
+  // Keep in sync with src/db/ensure-schema.ts.
   const expected = [
+    "agent_payment_profiles",
+    "agent_payouts",
     "agents",
     "audit_log",
     "buildings",
+    "checklist_items",
+    "commerce_charges",
     "commerce_orders",
     "deal_documents",
     "invoice_send_log",
@@ -30,31 +33,31 @@ async function main() {
     "settings",
     "stripe_events",
     "teams",
+    "training_video_views",
     "training_videos",
   ];
   const missing = expected.filter((t) => !names.includes(t));
-  const extra = names.filter(
-    (t) => !expected.includes(t) && !t.startsWith("sqlite_")
-  );
+  const extra = names.filter((t) => !expected.includes(t));
   if (missing.length) console.error("MISSING:", missing.join(", "));
   if (extra.length) console.warn("EXTRA (legacy?):", extra.join(", "));
 
-  const agentsDdl = await client.execute(
-    "SELECT sql FROM sqlite_master WHERE type='table' AND name='agents'"
-  );
-  const ddl = String(agentsDdl.rows[0]?.sql ?? "");
-  console.log("\n--- agents CREATE TABLE ---");
-  console.log(ddl);
-
+  const agentCols = await sql`
+    SELECT column_name FROM information_schema.columns
+    WHERE table_schema = 'portal' AND table_name = 'agents'`;
+  const cols = agentCols.map((row) => String(row.column_name));
+  console.log("\n--- portal.agents columns ---");
+  console.log(cols.join(", "));
   console.log("\n--- checks ---");
-  console.log("has is_admin :", ddl.includes("is_admin"));
-  console.log("has is_active:", ddl.includes("is_active"));
-  console.log("has user_id  :", ddl.includes("user_id"), "(should be false)");
+  console.log("has is_admin :", cols.includes("is_admin"));
+  console.log("has is_active:", cols.includes("is_active"));
+  console.log("has user_id  :", cols.includes("user_id"), "(should be false)");
 
-  const counts = await client.execute(
-    "SELECT (SELECT COUNT(*) FROM buildings) AS buildings, (SELECT COUNT(*) FROM settings) AS settings, (SELECT COUNT(*) FROM agents) AS agents"
-  );
-  console.log("\nrow counts:", counts.rows[0]);
+  const counts = await sql`
+    SELECT (SELECT COUNT(*) FROM portal.buildings) AS buildings,
+           (SELECT COUNT(*) FROM portal.settings) AS settings,
+           (SELECT COUNT(*) FROM portal.agents) AS agents`;
+  console.log("\nrow counts:", counts[0]);
+  await sql.end({ timeout: 2 });
 }
 
 main().catch((err) => {

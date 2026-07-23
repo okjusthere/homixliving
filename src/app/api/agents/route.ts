@@ -13,6 +13,7 @@ import {
 } from "@/lib/reporting";
 import { DEFAULT_AGENT_SPLIT_PCT } from "@/lib/splits";
 import { logAudit } from "@/lib/audit";
+import { syncPublicAgentProfile } from "@/lib/sync-public-profile";
 
 const AGENT_APPROVAL_STATUSES = ["pending", "approved", "ignored", "revoked"] as const;
 
@@ -178,7 +179,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Split must be between 0 and 100" }, { status: 400 });
     }
     if (data.teamId) {
-      const team = await db.select().from(teams).where(eq(teams.id, data.teamId)).get();
+      const team = await db.select().from(teams).where(eq(teams.id, data.teamId)).then((rows) => rows[0]);
       if (!team) return NextResponse.json({ error: "Team not found" }, { status: 404 });
     }
 
@@ -206,7 +207,7 @@ export async function PUT(req: NextRequest) {
     // the full agent object, so don't reject when isAdmin is merely present —
     // cleanAdminAgentPayload silently drops it from the writable set below.
 
-    const existing = await db.select().from(agents).where(eq(agents.id, id)).get();
+    const existing = await db.select().from(agents).where(eq(agents.id, id)).then((rows) => rows[0]);
     if (!existing) return NextResponse.json({ error: "Agent not found" }, { status: 404 });
 
     if (body.email !== undefined && normalizeEmail(body.email) !== existing.email.toLowerCase()) {
@@ -274,7 +275,7 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "Split must be between 0 and 100" }, { status: 400 });
     }
     if ("teamId" in data && data.teamId) {
-      const team = await db.select().from(teams).where(eq(teams.id, data.teamId)).get();
+      const team = await db.select().from(teams).where(eq(teams.id, data.teamId)).then((rows) => rows[0]);
       if (!team) return NextResponse.json({ error: "Team not found" }, { status: 404 });
     }
 
@@ -287,6 +288,14 @@ export async function PUT(req: NextRequest) {
       `更新经纪人 ${updated.name} (#${id})`,
       data
     );
+    // Same database as the marketing site now — mirror the shared identity
+    // fields onto the public roster and nudge its cache. Best-effort.
+    await syncPublicAgentProfile({
+      email: updated.email,
+      name: updated.name,
+      phone: updated.phone,
+      licenseNumber: updated.licenseNumber,
+    });
     return NextResponse.json(updated);
   } catch {
     return NextResponse.json({ error: "Agent update failed" }, { status: 500 });

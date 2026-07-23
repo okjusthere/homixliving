@@ -136,7 +136,7 @@ export async function POST(
     .select(documentFields)
     .from(dealDocuments)
     .where(eq(dealDocuments.objectKey, objectKey))
-    .get();
+    .then((rows) => rows[0]);
   if (existing) return NextResponse.json(existing);
 
   try {

@@ -22,7 +22,7 @@ export async function GET(
     .from(invoices)
     .leftJoin(buildings, eq(invoices.buildingId, buildings.id))
     .where(eq(invoices.id, Number(id)))
-    .get();
+    .then((rows) => rows[0]);
 
   if (!result) {
     return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
@@ -62,7 +62,7 @@ export async function DELETE(
   if ("error" in authResult) return authResult.error;
 
   const { id } = await params;
-  const invoice = await db.select().from(invoices).where(eq(invoices.id, Number(id))).get();
+  const invoice = await db.select().from(invoices).where(eq(invoices.id, Number(id))).then((rows) => rows[0]);
   if (!invoice) return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
   // Deleting a financial record requires EDIT rights, not just view — team-leader
   // read access must not grant deletion of a team member's invoice.

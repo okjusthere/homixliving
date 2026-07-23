@@ -70,11 +70,11 @@ async function validateDealUpdate({
     return { error: "Agent shares must sum to 100" };
   }
 
-  const building = await db.select().from(buildings).where(eq(buildings.id, buildingId)).get();
+  const building = await db.select().from(buildings).where(eq(buildings.id, buildingId)).then((rows) => rows[0]);
   if (!building) return { error: "Building not found", status: 404 };
 
   const agentRows = await Promise.all(
-    payloadAgents.map((agent) => db.select().from(agents).where(eq(agents.id, agent.agentId)).get())
+    payloadAgents.map((agent) => db.select().from(agents).where(eq(agents.id, agent.agentId)).then((rows) => rows[0]))
   );
   if (agentRows.some((agent) => !agent)) {
     return { error: "Every deal agent must exist", status: 404 };
@@ -123,11 +123,11 @@ async function validateDealUpdate({
 }
 
 async function serializeDeal(id: number) {
-  const deal = await db.select().from(deals).where(eq(deals.id, id)).get();
+  const deal = await db.select().from(deals).where(eq(deals.id, id)).then((rows) => rows[0]);
   if (!deal) return null;
 
   const [building, participantRows, linkedInvoices] = await Promise.all([
-    db.select().from(buildings).where(eq(buildings.id, deal.buildingId)).get(),
+    db.select().from(buildings).where(eq(buildings.id, deal.buildingId)).then((rows) => rows[0]),
     db
       .select({
         dealAgent: dealAgents,
@@ -193,7 +193,7 @@ export async function PUT(
 
   try {
     const body = await req.json();
-    const existing = await db.select().from(deals).where(eq(deals.id, parsedId)).get();
+    const existing = await db.select().from(deals).where(eq(deals.id, parsedId)).then((rows) => rows[0]);
     if (!existing) return NextResponse.json({ error: "Deal not found" }, { status: 404 });
 
     const result = await validateDealUpdate({
@@ -205,19 +205,19 @@ export async function PUT(
       return NextResponse.json({ error: result.error }, { status: result.status || 400 });
     }
 
-    await db.batch([
-      db.update(deals).set(result.data).where(eq(deals.id, parsedId)),
-      db.delete(dealAgents).where(eq(dealAgents.dealId, parsedId)),
-      ...result.agents.map((agent) =>
-        db.insert(dealAgents).values({
+    await db.transaction(async (tx) => {
+      await tx.update(deals).set(result.data).where(eq(deals.id, parsedId));
+      await tx.delete(dealAgents).where(eq(dealAgents.dealId, parsedId));
+      for (const agent of result.agents) {
+        await tx.insert(dealAgents).values({
           dealId: parsedId,
           agentId: agent.agentId,
           sharePct: agent.sharePct,
           isPrimary: agent.isPrimary,
           createdAt: new Date().toISOString(),
-        })
-      ),
-    ]);
+        });
+      }
+    });
 
     await logAudit(
       authResult.session,

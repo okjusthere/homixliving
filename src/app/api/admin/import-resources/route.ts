@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@libsql/client";
 import { auth } from "@/auth";
 import { runResourcesImport } from "@/db/import-resources-data";
 import { logAudit } from "@/lib/audit";
+import { pgClient } from "@/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -38,15 +38,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
 
-  const url = process.env.TURSO_DATABASE_URL?.trim();
-  const client = createClient({
-    // Local dev has no Turso env — fall back to the same file the app uses.
-    url: url || "file:local.db",
-    authToken: process.env.TURSO_AUTH_TOKEN,
-  });
-
   try {
-    const summary = await runResourcesImport(client);
+    const summary = await runResourcesImport(pgClient);
     await logAudit(
       { user: { email: authz.actor } },
       "import",

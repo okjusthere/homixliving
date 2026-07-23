@@ -26,9 +26,11 @@ export async function GET(req: NextRequest) {
   const q = (req.nextUrl.searchParams.get("q") || "").trim();
   if (q.length < 1) return NextResponse.json({ results: [] });
   // Escape LIKE wildcards in user input so "50%" doesn't match everything.
+  // ILIKE: Postgres LIKE is case-sensitive (SQLite's wasn't) — keep the old
+  // case-insensitive search behavior.
   const escaped = q.replace(/[\\%_]/g, (m) => `\\${m}`);
   const pattern = `%${escaped}%`;
-  const matches = (col: unknown) => sql`${col} LIKE ${pattern} ESCAPE '\\'`;
+  const matches = (col: unknown) => sql`${col} ILIKE ${pattern} ESCAPE '\\'`;
 
   const rentalVisibility = dealsVisibleToSql(session);
   const saleVisibility = saleDealsVisibleToSql(session);

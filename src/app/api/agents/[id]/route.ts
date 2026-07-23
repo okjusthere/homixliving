@@ -26,7 +26,7 @@ export async function GET(
     .from(agents)
     .leftJoin(teams, eq(agents.teamId, teams.id))
     .where(eq(agents.id, parsedId))
-    .get();
+    .then((rows) => rows[0]);
 
   if (!result) {
     return NextResponse.json({ error: "Agent not found" }, { status: 404 });

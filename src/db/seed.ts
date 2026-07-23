@@ -1,17 +1,11 @@
-import { createClient } from "@libsql/client";
 import { eq } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/libsql";
 import * as schema from "./schema";
 import { agents, buildings, settings, teams } from "./schema";
 import { DEFAULT_INVOICE_SETTINGS } from "../lib/invoice-settings";
 import { ensureSchema } from "./ensure-schema";
 
-const client = createClient({
-  url: process.env.TURSO_DATABASE_URL || "file:local.db",
-  authToken: process.env.TURSO_AUTH_TOKEN,
-});
-
-const db = drizzle(client, { schema });
+import { db, pgClient } from "./index";
+void schema;
 
 // ============================================================
 // 汇总 Sheet — 所有大楼数据（350+ buildings from Google Sheets）
@@ -3258,29 +3252,27 @@ const demoAgents: Array<Omit<schema.NewAgent, "teamId"> & { teamName: string }> 
 ];
 
 async function ensureTeam(team: schema.NewTeam) {
-  const existing = await db.select().from(teams).where(eq(teams.name, team.name)).get();
+  const existing = await db.select().from(teams).where(eq(teams.name, team.name)).then((rows) => rows[0]);
   if (existing) return existing;
   const [created] = await db.insert(teams).values(team).returning();
   return created;
 }
 
 async function ensureAgent(agent: schema.NewAgent) {
-  const existing = await db.select().from(agents).where(eq(agents.email, agent.email)).get();
+  const existing = await db.select().from(agents).where(eq(agents.email, agent.email)).then((rows) => rows[0]);
   if (existing) return existing;
   const [created] = await db.insert(agents).values(agent).returning();
   return created;
 }
 
 async function seed() {
-  await ensureSchema(client);
+  await ensureSchema(pgClient);
 
   // Buildings are seeded once on initial deploy. After that, additions/edits
   // happen through the Buildings admin UI. Re-running the seed should NOT
   // duplicate the catalog — bail early if the table is already populated.
-  const existingBuildingsCount = await client.execute(
-    "SELECT COUNT(*) AS count FROM buildings"
-  );
-  const buildingsCount = Number(existingBuildingsCount.rows[0]?.count ?? 0);
+  const existingBuildingsCount = await pgClient`SELECT COUNT(*) AS count FROM portal.buildings`;
+  const buildingsCount = Number(existingBuildingsCount[0]?.count ?? 0);
   if (buildingsCount > 0) {
     console.log(
       `Buildings table already populated (${buildingsCount} rows) — skipping building insert. Use the admin UI to add new buildings.`

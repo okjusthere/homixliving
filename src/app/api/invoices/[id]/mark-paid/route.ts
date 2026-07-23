@@ -20,7 +20,7 @@ export async function POST(
     .select()
     .from(invoices)
     .where(eq(invoices.id, Number(id)))
-    .get();
+    .then((rows) => rows[0]);
 
   if (!invoice) {
     return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
@@ -97,7 +97,7 @@ export async function DELETE(
 
   // Undo "mark as paid" — revert to sent
   const { id } = await params;
-  const invoice = await db.select().from(invoices).where(eq(invoices.id, Number(id))).get();
+  const invoice = await db.select().from(invoices).where(eq(invoices.id, Number(id))).then((rows) => rows[0]);
   if (!invoice) return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
   await db
     .update(invoices)

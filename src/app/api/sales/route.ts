@@ -95,7 +95,7 @@ async function cleanSalePayload(
   }
 
   const agentRows = await Promise.all(
-    payloadAgents.map((agent) => db.select().from(agents).where(eq(agents.id, agent.agentId)).get())
+    payloadAgents.map((agent) => db.select().from(agents).where(eq(agents.id, agent.agentId)).then((rows) => rows[0]))
   );
   if (agentRows.some((agent) => !agent)) {
     return { error: "Every sale agent must exist", status: 404 };
@@ -219,28 +219,26 @@ export async function POST(req: NextRequest) {
     }
 
     const now = new Date().toISOString();
-    const batchResult = await db.batch([
-      db
+    const created = await db.transaction(async (tx) => {
+      const [deal] = await tx
         .insert(saleDeals)
         .values({
           ...result.data,
           createdByEmail: authResult.session.user.email ?? null,
           createdAt: now,
         })
-        .returning(),
-      ...result.agents.map((agent) =>
-        db.insert(saleDealAgents).values({
-          saleDealId: sql`(SELECT id FROM sale_deals ORDER BY id DESC LIMIT 1)`,
+        .returning();
+      for (const agent of result.agents) {
+        await tx.insert(saleDealAgents).values({
+          saleDealId: deal.id,
           agentId: agent.agentId,
           sharePct: agent.sharePct,
           isPrimary: agent.isPrimary,
           createdAt: now,
-        })
-      ),
-    ]);
-
-    const createdRows = batchResult[0] as (typeof saleDeals.$inferSelect)[];
-    const created = createdRows[0];
+        });
+      }
+      return deal;
+    });
     await logAudit(
       authResult.session,
       "create",

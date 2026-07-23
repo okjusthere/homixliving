@@ -23,7 +23,7 @@ export async function GET(
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
 
-  const deal = await db.select().from(deals).where(eq(deals.id, parsedId)).get();
+  const deal = await db.select().from(deals).where(eq(deals.id, parsedId)).then((rows) => rows[0]);
   if (!deal) return NextResponse.json({ error: "Deal not found" }, { status: 404 });
 
   const participantRows = await db

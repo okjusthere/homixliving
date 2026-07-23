@@ -20,13 +20,13 @@ export async function GET() {
       .filter((deal) => isUpcoming(deal))
       .map(async (deal) => {
         const [building, primary] = await Promise.all([
-          db.select().from(buildings).where(eq(buildings.id, deal.buildingId)).get(),
+          db.select().from(buildings).where(eq(buildings.id, deal.buildingId)).then((rows) => rows[0]),
           db
             .select({ agent: agents })
             .from(dealAgents)
             .innerJoin(agents, eq(agents.id, dealAgents.agentId))
             .where(and(eq(dealAgents.dealId, deal.id), eq(dealAgents.isPrimary, true)))
-            .get(),
+            .then((rows) => rows[0]),
         ]);
         const days = daysUntil(deal.leaseEndDate);
         return {

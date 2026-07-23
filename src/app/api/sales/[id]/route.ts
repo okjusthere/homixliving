@@ -99,7 +99,7 @@ async function validateSaleUpdate({
   }
 
   const agentRows = await Promise.all(
-    payloadAgents.map((agent) => db.select().from(agents).where(eq(agents.id, agent.agentId)).get())
+    payloadAgents.map((agent) => db.select().from(agents).where(eq(agents.id, agent.agentId)).then((rows) => rows[0]))
   );
   if (agentRows.some((agent) => !agent)) {
     return { error: "Every sale agent must exist", status: 404 };
@@ -148,7 +148,7 @@ async function validateSaleUpdate({
 }
 
 async function serializeSaleDeal(id: number) {
-  const saleDeal = await db.select().from(saleDeals).where(eq(saleDeals.id, id)).get();
+  const saleDeal = await db.select().from(saleDeals).where(eq(saleDeals.id, id)).then((rows) => rows[0]);
   if (!saleDeal) return null;
 
   const participantRows = await db
@@ -207,7 +207,7 @@ export async function PUT(
 
   try {
     const body = await req.json();
-    const existing = await db.select().from(saleDeals).where(eq(saleDeals.id, parsedId)).get();
+    const existing = await db.select().from(saleDeals).where(eq(saleDeals.id, parsedId)).then((rows) => rows[0]);
     if (!existing) return NextResponse.json({ error: "Sale not found" }, { status: 404 });
 
     const result = await validateSaleUpdate({ body, existing, session: authResult.session });
@@ -215,19 +215,19 @@ export async function PUT(
       return NextResponse.json({ error: result.error }, { status: result.status || 400 });
     }
 
-    await db.batch([
-      db.update(saleDeals).set(result.data).where(eq(saleDeals.id, parsedId)),
-      db.delete(saleDealAgents).where(eq(saleDealAgents.saleDealId, parsedId)),
-      ...result.agents.map((agent) =>
-        db.insert(saleDealAgents).values({
+    await db.transaction(async (tx) => {
+      await tx.update(saleDeals).set(result.data).where(eq(saleDeals.id, parsedId));
+      await tx.delete(saleDealAgents).where(eq(saleDealAgents.saleDealId, parsedId));
+      for (const agent of result.agents) {
+        await tx.insert(saleDealAgents).values({
           saleDealId: parsedId,
           agentId: agent.agentId,
           sharePct: agent.sharePct,
           isPrimary: agent.isPrimary,
           createdAt: new Date().toISOString(),
-        })
-      ),
-    ]);
+        });
+      }
+    });
 
     await logAudit(
       authResult.session,

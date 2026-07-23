@@ -20,7 +20,7 @@ export async function GET(
     .from(invoices)
     .leftJoin(buildings, eq(invoices.buildingId, buildings.id))
     .where(eq(invoices.id, Number(id)))
-    .get();
+    .then((rows) => rows[0]);
 
   if (!result || !result.building) {
     return NextResponse.json({ error: "Invoice not found" }, { status: 404 });

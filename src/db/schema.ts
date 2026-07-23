@@ -1,15 +1,30 @@
+// Postgres (Supabase) schema. All portal tables live in the dedicated
+// "portal" Postgres schema so they can share one database with the marketing
+// site's public.* tables (agents, inquiries) without name collisions.
+//
+// Porting notes from the original SQLite schema:
+// - integer-boolean columns became real booleans
+// - autoincrement ids became BY DEFAULT identities (imports may set ids)
+// - all date/time columns stay TEXT ISO strings — application code treats
+//   them as strings everywhere; changing to timestamptz would be a silent
+//   behavior change across every comparison and slice()
 import {
-  sqliteTable,
+  pgSchema,
+  pgTable,
   text,
   integer,
-  real,
+  doublePrecision,
+  boolean,
+  jsonb,
   primaryKey,
   uniqueIndex,
-  type AnySQLiteColumn,
-} from "drizzle-orm/sqlite-core";
+  type AnyPgColumn,
+} from "drizzle-orm/pg-core";
 
-export const buildings = sqliteTable("buildings", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const portal = pgSchema("portal");
+
+export const buildings = portal.table("buildings", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
   region: text("region").notNull(), // RI, 中城, NJ, 费城, etc.
   name: text("name").notNull(), // CRM 系统楼名
   managementCompany: text("management_company"), // Greystar, Bozzuto, NPR, etc.
@@ -20,15 +35,15 @@ export const buildings = sqliteTable("buildings", {
   billToAddress: text("bill_to_address"),
   contactEmail: text("contact_email"), // 大楼/管理公司收件邮箱
   specialNotes: text("special_notes"), // 特殊要求备注
-  isOutOfState: integer("is_out_of_state", { mode: "boolean" }).default(false),
+  isOutOfState: boolean("is_out_of_state").default(false),
   createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
   updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
 });
 
-export const invoices = sqliteTable("invoices", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const invoices = portal.table("invoices", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
   buildingId: integer("building_id").references(() => buildings.id),
-  dealId: integer("rental_deal_id").references((): AnySQLiteColumn => rentalDeals.id, {
+  dealId: integer("rental_deal_id").references((): AnyPgColumn => rentalDeals.id, {
     onDelete: "set null",
   }),
   invoiceNumber: text("invoice_number").notNull(), // Unit-楼名-年份
@@ -43,34 +58,34 @@ export const invoices = sqliteTable("invoices", {
   moveInDate: text("move_in_date"), // 入住日期
   licensedCompany: text("licensed_company").notNull(), // 持证公司
   year: integer("year").notNull().default(2026),
-  lineItems: text("line_items", { mode: "json" }).$type<LineItem[]>(),
-  totalAmount: real("total_amount").notNull(),
+  lineItems: jsonb("line_items").$type<LineItem[]>(),
+  totalAmount: doublePrecision("total_amount").notNull(),
   notes: text("notes"),
   status: text("status").notNull().default("draft"), // draft, sent, paid, failed
   sentAt: text("sent_at"),
   paidAt: text("paid_at"), // when payment received
-  paidAmount: real("paid_amount"), // actual amount received (defaults to totalAmount)
+  paidAmount: doublePrecision("paid_amount"), // actual amount received (defaults to totalAmount)
   pdfData: text("pdf_data"), // base64 encoded PDF for storage
   createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
   updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
 });
 
-export const settings = sqliteTable("settings", {
+export const settings = portal.table("settings", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),
 });
 
-export const teams = sqliteTable("teams", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const teams = portal.table("teams", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
   name: text("name").notNull(),
-  leaderAgentId: integer("leader_agent_id").references((): AnySQLiteColumn => agents.id),
+  leaderAgentId: integer("leader_agent_id").references((): AnyPgColumn => agents.id),
   notes: text("notes"),
 });
 
 export type AgentApprovalStatus = "pending" | "approved" | "ignored" | "revoked";
 
-export const agents = sqliteTable("agents", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const agents = portal.table("agents", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
   phone: text("phone"),
@@ -78,10 +93,10 @@ export const agents = sqliteTable("agents", {
   // NY licenses expire every 2 years — the reminder cron watches this date.
   licenseExpiresAt: text("license_expires_at"),
   licensedCompany: text("licensed_company"),
-  splitPct: real("split_pct").notNull().default(80),
-  teamId: integer("team_id").references((): AnySQLiteColumn => teams.id, { onDelete: "set null" }),
-  isAdmin: integer("is_admin", { mode: "boolean" }).notNull().default(false),
-  isActive: integer("is_active", { mode: "boolean" }).notNull().default(false),
+  splitPct: doublePrecision("split_pct").notNull().default(80),
+  teamId: integer("team_id").references((): AnyPgColumn => teams.id, { onDelete: "set null" }),
+  isAdmin: boolean("is_admin").notNull().default(false),
+  isActive: boolean("is_active").notNull().default(false),
   approvalStatus: text("approval_status")
     .$type<AgentApprovalStatus>()
     .notNull()
@@ -92,8 +107,8 @@ export const agents = sqliteTable("agents", {
   updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
 });
 
-export const rentalDeals = sqliteTable("rental_deals", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const rentalDeals = portal.table("rental_deals", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
   buildingId: integer("building_id")
     .notNull()
     .references(() => buildings.id),
@@ -105,13 +120,13 @@ export const rentalDeals = sqliteTable("rental_deals", {
   moveInDate: text("move_in_date"),
   leaseStartDate: text("lease_start_date"),
   leaseEndDate: text("lease_end_date"),
-  rentAmount: real("rent_amount"),
+  rentAmount: doublePrecision("rent_amount"),
   leaseLengthMonths: integer("lease_length_months"),
-  totalCommission: real("total_commission").notNull(),
+  totalCommission: doublePrecision("total_commission").notNull(),
   licensedCompany: text("licensed_company").notNull(),
   referrerName: text("referrer_name"), // free-text referral contact name
   referrerType: text("referrer_type"),
-  referrerAmount: real("referrer_amount"),
+  referrerAmount: doublePrecision("referrer_amount"),
   // Payment instructions for paying the referrer once Homix gets paid by the
   // building. Free text — typical content: "Zelle 555-0102", "ACH bank XYZ
   // routing 1234 acct 5678", "Wire to ...". Sensitive but lower stakes than
@@ -119,7 +134,7 @@ export const rentalDeals = sqliteTable("rental_deals", {
   referrerPaymentInfo: text("referrer_payment_info"),
   status: text("status").notNull().default("active"),
   dealDate: text("deal_date"),
-  source: text("source"), // 客源来源 — see DealSource in src/lib/sources.ts (xiaohongshu | tiktok | wechat_group | wechat_content | school_alumni | existing_client | cobroker | website | other)
+  source: text("source"), // 客源来源 — see DealSource in src/lib/sources.ts
   notes: text("notes"),
   // Renewal tracking — for upcoming lease-end follow-ups
   renewalStatus: text("renewal_status"), // null | 'pending' | 'renewing' | 'moving_out' | 'renewed' | 'lost'
@@ -131,7 +146,7 @@ export const rentalDeals = sqliteTable("rental_deals", {
   updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
 });
 
-export const rentalDealAgents = sqliteTable(
+export const rentalDealAgents = portal.table(
   "rental_deal_agents",
   {
     dealId: integer("rental_deal_id")
@@ -140,8 +155,8 @@ export const rentalDealAgents = sqliteTable(
     agentId: integer("agent_id")
       .notNull()
       .references(() => agents.id, { onDelete: "restrict" }),
-    sharePct: real("share_pct").notNull(),
-    isPrimary: integer("is_primary", { mode: "boolean" }).notNull().default(false),
+    sharePct: doublePrecision("share_pct").notNull(),
+    isPrimary: boolean("is_primary").notNull().default(false),
     createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
   },
   (table) => [primaryKey({ columns: [table.dealId, table.agentId] })]
@@ -151,8 +166,8 @@ export const rentalDealAgents = sqliteTable(
 export const deals = rentalDeals;
 export const dealAgents = rentalDealAgents;
 
-export const saleDeals = sqliteTable("sale_deals", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const saleDeals = portal.table("sale_deals", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
   representationType: text("representation_type").notNull(), // buyer_rep | seller_rep | dual_agency | referral
   stage: text("stage").notNull().default("pre_contract"), // pre_contract | under_contract | post_contract | closed
   status: text("status").notNull().default("active"), // active | cancelled | completed
@@ -167,10 +182,10 @@ export const saleDeals = sqliteTable("sale_deals", {
   sellerNames: text("seller_names"),
   contractDate: text("contract_date"),
   closingDate: text("closing_date"),
-  purchasePrice: real("purchase_price"),
-  grossCommission: real("gross_commission").notNull().default(0),
-  referralAmount: real("referral_amount"),
-  brokerageFee: real("brokerage_fee"),
+  purchasePrice: doublePrecision("purchase_price"),
+  grossCommission: doublePrecision("gross_commission").notNull().default(0),
+  referralAmount: doublePrecision("referral_amount"),
+  brokerageFee: doublePrecision("brokerage_fee"),
   listingAgentName: text("listing_agent_name"),
   listingAgentEmail: text("listing_agent_email"),
   listingBrokerage: text("listing_brokerage"),
@@ -190,7 +205,7 @@ export const saleDeals = sqliteTable("sale_deals", {
   updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
 });
 
-export const saleDealAgents = sqliteTable(
+export const saleDealAgents = portal.table(
   "sale_deal_agents",
   {
     saleDealId: integer("sale_deal_id")
@@ -199,8 +214,8 @@ export const saleDealAgents = sqliteTable(
     agentId: integer("agent_id")
       .notNull()
       .references(() => agents.id, { onDelete: "restrict" }),
-    sharePct: real("share_pct").notNull(),
-    isPrimary: integer("is_primary", { mode: "boolean" }).notNull().default(false),
+    sharePct: doublePrecision("share_pct").notNull(),
+    isPrimary: boolean("is_primary").notNull().default(false),
     createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
   },
   (table) => [primaryKey({ columns: [table.saleDealId, table.agentId] })]
@@ -210,8 +225,8 @@ export const saleDealAgents = sqliteTable(
 // Invoice send log — audit trail of every send attempt (success or failure).
 // Critical for "did this invoice actually go out?" + dispute reconstruction.
 // ============================================================
-export const invoiceSendLog = sqliteTable("invoice_send_log", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const invoiceSendLog = portal.table("invoice_send_log", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
   invoiceId: integer("invoice_id")
     .notNull()
     .references(() => invoices.id, { onDelete: "cascade" }),
@@ -231,23 +246,23 @@ export const invoiceSendLog = sqliteTable("invoice_send_log", {
 // Agent training videos — Cloudflare Stream UIDs + metadata, shown in the
 // gated /training section. Managed by admins; watched by all active agents.
 // ============================================================
-export const trainingVideos = sqliteTable("training_videos", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const trainingVideos = portal.table("training_videos", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
   title: text("title").notNull(),
   description: text("description"),
   category: text("category").notNull().default("General"),
   cloudflareUid: text("cloudflare_uid").notNull(),
   durationLabel: text("duration_label"), // e.g. "8 min"
   sortOrder: integer("sort_order").notNull().default(100),
-  isPublished: integer("is_published", { mode: "boolean" }).notNull().default(true),
+  isPublished: boolean("is_published").notNull().default(true),
   createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
   updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
 });
 
-export const trainingVideoViews = sqliteTable(
+export const trainingVideoViews = portal.table(
   "training_video_views",
   {
-    id: integer("id").primaryKey({ autoIncrement: true }),
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
     videoId: integer("video_id")
       .notNull()
       .references(() => trainingVideos.id, { onDelete: "cascade" }),
@@ -271,8 +286,8 @@ export const trainingVideoViews = sqliteTable(
 // Agent resource library — links to SOPs, scripts, templates, brand assets.
 // Shown in the gated /resources section; managed by admins.
 // ============================================================
-export const resources = sqliteTable("resources", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const resources = portal.table("resources", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
   title: text("title").notNull(),
   description: text("description"),
   category: text("category").notNull().default("General"),
@@ -281,7 +296,7 @@ export const resources = sqliteTable("resources", {
   // template lives in `url`). Rendered as a second button on the card.
   sampleUrl: text("sample_url"),
   sortOrder: integer("sort_order").notNull().default(100),
-  isPublished: integer("is_published", { mode: "boolean" }).notNull().default(true),
+  isPublished: boolean("is_published").notNull().default(true),
   createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
   updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
 });
@@ -290,8 +305,8 @@ export const resources = sqliteTable("resources", {
 // "new-listing-residential" → the ordered list of documents an agent must
 // submit to the office at that stage. Group keys/labels live in
 // src/lib/checklist-groups.ts; items are admin-managed rows.
-export const checklistItems = sqliteTable("checklist_items", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const checklistItems = portal.table("checklist_items", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
   groupKey: text("group_key").notNull(),
   label: text("label").notNull(),
   sortOrder: integer("sort_order").notNull().default(100),
@@ -299,8 +314,8 @@ export const checklistItems = sqliteTable("checklist_items", {
   updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
 });
 
-export const commerceOrders = sqliteTable("commerce_orders", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const commerceOrders = portal.table("commerce_orders", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
   productKey: text("product_key").notNull(),
   productName: text("product_name").notNull(),
   billingMode: text("billing_mode").notNull(), // payment | subscription
@@ -333,8 +348,8 @@ export const commerceOrders = sqliteTable("commerce_orders", {
 // the invoice webhooks; history can be re-pulled with
 // /api/admin/sync-stripe-invoices. One-time (non-invoice) payments live on
 // commerce_orders only, so reconciliation reads BOTH sources.
-export const commerceCharges = sqliteTable("commerce_charges", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const commerceCharges = portal.table("commerce_charges", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
   orderId: integer("commerce_order_id").references(() => commerceOrders.id, {
     onDelete: "set null",
   }),
@@ -357,8 +372,8 @@ export const commerceCharges = sqliteTable("commerce_charges", {
 // cut checks / QuickBooks ACH and file 1099s. The W-9 file lives in the
 // PRIVATE R2 bucket (agent-docs/ prefix); only the agent and admins can read
 // it. Bank fields render masked (last 4) everywhere except the edit form.
-export const agentPaymentProfiles = sqliteTable("agent_payment_profiles", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const agentPaymentProfiles = portal.table("agent_payment_profiles", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
   agentId: integer("agent_id")
     .notNull()
     .unique()
@@ -383,8 +398,8 @@ export const agentPaymentProfiles = sqliteTable("agent_payment_profiles", {
 // record of each payment, and the yearly per-agent sum is the 1099 figure.
 // Amounts are frozen at record time, so later splitPct edits never rewrite
 // tax history.
-export const agentPayouts = sqliteTable("agent_payouts", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const agentPayouts = portal.table("agent_payouts", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
   agentId: integer("agent_id")
     .notNull()
     .references(() => agents.id, { onDelete: "cascade" }),
@@ -400,7 +415,7 @@ export const agentPayouts = sqliteTable("agent_payouts", {
   updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
 });
 
-export const stripeEvents = sqliteTable("stripe_events", {
+export const stripeEvents = portal.table("stripe_events", {
   id: text("id").primaryKey(),
   type: text("type").notNull(),
   orderId: integer("commerce_order_id").references(() => commerceOrders.id, {
@@ -421,8 +436,8 @@ export type LineItem = {
 // event fire at most once per recipient (e.g. "renewal:12:60:a5"), so daily
 // crons can re-scan without spamming.
 // ============================================================
-export const notifications = sqliteTable("notifications", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const notifications = portal.table("notifications", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
   recipientAgentId: integer("recipient_agent_id")
     .notNull()
     .references(() => agents.id, { onDelete: "cascade" }),
@@ -439,8 +454,8 @@ export const notifications = sqliteTable("notifications", {
 // Audit log — who changed what, when. Append-only; writes are best-effort
 // (a failed log write must never fail the underlying request).
 // ============================================================
-export const auditLog = sqliteTable("audit_log", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const auditLog = portal.table("audit_log", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
   actorEmail: text("actor_email"),
   action: text("action").notNull(), // create | update | delete | send | mark_paid | approve | ...
   entityType: text("entity_type").notNull(), // rental_deal | sale_deal | invoice | agent | team | setting | ...
@@ -457,8 +472,8 @@ export const auditLog = sqliteTable("audit_log", {
 // legacyUrl keeps the old non-null Vercel Blob column compatible without a
 // destructive table rebuild; new rows store the R2 key there as a placeholder.
 // ============================================================
-export const dealDocuments = sqliteTable("deal_documents", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const dealDocuments = portal.table("deal_documents", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
   dealType: text("deal_type").notNull(), // 'rental' | 'sale'
   dealId: integer("deal_id").notNull(),
   fileName: text("file_name").notNull(),
@@ -472,6 +487,22 @@ export const dealDocuments = sqliteTable("deal_documents", {
   // freeform uploads stay allowed). Drives the per-deal checklist progress.
   checklistItemId: integer("checklist_item_id"),
   createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
+});
+
+// ============================================================
+// Marketing site advisor roster — public.agents, owned by homix-website
+// (Supabase). Declared here with ONLY the columns the portal write-through
+// touches: after a portal profile save we sync the shared identity fields so
+// the public site shows the same name/phone/license. Never insert/delete
+// from the portal; the website owns this table's lifecycle.
+// ============================================================
+export const publicAgents = pgTable("agents", {
+  slug: text("slug"),
+  name: text("name"),
+  phone: text("phone"),
+  email: text("email"),
+  licenseNumber: text("license_number"),
+  mlsId: text("mls_id"),
 });
 
 export type Building = typeof buildings.$inferSelect;

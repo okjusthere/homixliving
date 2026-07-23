@@ -25,7 +25,7 @@ export async function POST(
     .select()
     .from(trainingVideos)
     .where(eq(trainingVideos.id, videoId))
-    .get();
+    .then((rows) => rows[0]);
   if (!video) return NextResponse.json({ error: "Video not found" }, { status: 404 });
   if (!video.isPublished && !auth.session.user.isAdmin) {
     return NextResponse.json({ error: "Video not found" }, { status: 404 });

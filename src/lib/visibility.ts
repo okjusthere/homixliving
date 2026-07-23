@@ -52,7 +52,7 @@ export async function canViewDeal(
     .select({ id: dealAgents.dealId })
     .from(dealAgents)
     .where(and(eq(dealAgents.dealId, dealId), eq(dealAgents.agentId, me)))
-    .get();
+    .then((rows) => rows[0]);
   if (selfRow) return true;
 
   const leaderRow = await db
@@ -61,7 +61,7 @@ export async function canViewDeal(
     .innerJoin(agents, eq(agents.id, dealAgents.agentId))
     .innerJoin(teams, eq(teams.id, agents.teamId))
     .where(and(eq(dealAgents.dealId, dealId), eq(teams.leaderAgentId, me)))
-    .get();
+    .then((rows) => rows[0]);
   return !!leaderRow;
 }
 
@@ -81,7 +81,7 @@ export async function canEditDeal(
     .select({ id: dealAgents.dealId })
     .from(dealAgents)
     .where(and(eq(dealAgents.dealId, dealId), eq(dealAgents.agentId, me)))
-    .get();
+    .then((rows) => rows[0]);
   return !!row;
 }
 
@@ -123,7 +123,7 @@ export async function canViewSaleDeal(
     .select({ id: saleDealAgents.saleDealId })
     .from(saleDealAgents)
     .where(and(eq(saleDealAgents.saleDealId, saleDealId), eq(saleDealAgents.agentId, me)))
-    .get();
+    .then((rows) => rows[0]);
   if (selfRow) return true;
 
   const leaderRow = await db
@@ -132,7 +132,7 @@ export async function canViewSaleDeal(
     .innerJoin(agents, eq(agents.id, saleDealAgents.agentId))
     .innerJoin(teams, eq(teams.id, agents.teamId))
     .where(and(eq(saleDealAgents.saleDealId, saleDealId), eq(teams.leaderAgentId, me)))
-    .get();
+    .then((rows) => rows[0]);
   return !!leaderRow;
 }
 
@@ -148,6 +148,6 @@ export async function canEditSaleDeal(
     .select({ id: saleDealAgents.saleDealId })
     .from(saleDealAgents)
     .where(and(eq(saleDealAgents.saleDealId, saleDealId), eq(saleDealAgents.agentId, me)))
-    .get();
+    .then((rows) => rows[0]);
   return !!row;
 }

@@ -35,7 +35,7 @@ export async function GET(
     return NextResponse.json({ error: "month must be YYYY-MM" }, { status: 400 });
   }
 
-  const agent = await db.select().from(agents).where(eq(agents.id, agentId)).get();
+  const agent = await db.select().from(agents).where(eq(agents.id, agentId)).then((rows) => rows[0]);
   if (!agent) return NextResponse.json({ error: "Agent not found" }, { status: 404 });
 
   const [allAgents, allDealAgents, rows] = await Promise.all([

@@ -21,7 +21,7 @@ export async function PUT(req: NextRequest) {
 
   const body = await req.json();
   for (const [key, value] of Object.entries(body)) {
-    const existing = await db.select().from(settings).where(eq(settings.key, key)).get();
+    const existing = await db.select().from(settings).where(eq(settings.key, key)).then((rows) => rows[0]);
     if (existing) {
       await db.update(settings).set({ value: String(value) }).where(eq(settings.key, key));
     } else {

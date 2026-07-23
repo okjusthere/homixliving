@@ -71,11 +71,11 @@ async function cleanDealPayload(
     return { error: "Non-admin users must include themselves on the deal", status: 403 };
   }
 
-  const building = await db.select().from(buildings).where(eq(buildings.id, buildingId)).get();
+  const building = await db.select().from(buildings).where(eq(buildings.id, buildingId)).then((rows) => rows[0]);
   if (!building) return { error: "Building not found", status: 404 };
 
   const agentRows = await Promise.all(
-    payloadAgents.map((agent) => db.select().from(agents).where(eq(agents.id, agent.agentId)).get())
+    payloadAgents.map((agent) => db.select().from(agents).where(eq(agents.id, agent.agentId)).then((rows) => rows[0]))
   );
   if (agentRows.some((agent) => !agent)) {
     return { error: "Every deal agent must exist", status: 404 };
@@ -216,28 +216,26 @@ export async function POST(req: NextRequest) {
     }
 
     const now = new Date().toISOString();
-    const batchResult = await db.batch([
-      db
+    const created = await db.transaction(async (tx) => {
+      const [deal] = await tx
         .insert(deals)
         .values({
           ...result.data,
           createdByEmail: authResult.session.user.email ?? null,
           createdAt: now,
         })
-        .returning(),
-      ...result.agents.map((agent) =>
-        db.insert(dealAgents).values({
-          dealId: sql`(SELECT id FROM rental_deals ORDER BY id DESC LIMIT 1)`,
+        .returning();
+      for (const agent of result.agents) {
+        await tx.insert(dealAgents).values({
+          dealId: deal.id,
           agentId: agent.agentId,
           sharePct: agent.sharePct,
           isPrimary: agent.isPrimary,
           createdAt: now,
-        })
-      ),
-    ]);
-
-    const createdRows = batchResult[0] as (typeof deals.$inferSelect)[];
-    const created = createdRows[0];
+        });
+      }
+      return deal;
+    });
     await logAudit(
       authResult.session,
       "create",

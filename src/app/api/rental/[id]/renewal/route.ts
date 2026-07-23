@@ -46,7 +46,7 @@ export async function PATCH(
   const renewedToDealId =
     typeof body.renewedToDealId === "number" ? body.renewedToDealId : null;
 
-  const deal = await db.select().from(deals).where(eq(deals.id, dealId)).get();
+  const deal = await db.select().from(deals).where(eq(deals.id, dealId)).then((rows) => rows[0]);
   if (!deal) {
     return NextResponse.json({ error: "Deal not found" }, { status: 404 });
   }
