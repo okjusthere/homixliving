@@ -289,9 +289,10 @@ export async function PUT(req: NextRequest) {
       data
     );
     // Same database as the marketing site now — mirror the shared identity
-    // fields onto the public roster and nudge its cache. Best-effort.
+    // fields onto the linked public profile and nudge its cache. Best-effort;
+    // unlinked agents are skipped (see scripts/link-agent-rosters.ts).
     await syncPublicAgentProfile({
-      email: updated.email,
+      agentId: updated.id,
       name: updated.name,
       phone: updated.phone,
       licenseNumber: updated.licenseNumber,

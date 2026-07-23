@@ -143,11 +143,17 @@ async function main() {
       }
       return projected;
     });
+    // postgres-js's row-insert helper can't type dynamic column lists;
+    // runtime behavior is verified by the row-count checks below.
+    const rowsHelper = sql as unknown as (
+      rows: Record<string, unknown>[],
+      ...columns: string[]
+    ) => ReturnType<typeof sql>;
     for (let i = 0; i < converted.length; i += 200) {
       const chunk = converted.slice(i, i + 200);
       if (chunk.length === 0) continue;
       const cols = Object.keys(chunk[0]);
-      await sql`INSERT INTO ${sql(`portal.${table}`)} ${sql(chunk as never[], ...(cols as never[]))}`;
+      await sql`INSERT INTO ${sql(`portal.${table}`)} ${rowsHelper(chunk, ...cols)}`;
     }
 
     if (HAS_ID_SEQUENCE.has(table) && converted.length > 0) {

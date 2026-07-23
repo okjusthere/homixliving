@@ -491,18 +491,29 @@ export const dealDocuments = portal.table("deal_documents", {
 
 // ============================================================
 // Marketing site advisor roster — public.agents, owned by homix-website
-// (Supabase). Declared here with ONLY the columns the portal write-through
-// touches: after a portal profile save we sync the shared identity fields so
-// the public site shows the same name/phone/license. Never insert/delete
-// from the portal; the website owns this table's lifecycle.
+// (Supabase). Declared here with ONLY the columns the portal reads/writes.
+//
+// The two rosters are NOT 1:1 — some public profiles belong to agents who
+// never logged into the portal, some portal agents have no public profile,
+// and public contact emails are often personal addresses (or empty) that
+// don't match the portal's Google login. So identity is joined through an
+// EXPLICIT link column (public.agents.portal_agent_id), established once by
+// scripts/link-agent-rosters.ts (reviewed reconciliation report), never by
+// fuzzy matching at write time. Unlinked rows are simply not synced.
+//
+// Never insert/delete from the portal; the website owns this table's
+// lifecycle.
 // ============================================================
 export const publicAgents = pgTable("agents", {
+  id: text("id"),
   slug: text("slug"),
   name: text("name"),
   phone: text("phone"),
   email: text("email"),
   licenseNumber: text("license_number"),
   mlsId: text("mls_id"),
+  visible: boolean("visible"),
+  portalAgentId: integer("portal_agent_id"),
 });
 
 export type Building = typeof buildings.$inferSelect;

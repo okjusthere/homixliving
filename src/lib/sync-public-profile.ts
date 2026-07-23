@@ -1,4 +1,4 @@
-import { sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { publicAgents } from "@/db/schema";
 
@@ -8,16 +8,23 @@ import { publicAgents } from "@/db/schema";
  * after a portal profile save so the public site shows the same
  * name/phone/license without a second edit.
  *
+ * Matching is by the EXPLICIT link column public.agents.portal_agent_id
+ * only — the rosters are not 1:1 and public contact emails frequently
+ * differ from portal login emails (personal Gmail, or empty), so fuzzy
+ * matching here would sync the wrong person's profile. Links are
+ * established once via scripts/link-agent-rosters.ts; unlinked agents are
+ * skipped and logged.
+ *
  * Best-effort by design: never fails the portal save. Local dev databases
- * don't have public.agents at all — that's fine, the catch swallows it.
- * Rows are matched by email; agents not on the public roster are a no-op.
+ * don't have public.agents at all — the catch swallows that.
  */
 export async function syncPublicAgentProfile(input: {
-  email: string;
+  agentId: number;
   name?: string | null;
   phone?: string | null;
   licenseNumber?: string | null;
 }): Promise<void> {
+  let linkedSlug: string | null = null;
   try {
     const updates: Record<string, string> = {};
     if (input.name?.trim()) updates.name = input.name.trim();
@@ -27,10 +34,19 @@ export async function syncPublicAgentProfile(input: {
     }
     if (Object.keys(updates).length === 0) return;
 
-    await db
+    const updated = await db
       .update(publicAgents)
       .set(updates)
-      .where(sql`lower(${publicAgents.email}) = ${input.email.toLowerCase()}`);
+      .where(eq(publicAgents.portalAgentId, input.agentId))
+      .returning({ slug: publicAgents.slug });
+
+    if (updated.length === 0) {
+      console.log(
+        `public.agents write-through: portal agent #${input.agentId} has no linked public profile (run scripts/link-agent-rosters.ts)`,
+      );
+      return;
+    }
+    linkedSlug = updated[0].slug;
   } catch (error) {
     console.warn("public.agents write-through skipped:", (error as Error).message);
     return;
@@ -46,6 +62,7 @@ export async function syncPublicAgentProfile(input: {
       headers: { authorization: `Bearer ${secret}` },
       signal: AbortSignal.timeout(4000),
     });
+    console.log(`public profile synced (slug ${linkedSlug}) + website cache refreshed`);
   } catch (error) {
     console.warn("homixweb revalidate ping failed:", (error as Error).message);
   }

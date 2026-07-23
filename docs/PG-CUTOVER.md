@@ -26,18 +26,33 @@ main 分支仍是 Turso 版；**本分支合并/推送即触发切换部署**，
      npx tsx scripts/migrate-turso-to-pg.ts --truncate
    ```
    脚本自动做行数对账，任何不一致会以非零码退出。
-4. **设生产环境变量**（值同上 DATABASE_URL）：
+4. **两边 agents 对账链接**（导数据后、上线前）：
+   ```bash
+   DATABASE_URL=… npx tsx scripts/link-agent-rosters.ts          # 先看报告
+   DATABASE_URL=… npx tsx scripts/link-agent-rosters.ts --apply  # 邮箱精确匹配自动链接
+   # 执照号匹配但邮箱不同的（个人 Gmail 等）——人工过目报告后：
+   DATABASE_URL=… npx tsx scripts/link-agent-rosters.ts --apply-license
+   # 剩余官网独有/portal 独有的逐个决定：
+   DATABASE_URL=… npx tsx scripts/link-agent-rosters.ts --link <slug>=<portalId>
+   ```
+   两个名单**本就不是一一对应**（有官网挂着但从未登录 portal 的，也有
+   登录过 portal 但没上官网的）——脚本绝不模糊猜测：只有唯一且精确的
+   匹配才写链接，写穿同步只认 `portal_agent_id` 链接列，未链接的行
+   永远不会被误改。数据库层还有唯一索引兜底（一个 portal 账号最多
+   链接一张官网档案）。
+
+5. **设生产环境变量**（值同上 DATABASE_URL）：
    ```bash
    vercel env add DATABASE_URL production
    ```
    另加（可选，身份写穿即时刷新官网缓存）：
    `HOMIXWEB_REVALIDATE_URL=https://www.homixny.com/api/revalidate-agents`
    `AGENTS_REVALIDATE_SECRET=<随机串>`（homix-website 侧也要配同一个）。
-5. **合并 + 推送**：`git checkout main && git merge pg-migration && git push`
+6. **合并 + 推送**：`git checkout main && git merge pg-migration && git push`
    —— Vercel 部署后 instrumentation 会再跑一次 ensure-schema（幂等）。
-6. **恢复流量**（如有 Pause），验证：登录、/rental 列表、/finance、
+7. **恢复流量**（如有 Pause），验证：登录、/rental 列表、/finance、
    录一笔测试后删除。观察 Stripe webhook 面板有无重试成功记录。
-7. **善后**：Turso 库导出一份备份后停用；`TURSO_*` 环境变量可删；
+8. **善后**：Turso 库导出一份备份后停用；`TURSO_*` 环境变量可删；
    本文件与 `scripts/migrate-turso-to-pg.ts` 保留一个版本周期后清理。
 
 ## 回滚
