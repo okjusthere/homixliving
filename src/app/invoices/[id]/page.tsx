@@ -589,7 +589,10 @@ export default function InvoiceDetailPage() {
                         )}
                       </div>
                       <div className="mt-0.5 text-[12px]" style={{ color: tone.ink50 }}>
-                        {fmtDate(entry.sentAt?.slice(0, 10))}{" "}
+                        {/* Full ISO through fmtDate keeps date and time in the
+                            SAME (local) zone — slicing to the UTC day made
+                            evening sends show tomorrow's date. */}
+                        {fmtDate(entry.sentAt)}{" "}
                         {entry.sentAt
                           ? new Date(entry.sentAt).toLocaleTimeString("en-US", {
                               hour: "numeric",
@@ -658,7 +661,13 @@ export default function InvoiceDetailPage() {
           invoice={invoice}
           building={building}
           settings={settings}
-          onClose={() => setShowSend(false)}
+          onClose={() => {
+            setShowSend(false);
+            // A FAILED send also wrote invoices.status + a send-log row, but
+            // the dialog only fires onSent on success — refresh on close so
+            // the failed attempt shows up without a manual reload.
+            refreshInvoice();
+          }}
           onSent={() => {
             setShowSend(false);
             refreshInvoice();

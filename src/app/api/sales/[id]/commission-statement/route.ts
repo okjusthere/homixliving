@@ -30,6 +30,13 @@ export async function GET(
 
   const [deal] = await db.select().from(saleDeals).where(eq(saleDeals.id, dealId)).limit(1);
   if (!deal) return NextResponse.json({ error: "Deal not found" }, { status: 404 });
+  // A statement for a cancelled deal would read as a real payout record.
+  if (deal.status === "cancelled") {
+    return NextResponse.json(
+      { error: "This sale was cancelled — no settlement statement can be issued." },
+      { status: 409 },
+    );
+  }
 
   const participants = await db
     .select({

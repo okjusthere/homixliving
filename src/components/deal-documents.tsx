@@ -153,7 +153,6 @@ export function DealDocuments({
         if (!res.ok) throw new Error((await res.json())?.error || "register failed");
       }
       toast.success(t.uploaded);
-      await load();
     } catch (error) {
       const message = error instanceof Error ? error.message : "";
       toast.error(
@@ -162,6 +161,9 @@ export function DealDocuments({
           : `${t.uploadFailed}${message ? `: ${message}` : ""}`
       );
     } finally {
+      // Refresh even on failure — files registered before the failing one
+      // are real and must show up (docs list AND checklist ticks).
+      await load();
       setBusy(false);
       if (fileRef.current) fileRef.current.value = "";
     }

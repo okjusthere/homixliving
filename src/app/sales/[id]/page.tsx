@@ -262,18 +262,22 @@ export default function SaleDetailPage() {
           description={location || undefined}
           actions={
             <>
-              {Number(saleDeal.grossCommission || 0) > 0 && payload.agents.length > 0 ? (
-                <Btn
-                  variant="outline"
-                  onClick={() => window.open(`/api/sales/${saleDeal.id}/commission-statement`, "_blank")}
-                >
-                  {t.commissionReport}
-                </Btn>
-              ) : (
-                <Btn variant="outline" onClick={() => window.open("/resources", "_blank")}>
-                  {t.commissionReportTemplate}
-                </Btn>
-              )}
+              {/* No settlement paperwork for cancelled deals — an unmarked
+                  statement for a deal that never closed reads as a real
+                  payout record. */}
+              {saleDeal.status !== "cancelled" &&
+                (Number(saleDeal.grossCommission || 0) > 0 && payload.agents.length > 0 ? (
+                  <Btn
+                    variant="outline"
+                    onClick={() => window.open(`/api/sales/${saleDeal.id}/commission-statement`, "_blank")}
+                  >
+                    {t.commissionReport}
+                  </Btn>
+                ) : (
+                  <Btn variant="outline" onClick={() => window.open("/resources", "_blank")}>
+                    {t.commissionReportTemplate}
+                  </Btn>
+                ))}
               <Btn variant="outline" icon={<Icons.Edit />} onClick={() => toast.message(t.editComingSoon)}>
                 {t.edit}
               </Btn>
