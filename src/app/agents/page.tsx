@@ -58,6 +58,7 @@ const M = {
     labelEmail: "Email",
     labelPhone: "Phone",
     labelLicense: "License #",
+    labelLicenseExpires: "License expires",
     labelKeep: "Agent keep %",
     labelCompany: "Licensed company",
     labelJoined: "Joined",
@@ -113,6 +114,7 @@ const M = {
     labelEmail: "邮箱",
     labelPhone: "电话",
     labelLicense: "执照号",
+    labelLicenseExpires: "执照到期日",
     labelKeep: "经纪人分成 %",
     labelCompany: "持照公司",
     labelJoined: "加入日期",
@@ -137,6 +139,7 @@ const emptyAgent: Partial<Agent> = {
   email: "",
   phone: "",
   licenseNumber: "",
+  licenseExpiresAt: "",
   licensedCompany: "Homix Living Inc.",
   splitPct: DEFAULT_AGENT_SPLIT_PCT,
   teamId: null,
@@ -516,6 +519,9 @@ export default function AgentsPage() {
                 </LabeledField>
                 <LabeledField label={t.labelLicense}>
                   <EditorialInput value={editAgent.licenseNumber || ""} onChange={(v) => updateField("licenseNumber", v)} mono />
+                </LabeledField>
+                <LabeledField label={t.labelLicenseExpires}>
+                  <EditorialInput value={editAgent.licenseExpiresAt || ""} onChange={(v) => updateField("licenseExpiresAt", v)} type="date" mono />
                 </LabeledField>
                 <LabeledField label={t.labelKeep}>
                   <EditorialInput value={editAgent.splitPct ?? DEFAULT_AGENT_SPLIT_PCT} onChange={(v) => updateField("splitPct", Number(v))} type="number" mono />

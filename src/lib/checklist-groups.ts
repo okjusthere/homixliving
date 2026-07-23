@@ -37,3 +37,29 @@ export type ChecklistGroupKey = (typeof CHECKLIST_GROUPS)[number]["key"];
 export function isChecklistGroupKey(v: string): v is ChecklistGroupKey {
   return CHECKLIST_GROUPS.some((g) => g.key === v);
 }
+
+/**
+ * Which checklist groups a recorded deal must file. Recorded rentals are
+ * closed leases → the "rented" packet. Sales depend on which side we
+ * represented: seller side files the listing packet, buyer side files the
+ * buyer-signed packet ("pending"), dual agency files both, referrals only the
+ * closing money docs. Every closed sale files "closing" (commission check +
+ * commission report).
+ */
+export function checklistGroupsForDeal(
+  dealType: "rental" | "sale",
+  representationType?: string | null,
+): ChecklistGroupKey[] {
+  if (dealType === "rental") return ["rented"];
+  switch (representationType) {
+    case "seller_rep":
+      return ["new-listing-residential", "closing"];
+    case "dual_agency":
+      return ["new-listing-residential", "pending", "closing"];
+    case "referral":
+      return ["closing"];
+    case "buyer_rep":
+    default:
+      return ["pending", "closing"];
+  }
+}

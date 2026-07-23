@@ -14,6 +14,7 @@ import { tone, fmtMoney, fmtDate } from "@/components/homix/tokens";
 import { Card, Pill, type PillTone } from "@/components/homix/server-primitives";
 import { PageHeader } from "@/components/homix/page-kit";
 import { SyncInvoicesButton } from "@/components/sync-invoices-button";
+import { FinanceExportButton } from "@/components/finance-export-button";
 import { getLocale } from "@/lib/i18n";
 
 export const metadata: Metadata = { title: "Finance · Homix Deals" };
@@ -368,7 +369,20 @@ export default async function FinancePage({
           <h2 className="font-serif" style={{ fontSize: 20, color: tone.ink }}>
             {t.ledger}
           </h2>
-          <SyncInvoicesButton />
+          <div className="flex items-center gap-2">
+            <FinanceExportButton
+              rows={filtered.map((r) => ({
+                date: r.date,
+                payerName: r.payerName,
+                payerEmail: r.payerEmail,
+                product: r.product,
+                typeLabel: typeLabel[r.type],
+                status: r.status,
+                amountCents: r.amountCents,
+              }))}
+            />
+            <SyncInvoicesButton />
+          </div>
         </div>
         <p className="text-[13px] mb-4" style={{ color: tone.ink50 }}>
           {t.ledgerLead}

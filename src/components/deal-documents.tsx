@@ -15,7 +15,19 @@ type DealDocumentItem = {
   contentType: string | null;
   size: number | null;
   uploadedByEmail: string | null;
+  checklistItemId: number | null;
   createdAt: string | null;
+};
+
+type ChecklistGroup = {
+  key: string;
+  labelEn: string;
+  labelZh: string;
+  items: {
+    id: number;
+    label: string;
+    documents: { id: number; fileName: string }[];
+  }[];
 };
 
 const M = {
@@ -24,6 +36,9 @@ const M = {
     hint: "Lease, application, guarantor docs — keep the deal file complete.",
     upload: "Upload",
     uploading: "Uploading…",
+    required: "Required documents",
+    uploadFor: "Upload",
+    otherDocs: "Other files",
     empty: "No documents yet.",
     delete: "Delete",
     confirmDelete: (name: string) => `Delete "${name}"?`,
@@ -37,6 +52,9 @@ const M = {
     hint: "租约、申请材料、担保文件——请把做单文件传齐。",
     upload: "上传文件",
     uploading: "上传中…",
+    required: "必交材料清单",
+    uploadFor: "上传",
+    otherDocs: "其他文件",
     empty: "还没有上传文件。",
     delete: "删除",
     confirmDelete: (name: string) => `确定删除「${name}」？`,
@@ -60,15 +78,24 @@ export function DealDocuments({
   dealType: "rental" | "sale";
   dealId: number;
 }) {
-  const t = M[useLocale()];
+  const locale = useLocale();
+  const t = M[locale];
   const [docs, setDocs] = useState<DealDocumentItem[]>([]);
+  const [checklist, setChecklist] = useState<ChecklistGroup[]>([]);
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  // When an item's own "upload" link opened the picker, the next selected
+  // file(s) register against that checklist item.
+  const pendingItemRef = useRef<number | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch(`/api/deals/${dealType}/${dealId}/documents`);
-      if (res.ok) setDocs(await res.json());
+      const [docsRes, checklistRes] = await Promise.all([
+        fetch(`/api/deals/${dealType}/${dealId}/documents`),
+        fetch(`/api/deals/${dealType}/${dealId}/checklist`),
+      ]);
+      if (docsRes.ok) setDocs(await docsRes.json());
+      if (checklistRes.ok) setChecklist((await checklistRes.json()).groups ?? []);
     } catch {
       // keep previous list
     }
@@ -80,7 +107,12 @@ export function DealDocuments({
 
   async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
+    if (files.length === 0) {
+      pendingItemRef.current = null;
+      return;
+    }
+    const checklistItemId = pendingItemRef.current;
+    pendingItemRef.current = null;
     setBusy(true);
     try {
       for (const file of files) {
@@ -115,6 +147,7 @@ export function DealDocuments({
             fileName: file.name,
             contentType: file.type || null,
             size: file.size,
+            checklistItemId,
           }),
         });
         if (!res.ok) throw new Error((await res.json())?.error || "register failed");
@@ -145,6 +178,8 @@ export function DealDocuments({
       return;
     }
     setDocs((prev) => prev.filter((d) => d.id !== doc.id));
+    // A deleted upload may have been the one satisfying a checklist item.
+    if (doc.checklistItemId != null) await load();
   }
 
   return (
@@ -166,13 +201,107 @@ export function DealDocuments({
           <Btn
             variant="outline"
             size="sm"
-            onClick={() => fileRef.current?.click()}
+            onClick={() => {
+              // Clear any leftover per-item target from a cancelled picker so
+              // a generic upload never silently ticks a checklist box.
+              pendingItemRef.current = null;
+              fileRef.current?.click();
+            }}
             disabled={busy}
           >
             {busy ? t.uploading : t.upload}
           </Btn>
         </div>
       </div>
+
+      {checklist.length > 0 && (
+        <div className="mb-4 space-y-3">
+          {checklist.map((group) => {
+            const done = group.items.filter((i) => i.documents.length > 0).length;
+            return (
+              <div key={group.key}>
+                <div className="flex items-center justify-between gap-3 mb-1">
+                  <div
+                    className="text-[11px] uppercase tracking-[0.12em]"
+                    style={{ color: tone.ink50 }}
+                  >
+                    {t.required} · {locale === "zh" ? group.labelZh : group.labelEn}
+                  </div>
+                  <span
+                    className="text-[11.5px] font-mono flex-none"
+                    style={{ color: done === group.items.length ? tone.green : tone.ink50 }}
+                  >
+                    {done}/{group.items.length}
+                  </span>
+                </div>
+                <div>
+                  {group.items.map((item) => {
+                    const satisfied = item.documents.length > 0;
+                    return (
+                      <div
+                        key={item.id}
+                        className="flex items-start gap-2 py-1.5"
+                        style={{ borderTop: `1px solid ${tone.lineSoft}` }}
+                      >
+                        <span
+                          className="flex-none text-[13px] leading-5"
+                          style={{ color: satisfied ? tone.green : tone.ink30 }}
+                        >
+                          {satisfied ? "✓" : "○"}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <div
+                            className="text-[12.5px] leading-5"
+                            style={{ color: satisfied ? tone.ink70 : tone.ink }}
+                          >
+                            {item.label}
+                          </div>
+                          {satisfied && (
+                            <div className="text-[11.5px] truncate" style={{ color: tone.ink50 }}>
+                              {item.documents.map((d, i) => (
+                                <a
+                                  key={d.id}
+                                  href={`/api/deals/${dealType}/${dealId}/documents/${d.id}/download`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="hover:underline"
+                                >
+                                  {i > 0 ? "、" : ""}
+                                  {d.fileName}
+                                </a>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        {!satisfied && (
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => {
+                              pendingItemRef.current = item.id;
+                              fileRef.current?.click();
+                            }}
+                            className="flex-none text-[12px] font-medium underline decoration-dotted"
+                            style={{ color: tone.accent }}
+                          >
+                            {t.uploadFor}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+          <div
+            className="text-[11px] uppercase tracking-[0.12em] pt-1"
+            style={{ color: tone.ink50 }}
+          >
+            {t.otherDocs}
+          </div>
+        </div>
+      )}
 
       {docs.length === 0 ? (
         <div className="text-[12.5px] py-2" style={{ color: tone.ink50 }}>

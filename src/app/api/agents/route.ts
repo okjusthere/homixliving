@@ -42,6 +42,14 @@ function normalizeEmail(value: unknown) {
   return stringOrNull(value)?.toLowerCase() || null;
 }
 
+// A malformed expiry silently disables the license-reminder cron (daysUntil
+// yields null), so reject anything that isn't a plain date. Empty clears.
+function invalidLicenseExpiry(body: Record<string, unknown>): boolean {
+  const value = body.licenseExpiresAt;
+  if (value === undefined || value === null || value === "") return false;
+  return !/^\d{4}-\d{2}-\d{2}$/.test(String(value).trim());
+}
+
 function cleanAdminAgentPayload(body: Record<string, unknown>) {
   const splitPct = numberOrNull(body.splitPct);
   const teamId = numberOrNull(body.teamId);
@@ -51,6 +59,7 @@ function cleanAdminAgentPayload(body: Record<string, unknown>) {
     email: normalizeEmail(body.email),
     phone: stringOrNull(body.phone),
     licenseNumber: stringOrNull(body.licenseNumber),
+    licenseExpiresAt: stringOrNull(body.licenseExpiresAt),
     licensedCompany: stringOrNull(body.licensedCompany),
     splitPct: splitPct ?? DEFAULT_AGENT_SPLIT_PCT,
     teamId,
@@ -154,6 +163,9 @@ export async function POST(req: NextRequest) {
     // the key would break every legitimate save. cleanAdminAgentPayload
     // below does NOT include isAdmin in the writable field set, so any
     // value passed in is silently ignored — that's the actual safety net.
+    if (invalidLicenseExpiry(body)) {
+      return NextResponse.json({ error: "licenseExpiresAt must be YYYY-MM-DD" }, { status: 400 });
+    }
     const data = cleanAdminAgentPayload(body);
     if (!data.name) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
@@ -220,12 +232,16 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
+    if (invalidLicenseExpiry(body)) {
+      return NextResponse.json({ error: "licenseExpiresAt must be YYYY-MM-DD" }, { status: 400 });
+    }
     const cleaned = cleanAdminAgentPayload({ ...body, email: existing.email });
     const data = isAdmin
       ? {
           name: cleaned.name,
           phone: cleaned.phone,
           licenseNumber: cleaned.licenseNumber,
+          licenseExpiresAt: cleaned.licenseExpiresAt,
           licensedCompany: cleaned.licensedCompany,
           splitPct: cleaned.splitPct,
           teamId: cleaned.teamId,
@@ -242,6 +258,8 @@ export async function PUT(req: NextRequest) {
           name: String(body.name || existing.name).trim(),
           phone: stringOrNull(body.phone),
           licenseNumber: stringOrNull(body.licenseNumber),
+          // Their license, their renewal date — self-editable like the number.
+          licenseExpiresAt: stringOrNull(body.licenseExpiresAt),
           updatedAt: new Date().toISOString(),
         };
 

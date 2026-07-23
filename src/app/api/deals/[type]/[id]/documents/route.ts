@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { dealDocuments, type DealDocument } from "@/db/schema";
+import { checklistItems, dealDocuments, saleDeals, type DealDocument } from "@/db/schema";
 import { requireActiveAgentApi } from "@/lib/auth-guards";
 import {
   canEditDealOfType,
@@ -9,6 +9,7 @@ import {
   parseDealType,
 } from "@/lib/deal-access";
 import { logAudit } from "@/lib/audit";
+import { checklistGroupsForDeal } from "@/lib/checklist-groups";
 import {
   isDealDocumentKeyForDeal,
   validateDealDocumentMetadata,
@@ -27,6 +28,7 @@ const documentFields = {
   contentType: dealDocuments.contentType,
   size: dealDocuments.size,
   uploadedByEmail: dealDocuments.uploadedByEmail,
+  checklistItemId: dealDocuments.checklistItemId,
   createdAt: dealDocuments.createdAt,
 };
 
@@ -97,6 +99,39 @@ export async function POST(
     return NextResponse.json({ error: validated.error }, { status: 400 });
   }
 
+  // Optional link to the requirement this upload satisfies. The item must be
+  // one this deal's checklist actually asks for — a stray id would silently
+  // tick a box on some other packet.
+  let checklistItemId: number | null = null;
+  if (body.checklistItemId != null && body.checklistItemId !== "") {
+    const itemId = Number(body.checklistItemId);
+    if (!Number.isInteger(itemId) || itemId <= 0) {
+      return NextResponse.json({ error: "Invalid checklist item" }, { status: 400 });
+    }
+    const [item] = await db
+      .select()
+      .from(checklistItems)
+      .where(eq(checklistItems.id, itemId))
+      .limit(1);
+    let representationType: string | null = null;
+    if (parsed.dealType === "sale") {
+      const [sale] = await db
+        .select({ representationType: saleDeals.representationType })
+        .from(saleDeals)
+        .where(eq(saleDeals.id, parsed.dealId))
+        .limit(1);
+      representationType = sale?.representationType ?? null;
+    }
+    const allowedGroups = checklistGroupsForDeal(parsed.dealType, representationType);
+    if (!item || !allowedGroups.includes(item.groupKey as (typeof allowedGroups)[number])) {
+      return NextResponse.json(
+        { error: "Checklist item does not belong to this deal" },
+        { status: 400 },
+      );
+    }
+    checklistItemId = itemId;
+  }
+
   const existing = await db
     .select(documentFields)
     .from(dealDocuments)
@@ -142,6 +177,7 @@ export async function POST(
         contentType: validated.value.contentType,
         size: validated.value.size,
         uploadedByEmail: authResult.session.user.email || null,
+        checklistItemId,
       })
       .returning();
   } catch (error) {

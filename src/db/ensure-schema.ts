@@ -90,6 +90,7 @@ async function renameColumnIfNeeded(
       email TEXT NOT NULL UNIQUE,
       phone TEXT,
       license_number TEXT,
+      license_expires_at TEXT,
       licensed_company TEXT,
       split_pct REAL NOT NULL DEFAULT 80,
       team_id INTEGER REFERENCES teams(id) ON DELETE SET NULL,
@@ -519,6 +520,7 @@ async function renameColumnIfNeeded(
       content_type TEXT,
       size INTEGER,
       uploaded_by_email TEXT,
+      checklist_item_id INTEGER,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
@@ -576,6 +578,14 @@ async function renameColumnIfNeeded(
   }
   if (await addColumnIfMissing(`ALTER TABLE agent_payment_profiles ADD COLUMN payee_name TEXT`)) {
     console.log("Added agent_payment_profiles.payee_name column.");
+  }
+  // License expiry tracking + reminder cron.
+  if (await addColumnIfMissing(`ALTER TABLE agents ADD COLUMN license_expires_at TEXT`)) {
+    console.log("Added agents.license_expires_at column.");
+  }
+  // Ties a deal-document upload to the checklist requirement it satisfies.
+  if (await addColumnIfMissing(`ALTER TABLE deal_documents ADD COLUMN checklist_item_id INTEGER`)) {
+    console.log("Added deal_documents.checklist_item_id column.");
   }
   // Backfill 登单人 for deals created before the column existed, from the
   // audit log's create events. Idempotent: only fills NULLs; deals older

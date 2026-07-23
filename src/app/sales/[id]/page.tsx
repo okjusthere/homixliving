@@ -18,6 +18,8 @@ const M = {
   en: {
     backToSales: "Back to sales",
     edit: "Edit",
+    commissionReport: "Commission Report PDF",
+    commissionReportTemplate: "Commission Report (use template)",
     editComingSoon: "Edit is coming in the next pass",
     cancelSale: "Cancel sale",
     confirmCancel: "Cancel this sale?",
@@ -71,6 +73,8 @@ const M = {
   zh: {
     backToSales: "返回买卖列表",
     edit: "编辑",
+    commissionReport: "结算单 PDF",
+    commissionReportTemplate: "结算单（用模板上传）",
     editComingSoon: "编辑功能将在下个版本中推出",
     cancelSale: "取消交易",
     confirmCancel: "确定取消此交易吗？",
@@ -258,6 +262,18 @@ export default function SaleDetailPage() {
           description={location || undefined}
           actions={
             <>
+              {Number(saleDeal.grossCommission || 0) > 0 && payload.agents.length > 0 ? (
+                <Btn
+                  variant="outline"
+                  onClick={() => window.open(`/api/sales/${saleDeal.id}/commission-statement`, "_blank")}
+                >
+                  {t.commissionReport}
+                </Btn>
+              ) : (
+                <Btn variant="outline" onClick={() => window.open("/resources", "_blank")}>
+                  {t.commissionReportTemplate}
+                </Btn>
+              )}
               <Btn variant="outline" icon={<Icons.Edit />} onClick={() => toast.message(t.editComingSoon)}>
                 {t.edit}
               </Btn>

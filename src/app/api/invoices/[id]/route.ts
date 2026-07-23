@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { invoices, buildings } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { invoiceSendLog, invoices, buildings } from "@/db/schema";
+import { desc, eq } from "drizzle-orm";
 import { requireActiveAgentApi } from "@/lib/auth-guards";
 import { canViewDeal, canEditDeal } from "@/lib/visibility";
 import { logAudit } from "@/lib/audit";
@@ -42,7 +42,16 @@ export async function GET(
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
 
-  return NextResponse.json(result);
+  // Every send attempt, success or failure — invoices.status only remembers
+  // the latest one, so "did this actually go out?" is answered here.
+  const sendLog = await db
+    .select()
+    .from(invoiceSendLog)
+    .where(eq(invoiceSendLog.invoiceId, Number(id)))
+    .orderBy(desc(invoiceSendLog.id))
+    .limit(50);
+
+  return NextResponse.json({ ...result, sendLog });
 }
 
 export async function DELETE(

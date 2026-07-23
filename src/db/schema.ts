@@ -75,6 +75,8 @@ export const agents = sqliteTable("agents", {
   email: text("email").notNull().unique(),
   phone: text("phone"),
   licenseNumber: text("license_number"),
+  // NY licenses expire every 2 years — the reminder cron watches this date.
+  licenseExpiresAt: text("license_expires_at"),
   licensedCompany: text("licensed_company"),
   splitPct: real("split_pct").notNull().default(80),
   teamId: integer("team_id").references((): AnySQLiteColumn => teams.id, { onDelete: "set null" }),
@@ -466,6 +468,9 @@ export const dealDocuments = sqliteTable("deal_documents", {
   contentType: text("content_type"),
   size: integer("size"),
   uploadedByEmail: text("uploaded_by_email"),
+  // Which required-document checklist item this upload satisfies (nullable —
+  // freeform uploads stay allowed). Drives the per-deal checklist progress.
+  checklistItemId: integer("checklist_item_id"),
   createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
 });
 

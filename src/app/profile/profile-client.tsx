@@ -28,6 +28,7 @@ const M = {
     name: "Name",
     phone: "Phone",
     license: "License number",
+    licenseExpires: "License expiry date",
     email: "Email",
     split: "Commission split",
     save: "Save",
@@ -77,6 +78,7 @@ const M = {
     name: "姓名",
     phone: "电话",
     license: "执照号",
+    licenseExpires: "执照到期日",
     email: "邮箱",
     split: "分成比例",
     save: "保存",
@@ -137,6 +139,7 @@ export function ProfileClient({
   const [name, setName] = useState(agent?.name ?? "");
   const [phone, setPhone] = useState(agent?.phone ?? "");
   const [license, setLicense] = useState(agent?.licenseNumber ?? "");
+  const [licenseExpires, setLicenseExpires] = useState(agent?.licenseExpiresAt ?? "");
   const [basicBusy, setBasicBusy] = useState(false);
   const [basicMsg, setBasicMsg] = useState<string | null>(null);
 
@@ -147,7 +150,13 @@ export function ProfileClient({
     const res = await fetch("/api/agents", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: agent.id, name, phone, licenseNumber: license }),
+      body: JSON.stringify({
+        id: agent.id,
+        name,
+        phone,
+        licenseNumber: license,
+        licenseExpiresAt: licenseExpires,
+      }),
     });
     setBasicBusy(false);
     setBasicMsg(res.ok ? t.saved : t.saveFailed);
@@ -242,6 +251,13 @@ export function ProfileClient({
             <EditorialInput value={name} onChange={setName} placeholder={t.name} />
             <EditorialInput value={phone} onChange={setPhone} placeholder={t.phone} />
             <EditorialInput value={license} onChange={setLicense} placeholder={t.license} mono />
+            <EditorialInput
+              value={licenseExpires}
+              onChange={setLicenseExpires}
+              placeholder={t.licenseExpires}
+              type="date"
+              mono
+            />
             <div className="text-[13px] self-center" style={{ color: tone.ink50 }}>
               {t.email}: <span className="font-mono">{agent?.email}</span>
               {typeof agent?.splitPct === "number" && (

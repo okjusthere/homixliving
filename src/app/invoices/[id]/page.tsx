@@ -10,7 +10,7 @@ import { PageHeader, CardHeader } from "@/components/homix/page-kit";
 import { tone, fmtMoney, fmtDate } from "@/components/homix/tokens";
 import { ScaledInvoiceDoc } from "@/components/homix/invoice-doc";
 import { SendDialog } from "@/components/homix/send-dialog";
-import type { Building, Invoice, LineItem } from "@/db/schema";
+import type { Building, Invoice, InvoiceSendLog, LineItem } from "@/db/schema";
 import { invoiceSettingsForDocument } from "@/lib/invoice-settings";
 import { useLocale } from "@/lib/i18n-client";
 
@@ -56,6 +56,10 @@ const M = {
     outOfState: "Out of state",
     management: "Management",
     pdfPreview: "PDF Preview",
+    sendHistory: "Send history",
+    sentTo: "To",
+    historyOk: "Sent",
+    historyFailed: "Failed",
     download: "Download",
     letterOnePage: "Letter · 1 page",
     loading: "Loading…",
@@ -109,6 +113,10 @@ const M = {
     outOfState: "州外",
     management: "管理公司",
     pdfPreview: "PDF 预览",
+    sendHistory: "发送历史",
+    sentTo: "收件",
+    historyOk: "已发送",
+    historyFailed: "失败",
     download: "下载",
     letterOnePage: "Letter · 1 页",
     loading: "加载中…",
@@ -130,6 +138,7 @@ export default function InvoiceDetailPage() {
   const router = useRouter();
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [building, setBuilding] = useState<Building | null>(null);
+  const [sendLog, setSendLog] = useState<InvoiceSendLog[]>([]);
   const [settings, setSettings] = useState<Settings>({});
   const [loading, setLoading] = useState(true);
   const [showSend, setShowSend] = useState(false);
@@ -147,6 +156,7 @@ export default function InvoiceDetailPage() {
     ]).then(([invoiceData, settingsData]) => {
       setInvoice(invoiceData.invoice);
       setBuilding(invoiceData.building);
+      setSendLog(invoiceData.sendLog ?? []);
       setSettings(settingsData);
       setLoading(false);
     });
@@ -178,6 +188,7 @@ export default function InvoiceDetailPage() {
     const updated = await fetch(`/api/invoices/${params.id}`).then((r) => r.json());
     setInvoice(updated.invoice);
     setBuilding(updated.building);
+    setSendLog(updated.sendLog ?? []);
   };
 
   const handleMarkPaid = async () => {
@@ -552,6 +563,55 @@ export default function InvoiceDetailPage() {
               </div>
             </Card>
           </div>
+
+          {/* Send history — every attempt, including failures a later resend
+              overwrote in invoices.status */}
+          {sendLog.length > 0 && (
+            <Card>
+              <CardHeader title={t.sendHistory} />
+              <div className="px-6 py-2">
+                {sendLog.map((entry, index) => (
+                  <div
+                    key={entry.id}
+                    className="py-3 flex items-start justify-between gap-4"
+                    style={{
+                      borderBottom:
+                        index < sendLog.length - 1 ? `1px solid ${tone.lineSoft}` : "none",
+                    }}
+                  >
+                    <div className="min-w-0">
+                      <div className="text-[13px]" style={{ color: tone.ink }}>
+                        {t.sentTo} <span className="font-mono text-[12.5px]">{entry.toRecipients}</span>
+                        {entry.ccRecipients && (
+                          <span className="ml-2 text-[12px]" style={{ color: tone.ink50 }}>
+                            CC: <span className="font-mono">{entry.ccRecipients}</span>
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-0.5 text-[12px]" style={{ color: tone.ink50 }}>
+                        {fmtDate(entry.sentAt?.slice(0, 10))}{" "}
+                        {entry.sentAt
+                          ? new Date(entry.sentAt).toLocaleTimeString("en-US", {
+                              hour: "numeric",
+                              minute: "2-digit",
+                            })
+                          : ""}
+                        {entry.sentByEmail ? ` · ${entry.sentByEmail}` : ""}
+                      </div>
+                      {entry.status === "failed" && entry.errorMessage && (
+                        <div className="mt-1 text-[12px]" style={{ color: tone.rose }}>
+                          {entry.errorMessage}
+                        </div>
+                      )}
+                    </div>
+                    <Pill tone={entry.status === "sent" ? "sent" : "failed"}>
+                      {entry.status === "sent" ? t.historyOk : t.historyFailed}
+                    </Pill>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
         </div>
 
         {/* RIGHT: PDF preview */}
