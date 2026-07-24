@@ -123,7 +123,7 @@ export function Nav() {
                 />
               </svg>
             </button>
-            <Link href="/" className="flex-none">
+            <Link href="/" prefetch={false} className="flex-none">
               <HomixMark />
             </Link>
             <div className="hidden lg:flex items-center gap-0.5">
@@ -133,6 +133,7 @@ export function Nav() {
                   <Link
                     key={item.href}
                     href={item.href}
+                    prefetch={false}
                     className="px-3 h-9 rounded-md text-[13px] font-medium transition-colors flex items-center"
                     style={{
                       color: active ? tone.ink : tone.ink50,
@@ -203,6 +204,7 @@ export function Nav() {
                   {(session?.user?.accountStatus === "active" || session?.user?.isAdmin) && (
                     <Link
                       href="/profile"
+                      prefetch={false}
                       onClick={() => setMenuOpen(false)}
                       className="block px-4 py-3 text-[13px] hover:bg-[#FAF7F0] transition-colors"
                       style={{ color: tone.ink70, borderBottom: `1px solid ${tone.lineSoft}` }}
@@ -235,6 +237,7 @@ export function Nav() {
                 <Link
                   key={item.href}
                   href={item.href}
+                  prefetch={false}
                   onClick={() => setMobileOpen(false)}
                   className="px-3 h-10 rounded-md text-[13.5px] font-medium flex items-center"
                   style={{

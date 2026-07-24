@@ -1,4 +1,6 @@
-import { drizzle } from "drizzle-orm/postgres-js";
+import { attachDatabasePool } from "@vercel/functions";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { Pool } from "pg";
 import postgres from "postgres";
 import * as schema from "./schema";
 
@@ -20,24 +22,50 @@ if (process.env.NODE_ENV === "production" && !isBuildPhase && !url) {
   );
 }
 
-// Supabase's transaction-mode pooler (pgbouncer) does not support prepared
-// statements — `prepare: false` is required there and harmless locally.
-//
-// `max: 1` matches Supabase's own guidance for serverless + transaction-mode
-// pooling: pgbouncer already pools connections server-side, so each function
-// instance only needs one; holding several idle connections per instance (the
-// prior `max: 5`) needlessly eats into pgbouncer's shared client-connection
-// budget once many instances are warm at once, which is the likely cause of
-// the intermittent `CONNECT_TIMEOUT` seen in production. `connect_timeout`
-// makes a stuck attempt fail fast instead of hanging until the surrounding
-// request times out; `idle_timeout` releases the connection promptly between
-// requests so it doesn't sit open on a cold/rarely-hit instance.
+const connectionString = url || LOCAL_DEV_URL;
+
+// Application traffic uses node-postgres so Vercel Fluid Compute can close
+// idle sockets before freezing an instance. Reusing a frozen postgres-js
+// socket caused intermittent CONNECT_TIMEOUTs and 300-second request hangs.
+export const pgPool = new Pool({
+  connectionString,
+  max: 4,
+  connectionTimeoutMillis: 5_000,
+  idleTimeoutMillis: 10_000,
+  query_timeout: 15_000,
+  statement_timeout: 15_000,
+  keepAlive: true,
+  keepAliveInitialDelayMillis: 5_000,
+  allowExitOnIdle: true,
+  maxLifetimeSeconds: 60,
+});
+
+pgPool.on("error", (error) => {
+  console.error("Idle Postgres pool client failed", error);
+});
+
+if (process.env.VERCEL) {
+  attachDatabasePool(pgPool);
+}
+
+export const db = drizzle(pgPool, { schema });
+
+// Administrative DDL and seed scripts still use postgres-js because the
+// migration helpers rely on its tagged-template and unsafe-query APIs. It is
+// lazy and no longer runs during application startup.
 export const pgClient = postgres(url || LOCAL_DEV_URL, {
   prepare: false,
   max: 1,
   connect_timeout: 10,
-  idle_timeout: 20,
+  idle_timeout: 10,
+  keep_alive: 5,
+  max_lifetime: 60,
   onnotice: () => {},
 });
 
-export const db = drizzle(pgClient, { schema });
+export async function closeDatabaseConnections() {
+  await Promise.allSettled([
+    pgPool.end(),
+    pgClient.end({ timeout: 5 }),
+  ]);
+}

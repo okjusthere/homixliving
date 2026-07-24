@@ -4,7 +4,7 @@ import { agents, buildings, settings, teams } from "./schema";
 import { DEFAULT_INVOICE_SETTINGS } from "../lib/invoice-settings";
 import { ensureSchema } from "./ensure-schema";
 
-import { db, pgClient } from "./index";
+import { closeDatabaseConnections, db, pgClient } from "./index";
 void schema;
 
 // ============================================================
@@ -3331,7 +3331,7 @@ async function main() {
   try {
     await seed();
   } finally {
-    await pgClient.end({ timeout: 5 });
+    await closeDatabaseConnections();
   }
 }
 

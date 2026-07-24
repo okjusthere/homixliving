@@ -214,8 +214,8 @@ async function main() {
 
     console.log("visibility tests passed");
   } finally {
-    const { pgClient } = await import("@/db");
-    await pgClient.end({ timeout: 2 }).catch(() => {});
+    const { closeDatabaseConnections } = await import("@/db");
+    await closeDatabaseConnections();
     if (client) await client.end({ timeout: 2 }).catch(() => {});
     await adminClient.unsafe(`DROP DATABASE IF EXISTS ${dbName}`).catch(() => {});
     await adminClient.end({ timeout: 2 }).catch(() => {});

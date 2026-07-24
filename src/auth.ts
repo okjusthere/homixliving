@@ -1,5 +1,6 @@
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
+import { after } from "next/server";
 import { db } from "@/db";
 import { agents } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
@@ -18,6 +19,59 @@ const googleEnabled =
 const isAdminEmail = (email: string) =>
   adminEmails.includes(email.toLowerCase());
 
+type Agent = typeof agents.$inferSelect;
+
+async function reconcileConfiguredAccess(
+  existing: Agent,
+  admin: boolean,
+  name: string | null | undefined,
+) {
+  const needsAdminFlip = Boolean(existing.isAdmin) !== admin;
+  const needsActiveForce = admin && existing.accountStatus !== "active";
+  const needsNameFill = !existing.name && Boolean(name);
+
+  if (!needsAdminFlip && !needsActiveForce && !needsNameFill) {
+    return existing;
+  }
+
+  const [updated] = await db
+    .update(agents)
+    .set({
+      isAdmin: admin,
+      ...(needsActiveForce ? { accountStatus: "active" as const } : {}),
+      ...(needsNameFill ? { name: name! } : {}),
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(agents.id, existing.id))
+    .returning();
+
+  return updated || existing;
+}
+
+async function loadAgentFromDatabase(user: {
+  email?: string | null;
+  name?: string | null;
+}) {
+  if (!user.email) throw new Error("Google account has no email");
+
+  const email = user.email.trim().toLowerCase();
+  const [existing] = await db
+    .select()
+    .from(agents)
+    .where(sql`lower(${agents.email}) = ${email}`)
+    .limit(1);
+
+  if (!existing) {
+    throw new Error(`Agent account not found for ${email}`);
+  }
+
+  return reconcileConfiguredAccess(
+    existing,
+    isAdminEmail(email),
+    user.name,
+  );
+}
+
 async function upsertAgentFromGoogle(user: {
   email?: string | null;
   name?: string | null;
@@ -28,15 +82,7 @@ async function upsertAgentFromGoogle(user: {
   const admin = isAdminEmail(email);
   const now = new Date().toISOString();
 
-  // Detect a genuinely new signup (the jwt callback runs on every token
-  // refresh, so the "notify admins" event must fire only on first creation).
-  const [preExisting] = await db
-    .select({ id: agents.id })
-    .from(agents)
-    .where(sql`lower(${agents.email}) = ${email}`)
-    .limit(1);
-
-  await db
+  const [created] = await db
     .insert(agents)
     .values({
       email,
@@ -48,55 +94,43 @@ async function upsertAgentFromGoogle(user: {
       createdAt: now,
       updatedAt: now,
     })
-    .onConflictDoNothing({ target: agents.email });
+    .onConflictDoNothing({ target: agents.email })
+    .returning();
 
-  if (!preExisting && !admin) {
-    // New pending agent — tell the admins so approval doesn't sit unnoticed.
-    try {
-      await notify({
-        recipientAgentIds: await adminAgentIds(),
-        type: "agent_pending",
-        title: `新经纪人待审批：${user.name || email}`,
-        body: `${email} 刚通过 Google 登录注册，等待开通。`,
-        href: "/agents",
-        dedupeKey: `agent-pending:${email}`,
-        email: true,
-      });
-    } catch (error) {
-      console.error("agent_pending notification failed", error);
-    }
+  if (created && !admin) {
+    // Admin notification is not part of the OAuth critical path.
+    after(async () => {
+      try {
+        await notify({
+          recipientAgentIds: await adminAgentIds(),
+          type: "agent_pending",
+          title: `新经纪人待审批：${user.name || email}`,
+          body: `${email} 刚通过 Google 登录注册，等待开通。`,
+          href: "/agents",
+          dedupeKey: `agent-pending:${email}`,
+          email: true,
+        });
+      } catch (error) {
+        console.error("agent_pending notification failed", error);
+      }
+    });
   }
 
-  const [existing] = await db
-    .select()
-    .from(agents)
-    .where(sql`lower(${agents.email}) = ${email}`)
-    .limit(1);
+  const existing =
+    created ||
+    (
+      await db
+        .select()
+        .from(agents)
+        .where(sql`lower(${agents.email}) = ${email}`)
+        .limit(1)
+    )[0];
 
   if (!existing) {
     throw new Error(`Failed to upsert agent for ${email}`);
   }
 
-  const needsAdminFlip = Boolean(existing.isAdmin) !== admin;
-  const needsActiveForce = admin && existing.accountStatus !== "active";
-  const needsNameFill = !existing.name && Boolean(user.name);
-
-  if (needsAdminFlip || needsActiveForce || needsNameFill) {
-    const [updated] = await db
-      .update(agents)
-      .set({
-        isAdmin: admin,
-        ...(needsActiveForce ? { accountStatus: "active" as const } : {}),
-        ...(needsNameFill ? { name: user.name! } : {}),
-        updatedAt: now,
-      })
-      .where(eq(agents.id, existing.id))
-      .returning();
-
-    return updated || existing;
-  }
-
-  return existing;
+  return reconcileConfiguredAccess(existing, admin, user.name);
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -112,7 +146,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     : [],
   callbacks: {
     ...authConfig.callbacks,
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger }) {
       const email =
         (typeof user?.email === "string" && user.email) ||
         (typeof token.email === "string" && token.email) ||
@@ -132,17 +166,21 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // without a full sign-out required.
       const isFreshSignIn = Boolean(user);
       const checkedAt = typeof token.checkedAt === "number" ? token.checkedAt : 0;
-      const isStale = Date.now() - checkedAt > 5 * 60 * 1000;
+      const isStale =
+        trigger === "update" || Date.now() - checkedAt > 5 * 60 * 1000;
       if (!isFreshSignIn && !isStale) {
         return token;
       }
 
-      const agent = await upsertAgentFromGoogle({
+      const identity = {
         email,
         name:
           (typeof user?.name === "string" && user.name) ||
           (typeof token.name === "string" ? token.name : null),
-      });
+      };
+      const agent = isFreshSignIn
+        ? await upsertAgentFromGoogle(identity)
+        : await loadAgentFromDatabase(identity);
 
       token.agentId = agent.id;
       token.email = agent.email;

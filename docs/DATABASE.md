@@ -13,8 +13,10 @@ server-to-server APIs.
 ## Connection
 
 Production `DATABASE_URL` must use the Supabase transaction pooler. Prepared
-statements are disabled in `src/db/index.ts`. Local development defaults to
-Postgres on port `5499`.
+statements are disabled for the administrative postgres-js client. Application
+queries use a Vercel-managed `pg.Pool` so idle connections are released before
+a Fluid Compute instance is suspended. Local development defaults to Postgres
+on port `5499`.
 
 ## Agent lifecycle rollout
 
@@ -52,8 +54,9 @@ new code.
 
 ## Schema checks
 
-`src/db/ensure-schema.ts` is idempotent and runs at application boot. It may
-also be invoked with:
+`src/db/ensure-schema.ts` is idempotent but deliberately does not run at
+application boot. Schema changes must be applied before deploying code that
+depends on them, or invoked explicitly with:
 
 ```bash
 curl -X POST https://agents.homixny.com/api/admin/ensure-schema \

@@ -490,6 +490,7 @@ export default function AgentsPage() {
                   <Link
                     key={agent.id}
                     href={`/agents/${agent.id}`}
+                    prefetch={false}
                     className="rounded-xl p-4 transition-colors hover:bg-[#FAF7F0]"
                     style={{ border: `1px solid ${tone.line}`, background: tone.card }}
                   >
