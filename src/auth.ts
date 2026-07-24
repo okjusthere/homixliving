@@ -120,6 +120,23 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
       if (!email) return token;
 
+      // `auth()` re-invokes this callback on nearly every page/API request
+      // (it's how session reads work with the JWT strategy), and
+      // upsertAgentFromGoogle does 2-4 DB round-trips. Running that on every
+      // single request — multiplied by Next.js's automatic link prefetching
+      // firing several requests at once — was hammering the shared Supabase
+      // connection pool and causing the CONNECT_TIMEOUTs seen in prod. Only
+      // hit the database on actual sign-in (`user` present) or when the
+      // cached isAdmin/accountStatus is more than a few minutes old, so an
+      // admin approving/promoting someone still lands within a few minutes
+      // without a full sign-out required.
+      const isFreshSignIn = Boolean(user);
+      const checkedAt = typeof token.checkedAt === "number" ? token.checkedAt : 0;
+      const isStale = Date.now() - checkedAt > 5 * 60 * 1000;
+      if (!isFreshSignIn && !isStale) {
+        return token;
+      }
+
       const agent = await upsertAgentFromGoogle({
         email,
         name:
@@ -135,6 +152,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // Derived compatibility flag for deal-access helpers. The database has
       // one lifecycle source of truth: account_status.
       token.isActive = agent.accountStatus === "active";
+      token.checkedAt = Date.now();
 
       return token;
     },

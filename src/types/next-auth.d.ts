@@ -20,5 +20,7 @@ declare module "@auth/core/jwt" {
     isAdmin?: boolean;
     accountStatus?: AgentAccountStatus;
     isActive?: boolean;
+    /** epoch ms of the last DB refresh — throttles the jwt callback's upsert. */
+    checkedAt?: number;
   }
 }
