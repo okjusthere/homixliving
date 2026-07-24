@@ -3327,4 +3327,15 @@ async function seed() {
   console.log("Seed completed!");
 }
 
-seed().catch(console.error);
+async function main() {
+  try {
+    await seed();
+  } finally {
+    await pgClient.end({ timeout: 5 });
+  }
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});
