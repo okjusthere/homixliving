@@ -63,7 +63,9 @@ export const authConfig: NextAuthConfig = {
         "/_next",
         "/favicon.ico",
         "/icon.png",
-        "/apple-icon",
+        "/apple-icon.png",
+        "/manifest.webmanifest",
+        "/icons",
         "/auth",
       ];
       const isPublic = PUBLIC_PATHS.some((p) => isPathOrChild(pathname, p));
