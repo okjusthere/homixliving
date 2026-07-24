@@ -8,7 +8,7 @@ import { PageHeader } from "@/components/homix/page-kit";
 import { getLocale } from "@/lib/i18n";
 import { ProfileClient } from "./profile-client";
 
-export const metadata: Metadata = { title: "My Profile · Homix Deals" };
+export const metadata: Metadata = { title: "My Profile · Homix" };
 
 const M = {
   en: {

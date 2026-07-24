@@ -17,7 +17,7 @@ import { SyncInvoicesButton } from "@/components/sync-invoices-button";
 import { FinanceExportButton } from "@/components/finance-export-button";
 import { getLocale } from "@/lib/i18n";
 
-export const metadata: Metadata = { title: "Finance · Homix Deals" };
+export const metadata: Metadata = { title: "Finance · Homix" };
 
 const M = {
   en: {

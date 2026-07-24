@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { signOut, useSession } from "next-auth/react";
-import { HomixMark } from "@/components/homix/primitives";
+import { HomixMark } from "@/components/homix/brand-mark";
 import { tone } from "@/components/homix/tokens";
 import { useLocale } from "@/lib/i18n-client";
 import { NotificationBell } from "@/components/notification-bell";

@@ -8,7 +8,7 @@ import { fetchPublicProfile } from "@/lib/homixweb";
 import { PageHeader } from "@/components/homix/page-kit";
 import { PublicProfileEditor } from "./editor";
 
-export const metadata: Metadata = { title: "Public Profile · Homix Deals" };
+export const metadata: Metadata = { title: "Public Profile · Homix" };
 
 // Edit the agent's public marketing-site profile (www.homixny.com) from inside
 // the portal — no magic link. Agents edit their own; admins may edit anyone via

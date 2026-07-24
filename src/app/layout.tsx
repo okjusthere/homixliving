@@ -24,7 +24,7 @@ const instrumentSerif = Instrument_Serif({
 });
 
 export const metadata: Metadata = {
-  title: "Homix Deals",
+  title: "Homix",
   description: "Rental and sales deal intake, commissions, and invoice workflow for Homix.",
 };
 

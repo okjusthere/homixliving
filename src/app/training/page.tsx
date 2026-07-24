@@ -37,7 +37,7 @@ const M = {
   },
 } as const;
 
-export const metadata: Metadata = { title: "Training · Homix Deals" };
+export const metadata: Metadata = { title: "Training · Homix" };
 
 function groupByCategory(items: TrainingVideo[]): [string, TrainingVideo[]][] {
   const map = new Map<string, TrainingVideo[]>();

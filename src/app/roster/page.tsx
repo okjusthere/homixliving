@@ -8,7 +8,7 @@ import { db } from "@/db";
 import { agents as portalAgents } from "@/db/schema";
 import { RosterConsole } from "./console";
 
-export const metadata: Metadata = { title: "Public Roster · Homix Deals" };
+export const metadata: Metadata = { title: "Public Roster · Homix" };
 
 // Admin console for the public advisor roster on www.homixny.com — replaces the
 // old website /admin page. Account creation/deactivation lives in /agents;

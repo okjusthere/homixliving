@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { signIn } from "next-auth/react";
-import { HomixMark } from "@/components/homix/server-primitives";
+import { HomixMark } from "@/components/homix/brand-mark";
 import { tone } from "@/components/homix/tokens";
 import { Copy, Smartphone } from "lucide-react";
 import { toast } from "sonner";
@@ -169,7 +169,7 @@ function LoginInner() {
             Welcome back.
           </h1>
           <p className="text-[13.5px]" style={{ color: tone.ink70 }}>
-            Use your Google account to access Homix Deals.
+            Use your Google account to access the Homix agent portal.
           </p>
 
           {inAppBrowser && (

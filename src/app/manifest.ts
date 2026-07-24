@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Homix Deals",
-    short_name: "Homix Deals",
+    name: "Homix",
+    short_name: "Homix",
     description:
       "Rental and sales deal intake, commissions, and invoice workflow for Homix.",
     start_url: "/",

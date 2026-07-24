@@ -194,48 +194,6 @@ export function SoftField({
   );
 }
 
-// -------------- Homix Brand Mark --------------
-// Visual parity with HomixMark in server-primitives.tsx and src/app/icon.svg —
-// edit both copies together when touching the brand.
-export function HomixMark({ size = 28 }: { size?: number }) {
-  return (
-    <div className="flex items-center gap-2.5">
-      <svg width={size} height={size} viewBox="0 0 64 64" fill="none">
-        <rect
-          x="1"
-          y="1"
-          width="62"
-          height="62"
-          rx="12"
-          fill={tone.paper}
-          stroke={tone.line}
-          strokeWidth="1"
-        />
-        <path
-          d="M 8 48 L 32 16 L 44 30 L 44 22 L 52 22 L 52 38 L 56 48 Z"
-          fill={tone.brand}
-        />
-      </svg>
-      <div className="leading-[1.05]">
-        <div
-          className="font-serif"
-          style={{
-            color: tone.brand,
-            fontSize: 20,
-            letterSpacing: "0.04em",
-            fontWeight: 400,
-          }}
-        >
-          HOMIX
-        </div>
-        <div className="text-[10px] uppercase tracking-[0.18em]" style={{ color: tone.ink50 }}>
-          Deals
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // -------------- Text Input (editorial) --------------
 export function EditorialInput({
   value,

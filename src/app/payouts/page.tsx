@@ -8,7 +8,7 @@ import { PageHeader } from "@/components/homix/page-kit";
 import { getLocale } from "@/lib/i18n";
 import { PayoutsClient } from "./payouts-client";
 
-export const metadata: Metadata = { title: "Payouts · Homix Deals" };
+export const metadata: Metadata = { title: "Payouts · Homix" };
 
 const M = {
   en: {

@@ -11,7 +11,7 @@ import { ChecklistManager } from "@/components/resources/checklist-manager";
 import { RequiredDocs } from "@/components/resources/required-docs";
 import { getLocale } from "@/lib/i18n";
 
-export const metadata: Metadata = { title: "Resources · Homix Deals" };
+export const metadata: Metadata = { title: "Resources · Homix" };
 
 const M = {
   en: {

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import { Btn } from "@/components/homix/primitives";
-import { HomixMark } from "@/components/homix/server-primitives";
+import { HomixMark } from "@/components/homix/brand-mark";
 import { tone } from "@/components/homix/tokens";
 
 export function PendingApprovalClient({

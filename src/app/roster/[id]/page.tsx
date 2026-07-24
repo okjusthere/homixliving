@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/homix/page-kit";
 import { tone } from "@/components/homix/tokens";
 import { PublicProfileEditor } from "../../profile/public/editor";
 
-export const metadata: Metadata = { title: "Edit Advisor · Homix Deals" };
+export const metadata: Metadata = { title: "Edit Advisor · Homix" };
 
 // Admin edit of one advisor's public profile, keyed by PUBLIC agent id — works
 // for advisors with no portal account too. Reuses the self-service editor with
