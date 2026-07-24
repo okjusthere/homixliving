@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Btn, Card } from "@/components/homix/primitives";
 import { CardHeader } from "@/components/homix/page-kit";
@@ -9,17 +9,34 @@ import type { AdminAgentRow } from "@/lib/homixweb";
 
 const WEB = "https://www.homixny.com";
 
+type PortalRosterCandidate = {
+  id: number;
+  name: string;
+  email: string;
+};
+
 export function RosterConsole({
   initialAgents,
+  portalAgents,
   unreachable,
 }: {
   initialAgents: AdminAgentRow[];
+  portalAgents: PortalRosterCandidate[];
   unreachable: boolean;
 }) {
   const router = useRouter();
   const [agents, setAgents] = useState<AdminAgentRow[]>(initialAgents);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [selectedLinks, setSelectedLinks] = useState<Record<string, string>>({});
+  const availablePortalAgents = useMemo(() => {
+    const linkedIds = new Set(
+      agents
+        .map((agent) => agent.portal_agent_id)
+        .filter((id): id is number => id != null),
+    );
+    return portalAgents.filter((agent) => !linkedIds.has(agent.id));
+  }, [agents, portalAgents]);
 
   if (unreachable) {
     return (
@@ -32,7 +49,13 @@ export function RosterConsole({
     );
   }
 
-  type RosterResp = { ok?: boolean; error?: string; id?: string };
+  type RosterResp = {
+    ok?: boolean;
+    error?: string;
+    id?: string;
+    portalAgentId?: number;
+    notice?: string;
+  };
   async function post(body: Record<string, unknown>): Promise<{ ok: boolean; out: RosterResp }> {
     const res = await fetch("/api/admin/roster", {
       method: "POST",
@@ -75,6 +98,50 @@ export function RosterConsole({
       setAgents(prev); // revert on failure
       setMsg({ ok: false, text: out?.error || "排序失败" });
     }
+  }
+
+  async function linkProfile(a: AdminAgentRow) {
+    const portalAgentId = Number(selectedLinks[a.id]);
+    const portalAgent = availablePortalAgents.find(
+      (candidate) => candidate.id === portalAgentId,
+    );
+    if (!portalAgent) {
+      setMsg({ ok: false, text: "请选择要关联的 Portal 经纪人。" });
+      return;
+    }
+
+    setBusy(`link:${a.id}`);
+    setMsg(null);
+    const { ok, out } = await post({
+      action: "link",
+      id: a.id,
+      portalAgentId,
+    });
+    setBusy(null);
+    if (!ok) {
+      setMsg({ ok: false, text: out.error || "关联失败" });
+      return;
+    }
+    setAgents((prev) =>
+      prev.map((agent) =>
+        agent.id === a.id
+          ? {
+              ...agent,
+              name: portalAgent.name,
+              portal_agent_id: portalAgentId,
+            }
+          : agent,
+      ),
+    );
+    setSelectedLinks((prev) => {
+      const next = { ...prev };
+      delete next[a.id];
+      return next;
+    });
+    setMsg({
+      ok: true,
+      text: `${a.name} 已关联到 ${portalAgent.name}。${out.notice || ""}`.trim(),
+    });
   }
 
   return (
@@ -170,7 +237,38 @@ export function RosterConsole({
               </button>
 
               {/* Actions */}
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                {a.portal_agent_id == null && availablePortalAgents.length > 0 && (
+                  <>
+                    <select
+                      aria-label={`关联 ${a.name || a.slug} 到 Portal 经纪人`}
+                      value={selectedLinks[a.id] || ""}
+                      onChange={(event) =>
+                        setSelectedLinks((prev) => ({
+                          ...prev,
+                          [a.id]: event.target.value,
+                        }))
+                      }
+                      disabled={busy !== null}
+                      className="h-9 max-w-[230px] rounded border bg-white px-2 text-[12px] disabled:opacity-50"
+                      style={{ borderColor: tone.line, color: tone.ink }}
+                    >
+                      <option value="">选择 Portal 经纪人</option>
+                      {availablePortalAgents.map((agent) => (
+                        <option key={agent.id} value={agent.id}>
+                          {agent.name} · {agent.email}
+                        </option>
+                      ))}
+                    </select>
+                    <Btn
+                      variant="outline"
+                      onClick={() => void linkProfile(a)}
+                      disabled={busy !== null || !selectedLinks[a.id]}
+                    >
+                      关联
+                    </Btn>
+                  </>
+                )}
                 <Btn variant="outline" onClick={() => router.push(`/roster/${a.id}`)}>
                   编辑
                 </Btn>
