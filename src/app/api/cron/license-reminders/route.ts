@@ -42,7 +42,7 @@ export async function GET(request: Request) {
   const failures: string[] = [];
 
   for (const agent of rows) {
-    if (!agent.isActive) continue;
+    if (agent.accountStatus !== "active") continue;
     scanned += 1;
     const days = daysUntil(agent.licenseExpiresAt);
     const window = renewalWindow(days);

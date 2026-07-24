@@ -20,7 +20,6 @@ export function RosterConsole({
   const [agents, setAgents] = useState<AdminAgentRow[]>(initialAgents);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const [newName, setNewName] = useState("");
 
   if (unreachable) {
     return (
@@ -47,22 +46,18 @@ export function RosterConsole({
   async function toggleVisible(a: AdminAgentRow) {
     setBusy(a.id);
     setMsg(null);
-    const { ok, out } = await post({ action: "visible", id: a.id, visible: !a.visible });
+    const next = a.visibility_status === "visible" ? "admin_hidden" : "visible";
+    const { ok, out } = await post({
+      action: "visibility",
+      id: a.id,
+      visibilityStatus: next,
+    });
     setBusy(null);
     if (!ok) return setMsg({ ok: false, text: out?.error || "操作失败" });
-    setAgents((prev) => prev.map((x) => (x.id === a.id ? { ...x, visible: !a.visible } : x)));
-    setMsg({ ok: true, text: `${a.name} 已${!a.visible ? "上架" : "下架"}` });
-  }
-
-  async function remove(a: AdminAgentRow) {
-    if (!confirm(`确认删除「${a.name}」?此操作不可恢复,对外主页会一并消失。`)) return;
-    setBusy(a.id);
-    setMsg(null);
-    const { ok, out } = await post({ action: "delete", id: a.id });
-    setBusy(null);
-    if (!ok) return setMsg({ ok: false, text: out?.error || "删除失败" });
-    setAgents((prev) => prev.filter((x) => x.id !== a.id));
-    setMsg({ ok: true, text: `${a.name} 已删除` });
+    setAgents((prev) =>
+      prev.map((x) => (x.id === a.id ? { ...x, visibility_status: next } : x)),
+    );
+    setMsg({ ok: true, text: `${a.name} 已${next === "visible" ? "显示" : "由管理员隐藏"}` });
   }
 
   async function move(idx: number, dir: -1 | 1) {
@@ -82,18 +77,6 @@ export function RosterConsole({
     }
   }
 
-  async function create() {
-    const name = newName.trim();
-    if (!name) return;
-    setBusy("create");
-    setMsg(null);
-    const { ok, out } = await post({ action: "create", name });
-    setBusy(null);
-    if (!ok) return setMsg({ ok: false, text: out?.error || "新建失败" });
-    setNewName("");
-    router.push(`/roster/${out.id}`); // straight into editing the new advisor
-  }
-
   return (
     <div className="space-y-5">
       {msg && (
@@ -102,26 +85,12 @@ export function RosterConsole({
         </div>
       )}
 
-      {/* Create */}
-      <Card className="flex flex-col">
-        <CardHeader title="新建经纪人" subtitle="先建再编辑资料,默认公开" />
-        <div className="flex flex-wrap items-center gap-3 p-5">
-          <input
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            placeholder="经纪人姓名"
-            className="h-10 min-w-[220px] flex-1 rounded-lg px-3 text-[13.5px] outline-none"
-            style={{ border: `1px solid ${tone.line}`, background: tone.card, color: tone.ink }}
-          />
-          <Btn variant="primary" onClick={create} disabled={busy !== null || !newName.trim()}>
-            {busy === "create" ? "新建中…" : "新建"}
-          </Btn>
-        </div>
-      </Card>
-
       {/* Roster */}
       <Card className="flex flex-col">
-        <CardHeader title={`经纪人（${agents.length}）`} subtitle="顺序即对外网站的展示顺序" />
+        <CardHeader
+          title={`经纪人（${agents.length}）`}
+          subtitle="新增和停用请前往“经纪人”；这里管理官网显示状态与顺序"
+        />
         <div className="divide-y" style={{ borderColor: tone.line }}>
           {agents.map((a, idx) => (
             <div key={a.id} className="flex flex-wrap items-center gap-3 px-5 py-3">
@@ -176,20 +145,28 @@ export function RosterConsole({
                 </a>
               </div>
 
-              {/* Visible state */}
+              {/* Visibility state */}
               <button
                 type="button"
                 onClick={() => toggleVisible(a)}
                 disabled={busy !== null}
                 className="rounded-full px-2.5 py-1 text-[11.5px]"
                 style={
-                  a.visible
+                  a.visibility_status === "visible"
                     ? { background: "#EEF3E6", color: "#5C6B3A" }
                     : { background: "#F3F0EA", color: tone.ink50 }
                 }
-                title="点击切换上/下架"
+                title={
+                  a.visibility_status === "agent_hidden"
+                    ? "经纪人自行隐藏；点击可由管理员重新显示"
+                    : "点击切换官网显示状态"
+                }
               >
-                {a.visible ? "● 公开" : "○ 隐藏"}
+                {a.visibility_status === "visible"
+                  ? "● 公开"
+                  : a.visibility_status === "agent_hidden"
+                    ? "○ 经纪人隐藏"
+                    : "○ 管理员隐藏"}
               </button>
 
               {/* Actions */}
@@ -197,15 +174,6 @@ export function RosterConsole({
                 <Btn variant="outline" onClick={() => router.push(`/roster/${a.id}`)}>
                   编辑
                 </Btn>
-                <button
-                  type="button"
-                  onClick={() => remove(a)}
-                  disabled={busy !== null}
-                  className="text-[12.5px] font-medium disabled:opacity-40"
-                  style={{ color: tone.rose }}
-                >
-                  删除
-                </button>
               </div>
             </div>
           ))}

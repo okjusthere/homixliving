@@ -6,12 +6,9 @@
  * cheap information_schema probe checks the newest schema marker and runs the
  * idempotent ensure-schema only when the database is behind.
  *
- * MARKER: bump `LATEST_COLUMN` whenever ensure-schema gains a new
- * table/column, so fresh deploys detect the gap.
+ * Lifecycle uses two schemas, so both marker columns must be ready before the
+ * deployment serves requests.
  */
-const LATEST_TABLE = "agent_payouts";
-const LATEST_COLUMN = "amount_cents";
-
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
   if (process.env.NEXT_PHASE === "phase-production-build") return;
@@ -19,13 +16,24 @@ export async function register() {
   try {
     const { pgClient } = await import("@/db");
 
-    const rows = await pgClient`
-      SELECT 1 FROM information_schema.columns
-      WHERE table_schema = 'portal'
-        AND table_name = ${LATEST_TABLE}
-        AND column_name = ${LATEST_COLUMN}
-      LIMIT 1`;
-    if (rows.length > 0) return;
+    const [state] = await pgClient`
+      SELECT
+        EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'portal'
+            AND table_name = 'agents'
+            AND column_name = 'account_status'
+        ) AS portal_ready,
+        (
+          to_regclass('public.agents') IS NULL
+          OR EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'agents'
+              AND column_name = 'visibility_status'
+          )
+        ) AS public_ready`;
+    if (state?.portal_ready && state?.public_ready) return;
 
     console.log("Schema behind code — running ensure-schema at boot…");
     const { ensureSchema } = await import("@/db/ensure-schema");

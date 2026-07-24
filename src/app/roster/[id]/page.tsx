@@ -41,7 +41,8 @@ export default async function RosterEditPage({
         targetAgentId={0}
         isOwn={false}
         agentName={profile?.name || id}
-        agentEmail={profile?.email ?? null}
+        agentPhone={profile?.phone ?? null}
+        agentLicense={profile?.license_number ?? null}
         adminPublicId={id}
       />
     </div>

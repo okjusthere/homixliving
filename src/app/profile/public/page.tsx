@@ -50,7 +50,8 @@ export default async function PublicProfilePage({
         targetAgentId={targetAgentId}
         isOwn={isOwn}
         agentName={agent.name}
-        agentEmail={agent.email}
+        agentPhone={agent.phone}
+        agentLicense={agent.licenseNumber}
       />
     </div>
   );

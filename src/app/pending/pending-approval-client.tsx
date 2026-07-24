@@ -9,8 +9,10 @@ import { tone } from "@/components/homix/tokens";
 
 export function PendingApprovalClient({
   initialIsApproved,
+  accountStatus,
 }: {
   initialIsApproved: boolean;
+  accountStatus: "pending" | "active" | "inactive";
 }) {
   const router = useRouter();
   const { data: session, status, update } = useSession();
@@ -19,7 +21,7 @@ export function PendingApprovalClient({
 
   const redirectIfApproved = useCallback(
     (effectiveSession: typeof session) => {
-      if (effectiveSession?.user.isAdmin || effectiveSession?.user.isActive) {
+      if (effectiveSession?.user.isAdmin || effectiveSession?.user.accountStatus === "active") {
         router.replace("/");
         router.refresh();
         return true;
@@ -78,7 +80,7 @@ export function PendingApprovalClient({
             style={{ lineHeight: 1 }}
             aria-hidden
           >
-            ⏳
+            {accountStatus === "inactive" ? "–" : "⏳"}
           </div>
           <h1
             className="font-serif"
@@ -90,28 +92,32 @@ export function PendingApprovalClient({
               marginBottom: 12,
             }}
           >
-            Pending approval
+            {accountStatus === "inactive" ? "Account inactive" : "Pending approval"}
           </h1>
           <p className="text-[14px]" style={{ color: tone.ink70 }}>
-            Your account has been created. An admin needs to activate it before
-            you can start working.
+            {accountStatus === "inactive"
+              ? "This account has been deactivated. Contact a Homix administrator if you believe this is a mistake."
+              : "Your account has been created. An admin needs to activate it before you can start working."}
           </p>
           <p className="text-[12px] mt-4" style={{ color: tone.ink50 }}>
-            Reach out to your team lead — they&rsquo;ll see you in the Agents
-            page.
+            {accountStatus === "inactive"
+              ? "Your historical deals and payment records remain retained by the company."
+              : "Reach out to your team lead — they’ll see you in the Agents page."}
           </p>
 
           <div className="mt-6 grid gap-2">
-            <Btn
-              variant="primary"
-              size="md"
-              type="button"
-              className="w-full justify-center"
-              onClick={() => void refreshApproval()}
-              disabled={checking}
-            >
-              {checking ? "Checking approval..." : "Check approval"}
-            </Btn>
+            {accountStatus === "pending" && (
+              <Btn
+                variant="primary"
+                size="md"
+                type="button"
+                className="w-full justify-center"
+                onClick={() => void refreshApproval()}
+                disabled={checking}
+              >
+                {checking ? "Checking approval..." : "Check approval"}
+              </Btn>
+            )}
             <Btn
               variant="outline"
               size="md"

@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { pgClient } from "@/db";
-import { ensureSchema } from "@/db/ensure-schema";
+import {
+  contractAgentLifecycle,
+  ensureSchema,
+  getAgentLifecycleSchemaState,
+} from "@/db/ensure-schema";
 import { logAudit } from "@/lib/audit";
 
 export const runtime = "nodejs";
@@ -13,13 +17,20 @@ export const maxDuration = 60;
 // database credentials are Sensitive in Vercel and can't be pulled locally —
 // schema rollouts happen where the credentials live.
 //
-// Auth: an admin session OR the CRON_SECRET bearer. Safe to re-run any time;
-// it never drops or rewrites data.
+// Auth: an admin session, CRON_SECRET, or a temporary
+// LIFECYCLE_MIGRATION_SECRET bearer. The default expand action is safe to
+// re-run. Contract requires an explicit confirmation query because it drops
+// only the retired compatibility columns.
 async function isAuthorized(request: Request): Promise<{ ok: boolean; actor: string }> {
-  const configuredSecret = process.env.CRON_SECRET?.trim();
   const authorization = request.headers.get("authorization") || "";
-  if (configuredSecret && authorization === `Bearer ${configuredSecret}`) {
-    return { ok: true, actor: "cron-secret" };
+  const secrets = [
+    ["cron-secret", process.env.CRON_SECRET?.trim()],
+    ["lifecycle-migration", process.env.LIFECYCLE_MIGRATION_SECRET?.trim()],
+  ] as const;
+  for (const [actor, secret] of secrets) {
+    if (secret && authorization === `Bearer ${secret}`) {
+      return { ok: true, actor };
+    }
   }
   try {
     const session = await auth();
@@ -39,7 +50,28 @@ export async function POST(request: Request) {
   }
 
   try {
-    await ensureSchema(pgClient);
+    const url = new URL(request.url);
+    const phase = url.searchParams.get("phase") || "expand";
+    if (phase !== "expand" && phase !== "contract" && phase !== "status") {
+      return NextResponse.json({ error: "Invalid migration phase." }, { status: 400 });
+    }
+    if (
+      phase === "contract" &&
+      url.searchParams.get("confirm") !== "drop-legacy-columns"
+    ) {
+      return NextResponse.json(
+        { error: "Contract requires confirm=drop-legacy-columns." },
+        { status: 400 },
+      );
+    }
+
+    if (phase === "expand") {
+      await ensureSchema(pgClient);
+    } else if (phase === "contract") {
+      await contractAgentLifecycle(pgClient);
+    }
+
+    const lifecycle = await getAgentLifecycleSchemaState(pgClient);
     const tables = await pgClient`
       SELECT table_name FROM information_schema.tables
       WHERE table_schema = 'portal' ORDER BY table_name`;
@@ -49,9 +81,9 @@ export async function POST(request: Request) {
       "ensure_schema",
       "setting",
       "schema",
-      `执行 ensure-schema：${tableNames.length} 张表就绪`
+      `执行 schema ${phase}：${tableNames.length} 张表就绪`,
     );
-    return NextResponse.json({ ok: true, tables: tableNames });
+    return NextResponse.json({ ok: true, phase, lifecycle, tables: tableNames });
   } catch (error) {
     console.error("ensure-schema failed", error);
     return NextResponse.json(

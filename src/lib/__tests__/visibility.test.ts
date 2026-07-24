@@ -1,14 +1,19 @@
 import assert from "node:assert/strict";
 import postgres from "postgres";
 
-// Throwaway database on the local dev Postgres (:5499) — created fresh per
+// Throwaway database on the configured Postgres server — created fresh per
 // run, dropped in the finally block, so parallel/no-cleanup runs never bleed
 // into each other or into the dev database.
-const PG_HOST = "postgres://postgres@localhost:5499";
+const configuredUrl =
+  process.env.DATABASE_URL?.trim() || "postgres://postgres@localhost:5499/homixliving";
 const dbName = `homix_vis_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-process.env.DATABASE_URL = `${PG_HOST}/${dbName}`;
+const testUrl = new URL(configuredUrl);
+testUrl.pathname = `/${dbName}`;
+const adminUrl = new URL(configuredUrl);
+adminUrl.pathname = "/postgres";
+process.env.DATABASE_URL = testUrl.toString();
 
-const adminClient = postgres(`${PG_HOST}/postgres`, { prepare: false, max: 1, onnotice: () => {} });
+const adminClient = postgres(adminUrl.toString(), { prepare: false, max: 1, onnotice: () => {} });
 let client: ReturnType<typeof postgres> | null = null;
 
 async function execute(sql: string) {
@@ -42,7 +47,8 @@ async function setup() {
       split_pct DOUBLE PRECISION NOT NULL DEFAULT 80,
       team_id INTEGER REFERENCES portal.teams(id) ON DELETE SET NULL,
       is_admin BOOLEAN NOT NULL DEFAULT FALSE,
-      is_active BOOLEAN NOT NULL DEFAULT FALSE
+      account_status TEXT NOT NULL DEFAULT 'pending'
+        CHECK (account_status IN ('pending', 'active', 'inactive'))
     )
   `);
   await execute(`
@@ -92,12 +98,12 @@ async function setup() {
   await execute("INSERT INTO portal.buildings (id, region, name) VALUES (1, 'NYC', 'Test Building')");
   await execute("INSERT INTO portal.teams (id, name, leader_agent_id) VALUES (1, 'Rental Team', 4)");
   await execute(`
-    INSERT INTO portal.agents (id, name, email, split_pct, team_id, is_admin, is_active) VALUES
-      (1, 'Participant', 'participant@example.com', 70, NULL, FALSE, TRUE),
-      (2, 'Outsider', 'outsider@example.com', 70, NULL, FALSE, TRUE),
-      (3, 'Team Member', 'member@example.com', 70, 1, FALSE, TRUE),
-      (4, 'Team Leader', 'leader@example.com', 70, NULL, FALSE, TRUE),
-      (5, 'Inactive Participant', 'inactive@example.com', 70, NULL, FALSE, FALSE)
+    INSERT INTO portal.agents (id, name, email, split_pct, team_id, is_admin, account_status) VALUES
+      (1, 'Participant', 'participant@example.com', 70, NULL, FALSE, 'active'),
+      (2, 'Outsider', 'outsider@example.com', 70, NULL, FALSE, 'active'),
+      (3, 'Team Member', 'member@example.com', 70, 1, FALSE, 'active'),
+      (4, 'Team Leader', 'leader@example.com', 70, NULL, FALSE, 'active'),
+      (5, 'Inactive Participant', 'inactive@example.com', 70, NULL, FALSE, 'inactive')
   `);
   await execute(`
     INSERT INTO portal.rental_deals (id, building_id, unit, tenant_name, total_commission, licensed_company, status) VALUES

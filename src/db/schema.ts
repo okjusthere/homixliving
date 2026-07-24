@@ -10,7 +10,6 @@
 //   behavior change across every comparison and slice()
 import {
   pgSchema,
-  pgTable,
   text,
   integer,
   doublePrecision,
@@ -82,7 +81,7 @@ export const teams = portal.table("teams", {
   notes: text("notes"),
 });
 
-export type AgentApprovalStatus = "pending" | "approved" | "ignored" | "revoked";
+export type AgentAccountStatus = "pending" | "active" | "inactive";
 
 export const agents = portal.table("agents", {
   id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
@@ -96,9 +95,8 @@ export const agents = portal.table("agents", {
   splitPct: doublePrecision("split_pct").notNull().default(80),
   teamId: integer("team_id").references((): AnyPgColumn => teams.id, { onDelete: "set null" }),
   isAdmin: boolean("is_admin").notNull().default(false),
-  isActive: boolean("is_active").notNull().default(false),
-  approvalStatus: text("approval_status")
-    .$type<AgentApprovalStatus>()
+  accountStatus: text("account_status")
+    .$type<AgentAccountStatus>()
     .notNull()
     .default("pending"),
   joinedAt: text("joined_at"),
@@ -487,33 +485,6 @@ export const dealDocuments = portal.table("deal_documents", {
   // freeform uploads stay allowed). Drives the per-deal checklist progress.
   checklistItemId: integer("checklist_item_id"),
   createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
-});
-
-// ============================================================
-// Marketing site advisor roster — public.agents, owned by homix-website
-// (Supabase). Declared here with ONLY the columns the portal reads/writes.
-//
-// The two rosters are NOT 1:1 — some public profiles belong to agents who
-// never logged into the portal, some portal agents have no public profile,
-// and public contact emails are often personal addresses (or empty) that
-// don't match the portal's Google login. So identity is joined through an
-// EXPLICIT link column (public.agents.portal_agent_id), established once by
-// scripts/link-agent-rosters.ts (reviewed reconciliation report), never by
-// fuzzy matching at write time. Unlinked rows are simply not synced.
-//
-// Never insert/delete from the portal; the website owns this table's
-// lifecycle.
-// ============================================================
-export const publicAgents = pgTable("agents", {
-  id: text("id"),
-  slug: text("slug"),
-  name: text("name"),
-  phone: text("phone"),
-  email: text("email"),
-  licenseNumber: text("license_number"),
-  mlsId: text("mls_id"),
-  visible: boolean("visible"),
-  portalAgentId: integer("portal_agent_id"),
 });
 
 export type Building = typeof buildings.$inferSelect;

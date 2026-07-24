@@ -8,8 +8,8 @@ export const dynamic = "force-dynamic";
 
 // Admin-only proxy for managing the public advisor roster (www.homixny.com),
 // replacing the old website /admin page. Admin-gated by the portal session; the
-// website owns public.agents and does the work. GET lists every advisor; POST
-// forwards a management action (create | visible | reorder | delete).
+// website owns public.agents and does the work. Account creation/deactivation
+// stays in /agents; this route controls visibility and ordering only.
 
 export async function GET() {
   const auth = await requireAdminApi();
@@ -31,9 +31,11 @@ export async function GET() {
 }
 
 const AUDIT: Record<string, { action: string; summary: (b: Record<string, unknown>) => string }> = {
-  create: { action: "create", summary: (b) => `新建对外经纪人（${b.name}）` },
-  visible: { action: "update", summary: (b) => `${b.visible ? "上架" : "下架"}对外经纪人（${b.id}）` },
-  delete: { action: "delete", summary: (b) => `删除对外经纪人（${b.id}）` },
+  visibility: {
+    action: "update",
+    summary: (b) =>
+      `${b.visibilityStatus === "visible" ? "显示" : "管理员隐藏"}对外经纪人（${b.id}）`,
+  },
   reorder: { action: "update", summary: () => `调整对外名册排序` },
 };
 

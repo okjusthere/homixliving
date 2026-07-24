@@ -24,7 +24,7 @@ as admins. There are no passwords or magic links.
 ## Stack
 
 Next.js 16 (App Router) · React 19 · TypeScript · Tailwind v4 · Drizzle ORM +
-Turso/libsql · next-auth v5 (Google, JWT sessions) · Stripe · Resend · Cloudflare
+Supabase Postgres · next-auth v5 (Google, JWT sessions) · Stripe · Resend · Cloudflare
 R2 + Stream · deployed on Vercel.
 
 ## Getting started
@@ -32,8 +32,8 @@ R2 + Stream · deployed on Vercel.
 ```bash
 npm install
 
-# There is no .env.example — create .env.local by hand.
-# Minimum for local dev (DB falls back to file:local.db if unset):
+# Create .env.local from .env.example.
+# Minimum for local dev (DB falls back to Postgres on localhost:5499 if unset):
 #   AUTH_SECRET=...            # openssl rand -base64 32
 #   AUTH_GOOGLE_ID=...
 #   AUTH_GOOGLE_SECRET=...
@@ -56,7 +56,7 @@ Set `SEED_DEMO=1` when seeding to also insert demo teams/agents (never use in pr
 | `npm run lint` | ESLint |
 | `npm test` | All unit test suites (see Tests) |
 | `npm run test:<suite>` | One suite, e.g. `test:commission`, `test:renewals` |
-| `npm run db:seed` | Create/seed schema against `TURSO_DATABASE_URL` (defaults to `file:local.db`) |
+| `npm run db:seed` | Create/seed the `portal` schema against `DATABASE_URL` |
 | `npm run stripe:products` | Create or reuse the configured Stripe Products/Prices |
 | `npm run google:workspace:oauth` | Generate a Google Workspace admin refresh token locally |
 | `npx tsx scripts/verify-tables.ts` | Check a DB's tables against the expected schema |
@@ -64,11 +64,21 @@ Set `SEED_DEMO=1` when seeding to also insert demo teams/agents (never use in pr
 
 ## Environment variables
 
-**Database (Turso/libsql)**
+**Database (Supabase Postgres)**
 
 ```bash
-TURSO_DATABASE_URL=libsql://...   # unset → file:local.db (dev only; prod refuses to start without it)
-TURSO_AUTH_TOKEN=...
+DATABASE_URL=postgresql://...   # Supabase transaction pooler in production
+```
+
+Local development defaults to
+`postgres://postgres@localhost:5499/homixliving`. Production refuses to boot
+without `DATABASE_URL`.
+
+**Public advisor profile sync**
+
+```bash
+HOMIXWEB_REVALIDATE_URL=https://www.homixny.com/api/revalidate-agents
+AGENTS_REVALIDATE_SECRET=...   # identical value in both Vercel projects
 ```
 
 **Auth (next-auth v5, Google only)**
@@ -171,11 +181,11 @@ CLOUDFLARE_API_TOKEN=...     # only for scripts/import-cloudflare-videos.ts
 
 ## Tests
 
-`npm test` runs 8 plain-`tsx` assertion suites (no test framework):
-commission, visibility, email-sender, invoice-payment, commerce-checkout,
-aging, reporting, renewals — all under `src/lib/__tests__/`. CI
-(`.github/workflows/ci.yml`) runs typecheck, lint, a `db:seed` smoke test
-against a throwaway SQLite file, and the full test suite.
+`npm test` runs 11 plain-`tsx` assertion suites (no test framework):
+commission, visibility, agent lifecycle, email-sender, invoice-payment,
+commerce-checkout, aging, reporting, renewals, training views, and document storage — all under
+`src/lib/__tests__/`. CI (`.github/workflows/ci.yml`) runs against a throwaway
+Postgres service, including typecheck, lint, schema seed, tests, and build.
 
 ## Deploy (Vercel)
 
@@ -186,14 +196,11 @@ against a throwaway SQLite file, and the full test suite.
 - The Stripe webhook must point at `https://<domain>/api/stripe/webhook`.
 - **Schema rollouts**: after adding tables/columns to
   `src/db/ensure-schema.ts`, deploy and then hit the rollout endpoint — it
-  runs the idempotent DDL with the deployment's own credentials (Turso env
-  vars are Sensitive in Vercel and can't be pulled locally):
+  runs the idempotent DDL against Supabase Postgres:
 
   ```bash
   curl -X POST https://agents.homixny.com/api/admin/ensure-schema \
     -H "Authorization: Bearer $CRON_SECRET"
   ```
 
-  (An admin browser session works too.) Alternatively run `npm run db:seed`
-  against the production Turso URL if you have direct credentials. Verify
-  with `npx tsx scripts/verify-tables.ts`.
+  For lifecycle migrations, follow [docs/DATABASE.md](docs/DATABASE.md).

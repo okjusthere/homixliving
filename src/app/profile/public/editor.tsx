@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Btn, Card } from "@/components/homix/primitives";
 import { CardHeader } from "@/components/homix/page-kit";
 import { tone } from "@/components/homix/tokens";
@@ -75,7 +76,8 @@ export function PublicProfileEditor({
   targetAgentId,
   isOwn,
   agentName,
-  agentEmail,
+  agentPhone,
+  agentLicense,
   adminPublicId,
 }: {
   linked: boolean;
@@ -84,7 +86,8 @@ export function PublicProfileEditor({
   targetAgentId: number;
   isOwn: boolean;
   agentName: string;
-  agentEmail: string | null;
+  agentPhone: string | null;
+  agentLicense: string | null;
   /** When set, the admin console is editing this advisor by PUBLIC agent id
    *  (covers advisors with no portal account); saves go to the admin endpoint. */
   adminPublicId?: string;
@@ -94,6 +97,7 @@ export function PublicProfileEditor({
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [removeQr, setRemoveQr] = useState(false);
+  const [visibility, setVisibility] = useState(profile?.visibility_status ?? "visible");
 
   if (unreachable) {
     return (
@@ -106,7 +110,8 @@ export function PublicProfileEditor({
     );
   }
 
-  // Not yet published to the public site → offer to publish (creates a hidden profile).
+  // A missing profile means the automatic onboarding sync failed or this is a
+  // legacy unlinked row. Keep an explicit repair action.
   if (!linked || !profile) {
     async function publish() {
       setBusy(true);
@@ -129,7 +134,7 @@ export function PublicProfileEditor({
         <CardHeader title="尚未发布对外主页" />
         <p className="text-[13.5px] leading-relaxed" style={{ color: tone.ink70 }}>
           {isOwn ? "你" : agentName} 目前在对外网站 www.homixny.com 上还没有主页。点击发布会建立一个
-          <b>默认隐藏</b>的主页(填好照片和简介后再由管理员设为公开),之后就能在这里直接编辑、自动同步。
+          <b>默认公开</b>的简版主页，之后可以在这里完善资料并随时显示或隐藏。
         </p>
         <div className="flex items-center gap-3">
           <Btn variant="primary" onClick={publish} disabled={busy}>
@@ -147,6 +152,29 @@ export function PublicProfileEditor({
 
   const p = profile;
   const publicUrl = `https://www.homixny.com/agents/${p.slug}`;
+
+  async function changeVisibility(next: "visible" | "agent_hidden") {
+    setBusy(true);
+    setMsg(null);
+    const res = await fetch("/api/profile/public/visibility", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ visibilityStatus: next }),
+    });
+    const body = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) {
+      if (body.visibilityStatus === "admin_hidden") setVisibility("admin_hidden");
+      setMsg({ ok: false, text: body.error || "无法更新公开状态。" });
+      return;
+    }
+    setVisibility(next);
+    setMsg({
+      ok: true,
+      text: next === "visible" ? "主页已在官网显示。" : "主页已由你隐藏。",
+    });
+    router.refresh();
+  }
 
   async function save() {
     const form = formRef.current;
@@ -175,11 +203,27 @@ export function PublicProfileEditor({
     <form ref={formRef} onSubmit={(e) => e.preventDefault()} className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-[12.5px]" style={{ color: tone.ink50 }}>
-          {p.visible ? "✓ 已在对外网站公开" : "· 当前隐藏(仅管理员可设为公开)"} ·{" "}
+          {visibility === "visible"
+            ? "✓ 已在对外网站公开"
+            : visibility === "agent_hidden"
+              ? "· 已由你隐藏"
+              : "· 已由管理员隐藏"}{" "}
+          ·{" "}
           <a href={publicUrl} target="_blank" rel="noopener noreferrer" style={{ color: tone.accent }}>
             查看对外主页 ↗
           </a>
         </p>
+        {isOwn && visibility !== "admin_hidden" && (
+          <Btn
+            variant="outline"
+            onClick={() =>
+              void changeVisibility(visibility === "visible" ? "agent_hidden" : "visible")
+            }
+            disabled={busy}
+          >
+            {visibility === "visible" ? "隐藏我的主页" : "重新显示我的主页"}
+          </Btn>
+        )}
       </div>
 
       {/* Photo */}
@@ -192,22 +236,35 @@ export function PublicProfileEditor({
 
       {/* Basics */}
       <Card className="flex flex-col">
-        <CardHeader title="基本信息" />
-        <div className="grid gap-4 p-5 sm:grid-cols-2">
+        <CardHeader title="身份信息" subtitle="来自公司档案，只在 Portal 中维护" />
+        <div className="grid gap-4 p-5 sm:grid-cols-3">
           <Field label="姓名">
-            <Input name="name" defaultValue={p.name || ""} placeholder={agentName} />
+            <Input value={agentName || p.name || ""} readOnly disabled />
           </Field>
+          <Field label="电话">
+            <Input value={agentPhone || p.phone || ""} readOnly disabled />
+          </Field>
+          <Field label="执照号">
+            <Input value={agentLicense || p.license_number || ""} readOnly disabled />
+          </Field>
+          {isOwn && (
+            <div className="sm:col-span-3">
+              <Link href="/profile" className="text-[12.5px] underline" style={{ color: tone.accent }}>
+                修改身份资料
+              </Link>
+            </div>
+          )}
+        </div>
+      </Card>
+
+      <Card className="flex flex-col">
+        <CardHeader title="官网基本资料" />
+        <div className="grid gap-4 p-5 sm:grid-cols-2">
           <Field label="职称 Title" hint="≤ 80 字符">
             <Input name="title" defaultValue={p.title || ""} maxLength={80} placeholder="Licensed Real Estate Salesperson" />
           </Field>
-          <Field label="电话">
-            <Input name="phone" defaultValue={p.phone || ""} placeholder="(917) 555-0101" />
-          </Field>
           <Field label="对外邮箱" hint="展示给访客">
-            <Input name="email" type="email" defaultValue={p.email || ""} placeholder={agentEmail || "you@homixny.com"} />
-          </Field>
-          <Field label="执照号" hint="填对可自动关联 MLS 成交记录">
-            <Input name="license" defaultValue={p.license_number || ""} />
+            <Input name="email" type="email" defaultValue={p.email || ""} placeholder="name@homixny.com" />
           </Field>
           <Field label="语言" hint="逗号分隔">
             <Input name="languages" defaultValue={(p.languages || []).join(", ")} placeholder="中文, English" />

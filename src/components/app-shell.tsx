@@ -22,7 +22,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     const onPending = pathname === "/pending";
     const onPublic = NAV_FREE_PREFIXES.some((p) => isPathOrChild(pathname, p));
     if (onPublic) return;
-    if (!session.user.isActive && !session.user.isAdmin && !onPending) {
+    if (session.user.accountStatus !== "active" && !session.user.isAdmin && !onPending) {
       router.replace("/pending");
     }
   }, [session, status, pathname, router]);

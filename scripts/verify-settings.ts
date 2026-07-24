@@ -1,15 +1,14 @@
-import { createClient } from "@libsql/client";
+import postgres from "postgres";
 
 async function main() {
-  const client = createClient({
-    url: process.env.TURSO_DATABASE_URL!,
-    authToken: process.env.TURSO_AUTH_TOKEN,
-  });
+  const url = process.env.DATABASE_URL?.trim();
+  if (!url) throw new Error("DATABASE_URL is required.");
+  const sql = postgres(url, { prepare: false, max: 1, onnotice: () => {} });
 
-  const r = await client.execute(
-    "SELECT key, value FROM settings ORDER BY key"
-  );
-  const rows = r.rows.map((row) => ({
+  const result = await sql<{ key: string; value: string | null }[]>`
+    SELECT key, value FROM portal.settings ORDER BY key
+  `;
+  const rows = result.map((row) => ({
     key: String(row.key),
     value: String(row.value ?? ""),
   }));
@@ -52,6 +51,7 @@ async function main() {
     process.exit(1);
   }
   console.log("\n✅ All 6 wire keys present.");
+  await sql.end({ timeout: 2 });
 }
 
 main().catch((err) => {

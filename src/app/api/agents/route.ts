@@ -14,18 +14,11 @@ import {
 import { DEFAULT_AGENT_SPLIT_PCT } from "@/lib/splits";
 import { logAudit } from "@/lib/audit";
 import { syncPublicAgentProfile } from "@/lib/sync-public-profile";
-
-const AGENT_APPROVAL_STATUSES = ["pending", "approved", "ignored", "revoked"] as const;
-
-function approvalStatusOrDefault(value: unknown, isActive: boolean) {
-  if (
-    typeof value === "string" &&
-    AGENT_APPROVAL_STATUSES.includes(value as (typeof AGENT_APPROVAL_STATUSES)[number])
-  ) {
-    return value as (typeof AGENT_APPROVAL_STATUSES)[number];
-  }
-  return isActive ? "approved" : "pending";
-}
+import {
+  isAgentAccountStatus,
+  normalizeAgentAccountStatus,
+} from "@/lib/agent-lifecycle";
+import { ensurePublicProfile, hidePublicProfileForOffboarding } from "@/lib/homixweb";
 
 function numberOrNull(value: unknown) {
   if (value === undefined || value === null || value === "") return null;
@@ -54,7 +47,6 @@ function invalidLicenseExpiry(body: Record<string, unknown>): boolean {
 function cleanAdminAgentPayload(body: Record<string, unknown>) {
   const splitPct = numberOrNull(body.splitPct);
   const teamId = numberOrNull(body.teamId);
-  const isActive = body.isActive === undefined ? true : Boolean(body.isActive);
   return {
     name: String(body.name || "").trim(),
     email: normalizeEmail(body.email),
@@ -64,8 +56,7 @@ function cleanAdminAgentPayload(body: Record<string, unknown>) {
     licensedCompany: stringOrNull(body.licensedCompany),
     splitPct: splitPct ?? DEFAULT_AGENT_SPLIT_PCT,
     teamId,
-    isActive,
-    approvalStatus: approvalStatusOrDefault(body.approvalStatus, isActive),
+    accountStatus: normalizeAgentAccountStatus(body.accountStatus, "active"),
     joinedAt: stringOrNull(body.joinedAt),
     notes: stringOrNull(body.notes),
     updatedAt: new Date().toISOString(),
@@ -95,7 +86,7 @@ export async function GET(req: NextRequest) {
   // enriched, per-agent MTD figures below.
   if (!authResult.session.user.isAdmin) {
     const slim = rows
-      .filter((row) => row.agent.isActive)
+      .filter((row) => row.agent.accountStatus === "active")
       .map((row) => ({
         agent: {
           id: row.agent.id,
@@ -103,7 +94,8 @@ export async function GET(req: NextRequest) {
           email: row.agent.email,
           splitPct: row.agent.splitPct,
           teamId: row.agent.teamId,
-          isActive: row.agent.isActive,
+          accountStatus: row.agent.accountStatus,
+          isActive: row.agent.accountStatus === "active",
         },
         teamName: row.teamName,
         mtdDeals: 0,
@@ -167,7 +159,7 @@ export async function POST(req: NextRequest) {
     if (invalidLicenseExpiry(body)) {
       return NextResponse.json({ error: "licenseExpiresAt must be YYYY-MM-DD" }, { status: 400 });
     }
-    const data = cleanAdminAgentPayload(body);
+    const data = { ...cleanAdminAgentPayload(body), accountStatus: "active" as const };
     if (!data.name) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
     }
@@ -187,7 +179,22 @@ export async function POST(req: NextRequest) {
       .insert(agents)
       .values({ ...data, email, createdAt: new Date().toISOString() })
       .returning();
-    return NextResponse.json(created, { status: 201 });
+    const publicProfile = await ensurePublicProfile({
+      agentId: created.id,
+      name: created.name,
+      phone: created.phone,
+      license: created.licenseNumber,
+    });
+    return NextResponse.json(
+      {
+        ...created,
+        publicProfileCreated: publicProfile.ok,
+        ...(!publicProfile.ok
+          ? { warning: String(publicProfile.body.error || "Public profile sync failed") }
+          : {}),
+      },
+      { status: 201 },
+    );
   } catch {
     return NextResponse.json({ error: "Agent creation failed" }, { status: 500 });
   }
@@ -226,11 +233,13 @@ export async function PUT(req: NextRequest) {
       "teamId",
       "joinedAt",
       "notes",
-      "isActive",
-      "approvalStatus",
+      "accountStatus",
     ];
     if (!isAdmin && restrictedFields.some((field) => field in body)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    if (body.accountStatus !== undefined && !isAgentAccountStatus(body.accountStatus)) {
+      return NextResponse.json({ error: "Invalid account status" }, { status: 400 });
     }
 
     if (invalidLicenseExpiry(body)) {
@@ -246,11 +255,8 @@ export async function PUT(req: NextRequest) {
           licensedCompany: cleaned.licensedCompany,
           splitPct: cleaned.splitPct,
           teamId: cleaned.teamId,
-          isActive: body.isActive === undefined ? existing.isActive : cleaned.isActive,
-          approvalStatus:
-            (body.isActive === undefined ? existing.isActive : cleaned.isActive)
-              ? "approved"
-              : cleaned.approvalStatus,
+          accountStatus:
+            body.accountStatus === undefined ? existing.accountStatus : cleaned.accountStatus,
           joinedAt: cleaned.joinedAt,
           notes: cleaned.notes,
           updatedAt: cleaned.updatedAt,
@@ -277,6 +283,24 @@ export async function PUT(req: NextRequest) {
     if ("teamId" in data && data.teamId) {
       const team = await db.select().from(teams).where(eq(teams.id, data.teamId)).then((rows) => rows[0]);
       if (!team) return NextResponse.json({ error: "Team not found" }, { status: 404 });
+    }
+
+    if (
+      existing.accountStatus !== "inactive" &&
+      "accountStatus" in data &&
+      data.accountStatus === "inactive"
+    ) {
+      const hidden = await hidePublicProfileForOffboarding(id);
+      if (!hidden.ok) {
+        return NextResponse.json(
+          {
+            error:
+              hidden.body.error ||
+              "Unable to hide the public profile. The account was not deactivated.",
+          },
+          { status: 502 },
+        );
+      }
     }
 
     const [updated] = await db.update(agents).set(data).where(eq(agents.id, id)).returning();
@@ -313,10 +337,21 @@ export async function DELETE(req: NextRequest) {
     if (!Number.isFinite(parsedId)) {
       return NextResponse.json({ error: "Valid agent id is required" }, { status: 400 });
     }
+    const hidden = await hidePublicProfileForOffboarding(parsedId);
+    if (!hidden.ok) {
+      return NextResponse.json(
+        {
+          error:
+            hidden.body.error ||
+            "Unable to hide the public profile. The account was not deactivated.",
+        },
+        { status: 502 },
+      );
+    }
     await db
       .update(agents)
-      .set({ isActive: false, approvalStatus: "revoked", updatedAt: new Date().toISOString() })
-      .where(and(eq(agents.id, parsedId), eq(agents.isActive, true)));
+      .set({ accountStatus: "inactive", updatedAt: new Date().toISOString() })
+      .where(and(eq(agents.id, parsedId), eq(agents.accountStatus, "active")));
     return NextResponse.json({ success: true });
   } catch {
     return NextResponse.json({ error: "Agent delete failed" }, { status: 500 });

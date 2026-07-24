@@ -155,7 +155,7 @@ export function Nav() {
             >
               {locale === "zh" ? "EN" : "中文"}
             </button>
-            {(session?.user?.isActive || session?.user?.isAdmin) && (
+            {(session?.user?.accountStatus === "active" || session?.user?.isAdmin) && (
               <>
                 <SearchCommand />
                 <NotificationBell />
@@ -200,7 +200,7 @@ export function Nav() {
                       </div>
                     )}
                   </div>
-                  {(session?.user?.isActive || session?.user?.isAdmin) && (
+                  {(session?.user?.accountStatus === "active" || session?.user?.isAdmin) && (
                     <Link
                       href="/profile"
                       onClick={() => setMenuOpen(false)}

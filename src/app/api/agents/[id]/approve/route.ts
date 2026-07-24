@@ -5,6 +5,11 @@ import { eq } from "drizzle-orm";
 import { requireAdminApi } from "@/lib/auth-guards";
 import { notify } from "@/lib/notify";
 import { logAudit } from "@/lib/audit";
+import {
+  ensurePublicProfile,
+  hidePublicProfileForOffboarding,
+  setAdminPublicVisibility,
+} from "@/lib/homixweb";
 
 export async function POST(
   _req: NextRequest,
@@ -17,10 +22,26 @@ export async function POST(
   if (!Number.isFinite(parsedId)) {
     return NextResponse.json({ error: "Invalid agent id" }, { status: 400 });
   }
-  await db
+  const [agent] = await db
     .update(agents)
-    .set({ isActive: true, approvalStatus: "approved", updatedAt: new Date().toISOString() })
-    .where(eq(agents.id, parsedId));
+    .set({ accountStatus: "active", updatedAt: new Date().toISOString() })
+    .where(eq(agents.id, parsedId))
+    .returning();
+  if (!agent) return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+
+  const publicProfile = await ensurePublicProfile({
+    agentId: agent.id,
+    name: agent.name,
+    phone: agent.phone,
+    license: agent.licenseNumber,
+  });
+  const publicVisibility = publicProfile.ok
+    ? await setAdminPublicVisibility({
+        agentId: agent.id,
+        visibilityStatus: "visible",
+      })
+    : publicProfile;
+  const publicReady = publicProfile.ok && publicVisibility.ok;
 
   await logAudit(authResult.session, "approve", "agent", parsedId, `批准经纪人 #${parsedId} 账号`);
 
@@ -39,7 +60,17 @@ export async function POST(
     console.error("agent_approved notification failed", error);
   }
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({
+    success: true,
+    publicProfileCreated: publicReady,
+    ...(!publicReady
+      ? {
+          warning: String(
+            publicVisibility.body.error || "Public profile sync failed",
+          ),
+        }
+      : {}),
+  });
 }
 
 export async function DELETE(
@@ -53,9 +84,20 @@ export async function DELETE(
   if (!Number.isFinite(parsedId)) {
     return NextResponse.json({ error: "Invalid agent id" }, { status: 400 });
   }
+  const hidden = await hidePublicProfileForOffboarding(parsedId);
+  if (!hidden.ok) {
+    return NextResponse.json(
+      {
+        error:
+          hidden.body.error ||
+          "Unable to hide the public profile. The account was not deactivated.",
+      },
+      { status: 502 },
+    );
+  }
   await db
     .update(agents)
-    .set({ isActive: false, approvalStatus: "revoked", updatedAt: new Date().toISOString() })
+    .set({ accountStatus: "inactive", updatedAt: new Date().toISOString() })
     .where(eq(agents.id, parsedId));
   await logAudit(authResult.session, "revoke", "agent", parsedId, `撤销经纪人 #${parsedId} 账号权限`);
   return NextResponse.json({ success: true });

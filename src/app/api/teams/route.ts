@@ -35,7 +35,7 @@ export async function GET() {
   if (!authResult.session.user.isAdmin) {
     const slim = teamRows.map((team) => {
       const members = agentRows
-        .filter((agent) => agent.teamId === team.id && agent.isActive !== false)
+        .filter((agent) => agent.teamId === team.id && agent.accountStatus === "active")
         .map((agent) => ({ id: agent.id, name: agent.name }));
       const leaderAgent = team.leaderAgentId ? agentById.get(team.leaderAgentId) : null;
       return {
@@ -53,7 +53,9 @@ export async function GET() {
   const month = getMonthKey();
 
   const result = teamRows.map((team) => {
-    const members = agentRows.filter((agent) => agent.teamId === team.id && agent.isActive !== false);
+    const members = agentRows.filter(
+      (agent) => agent.teamId === team.id && agent.accountStatus === "active",
+    );
     const memberIds = new Set(members.map((agent) => agent.id));
     const memberDealIds = new Set(
       dealAgentRows

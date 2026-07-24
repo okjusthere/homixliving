@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { agents, buildings, dealAgents, deals, invoices } from "@/db/schema";
-import { desc, eq, sql } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { getDealDate } from "@/lib/reporting";
 import { requireActiveAgentApi } from "@/lib/auth-guards";
 import { dealsVisibleToSql } from "@/lib/visibility";
@@ -80,7 +80,10 @@ async function cleanDealPayload(
   if (agentRows.some((agent) => !agent)) {
     return { error: "Every deal agent must exist", status: 404 };
   }
-  if (!options.allowInactiveAgents && agentRows.some((agent) => agent?.isActive === false)) {
+  if (
+    !options.allowInactiveAgents &&
+    agentRows.some((agent) => agent?.accountStatus !== "active")
+  ) {
     return { error: "Every deal agent must be active", status: 400 };
   }
 

@@ -104,7 +104,7 @@ async function validateSaleUpdate({
   if (agentRows.some((agent) => !agent)) {
     return { error: "Every sale agent must exist", status: 404 };
   }
-  if (agentRows.some((agent) => agent?.isActive === false)) {
+  if (agentRows.some((agent) => agent?.accountStatus !== "active")) {
     return { error: "Every sale agent must be active", status: 400 };
   }
 

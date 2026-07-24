@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { agents, teams } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { requireActiveAgentApi, requireAdminApi } from "@/lib/auth-guards";
+import { hidePublicProfileForOffboarding } from "@/lib/homixweb";
 
 export async function GET(
   _req: NextRequest,
@@ -48,9 +49,20 @@ export async function DELETE(
     return NextResponse.json({ error: "Valid agent id is required" }, { status: 400 });
   }
 
+  const hidden = await hidePublicProfileForOffboarding(parsedId);
+  if (!hidden.ok) {
+    return NextResponse.json(
+      {
+        error:
+          hidden.body.error ||
+          "Unable to hide the public profile. The account was not deactivated.",
+      },
+      { status: 502 },
+    );
+  }
   await db
     .update(agents)
-    .set({ isActive: false, approvalStatus: "revoked", updatedAt: new Date().toISOString() })
+    .set({ accountStatus: "inactive", updatedAt: new Date().toISOString() })
     .where(eq(agents.id, parsedId));
   return NextResponse.json({ success: true });
 }
