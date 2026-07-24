@@ -9,11 +9,9 @@ import { logAudit } from "@/lib/audit";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Publish a public marketing-site profile for a portal agent who has none yet.
-// A regular agent may publish THEMSELVES; an admin may publish anyone. The new
-// profile starts hidden (the website sets visible:false) so it can be reviewed
-// before it goes live. The website creates + links the row; we just supply the
-// agent's identity fields from the portal record.
+// Repair/create a missing public profile. Normal onboarding creates this
+// automatically when an admin adds or approves the agent. New profiles start
+// visible; the agent can hide their own and admins can force-hide them.
 export async function POST(req: NextRequest) {
   const auth = await requireActiveAgentApi();
   if ("error" in auth) return auth.error;
@@ -61,7 +59,7 @@ export async function POST(req: NextRequest) {
         "create",
         "agent",
         agentId,
-        `发布对外主页到 www.homixny.com（${agent.name}，默认隐藏待审）`,
+        `创建对外主页到 www.homixny.com（${agent.name}，默认公开）`,
       );
     }
     return NextResponse.json(out, { status: res.status });

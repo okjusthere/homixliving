@@ -21,6 +21,7 @@ const navItems = [
   { href: "/offer", key: "offer", adminOnly: false },
   { href: "/profile", key: "profile", adminOnly: false },
   { href: "/agents", key: "agents", adminOnly: true },
+  { href: "/roster", key: "roster", adminOnly: true },
   { href: "/teams", key: "teams", adminOnly: true },
   { href: "/reports", key: "reports", adminOnly: true },
   { href: "/finance", key: "finance", adminOnly: true },
@@ -33,13 +34,13 @@ const LABELS = {
   en: {
     overview: "Overview", sales: "Sales", rental: "Rental", training: "Training",
     resources: "Resources", onboarding: "Onboarding", coach: "Coach", offer: "Offer",
-    agents: "Agents", teams: "Teams", reports: "Reports", finance: "Finance", payouts: "Payouts", audit: "Audit", settings: "Settings",
+    agents: "Agents", roster: "Public roster", teams: "Teams", reports: "Reports", finance: "Finance", payouts: "Payouts", audit: "Audit", settings: "Settings",
     search: "Search", signedIn: "Signed in", signOut: "Sign out", admin: "Admin", profile: "My profile",
   },
   zh: {
     overview: "概览", sales: "买卖", rental: "租赁", training: "培训",
     resources: "资料", onboarding: "入职", coach: "AI 教练", offer: "报价",
-    agents: "经纪人", teams: "团队", reports: "报表", finance: "财务", payouts: "发放", audit: "审计", settings: "设置",
+    agents: "经纪人", roster: "对外名册", teams: "团队", reports: "报表", finance: "财务", payouts: "发放", audit: "审计", settings: "设置",
     search: "搜索", signedIn: "已登录", signOut: "退出登录", admin: "管理员", profile: "我的档案",
   },
 } as const;
@@ -154,7 +155,7 @@ export function Nav() {
             >
               {locale === "zh" ? "EN" : "中文"}
             </button>
-            {(session?.user?.isActive || session?.user?.isAdmin) && (
+            {(session?.user?.accountStatus === "active" || session?.user?.isAdmin) && (
               <>
                 <SearchCommand />
                 <NotificationBell />
@@ -199,7 +200,7 @@ export function Nav() {
                       </div>
                     )}
                   </div>
-                  {(session?.user?.isActive || session?.user?.isAdmin) && (
+                  {(session?.user?.accountStatus === "active" || session?.user?.isAdmin) && (
                     <Link
                       href="/profile"
                       onClick={() => setMenuOpen(false)}

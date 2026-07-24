@@ -6,7 +6,7 @@
  * Idempotent: forms match by (title, category) and update in place; checklist
  * items match by (groupKey, label) and are never duplicated. Safe to re-run.
  * Callers: scripts/import-resources.ts (CLI) and
- * /api/admin/import-resources (production, where Turso credentials live).
+ * /api/admin/import-resources (production, using DATABASE_URL).
  */
 import type { Sql } from "postgres";
 import { and, eq } from "drizzle-orm";

@@ -8,15 +8,15 @@
  *   npx tsx scripts/import-cloudflare-videos.ts
  *
  * Needs (this script auto-loads them from .env.local):
- *   TURSO_DATABASE_URL, TURSO_AUTH_TOKEN        — your DB (already in .env.local)
+ *   DATABASE_URL                                — Supabase Postgres pooler URL
  *   CLOUDFLARE_ACCOUNT_ID                       — Cloudflare dashboard → account id
  *   CLOUDFLARE_API_TOKEN                         — a token with "Stream:Read"
  *
  * The category is guessed from the video's Cloudflare name (买家/卖家/IP keywords)
  * and defaults to 买家课程 — you can fix each one with the dropdown on /training.
  */
-import { createClient } from "@libsql/client";
 import { readFileSync } from "node:fs";
+import postgres from "postgres";
 
 function loadDotEnvLocal(): void {
   try {
@@ -78,27 +78,30 @@ async function main(): Promise<void> {
   loadDotEnvLocal();
   const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
   const token = process.env.CLOUDFLARE_API_TOKEN;
-  const dbUrl = process.env.TURSO_DATABASE_URL;
+  const dbUrl = process.env.DATABASE_URL;
   if (!accountId || !token) {
     console.error("Missing CLOUDFLARE_ACCOUNT_ID and/or CLOUDFLARE_API_TOKEN (add them to .env.local).");
     process.exit(1);
   }
   if (!dbUrl) {
-    console.error("Missing TURSO_DATABASE_URL.");
+    console.error("Missing DATABASE_URL.");
     process.exit(1);
   }
 
   const videos = await fetchAllVideos(accountId, token);
   console.log(`Cloudflare account has ${videos.length} videos.`);
 
-  const db = createClient({ url: dbUrl, authToken: process.env.TURSO_AUTH_TOKEN });
+  const sql = postgres(dbUrl, { prepare: false, max: 1, onnotice: () => {} });
 
-  const existing = await db.execute("SELECT cloudflare_uid FROM training_videos");
-  const have = new Set(existing.rows.map((r) => String(r.cloudflare_uid)));
+  const existing = await sql<{ cloudflare_uid: string }[]>`
+    SELECT cloudflare_uid FROM portal.training_videos
+  `;
+  const have = new Set(existing.map((r) => String(r.cloudflare_uid)));
   const fresh = videos.filter((v) => v.uid && !have.has(v.uid));
 
   if (!fresh.length) {
     console.log("Nothing new to import — every Cloudflare video is already in the table.");
+    await sql.end({ timeout: 2 });
     return;
   }
 
@@ -108,18 +111,19 @@ async function main(): Promise<void> {
     const title = v.meta?.name?.trim() || v.uid;
     const category = categoryFor(v.meta?.name || "");
     const duration = v.duration ? `${Math.max(1, Math.round(v.duration / 60))} min` : null;
-    await db.execute({
-      sql: `INSERT INTO training_videos
-              (title, description, category, cloudflare_uid, duration_label, sort_order, is_published, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)`,
-      args: [title, null, category, v.uid, duration, sort, now, now],
-    });
+    await sql`
+      INSERT INTO portal.training_videos
+        (title, description, category, cloudflare_uid, duration_label, sort_order, is_published, created_at, updated_at)
+      VALUES
+        (${title}, ${null}, ${category}, ${v.uid}, ${duration}, ${sort}, FALSE, ${now}, ${now})
+    `;
     sort += 1;
     console.log(`+ [${category}] ${title}`);
   }
   console.log(
     `\nImported ${fresh.length} videos as HIDDEN. Open /training as an admin to set categories + publish.`,
   );
+  await sql.end({ timeout: 2 });
 }
 
 main().catch((err) => {

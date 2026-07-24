@@ -9,7 +9,7 @@ export async function requireActiveAgent() {
     redirect("/login");
   }
 
-  if (!session.user.isAdmin && !session.user.isActive) {
+  if (!session.user.isAdmin && session.user.accountStatus !== "active") {
     redirect("/pending");
   }
 
@@ -25,7 +25,7 @@ export async function requireActiveAgentApi() {
     };
   }
 
-  if (!session.user.isAdmin && !session.user.isActive) {
+  if (!session.user.isAdmin && session.user.accountStatus !== "active") {
     return {
       error: NextResponse.json({ error: "Inactive account" }, { status: 403 }),
     };

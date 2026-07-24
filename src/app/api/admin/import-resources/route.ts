@@ -10,9 +10,8 @@ export const maxDuration = 60;
 
 // Imports/refreshes the "常用做单表格" library + required-documents checklists
 // from the structured data in src/db/import-resources-data.ts. Same
-// operational story as /api/admin/ensure-schema: Turso credentials are
-// Sensitive in Vercel and can't be pulled locally, so the import runs where
-// the credentials live. Idempotent — safe to re-run after sheet updates.
+// operational story as /api/admin/ensure-schema: the import runs inside the
+// deployed app against Supabase Postgres. Idempotent — safe to re-run.
 //
 // Auth: an admin session OR the CRON_SECRET bearer.
 async function isAuthorized(request: Request): Promise<{ ok: boolean; actor: string }> {

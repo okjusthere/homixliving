@@ -1,15 +1,249 @@
 import type { Sql } from "postgres";
 
+export type AgentLifecycleSchemaState = {
+  portal: {
+    accountStatus: boolean;
+    isActive: boolean;
+    approvalStatus: boolean;
+  };
+  public: {
+    exists: boolean;
+    visibilityStatus: boolean;
+    visible: boolean;
+    editToken: boolean;
+    portalAgentId: boolean;
+  };
+};
+
+export async function getAgentLifecycleSchemaState(
+  sql: Sql,
+): Promise<AgentLifecycleSchemaState> {
+  const [row] = await sql.unsafe(`
+    SELECT
+      EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'portal' AND table_name = 'agents'
+          AND column_name = 'account_status'
+      ) AS portal_account_status,
+      EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'portal' AND table_name = 'agents'
+          AND column_name = 'is_active'
+      ) AS portal_is_active,
+      EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'portal' AND table_name = 'agents'
+          AND column_name = 'approval_status'
+      ) AS portal_approval_status,
+      to_regclass('public.agents') IS NOT NULL AS public_exists,
+      EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'agents'
+          AND column_name = 'visibility_status'
+      ) AS public_visibility_status,
+      EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'agents'
+          AND column_name = 'visible'
+      ) AS public_visible,
+      EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'agents'
+          AND column_name = 'edit_token'
+      ) AS public_edit_token,
+      EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'agents'
+          AND column_name = 'portal_agent_id'
+      ) AS public_portal_agent_id
+  `);
+
+  return {
+    portal: {
+      accountStatus: Boolean(row.portal_account_status),
+      isActive: Boolean(row.portal_is_active),
+      approvalStatus: Boolean(row.portal_approval_status),
+    },
+    public: {
+      exists: Boolean(row.public_exists),
+      visibilityStatus: Boolean(row.public_visibility_status),
+      visible: Boolean(row.public_visible),
+      editToken: Boolean(row.public_edit_token),
+      portalAgentId: Boolean(row.public_portal_agent_id),
+    },
+  };
+}
+
+/**
+ * Backward-compatible lifecycle expansion. This is safe to run repeatedly and
+ * is also called at boot before either application starts using the new
+ * columns. It intentionally leaves the legacy columns in place.
+ */
+export async function ensureAgentLifecycleExpand(sql: Sql): Promise<void> {
+  await sql.unsafe(`
+    ALTER TABLE portal.agents
+      ADD COLUMN IF NOT EXISTS account_status TEXT
+  `);
+  await sql.unsafe(`
+    DO $$ BEGIN
+      IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'portal' AND table_name = 'agents'
+          AND column_name = 'is_active'
+      ) AND EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'portal' AND table_name = 'agents'
+          AND column_name = 'approval_status'
+      ) THEN
+        UPDATE portal.agents
+        SET account_status = CASE
+          WHEN is_active THEN 'active'
+          WHEN COALESCE(approval_status, '') = 'pending' THEN 'pending'
+          ELSE 'inactive'
+        END
+        WHERE account_status IS NULL
+           OR account_status NOT IN ('pending', 'active', 'inactive');
+      ELSIF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'portal' AND table_name = 'agents'
+          AND column_name = 'is_active'
+      ) THEN
+        UPDATE portal.agents
+        SET account_status = CASE WHEN is_active THEN 'active' ELSE 'inactive' END
+        WHERE account_status IS NULL
+           OR account_status NOT IN ('pending', 'active', 'inactive');
+      END IF;
+    END $$
+  `);
+  await sql.unsafe(`
+    UPDATE portal.agents
+    SET account_status = 'pending'
+    WHERE account_status IS NULL
+       OR account_status NOT IN ('pending', 'active', 'inactive')
+  `);
+  await sql.unsafe(`
+    ALTER TABLE portal.agents
+      ALTER COLUMN account_status SET DEFAULT 'pending',
+      ALTER COLUMN account_status SET NOT NULL
+  `);
+  await sql.unsafe(`
+    DO $$ BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'agents_account_status_check'
+          AND conrelid = 'portal.agents'::regclass
+      ) THEN
+        ALTER TABLE portal.agents
+          ADD CONSTRAINT agents_account_status_check
+          CHECK (account_status IN ('pending', 'active', 'inactive'));
+      END IF;
+    END $$
+  `);
+
+  // public.agents is created by homixweb. Local/CI portal-only databases may
+  // not have it, so the public projection expansion is conditional.
+  await sql.unsafe(`
+    DO $$ BEGIN
+      IF to_regclass('public.agents') IS NOT NULL THEN
+        ALTER TABLE public.agents
+          ADD COLUMN IF NOT EXISTS visibility_status TEXT;
+
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = 'agents'
+            AND column_name = 'visible'
+        ) THEN
+          UPDATE public.agents
+          SET visibility_status = CASE
+            WHEN visible THEN 'visible'
+            ELSE 'admin_hidden'
+          END
+          WHERE visibility_status IS NULL
+             OR visibility_status NOT IN ('visible', 'agent_hidden', 'admin_hidden');
+        ELSE
+          UPDATE public.agents
+          SET visibility_status = 'visible'
+          WHERE visibility_status IS NULL
+             OR visibility_status NOT IN ('visible', 'agent_hidden', 'admin_hidden');
+        END IF;
+
+        ALTER TABLE public.agents
+          ALTER COLUMN visibility_status SET DEFAULT 'visible',
+          ALTER COLUMN visibility_status SET NOT NULL;
+
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = 'agents'
+            AND column_name = 'edit_token'
+        ) THEN
+          ALTER TABLE public.agents
+            ALTER COLUMN edit_token DROP NOT NULL;
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conname = 'agents_visibility_status_check'
+            AND conrelid = 'public.agents'::regclass
+        ) THEN
+          ALTER TABLE public.agents
+            ADD CONSTRAINT agents_visibility_status_check
+            CHECK (visibility_status IN ('visible', 'agent_hidden', 'admin_hidden'));
+        END IF;
+
+        ALTER TABLE public.agents
+          ADD COLUMN IF NOT EXISTS portal_agent_id INTEGER;
+
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_public_agents_portal_link
+          ON public.agents(portal_agent_id)
+          WHERE portal_agent_id IS NOT NULL;
+
+        DROP POLICY IF EXISTS "agents public read" ON public.agents;
+        CREATE POLICY "agents public read"
+          ON public.agents FOR SELECT
+          USING (visibility_status = 'visible');
+      END IF;
+    END $$
+  `);
+}
+
+/**
+ * Remove columns used by the retired application versions. Call only after
+ * both production deployments have been verified on the expanded schema.
+ */
+export async function contractAgentLifecycle(sql: Sql): Promise<void> {
+  const state = await getAgentLifecycleSchemaState(sql);
+  if (!state.portal.accountStatus) {
+    throw new Error("Refusing contract: portal.agents.account_status is missing.");
+  }
+  if (state.public.exists && !state.public.visibilityStatus) {
+    throw new Error("Refusing contract: public.agents.visibility_status is missing.");
+  }
+
+  await sql.unsafe(`
+    ALTER TABLE portal.agents
+      DROP COLUMN IF EXISTS is_active,
+      DROP COLUMN IF EXISTS approval_status
+  `);
+  await sql.unsafe(`
+    DO $$ BEGIN
+      IF to_regclass('public.agents') IS NOT NULL THEN
+        ALTER TABLE public.agents
+          DROP COLUMN IF EXISTS visible,
+          DROP COLUMN IF EXISTS edit_token;
+      END IF;
+    END $$
+  `);
+}
+
 // Idempotent Postgres schema for the portal. Runs at boot via
 // instrumentation.ts (and on demand via /api/admin/ensure-schema). All
-// portal tables live in the "portal" schema — public.* belongs to the
-// marketing site (agents roster, inquiries) and is never touched here.
+// portal tables live in the "portal" schema. public.* belongs to the marketing
+// site; only the one-time lifecycle expand/contract helpers above touch its
+// advisor projection.
 //
-// Unlike the old SQLite version, this carries no legacy rename/backfill
-// migrations: the Postgres database was born at the Turso cutover with the
-// schema already at its current shape (data arrived via the import script).
-// Future column additions follow the ADD COLUMN IF NOT EXISTS pattern at the
-// bottom, paired with a marker bump in src/instrumentation.ts.
+// The lifecycle migration keeps a temporary compatibility backfill while old
+// columns still exist. Future column additions follow the ADD COLUMN IF NOT
+// EXISTS pattern, paired with a marker bump in src/instrumentation.ts.
 export async function ensureSchema(sql: Sql) {
   const run = (ddl: string) => sql.unsafe(ddl);
 
@@ -61,13 +295,16 @@ export async function ensureSchema(sql: Sql) {
       split_pct DOUBLE PRECISION NOT NULL DEFAULT 80,
       team_id INTEGER REFERENCES portal.teams(id) ON DELETE SET NULL,
       is_admin BOOLEAN NOT NULL DEFAULT FALSE,
-      is_active BOOLEAN NOT NULL DEFAULT FALSE,
-      approval_status TEXT NOT NULL DEFAULT 'pending',
+      account_status TEXT NOT NULL DEFAULT 'pending',
       joined_at TEXT,
       notes TEXT,
       created_at TEXT,
       updated_at TEXT
     )`);
+
+  // Expand from the former account/visibility columns. Legacy columns remain
+  // until the explicit contract step after both deployments are verified.
+  await ensureAgentLifecycleExpand(sql);
 
   // teams.leader_agent_id → agents.id (added after both tables exist to break
   // the circular reference)

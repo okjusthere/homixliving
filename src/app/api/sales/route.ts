@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { desc, eq, sql } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { agents, saleDealAgents, saleDeals } from "@/db/schema";
 import { requireActiveAgentApi } from "@/lib/auth-guards";
@@ -100,7 +100,7 @@ async function cleanSalePayload(
   if (agentRows.some((agent) => !agent)) {
     return { error: "Every sale agent must exist", status: 404 };
   }
-  if (agentRows.some((agent) => agent?.isActive === false)) {
+  if (agentRows.some((agent) => agent?.accountStatus !== "active")) {
     return { error: "Every sale agent must be active", status: 400 };
   }
 

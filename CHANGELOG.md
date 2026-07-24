@@ -10,8 +10,8 @@
 - New required-documents section on `/resources` (做单必交文件) with stage tabs,
   backed by the new `checklist_items` table and an admin manager.
 - Admin "同步做单表格数据" button → `POST /api/admin/import-resources` (same
-  operational model as ensure-schema: idempotent, runs where the Sensitive
-  Turso credentials live; also applies the schema DDL first).
+  operational model as ensure-schema: idempotent, runs against Supabase
+  Postgres; also applies the schema DDL first).
 
 ## 2026-07-06
 

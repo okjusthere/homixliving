@@ -23,7 +23,7 @@ This is a living document of features we've discussed but haven't built. Each en
 
 ## 🟢 Active / next-up
 
-### Deploy to production (Vercel + Turso + Resend)
+### Deploy to production (Vercel + Supabase Postgres + Resend)
 
 **Status:** Ready. All code in place.
 **Outstanding:** account setup + env vars + first admin sign-in.
@@ -38,7 +38,7 @@ This is a living document of features we've discussed but haven't built. Each en
 
 **Scope (V1):**
 
-- New `client_documents` table in Turso (metadata only):
+- New `client_documents` table in Postgres (metadata only):
   ```
   id, dealId, type, originalFilename, r2Key,
   watermarkedR2Key, sizeBytes, uploadedAt, uploadedBy,
@@ -75,7 +75,7 @@ This is a living document of features we've discussed but haven't built. Each en
           └── ...
   ```
 
-**Why R2 (not Turso BLOBs):**
+**Why R2 (not Postgres BLOBs):**
 - Documents are 1–5 MB each; ~10–20 MB per client; ~5–15 GB/year
 - DB-stored BLOBs make queries slow, backups massive, free quota fill fast
 - $0 egress fees (cheap downloads forever)
@@ -217,10 +217,10 @@ No login required for client side — token is sufficient (24h expiry, single-us
 **Why:** Without realtime, two agents updating the same Kanban card see stale state. Once #6 ships and multiple agents collaborate on shared boards, this becomes useful.
 
 **Tech path:**
-- **Currently impossible on Turso/Vercel** — Vercel functions don't support long-lived WebSocket connections
+- Supabase Realtime is available if the product later needs live subscriptions.
 - Options:
   - Server-Sent Events (one-way push) — works on Vercel, fine for activity feeds
-  - Migrate to **Supabase Realtime** for full WebSocket-based table subscriptions
+  - Use **Supabase Realtime** for full WebSocket-based table subscriptions
   - Or use a third-party like Ably / Pusher (~$10/mo)
 - Simplest fallback: poll every 10 seconds — works, is ugly, fine for V1
 
@@ -306,9 +306,10 @@ We mark invoices as paid manually. A future state imports bank statements (CSV) 
 
 We DO use Cloudflare Stream for training videos (no compute, just hosted video; works fine). Deal documents are stored in a private Cloudflare R2 bucket and served through short-lived signed URLs.
 
-### Supabase migration (post-Auth implementation)
+### Supabase migration
 
-**Rejected because:** at our team size (≤ 50 agents) and feature scope (no realtime, no file uploads in DB, no advanced auth needs), Supabase's bundled features don't justify the migration cost from Turso. Revisit if we add #6 + #7 (Lead pipeline + Realtime).
+Completed. Portal data lives in the private `portal` schema; website-facing
+advisor profiles and inquiries live in `public`.
 
 ### DocuSign for DOS
 

@@ -39,6 +39,9 @@ const M = {
     searchPlaceholder: "Search name, team, license, email…",
     pendingApprovals: "Pending approvals",
     pendingSubtitle: "New brokers awaiting activation",
+    inactiveAgents: "Inactive agents",
+    inactiveSubtitle: "Former or disabled accounts; history is retained",
+    reactivate: "Reactivate",
     noEmail: "no email",
     joined: "joined",
     edit: "Edit",
@@ -95,6 +98,9 @@ const M = {
     searchPlaceholder: "搜索姓名、团队、执照、邮箱…",
     pendingApprovals: "待审批",
     pendingSubtitle: "等待激活的新经纪人",
+    inactiveAgents: "已停用经纪人",
+    inactiveSubtitle: "离职或停用账号；历史成交和付款记录仍会保留",
+    reactivate: "重新启用",
     noEmail: "无邮箱",
     joined: "加入于",
     edit: "编辑",
@@ -143,7 +149,7 @@ const emptyAgent: Partial<Agent> = {
   licensedCompany: "Homix Living Inc.",
   splitPct: DEFAULT_AGENT_SPLIT_PCT,
   teamId: null,
-  isActive: true,
+  accountStatus: "active",
   joinedAt: "",
   notes: "",
 };
@@ -195,14 +201,18 @@ export default function AgentsPage() {
     () =>
       agents.filter(
         (row) =>
-          row.agent.isActive === false &&
-          (row.agent.approvalStatus || "pending") === "pending"
+          row.agent.accountStatus === "pending"
       ),
     [agents]
   );
 
+  const inactive = useMemo(
+    () => agents.filter((row) => row.agent.accountStatus === "inactive"),
+    [agents]
+  );
+
   const filtered = useMemo(() => {
-    const activeAgents = agents.filter((row) => row.agent.isActive !== false);
+    const activeAgents = agents.filter((row) => row.agent.accountStatus === "active");
     if (!search) return activeAgents;
     const q = search.toLowerCase();
     return activeAgents.filter(
@@ -290,7 +300,9 @@ export default function AgentsPage() {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || `Save failed (HTTP ${res.status})`);
       }
+      const data = await res.json().catch(() => ({}));
       toast.success(editAgent.id ? t.agentSaved : t.agentCreated);
+      if (data.warning) toast.warning(data.warning);
       closeDialog();
       fetchAgents();
     } catch (err) {
@@ -388,6 +400,57 @@ export default function AgentsPage() {
                     onClick={() => handleApprove(agent.id)}
                   >
                     {t.approve}
+                  </Btn>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {inactive.length > 0 && (
+        <Card>
+          <CardHeader
+            title={t.inactiveAgents}
+            subtitle={t.inactiveSubtitle}
+            action={<Pill tone="neutral">{inactive.length}</Pill>}
+          />
+          <div className="divide-y" style={{ borderColor: tone.lineSoft }}>
+            {inactive.map(({ agent }) => (
+              <div
+                key={agent.id}
+                className="grid items-center px-6 py-4"
+                style={{
+                  gridTemplateColumns: "auto 1fr auto",
+                  gap: 16,
+                  borderBottom: `1px solid ${tone.lineSoft}`,
+                }}
+              >
+                <div
+                  className="w-10 h-10 rounded-full flex items-center justify-center font-medium"
+                  style={{ background: tone.paperDeep, color: tone.ink50, fontSize: 12 }}
+                >
+                  {initials(agent.name)}
+                </div>
+                <div>
+                  <div className="text-[14px]" style={{ color: tone.ink }}>
+                    {agent.name}
+                  </div>
+                  <div className="text-[12px] mt-0.5 font-mono" style={{ color: tone.ink50 }}>
+                    {agent.email || t.noEmail}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Btn variant="outline" size="sm" onClick={() => setEditAgent(agent)}>
+                    {t.edit}
+                  </Btn>
+                  <Btn
+                    variant="primary"
+                    size="sm"
+                    icon={<Icons.Check />}
+                    onClick={() => handleApprove(agent.id)}
+                  >
+                    {t.reactivate}
                   </Btn>
                 </div>
               </div>
@@ -496,7 +559,10 @@ export default function AgentsPage() {
                 <LabeledField label={t.labelName}>
                   <EditorialInput value={editAgent.name || ""} onChange={(v) => updateField("name", v)} placeholder={t.namePlaceholder} />
                 </LabeledField>
-                <LabeledField label={t.labelTeam}>
+                <LabeledField label={t.labelEmail}>
+                  <EditorialInput value={editAgent.email || ""} onChange={(v) => updateField("email", v)} placeholder="agent@gmail.com" mono />
+                </LabeledField>
+                {editAgent.id && <LabeledField label={t.labelTeam}>
                   <select
                     value={editAgent.teamId || ""}
                     onChange={(e) => updateField("teamId", e.target.value ? Number(e.target.value) : null)}
@@ -510,30 +576,27 @@ export default function AgentsPage() {
                       </option>
                     ))}
                   </select>
-                </LabeledField>
-                <LabeledField label={t.labelEmail}>
-                  <EditorialInput value={editAgent.email || ""} onChange={(v) => updateField("email", v)} placeholder="agent@homixny.com" mono />
-                </LabeledField>
-                <LabeledField label={t.labelPhone}>
+                </LabeledField>}
+                {editAgent.id && <LabeledField label={t.labelPhone}>
                   <EditorialInput value={editAgent.phone || ""} onChange={(v) => updateField("phone", v)} placeholder="(917) 555-0101" mono />
-                </LabeledField>
-                <LabeledField label={t.labelLicense}>
+                </LabeledField>}
+                {editAgent.id && <LabeledField label={t.labelLicense}>
                   <EditorialInput value={editAgent.licenseNumber || ""} onChange={(v) => updateField("licenseNumber", v)} mono />
-                </LabeledField>
-                <LabeledField label={t.labelLicenseExpires}>
+                </LabeledField>}
+                {editAgent.id && <LabeledField label={t.labelLicenseExpires}>
                   <EditorialInput value={editAgent.licenseExpiresAt || ""} onChange={(v) => updateField("licenseExpiresAt", v)} type="date" mono />
-                </LabeledField>
-                <LabeledField label={t.labelKeep}>
+                </LabeledField>}
+                {editAgent.id && <LabeledField label={t.labelKeep}>
                   <EditorialInput value={editAgent.splitPct ?? DEFAULT_AGENT_SPLIT_PCT} onChange={(v) => updateField("splitPct", Number(v))} type="number" mono />
-                </LabeledField>
-                <LabeledField label={t.labelCompany}>
+                </LabeledField>}
+                {editAgent.id && <LabeledField label={t.labelCompany}>
                   <EditorialInput value={editAgent.licensedCompany || ""} onChange={(v) => updateField("licensedCompany", v)} />
-                </LabeledField>
-                <LabeledField label={t.labelJoined}>
+                </LabeledField>}
+                {editAgent.id && <LabeledField label={t.labelJoined}>
                   <EditorialInput value={editAgent.joinedAt || ""} onChange={(v) => updateField("joinedAt", v)} type="date" mono />
-                </LabeledField>
+                </LabeledField>}
               </div>
-              <LabeledField label={t.labelNotes}>
+              {editAgent.id && <LabeledField label={t.labelNotes}>
                 <textarea
                   value={editAgent.notes || ""}
                   onChange={(e) => updateField("notes", e.target.value)}
@@ -541,11 +604,11 @@ export default function AgentsPage() {
                   className="w-full rounded-lg p-3 text-[13.5px] outline-none"
                   style={{ background: tone.card, border: `1px solid ${tone.line}`, color: tone.ink, resize: "vertical" }}
                 />
-              </LabeledField>
+              </LabeledField>}
             </div>
             <div className="px-8 py-5 flex items-center justify-between gap-2" style={{ borderTop: `1px solid ${tone.line}`, background: tone.paper }}>
               <div>
-                {editAgent.id && editAgent.isActive && (
+                {editAgent.id && editAgent.accountStatus === "active" && (
                   <Btn
                     variant="danger"
                     size="sm"

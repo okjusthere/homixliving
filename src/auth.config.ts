@@ -23,7 +23,7 @@ export const authConfig: NextAuthConfig = {
     // Session callback MUST live in the edge config (this file), not in
     // src/auth.ts. Auth.js v5 middleware runs in edge runtime and only sees
     // callbacks defined here. Without this, `auth.user.isAdmin` /
-    // `auth.user.isActive` are `undefined` in middleware (because the JWT
+    // `auth.user.accountStatus` is `undefined` in middleware (because the JWT
     // token fields never get copied into the session), `!undefined === true`
     // forces every authenticated request into `/pending`, then `/pending`
     // (running in node runtime, sees the right values) sends admins back to
@@ -37,7 +37,11 @@ export const authConfig: NextAuthConfig = {
       session.user.name =
         typeof token.name === "string" ? token.name : session.user.name;
       session.user.isAdmin = Boolean(token.isAdmin);
-      session.user.isActive = Boolean(token.isActive);
+      session.user.accountStatus =
+        token.accountStatus === "active" || token.accountStatus === "inactive"
+          ? token.accountStatus
+          : "pending";
+      session.user.isActive = session.user.accountStatus === "active";
       return session;
     },
     async authorized({ request, auth }) {
@@ -69,9 +73,9 @@ export const authConfig: NextAuthConfig = {
       // route that forgets its own guard is no longer wide open to any signed-in
       // (including pending, self-registered) Google account.
       if (pathname.startsWith("/api")) {
-        return Boolean(auth.user?.isAdmin || auth.user?.isActive);
+        return Boolean(auth.user?.isAdmin || auth.user?.accountStatus === "active");
       }
-      if (!auth.user?.isAdmin && !auth.user?.isActive) {
+      if (!auth.user?.isAdmin && auth.user?.accountStatus !== "active") {
         return NextResponse.redirect(new URL("/pending", request.nextUrl));
       }
       return true;

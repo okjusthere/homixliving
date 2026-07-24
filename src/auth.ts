@@ -42,8 +42,7 @@ async function upsertAgentFromGoogle(user: {
       email,
       name: user.name || email.split("@")[0],
       isAdmin: admin,
-      isActive: admin,
-      approvalStatus: admin ? "approved" : "pending",
+      accountStatus: admin ? "active" : "pending",
       splitPct: DEFAULT_AGENT_SPLIT_PCT,
       joinedAt: now.slice(0, 10),
       createdAt: now,
@@ -79,7 +78,7 @@ async function upsertAgentFromGoogle(user: {
   }
 
   const needsAdminFlip = Boolean(existing.isAdmin) !== admin;
-  const needsActiveForce = admin && !existing.isActive;
+  const needsActiveForce = admin && existing.accountStatus !== "active";
   const needsNameFill = !existing.name && Boolean(user.name);
 
   if (needsAdminFlip || needsActiveForce || needsNameFill) {
@@ -87,8 +86,7 @@ async function upsertAgentFromGoogle(user: {
       .update(agents)
       .set({
         isAdmin: admin,
-        ...(admin ? { approvalStatus: "approved" } : {}),
-        ...(needsActiveForce ? { isActive: true, approvalStatus: "approved" } : {}),
+        ...(needsActiveForce ? { accountStatus: "active" as const } : {}),
         ...(needsNameFill ? { name: user.name! } : {}),
         updatedAt: now,
       })
@@ -133,7 +131,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       token.email = agent.email;
       token.name = agent.name;
       token.isAdmin = Boolean(agent.isAdmin);
-      token.isActive = Boolean(agent.isActive);
+      token.accountStatus = agent.accountStatus;
+      // Derived compatibility flag for deal-access helpers. The database has
+      // one lifecycle source of truth: account_status.
+      token.isActive = agent.accountStatus === "active";
 
       return token;
     },

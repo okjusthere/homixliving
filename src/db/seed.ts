@@ -3169,7 +3169,7 @@ const demoAgents: Array<Omit<schema.NewAgent, "teamId"> & { teamName: string }> 
     licensedCompany: "Homix Living Inc.",
     splitPct: 70,
     teamName: "Manhattan",
-    isActive: true,
+    accountStatus: "active",
     joinedAt: "2024-01-15",
   },
   {
@@ -3180,7 +3180,7 @@ const demoAgents: Array<Omit<schema.NewAgent, "teamId"> & { teamName: string }> 
     licensedCompany: "Homix Living Inc.",
     splitPct: 60,
     teamName: "Manhattan",
-    isActive: true,
+    accountStatus: "active",
     joinedAt: "2024-03-01",
   },
   {
@@ -3191,7 +3191,7 @@ const demoAgents: Array<Omit<schema.NewAgent, "teamId"> & { teamName: string }> 
     licensedCompany: "Homix Living Inc.",
     splitPct: 80,
     teamName: "Manhattan",
-    isActive: true,
+    accountStatus: "active",
     joinedAt: "2023-09-10",
   },
   {
@@ -3202,7 +3202,7 @@ const demoAgents: Array<Omit<schema.NewAgent, "teamId"> & { teamName: string }> 
     licensedCompany: "Homix Living Inc.",
     splitPct: 80,
     teamName: "Brooklyn & Queens",
-    isActive: true,
+    accountStatus: "active",
     joinedAt: "2025-02-20",
   },
   {
@@ -3213,7 +3213,7 @@ const demoAgents: Array<Omit<schema.NewAgent, "teamId"> & { teamName: string }> 
     licensedCompany: "Homix Living Inc.",
     splitPct: 70,
     teamName: "Brooklyn & Queens",
-    isActive: true,
+    accountStatus: "active",
     joinedAt: "2024-07-08",
   },
   {
@@ -3224,7 +3224,7 @@ const demoAgents: Array<Omit<schema.NewAgent, "teamId"> & { teamName: string }> 
     licensedCompany: "AIREA LLC",
     splitPct: 60,
     teamName: "Brooklyn & Queens",
-    isActive: true,
+    accountStatus: "active",
     joinedAt: "2025-05-11",
   },
   {
@@ -3235,7 +3235,7 @@ const demoAgents: Array<Omit<schema.NewAgent, "teamId"> & { teamName: string }> 
     licensedCompany: "AIREA LLC",
     splitPct: 70,
     teamName: "NJ",
-    isActive: true,
+    accountStatus: "active",
     joinedAt: "2024-10-02",
   },
   {
@@ -3246,7 +3246,7 @@ const demoAgents: Array<Omit<schema.NewAgent, "teamId"> & { teamName: string }> 
     licensedCompany: "AIREA LLC",
     splitPct: 80,
     teamName: "NJ",
-    isActive: true,
+    accountStatus: "active",
     joinedAt: "2025-01-18",
   },
 ];
@@ -3327,4 +3327,15 @@ async function seed() {
   console.log("Seed completed!");
 }
 
-seed().catch(console.error);
+async function main() {
+  try {
+    await seed();
+  } finally {
+    await pgClient.end({ timeout: 5 });
+  }
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});

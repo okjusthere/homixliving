@@ -9,9 +9,23 @@ jobs:
   ci:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: homixliving
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d homixliving"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
       # Build-time stand-ins only — no real services are contacted in CI.
-      TURSO_DATABASE_URL: file:local.db
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/homixliving
       AUTH_SECRET: ci-only-secret-not-used-in-prod
     steps:
       - uses: actions/checkout@v4
@@ -30,7 +44,7 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Seed schema into throwaway DB
+      - name: Seed schema into throwaway Postgres
         # Doubles as a smoke test that db:seed creates every table the app
         # expects (the schema-drift class of bug).
         run: npm run db:seed

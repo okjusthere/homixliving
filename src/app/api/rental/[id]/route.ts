@@ -79,7 +79,7 @@ async function validateDealUpdate({
   if (agentRows.some((agent) => !agent)) {
     return { error: "Every deal agent must exist", status: 404 };
   }
-  if (!isAdmin && agentRows.some((agent) => agent?.isActive === false)) {
+  if (!isAdmin && agentRows.some((agent) => agent?.accountStatus !== "active")) {
     return { error: "Every deal agent must be active", status: 400 };
   }
 

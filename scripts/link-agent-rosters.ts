@@ -26,7 +26,7 @@ type PortalAgent = {
   name: string;
   email: string;
   license_number: string | null;
-  is_active: boolean;
+  account_status: "pending" | "active" | "inactive";
 };
 type PublicAgent = {
   id: string;
@@ -35,7 +35,7 @@ type PublicAgent = {
   email: string | null;
   license_number: string | null;
   mls_id: string | null;
-  visible: boolean | null;
+  visibility_status: "visible" | "agent_hidden" | "admin_hidden";
   portal_agent_id: number | null;
 };
 
@@ -66,10 +66,10 @@ async function main() {
   );
 
   const portal = (await sql.unsafe(
-    `SELECT id, name, email, license_number, is_active FROM portal.agents ORDER BY id`,
+    `SELECT id, name, email, license_number, account_status FROM portal.agents ORDER BY id`,
   )) as unknown as PortalAgent[];
   const pub = (await sql.unsafe(
-    `SELECT id, slug, name, email, license_number, mls_id, visible, portal_agent_id
+    `SELECT id, slug, name, email, license_number, mls_id, visibility_status, portal_agent_id
      FROM public.agents ORDER BY slug`,
   )) as unknown as PublicAgent[];
 
@@ -147,11 +147,11 @@ async function main() {
   }
   console.log(`\n— website-only, needs manual --link or stays unsynced (${stillUnlinked.length}) —`);
   for (const p of stillUnlinked) {
-    console.log(`  ${p.slug} · ${p.name} · email ${p.email || "—"} · lic ${p.license_number || "—"} · visible=${p.visible}`);
+    console.log(`  ${p.slug} · ${p.name} · email ${p.email || "—"} · lic ${p.license_number || "—"} · visibility=${p.visibility_status}`);
   }
   console.log(`\n— portal-only, no public profile (${portalOnly.length}) —`);
   for (const a of portalOnly) {
-    console.log(`  #${a.id} ${a.name} (${a.email}) active=${a.is_active}`);
+    console.log(`  #${a.id} ${a.name} (${a.email}) status=${a.account_status}`);
   }
 
   // ---- write ----

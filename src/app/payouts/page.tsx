@@ -31,7 +31,7 @@ export default async function PayoutsPage() {
   const t = M[await getLocale()];
 
   const [agentRows, payoutRows, profileRows] = await Promise.all([
-    db.select().from(agents).where(eq(agents.isActive, true)).orderBy(asc(agents.name)),
+    db.select().from(agents).where(eq(agents.accountStatus, "active")).orderBy(asc(agents.name)),
     db.select().from(agentPayouts).orderBy(desc(agentPayouts.paidAt), desc(agentPayouts.id)),
     db.select().from(agentPaymentProfiles),
   ]);

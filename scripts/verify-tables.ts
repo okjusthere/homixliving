@@ -48,9 +48,10 @@ async function main() {
   console.log("\n--- portal.agents columns ---");
   console.log(cols.join(", "));
   console.log("\n--- checks ---");
-  console.log("has is_admin :", cols.includes("is_admin"));
-  console.log("has is_active:", cols.includes("is_active"));
-  console.log("has user_id  :", cols.includes("user_id"), "(should be false)");
+  console.log("has is_admin      :", cols.includes("is_admin"));
+  console.log("has account_status:", cols.includes("account_status"));
+  console.log("has is_active     :", cols.includes("is_active"), "(should be false after Phase B)");
+  console.log("has user_id       :", cols.includes("user_id"), "(should be false)");
 
   const counts = await sql`
     SELECT (SELECT COUNT(*) FROM portal.buildings) AS buildings,

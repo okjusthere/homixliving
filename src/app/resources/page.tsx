@@ -61,8 +61,7 @@ async function queryLibrary() {
 
 /**
  * Self-healing load: right after a deploy that adds columns/tables, the
- * production database hasn't run the DDL yet (Turso credentials are Sensitive
- * in Vercel, so migrations run where the credentials live — here). On the
+ * production database hasn't run the DDL yet. On the
  * first failed query, apply the idempotent ensure-schema and retry once,
  * instead of 500ing until someone remembers to hit the admin endpoint.
  */

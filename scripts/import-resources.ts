@@ -1,9 +1,9 @@
 /**
  * CLI wrapper for the resources import (data lives in
  * src/db/import-resources-data.ts; production runs it via
- * POST /api/admin/import-resources instead, where Turso credentials live).
+ * POST /api/admin/import-resources instead, where DATABASE_URL is configured).
  *
- * Local:  npx tsx scripts/import-resources.ts        (file:local.db)
+ * Local:  npx tsx scripts/import-resources.ts        (Postgres on :5499)
  */
 import postgres from "postgres";
 import { runResourcesImport } from "../src/db/import-resources-data";

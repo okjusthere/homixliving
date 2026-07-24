@@ -1,12 +1,9 @@
-import { eq } from "drizzle-orm";
-import { db } from "@/db";
-import { publicAgents } from "@/db/schema";
+import { syncPublicIdentity } from "@/lib/homixweb";
 
 /**
- * Write-through of shared identity fields to the marketing site's roster
- * (public.agents — same Supabase database, owned by homix-website). Called
- * after a portal profile save so the public site shows the same
- * name/phone/license without a second edit.
+ * Sync portal-owned identity fields through the marketing site's API. The
+ * portal no longer writes public.agents directly; homix-website remains the
+ * sole writer and performs MLS verification plus cache invalidation.
  *
  * Matching is by the EXPLICIT link column public.agents.portal_agent_id
  * only — the rosters are not 1:1 and public contact emails frequently
@@ -15,8 +12,8 @@ import { publicAgents } from "@/db/schema";
  * established once via scripts/link-agent-rosters.ts; unlinked agents are
  * skipped and logged.
  *
- * Best-effort by design: never fails the portal save. Local dev databases
- * don't have public.agents at all — the catch swallows that.
+ * Best-effort by design: a temporary website outage must not roll back the
+ * canonical portal save. The next identity edit retries the sync.
  */
 export async function syncPublicAgentProfile(input: {
   agentId: number;
@@ -24,46 +21,20 @@ export async function syncPublicAgentProfile(input: {
   phone?: string | null;
   licenseNumber?: string | null;
 }): Promise<void> {
-  let linkedSlug: string | null = null;
   try {
-    const updates: Record<string, string> = {};
-    if (input.name?.trim()) updates.name = input.name.trim();
-    if (input.phone !== undefined) updates.phone = input.phone?.trim() || "";
-    if (input.licenseNumber !== undefined) {
-      updates.licenseNumber = input.licenseNumber?.trim() || "";
-    }
-    if (Object.keys(updates).length === 0) return;
-
-    const updated = await db
-      .update(publicAgents)
-      .set(updates)
-      .where(eq(publicAgents.portalAgentId, input.agentId))
-      .returning({ slug: publicAgents.slug });
-
-    if (updated.length === 0) {
-      console.log(
-        `public.agents write-through: portal agent #${input.agentId} has no linked public profile (run scripts/link-agent-rosters.ts)`,
-      );
-      return;
-    }
-    linkedSlug = updated[0].slug;
-  } catch (error) {
-    console.warn("public.agents write-through skipped:", (error as Error).message);
-    return;
-  }
-
-  // Nudge the website to drop its cached roster (24h TTL otherwise).
-  const url = process.env.HOMIXWEB_REVALIDATE_URL?.trim();
-  const secret = process.env.AGENTS_REVALIDATE_SECRET?.trim();
-  if (!url || !secret) return;
-  try {
-    await fetch(url, {
-      method: "POST",
-      headers: { authorization: `Bearer ${secret}` },
-      signal: AbortSignal.timeout(4000),
+    const result = await syncPublicIdentity({
+      agentId: input.agentId,
+      name: input.name?.trim() || "",
+      phone: input.phone,
+      license: input.licenseNumber,
     });
-    console.log(`public profile synced (slug ${linkedSlug}) + website cache refreshed`);
+    if (!result.ok && result.status !== 404) {
+      console.warn(
+        `public identity sync failed for portal agent #${input.agentId}:`,
+        result.body.error || `HTTP ${result.status}`,
+      );
+    }
   } catch (error) {
-    console.warn("homixweb revalidate ping failed:", (error as Error).message);
+    console.warn("public identity sync skipped:", (error as Error).message);
   }
 }
