@@ -19,7 +19,7 @@ const navItems = [
   { href: "/onboarding", key: "onboarding", adminOnly: false },
   { href: "/buyercoach", key: "coach", adminOnly: false },
   { href: "/offer", key: "offer", adminOnly: false },
-  { href: "/profile", key: "profile", adminOnly: false },
+  { href: "/profile/public", key: "profile", adminOnly: false },
   { href: "/agents", key: "agents", adminOnly: true },
   { href: "/roster", key: "roster", adminOnly: true },
   { href: "/teams", key: "teams", adminOnly: true },
@@ -35,13 +35,13 @@ const LABELS = {
     overview: "Overview", sales: "Sales", rental: "Rental", training: "Training",
     resources: "Resources", onboarding: "Onboarding", coach: "Coach", offer: "Offer",
     agents: "Agents", roster: "Public roster", teams: "Teams", reports: "Reports", finance: "Finance", payouts: "Payouts", audit: "Audit", settings: "Settings",
-    search: "Search", signedIn: "Signed in", signOut: "Sign out", admin: "Admin", profile: "My profile",
+    search: "Search", signedIn: "Signed in", signOut: "Sign out", admin: "Admin", profile: "Public profile", accountProfile: "My profile",
   },
   zh: {
     overview: "概览", sales: "买卖", rental: "租赁", training: "培训",
     resources: "资料", onboarding: "入职", coach: "AI 教练", offer: "报价",
     agents: "经纪人", roster: "对外名册", teams: "团队", reports: "报表", finance: "财务", payouts: "发放", audit: "审计", settings: "设置",
-    search: "搜索", signedIn: "已登录", signOut: "退出登录", admin: "管理员", profile: "我的档案",
+    search: "搜索", signedIn: "已登录", signOut: "退出登录", admin: "管理员", profile: "个人主页", accountProfile: "我的档案",
   },
 } as const;
 
@@ -209,7 +209,7 @@ export function Nav() {
                       className="block px-4 py-3 text-[13px] hover:bg-[#FAF7F0] transition-colors"
                       style={{ color: tone.ink70, borderBottom: `1px solid ${tone.lineSoft}` }}
                     >
-                      {t.profile}
+                      {t.accountProfile}
                     </Link>
                   )}
                   <button
