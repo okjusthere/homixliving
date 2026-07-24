@@ -62,3 +62,20 @@ curl -X POST https://agents.homixny.com/api/admin/ensure-schema \
 
 The retired Turso database and `TURSO_*` environment variables are no longer
 used by code, CI, local development, or deployment.
+
+## Existing public roster reconciliation
+
+New Portal accounts create and link their public profile automatically. Older
+website profiles can remain unlinked because public contact details, nicknames,
+and Portal login emails are not reliable identity keys.
+
+Administrators reconcile those records from `/roster`:
+
+1. Find a public profile without the `已关联` badge.
+2. Select the matching active Portal agent by name and login email.
+3. Click `关联`.
+
+The operation is admin-only and auditable. It copies Portal-owned identity
+fields after linking, and database uniqueness prevents one Portal account from
+being attached to multiple public profiles. Never infer links from fuzzy name
+matching.
