@@ -76,6 +76,7 @@ export function PublicProfileEditor({
   isOwn,
   agentName,
   agentEmail,
+  adminPublicId,
 }: {
   linked: boolean;
   unreachable: boolean;
@@ -84,6 +85,9 @@ export function PublicProfileEditor({
   isOwn: boolean;
   agentName: string;
   agentEmail: string | null;
+  /** When set, the admin console is editing this advisor by PUBLIC agent id
+   *  (covers advisors with no portal account); saves go to the admin endpoint. */
+  adminPublicId?: string;
 }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
@@ -151,8 +155,12 @@ export function PublicProfileEditor({
     setMsg(null);
     const fd = new FormData(form);
     if (removeQr) fd.set("remove_wechat_qr", "1");
-    if (!isOwn) fd.set("agentId", String(targetAgentId));
-    const res = await fetch("/api/profile/public", { method: "POST", body: fd });
+    // Admin editing by public agent id → the admin endpoint; otherwise the
+    // self/portal-admin path keyed by portal agent id.
+    const endpoint = adminPublicId ? "/api/admin/roster/edit" : "/api/profile/public";
+    if (adminPublicId) fd.set("id", adminPublicId);
+    else if (!isOwn) fd.set("agentId", String(targetAgentId));
+    const res = await fetch(endpoint, { method: "POST", body: fd });
     const body = await res.json().catch(() => ({}));
     setBusy(false);
     if (!res.ok || !body.ok) {

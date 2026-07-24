@@ -72,3 +72,58 @@ export async function fetchPublicProfile(
     return { linked: false, unreachable: true };
   }
 }
+
+/** One row of the admin public-roster console (keyed by public agent id). */
+export type AdminAgentRow = {
+  id: string;
+  name: string | null;
+  slug: string;
+  visible: boolean | null;
+  sort: number | null;
+  portal_agent_id: number | null;
+  photo_url: string | null;
+  license_number: string | null;
+};
+
+/** Server-side fetch of the full public roster for the admin console. */
+export async function fetchAllPublicAgents(): Promise<{
+  agents: AdminAgentRow[];
+  unreachable?: boolean;
+}> {
+  if (!isHomixwebConfigured()) return { agents: [], unreachable: true };
+  try {
+    const res = await fetch(`${homixwebBase()}/api/agent-admin`, {
+      headers: { authorization: `Bearer ${homixwebSecret()}` },
+      cache: "no-store",
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return { agents: [], unreachable: true };
+    const body = (await res.json()) as { agents: AdminAgentRow[] };
+    return { agents: body.agents ?? [] };
+  } catch {
+    return { agents: [], unreachable: true };
+  }
+}
+
+/** Server-side fetch of ANY advisor's editable profile by public agent id. */
+export async function fetchPublicProfileById(
+  id: string,
+): Promise<{ profile?: PublicProfile; unreachable?: boolean; notFound?: boolean }> {
+  if (!isHomixwebConfigured()) return { unreachable: true };
+  try {
+    const res = await fetch(
+      `${homixwebBase()}/api/agent-admin/edit?id=${encodeURIComponent(id)}`,
+      {
+        headers: { authorization: `Bearer ${homixwebSecret()}` },
+        cache: "no-store",
+        signal: AbortSignal.timeout(8000),
+      },
+    );
+    if (res.status === 404) return { notFound: true };
+    if (!res.ok) return { unreachable: true };
+    const body = (await res.json()) as { profile: PublicProfile };
+    return { profile: body.profile };
+  } catch {
+    return { unreachable: true };
+  }
+}
