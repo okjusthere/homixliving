@@ -34,6 +34,7 @@ export const dynamic = "force-dynamic";
 const M = {
   en: {
     workbench: "Agent Workbench",
+    newSales: "New sale",
     newRental: "New rental",
     rentalFile: "Rental file",
     rentalFileDetail: "Lease, agents, commission split",
@@ -112,6 +113,7 @@ const M = {
   },
   zh: {
     workbench: "经纪人工作台",
+    newSales: "新建买卖",
     newRental: "新建租约",
     rentalFile: "租赁档案",
     rentalFileDetail: "租约、经纪人、佣金分成",
@@ -553,25 +555,35 @@ export default async function Dashboard() {
                 {t.queueLead(draftInvoicesCount, upcomingRenewals.length, fmtMoney(outstanding.total))}
               </p>
             </div>
-            <Link
-              href="/rental/new"
-              className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md border px-4 text-[13px] font-medium transition hover:bg-[#FAF7F0]"
-              style={{ borderColor: tone.line, color: tone.ink }}
-            >
-              <Home className="size-4" />
-              {t.newRental}
-            </Link>
+            <div className="flex shrink-0 flex-wrap gap-2">
+              <Link
+                href="/sales/new"
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-md border px-4 text-[13px] font-medium transition hover:bg-[#FAF7F0]"
+                style={{ borderColor: tone.line, color: tone.ink }}
+              >
+                <Building2 className="size-4" />
+                {t.newSales}
+              </Link>
+              <Link
+                href="/rental/new"
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-md border px-4 text-[13px] font-medium transition hover:bg-[#FAF7F0]"
+                style={{ borderColor: tone.line, color: tone.ink }}
+              >
+                <Home className="size-4" />
+                {t.newRental}
+              </Link>
+            </div>
           </div>
 
           <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <ActionLink
-              href="/rental/new"
+              href="/rental"
               icon={<Home className="size-4" />}
               label={t.rentalFile}
               detail={t.rentalFileDetail}
             />
             <ActionLink
-              href="/sales/new"
+              href="/sales"
               icon={<Building2 className="size-4" />}
               label={t.salesFile}
               detail={t.salesFileDetail}
