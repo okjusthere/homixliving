@@ -22,9 +22,21 @@ if (process.env.NODE_ENV === "production" && !isBuildPhase && !url) {
 
 // Supabase's transaction-mode pooler (pgbouncer) does not support prepared
 // statements — `prepare: false` is required there and harmless locally.
+//
+// `max: 1` matches Supabase's own guidance for serverless + transaction-mode
+// pooling: pgbouncer already pools connections server-side, so each function
+// instance only needs one; holding several idle connections per instance (the
+// prior `max: 5`) needlessly eats into pgbouncer's shared client-connection
+// budget once many instances are warm at once, which is the likely cause of
+// the intermittent `CONNECT_TIMEOUT` seen in production. `connect_timeout`
+// makes a stuck attempt fail fast instead of hanging until the surrounding
+// request times out; `idle_timeout` releases the connection promptly between
+// requests so it doesn't sit open on a cold/rarely-hit instance.
 export const pgClient = postgres(url || LOCAL_DEV_URL, {
   prepare: false,
-  max: 5,
+  max: 1,
+  connect_timeout: 10,
+  idle_timeout: 20,
   onnotice: () => {},
 });
 
