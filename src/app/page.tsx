@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
-  BadgeDollarSign,
   BookOpenCheck,
   Building2,
   CalendarClock,
@@ -14,19 +13,24 @@ import {
   ReceiptText,
   TrendingUp,
 } from "lucide-react";
-import { eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { agents, buildings, commerceOrders, dealAgents, deals, invoices } from "@/db/schema";
+import {
+  agentPaymentProfiles,
+  agents,
+  buildings,
+  commerceOrders,
+  dealAgents,
+  deals,
+  saleDealAgents,
+  saleDeals,
+} from "@/db/schema";
 import { tone, fmtMoney, fmtDate } from "@/components/homix/tokens";
 import { Pill, Card } from "@/components/homix/server-primitives";
 import { IconChev } from "@/components/homix/icons";
 import { BillingPortalButton } from "@/components/homix/billing-portal-button";
-import { computeCommission } from "@/lib/commission";
-import { activeDeal, commissionAgentsForDeal, dealInMonth, getMonthKey } from "@/lib/reporting";
-import { isUpcoming } from "@/lib/renewals";
-import { summarize, totalOutstanding } from "@/lib/aging";
 import { requireActiveAgent } from "@/lib/auth-guards";
-import { dealsVisibleToSql } from "@/lib/visibility";
+import { dealsVisibleToSql, saleDealsVisibleToSql } from "@/lib/visibility";
 import { getLocale } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
@@ -44,36 +48,36 @@ const M = {
     invoiceDetail: "Create and send billing",
     agentPayments: "Agent payments",
     agentPaymentsDetail: "Desk fees, email, services",
-    priorityQueue: "Priority queue",
-    priorityQueueDetail: "Open items for this account",
-    draftInvoices: "Draft invoices",
-    overdueReceivables: "Overdue receivables",
+    nextSteps: "My next steps",
+    nextStepsDetail: "Time-sensitive items across your files",
+    closingSoon: "Closing soon",
+    next60Days: "Next 60 days",
     leaseRenewals: "Lease renewals",
     next90Days: "Next 90 days",
-    sendFailures: "Send failures",
-    sendFailuresDetail: "Email or payment delivery",
-    rentalMtd: "Rental MTD",
-    commissionMtd: "Commission MTD",
-    signedRentalValue: "Signed rental value",
-    topAgent: "Top agent",
-    noRentalsYet: "No rentals yet",
-    buildings: "Buildings",
-    recentInvoices: "Recent invoices",
-    viewAll: "View all",
-    noInvoicesYet: "No invoices yet.",
-    createInvoice: "Create invoice",
+    paymentProfile: "Payout profile",
+    payoutReady: "ACH and W-9 ready",
+    payoutMissing: "Complete ACH and W-9",
+    ready: "Ready",
+    toDo: "To do",
+    activeSales: "Active sales",
+    activeRentals: "Active rentals",
+    completedMtd: "Completed this month",
+    estimatedCommission: "Est. commission",
+    estimatedCommissionDetail: "Your share across active files",
+    recentFiles: "Recent files",
+    recentFilesDetail: "Latest sales and rental activity",
+    noFilesYet: "No sales or rental files yet.",
     noBuilding: "No building",
     unit: "Unit",
-    statusPaid: "Paid",
-    statusAwaiting: "Awaiting",
-    statusFailed: "Failed",
-    statusDraft: "Draft",
-    recentDeals: "Recent deals",
-    activeThisMonth: "active this month",
-    openRental: "Open rental",
-    noRentalDealsYet: "No rental deals yet.",
-    createRental: "Create rental",
-    noAgent: "No agent",
+    sale: "Sale",
+    rental: "Rental",
+    active: "Active",
+    completed: "Completed",
+    cancelled: "Cancelled",
+    preContract: "Pre-contract",
+    underContract: "Under contract",
+    postContract: "Post-contract",
+    closed: "Closed",
     billingWorkspace: "Billing & workspace",
     billingWorkspaceDetail: "Stripe, subscriptions, company email",
     payments: "Payments",
@@ -97,19 +101,13 @@ const M = {
     goodAfternoon: "Good afternoon",
     goodEvening: "Good evening",
     agent: "Agent",
-    queueLead: (draft: number, renewals: number, waiting: string) =>
-      `The queue has ${draft} draft invoice${draft === 1 ? "" : "s"}, ${renewals} renewal${
-        renewals === 1 ? "" : "s"
-      }, and $${waiting} waiting.`,
-    visibleInvoices: (count: number, ytd: string) =>
-      `${count} visible invoices · $${ytd} YTD`,
-    activeCount: (count: number) => `${count} ${count === 1 ? "active" : "active"} this month`,
+    workbenchLead: (sales: number, rentals: number, milestones: number) =>
+      `${sales} active sale${sales === 1 ? "" : "s"}, ${rentals} active rental${
+        rentals === 1 ? "" : "s"
+      }, and ${milestones} upcoming milestone${milestones === 1 ? "" : "s"}.`,
+    monthDetail: (month: string) => `${month} across both businesses`,
     activeSubscriptions: (count: number) =>
       `${count} active subscription${count === 1 ? "" : "s"}`,
-    draftReady: (amount: string) => `$${amount} ready to review`,
-    pastFirstCycle: (amount: string) => `$${amount} past the first cycle`,
-    outOfState: (count: number) => `${count} out of state`,
-    take: (amount: string) => `$${amount} take`,
   },
   zh: {
     workbench: "经纪人工作台",
@@ -123,36 +121,36 @@ const M = {
     invoiceDetail: "创建并发送账单",
     agentPayments: "经纪人付款",
     agentPaymentsDetail: "工位费、邮箱、服务",
-    priorityQueue: "优先事项",
-    priorityQueueDetail: "本账户的待办事项",
-    draftInvoices: "草稿发票",
-    overdueReceivables: "逾期应收款",
+    nextSteps: "我的下一步",
+    nextStepsDetail: "买卖与租赁档案中的近期事项",
+    closingSoon: "临近过户",
+    next60Days: "未来 60 天",
     leaseRenewals: "租约续约",
     next90Days: "未来 90 天",
-    sendFailures: "发送失败",
-    sendFailuresDetail: "邮件或付款投递",
-    rentalMtd: "本月租赁",
-    commissionMtd: "本月佣金",
-    signedRentalValue: "已签租赁金额",
-    topAgent: "业绩第一",
-    noRentalsYet: "暂无租赁",
-    buildings: "楼盘",
-    recentInvoices: "最近发票",
-    viewAll: "查看全部",
-    noInvoicesYet: "暂无发票。",
-    createInvoice: "创建发票",
+    paymentProfile: "收款资料",
+    payoutReady: "ACH 与 W-9 已备齐",
+    payoutMissing: "请补全 ACH 与 W-9",
+    ready: "完成",
+    toDo: "待办",
+    activeSales: "进行中的买卖",
+    activeRentals: "进行中的租赁",
+    completedMtd: "本月已完成",
+    estimatedCommission: "预计个人佣金",
+    estimatedCommissionDetail: "当前进行中档案的个人分成",
+    recentFiles: "最近档案",
+    recentFilesDetail: "最新买卖与租赁动态",
+    noFilesYet: "暂无买卖或租赁档案。",
     noBuilding: "无楼盘",
     unit: "单元",
-    statusPaid: "已付款",
-    statusAwaiting: "待付款",
-    statusFailed: "失败",
-    statusDraft: "草稿",
-    recentDeals: "最近交易",
-    activeThisMonth: "本月进行中",
-    openRental: "查看租赁",
-    noRentalDealsYet: "暂无租赁交易。",
-    createRental: "创建租赁",
-    noAgent: "无经纪人",
+    sale: "买卖",
+    rental: "租赁",
+    active: "进行中",
+    completed: "已完成",
+    cancelled: "已取消",
+    preContract: "合同前",
+    underContract: "已签合同",
+    postContract: "过户准备",
+    closed: "已过户",
     billingWorkspace: "账单与工作区",
     billingWorkspaceDetail: "Stripe、订阅、企业邮箱",
     payments: "付款",
@@ -176,16 +174,10 @@ const M = {
     goodAfternoon: "下午好",
     goodEvening: "晚上好",
     agent: "经纪人",
-    queueLead: (draft: number, renewals: number, waiting: string) =>
-      `待处理 ${draft} 张草稿发票、${renewals} 笔续约，另有 $${waiting} 待收。`,
-    visibleInvoices: (count: number, ytd: string) =>
-      `${count} 张可见发票 · 年初至今 $${ytd}`,
-    activeCount: (count: number) => `本月 ${count} 个进行中`,
+    workbenchLead: (sales: number, rentals: number, milestones: number) =>
+      `有 ${sales} 笔买卖、${rentals} 笔租赁正在进行，${milestones} 个近期节点需要关注。`,
+    monthDetail: (month: string) => `${month} 买卖与租赁合计`,
     activeSubscriptions: (count: number) => `${count} 个进行中的订阅`,
-    draftReady: (amount: string) => `$${amount} 待审核`,
-    pastFirstCycle: (amount: string) => `$${amount} 已超首个账期`,
-    outOfState: (count: number) => `${count} 个州外`,
-    take: (amount: string) => `分得 $${amount}`,
   },
 } as const;
 
@@ -403,117 +395,228 @@ function billingStatusTone(status?: string | null): "neutral" | "sent" | "draft"
   return "accent";
 }
 
+function dateKeyAfter(date: Date, days: number) {
+  const result = new Date(date);
+  result.setUTCDate(result.getUTCDate() + days);
+  return result.toISOString().slice(0, 10);
+}
+
 export default async function Dashboard() {
   const session = await requireActiveAgent();
   const locale = await getLocale();
   const t = M[locale];
   const now = new Date();
-  const currentMonth = getMonthKey(now);
-  const visibilityFilter = dealsVisibleToSql(session);
+  const currentMonth = now.toISOString().slice(0, 7);
+  const monthStart = `${currentMonth}-01`;
+  const nextMonthStart = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)
+  )
+    .toISOString()
+    .slice(0, 10);
+  const today = now.toISOString().slice(0, 10);
+  const sixtyDaysOut = dateKeyAfter(now, 60);
+  const ninetyDaysOut = dateKeyAfter(now, 90);
+  const rentalVisibility = dealsVisibleToSql(session);
+  const salesVisibility = saleDealsVisibleToSql(session);
+  const dashboardAgentId = session.user.agentId ?? -1;
   const userEmail = session.user.email?.trim().toLowerCase() || "";
+  const rentalSummaryQuery = db
+    .select({
+      activeCount: sql<number>`count(*) filter (where ${deals.status} = 'active')`,
+      completedMonth: sql<number>`count(*) filter (
+        where ${deals.status} = 'completed'
+          and coalesce(${deals.dealDate}, ${deals.updatedAt}, ${deals.createdAt}, '') >= ${monthStart}
+          and coalesce(${deals.dealDate}, ${deals.updatedAt}, ${deals.createdAt}, '') < ${nextMonthStart}
+      )`,
+      upcomingRenewals: sql<number>`count(*) filter (
+        where ${deals.status} = 'active'
+          and ${deals.leaseEndDate} is not null
+          and ${deals.leaseEndDate} <= ${ninetyDaysOut}
+          and coalesce(${deals.renewalStatus}, 'pending') not in ('renewed', 'lost')
+      )`,
+      personalCommission: sql<number>`coalesce(sum(
+        case
+          when ${deals.status} = 'active' and ${dealAgents.agentId} is not null then
+            greatest(
+              0,
+              ${deals.totalCommission} -
+              case
+                when ${deals.referrerType} = 'percent' then
+                  ${deals.totalCommission} * least(100, greatest(0, coalesce(${deals.referrerAmount}, 0))) / 100.0
+                when ${deals.referrerType} = 'flat' then
+                  greatest(0, coalesce(${deals.referrerAmount}, 0))
+                else 0
+              end
+            )
+            * least(100, greatest(0, coalesce(${dealAgents.sharePct}, 0))) / 100.0
+            * least(100, greatest(0, coalesce(${agents.splitPct}, 0))) / 100.0
+          else 0
+        end
+      ), 0)`,
+    })
+    .from(deals)
+    .leftJoin(
+      dealAgents,
+      and(eq(dealAgents.dealId, deals.id), eq(dealAgents.agentId, dashboardAgentId))
+    )
+    .leftJoin(agents, eq(agents.id, dealAgents.agentId))
+    .where(rentalVisibility);
+  const salesSummaryQuery = db
+    .select({
+      activeCount: sql<number>`count(*) filter (where ${saleDeals.status} = 'active')`,
+      completedMonth: sql<number>`count(*) filter (
+        where ${saleDeals.status} = 'completed'
+          and coalesce(${saleDeals.closingDate}, ${saleDeals.updatedAt}, ${saleDeals.createdAt}, '') >= ${monthStart}
+          and coalesce(${saleDeals.closingDate}, ${saleDeals.updatedAt}, ${saleDeals.createdAt}, '') < ${nextMonthStart}
+      )`,
+      closingSoon: sql<number>`count(*) filter (
+        where ${saleDeals.status} = 'active'
+          and ${saleDeals.closingDate} is not null
+          and ${saleDeals.closingDate} >= ${today}
+          and ${saleDeals.closingDate} <= ${sixtyDaysOut}
+      )`,
+      personalCommission: sql<number>`coalesce(sum(
+        case
+          when ${saleDeals.status} = 'active' and ${saleDealAgents.agentId} is not null then
+            greatest(
+              0,
+              ${saleDeals.grossCommission}
+                - greatest(0, coalesce(${saleDeals.referralAmount}, 0))
+                - greatest(0, coalesce(${saleDeals.brokerageFee}, 0))
+            )
+            * least(100, greatest(0, coalesce(${saleDealAgents.sharePct}, 0))) / 100.0
+            * least(100, greatest(0, coalesce(${agents.splitPct}, 0))) / 100.0
+          else 0
+        end
+      ), 0)`,
+    })
+    .from(saleDeals)
+    .leftJoin(
+      saleDealAgents,
+      and(
+        eq(saleDealAgents.saleDealId, saleDeals.id),
+        eq(saleDealAgents.agentId, dashboardAgentId)
+      )
+    )
+    .leftJoin(agents, eq(agents.id, saleDealAgents.agentId))
+    .where(salesVisibility);
+  const recentRentalQuery = db
+    .select({
+      id: deals.id,
+      unit: deals.unit,
+      tenantName: deals.tenantName,
+      totalCommission: deals.totalCommission,
+      status: deals.status,
+      sortAt: sql<string>`coalesce(${deals.updatedAt}, ${deals.createdAt}, '')`,
+      buildingName: buildings.name,
+    })
+    .from(deals)
+    .innerJoin(buildings, eq(buildings.id, deals.buildingId))
+    .where(rentalVisibility)
+    .orderBy(desc(deals.id))
+    .limit(4);
+  const recentSalesQuery = db
+    .select({
+      id: saleDeals.id,
+      propertyAddress: saleDeals.propertyAddress,
+      buyerNames: saleDeals.buyerNames,
+      sellerNames: saleDeals.sellerNames,
+      grossCommission: saleDeals.grossCommission,
+      status: saleDeals.status,
+      stage: saleDeals.stage,
+      sortAt: sql<string>`coalesce(${saleDeals.updatedAt}, ${saleDeals.createdAt}, '')`,
+    })
+    .from(saleDeals)
+    .where(salesVisibility)
+    .orderBy(desc(saleDeals.id))
+    .limit(4);
+
   const [
-    buildingRows,
-    invoiceRows,
-    allAgentRows,
-    allDealAgentRows,
-    allDealRows,
+    rentalSummaryRows,
+    salesSummaryRows,
+    recentRentalRows,
+    recentSalesRows,
     billingRows,
+    paymentProfileRows,
   ] = await Promise.all([
-    db.select().from(buildings),
-    db.select().from(invoices),
-    db.select().from(agents),
-    db.select().from(dealAgents),
-    visibilityFilter
-      ? db.select().from(deals).where(visibilityFilter)
-      : db.select().from(deals),
-    db.select().from(commerceOrders).where(eq(commerceOrders.customerEmail, userEmail)),
+    rentalSummaryQuery,
+    salesSummaryQuery,
+    recentRentalQuery,
+    recentSalesQuery,
+    db
+      .select({
+        productKey: commerceOrders.productKey,
+        productName: commerceOrders.productName,
+        billingMode: commerceOrders.billingMode,
+        status: commerceOrders.status,
+        stripeCustomerId: commerceOrders.stripeCustomerId,
+        requestedWorkspaceEmail: commerceOrders.requestedWorkspaceEmail,
+        workspaceStatus: commerceOrders.workspaceStatus,
+        amountCents: commerceOrders.amountCents,
+        createdAt: commerceOrders.createdAt,
+        updatedAt: commerceOrders.updatedAt,
+      })
+      .from(commerceOrders)
+      .where(eq(commerceOrders.customerEmail, userEmail))
+      .orderBy(desc(commerceOrders.id))
+      .limit(20),
+    db
+      .select({
+        payeeName: agentPaymentProfiles.payeeName,
+        routingNumber: agentPaymentProfiles.routingNumber,
+        accountNumber: agentPaymentProfiles.accountNumber,
+        w9ObjectKey: agentPaymentProfiles.w9ObjectKey,
+      })
+      .from(agentPaymentProfiles)
+      .where(eq(agentPaymentProfiles.agentId, dashboardAgentId))
+      .limit(1),
   ]);
 
-  const visibleDealIds = new Set(allDealRows.map((deal) => deal.id));
-  const visibleInvoiceRows = session.user.isAdmin
-    ? invoiceRows
-    : invoiceRows.filter((invoice) => {
-        if (invoice.dealId) return visibleDealIds.has(invoice.dealId);
-        return invoice.agentEmail?.toLowerCase() === userEmail;
-      });
-
-  const totalBuildingsCount = buildingRows.length;
-  const totalInvoicesCount = visibleInvoiceRows.length;
-  const draftInvoicesCount = visibleInvoiceRows.filter((invoice) => invoice.status === "draft").length;
-  const failedInvoicesCount = visibleInvoiceRows.filter((invoice) => invoice.status === "failed").length;
-  const totalAmount = visibleInvoiceRows.reduce((sum, invoice) => sum + Number(invoice.totalAmount || 0), 0);
-  const draftAmount = visibleInvoiceRows
-    .filter((invoice) => invoice.status === "draft")
-    .reduce((sum, invoice) => sum + Number(invoice.totalAmount || 0), 0);
-  const outOfStateCount = buildingRows.filter((building) => building.isOutOfState).length;
-
-  const sentInvoiceRows = visibleInvoiceRows
-    .filter((invoice) => invoice.status === "sent")
-    .map((invoice) => ({
-      status: invoice.status,
-      sentAt: invoice.sentAt,
-      totalAmount: invoice.totalAmount,
-    }));
-  const agingSummary = summarize(sentInvoiceRows);
-  const outstanding = totalOutstanding(agingSummary);
-  const overdueAmount =
-    agingSummary["30-60"].total +
-    agingSummary["60-90"].total +
-    agingSummary["90+"].total;
-  const overdueCount =
-    agingSummary["30-60"].count +
-    agingSummary["60-90"].count +
-    agingSummary["90+"].count;
-
-  const upcomingRenewals = allDealRows.filter(isUpcoming);
-  const agentById = new Map(allAgentRows.map((agent) => [agent.id, agent]));
-  const mtdDeals = allDealRows.filter((deal) => activeDeal(deal) && dealInMonth(deal, currentMonth));
-  const commissionMtd = mtdDeals.reduce((sum, deal) => sum + Number(deal.totalCommission || 0), 0);
-  const agentTakeById = new Map<number, number>();
-  for (const deal of mtdDeals) {
-    const participants = commissionAgentsForDeal({
-      dealId: deal.id,
-      dealAgents: allDealAgentRows,
-      agents: allAgentRows,
-    });
-    const breakdown = computeCommission({
-      totalCommission: Number(deal.totalCommission || 0),
-      referrer:
-        deal.referrerType === "percent" || deal.referrerType === "flat"
-          ? { type: deal.referrerType, amount: Number(deal.referrerAmount || 0) }
-          : null,
-      agents: participants,
-    });
-    for (const participant of breakdown.agents) {
-      agentTakeById.set(
-        participant.agentId,
-        (agentTakeById.get(participant.agentId) || 0) + participant.agentTake
-      );
-    }
-  }
-  const topAgentEntry = Array.from(agentTakeById.entries()).sort((a, b) => b[1] - a[1])[0];
-  const topAgent = topAgentEntry ? agentById.get(topAgentEntry[0]) : null;
-
-  const buildingById = new Map(buildingRows.map((building) => [building.id, building]));
-  const recentInvoices = [...visibleInvoiceRows]
-    .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))
-    .slice(0, 4)
-    .map((invoice) => ({
-      invoice,
-      buildingName: invoice.buildingId ? buildingById.get(invoice.buildingId)?.name || null : null,
-    }));
-
-  const recentDeals = [...allDealRows]
-    .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))
-    .slice(0, 4)
-    .map((deal) => ({
-      deal,
-      buildingName: buildingById.get(deal.buildingId)?.name || null,
-    }));
-
-  const sortedBillingRows = [...billingRows].sort((a, b) =>
-    String(b.updatedAt || b.createdAt || "").localeCompare(String(a.updatedAt || a.createdAt || ""))
+  const rentalSummary = rentalSummaryRows[0];
+  const salesSummary = salesSummaryRows[0];
+  const activeRentalCount = Number(rentalSummary?.activeCount || 0);
+  const activeSalesCount = Number(salesSummary?.activeCount || 0);
+  const upcomingRenewalCount = Number(rentalSummary?.upcomingRenewals || 0);
+  const closingSoonCount = Number(salesSummary?.closingSoon || 0);
+  const completedMonthCount =
+    Number(rentalSummary?.completedMonth || 0) + Number(salesSummary?.completedMonth || 0);
+  const estimatedCommission =
+    Number(rentalSummary?.personalCommission || 0) + Number(salesSummary?.personalCommission || 0);
+  const paymentProfile = paymentProfileRows[0];
+  const payoutReady = Boolean(
+    paymentProfile?.payeeName &&
+      paymentProfile.routingNumber &&
+      paymentProfile.accountNumber &&
+      paymentProfile.w9ObjectKey
   );
+  const recentFiles = [
+    ...recentRentalRows.map((deal) => ({
+      type: "rental" as const,
+      id: deal.id,
+      href: `/rental/${deal.id}`,
+      title: `${deal.buildingName || t.noBuilding} · ${t.unit} ${deal.unit}`,
+      detail: `${t.rental} · ${deal.tenantName}`,
+      amount: Number(deal.totalCommission || 0),
+      status: deal.status,
+      stage: null,
+      sortAt: deal.sortAt,
+    })),
+    ...recentSalesRows.map((deal) => ({
+      type: "sale" as const,
+      id: deal.id,
+      href: `/sales/${deal.id}`,
+      title: deal.propertyAddress,
+      detail: `${t.sale} · ${deal.buyerNames || deal.sellerNames || "—"}`,
+      amount: Number(deal.grossCommission || 0),
+      status: deal.status,
+      stage: deal.stage,
+      sortAt: deal.sortAt,
+    })),
+  ]
+    .sort((a, b) => String(b.sortAt || "").localeCompare(String(a.sortAt || "")))
+    .slice(0, 6);
+
+  const sortedBillingRows = billingRows;
   const latestBillingOrder = sortedBillingRows[0] || null;
   const workspaceOrder = sortedBillingRows.find((order) => order.productKey === "company_domain_email") || null;
   const deskFeeOrder =
@@ -552,7 +655,11 @@ export default async function Dashboard() {
               </h1>
               <p className="mt-4 max-w-2xl text-[15px] leading-6" style={{ color: tone.ink70 }}>
                 {greeting}, {firstName}.{" "}
-                {t.queueLead(draftInvoicesCount, upcomingRenewals.length, fmtMoney(outstanding.total))}
+                {t.workbenchLead(
+                  activeSalesCount,
+                  activeRentalCount,
+                  closingSoonCount + upcomingRenewalCount
+                )}
               </p>
             </div>
             <div className="flex shrink-0 flex-wrap gap-2">
@@ -577,16 +684,16 @@ export default async function Dashboard() {
 
           <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <ActionLink
-              href="/rental"
-              icon={<Home className="size-4" />}
-              label={t.rentalFile}
-              detail={t.rentalFileDetail}
-            />
-            <ActionLink
               href="/sales"
               icon={<Building2 className="size-4" />}
               label={t.salesFile}
               detail={t.salesFileDetail}
+            />
+            <ActionLink
+              href="/rental"
+              icon={<Home className="size-4" />}
+              label={t.rentalFile}
+              detail={t.rentalFileDetail}
             />
             <ActionLink
               href="/invoices/new"
@@ -604,161 +711,119 @@ export default async function Dashboard() {
         </div>
 
         <Card className="overflow-hidden">
-          <SectionTitle title={t.priorityQueue} detail={t.priorityQueueDetail} />
+          <SectionTitle title={t.nextSteps} detail={t.nextStepsDetail} />
           <QueueRow
-            href="/invoices"
-            label={t.draftInvoices}
-            value={draftInvoicesCount}
-            detail={t.draftReady(fmtMoney(draftAmount))}
+            href="/sales"
+            label={t.closingSoon}
+            value={closingSoonCount}
+            detail={t.next60Days}
             toneKey="amber"
-          />
-          <QueueRow
-            href="/invoices"
-            label={t.overdueReceivables}
-            value={overdueCount}
-            detail={t.pastFirstCycle(fmtMoney(overdueAmount))}
-            toneKey={overdueCount > 0 ? "rose" : "green"}
           />
           <QueueRow
             href="/rental/renewals"
             label={t.leaseRenewals}
-            value={upcomingRenewals.length}
+            value={upcomingRenewalCount}
             detail={t.next90Days}
             toneKey="accent"
           />
           <QueueRow
-            href="/invoices"
-            label={t.sendFailures}
-            value={failedInvoicesCount}
-            detail={t.sendFailuresDetail}
-            toneKey={failedInvoicesCount > 0 ? "rose" : "green"}
+            href="/profile"
+            label={t.paymentProfile}
+            value={payoutReady ? t.ready : t.toDo}
+            detail={payoutReady ? t.payoutReady : t.payoutMissing}
+            toneKey={payoutReady ? "green" : "amber"}
           />
         </Card>
       </section>
 
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <StatusMetric
-          label={t.rentalMtd}
-          value={mtdDeals.length}
-          detail={currentMonth}
+          label={t.activeSales}
+          value={activeSalesCount}
+          detail={t.salesFileDetail}
+          toneKey="brand"
+        />
+        <StatusMetric
+          label={t.activeRentals}
+          value={activeRentalCount}
+          detail={t.rentalFileDetail}
           toneKey="accent"
         />
         <StatusMetric
-          label={t.commissionMtd}
-          value={`$${fmtMoney(commissionMtd)}`}
-          detail={t.signedRentalValue}
-          toneKey="ink"
-        />
-        <StatusMetric
-          label={t.topAgent}
-          value={topAgent ? topAgent.name.split(" ")[0] : "—"}
-          detail={topAgentEntry ? t.take(fmtMoney(topAgentEntry[1])) : t.noRentalsYet}
+          label={t.completedMtd}
+          value={completedMonthCount}
+          detail={t.monthDetail(currentMonth)}
           toneKey="green"
         />
         <StatusMetric
-          label={t.buildings}
-          value={totalBuildingsCount}
-          detail={t.outOfState(outOfStateCount)}
-          toneKey="brand"
+          label={t.estimatedCommission}
+          value={`$${fmtMoney(estimatedCommission)}`}
+          detail={t.estimatedCommissionDetail}
+          toneKey="ink"
         />
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
-        <div className="grid gap-6 lg:grid-cols-2">
-          <Card className="overflow-hidden">
-            <SectionTitle
-              title={t.recentInvoices}
-              detail={t.visibleInvoices(totalInvoicesCount, fmtMoney(totalAmount))}
-              href="/invoices"
-              action={t.viewAll}
-            />
-            <div>
-              {recentInvoices.length === 0 ? (
-                <div className="px-5 py-10 text-center text-[13px]" style={{ color: tone.ink50 }}>
-                  {t.noInvoicesYet}{" "}
-                  <Link href="/invoices/new" className="underline">
-                    {t.createInvoice}
-                  </Link>
-                </div>
-              ) : (
-                recentInvoices.map(({ invoice, buildingName }) => (
+        <Card className="overflow-hidden">
+          <SectionTitle title={t.recentFiles} detail={t.recentFilesDetail} />
+          <div>
+            {recentFiles.length === 0 ? (
+              <div className="px-5 py-10 text-center text-[13px]" style={{ color: tone.ink50 }}>
+                {t.noFilesYet}{" "}
+                <Link href="/sales/new" className="underline">
+                  {t.newSales}
+                </Link>
+                {" · "}
+                <Link href="/rental/new" className="underline">
+                  {t.newRental}
+                </Link>
+              </div>
+            ) : (
+              recentFiles.map((file) => {
+                const stageLabel =
+                  file.stage === "under_contract"
+                    ? t.underContract
+                    : file.stage === "post_contract"
+                    ? t.postContract
+                    : file.stage === "closed"
+                    ? t.closed
+                    : t.preContract;
+                const statusLabel =
+                  file.status === "cancelled"
+                    ? t.cancelled
+                    : file.status === "completed"
+                    ? t.completed
+                    : file.type === "sale"
+                    ? stageLabel
+                    : t.active;
+                return (
                   <ActivityRow
-                    key={invoice.id}
-                    href={`/invoices/${invoice.id}`}
-                    icon={<FileText className="size-4" />}
-                    title={invoice.invoiceNumber}
-                    detail={`${buildingName || t.noBuilding} · ${t.unit} ${invoice.unit} · ${invoice.tenantName}`}
-                    amount={`$${fmtMoney(invoice.totalAmount)}`}
-                    status={
-                      invoice.status === "paid"
-                        ? t.statusPaid
-                        : invoice.status === "sent"
-                        ? t.statusAwaiting
-                        : invoice.status === "failed"
-                        ? t.statusFailed
-                        : t.statusDraft
+                    key={`${file.type}-${file.id}`}
+                    href={file.href}
+                    icon={
+                      file.type === "sale" ? (
+                        <Building2 className="size-4" />
+                      ) : (
+                        <Home className="size-4" />
+                      )
                     }
+                    title={file.title}
+                    detail={`${file.detail} · ${fmtDate(file.sortAt)}`}
+                    amount={`$${fmtMoney(file.amount)}`}
+                    status={statusLabel}
                     statusTone={
-                      invoice.status === "paid"
-                        ? "sent"
-                        : invoice.status === "sent"
-                        ? "accent"
-                        : invoice.status === "failed"
+                      file.status === "cancelled"
                         ? "failed"
-                        : "draft"
+                        : file.status === "completed" || file.stage === "closed"
+                        ? "sent"
+                        : "accent"
                     }
                   />
-                ))
-              )}
-            </div>
-          </Card>
-
-          <Card className="overflow-hidden">
-            <SectionTitle
-              title={t.recentDeals}
-              detail={t.activeCount(mtdDeals.length)}
-              href="/rental"
-              action={t.openRental}
-            />
-            <div>
-              {recentDeals.length === 0 ? (
-                <div className="px-5 py-10 text-center text-[13px]" style={{ color: tone.ink50 }}>
-                  {t.noRentalDealsYet}{" "}
-                  <Link href="/rental/new" className="underline">
-                    {t.createRental}
-                  </Link>
-                </div>
-              ) : (
-                recentDeals.map(({ deal, buildingName }) => {
-                  const primaryDealAgent = allDealAgentRows.find(
-                    (row) => row.dealId === deal.id && row.isPrimary
-                  );
-                  const primaryAgent = primaryDealAgent
-                    ? agentById.get(primaryDealAgent.agentId)
-                    : null;
-                  return (
-                    <ActivityRow
-                      key={deal.id}
-                      href={`/rental/${deal.id}`}
-                      icon={<BadgeDollarSign className="size-4" />}
-                      title={`${buildingName || t.noBuilding} · ${t.unit} ${deal.unit}`}
-                      detail={`${deal.tenantName} · ${primaryAgent?.name || t.noAgent}`}
-                      amount={`$${fmtMoney(Number(deal.totalCommission || 0))}`}
-                      status={deal.status}
-                      statusTone={
-                        deal.status === "cancelled"
-                          ? "failed"
-                          : deal.status === "completed"
-                          ? "sent"
-                          : "accent"
-                      }
-                    />
-                  );
-                })
-              )}
-            </div>
-          </Card>
-        </div>
+                );
+              })
+            )}
+          </div>
+        </Card>
 
         <div className="space-y-6">
           <Card className="overflow-hidden">
