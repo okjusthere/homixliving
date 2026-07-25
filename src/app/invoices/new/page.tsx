@@ -317,9 +317,10 @@ export default function NewInvoicePage() {
         </div>
       </Card>
 
-      {/* Split layout */}
-      <div className="grid gap-8" style={{ gridTemplateColumns: "minmax(0, 1fr) 560px" }}>
-        <div className="space-y-6">
+      {/* Split layout — single column on phones; the 560px preview track is
+          wider than a phone viewport and would push the form off-screen. */}
+      <div className="grid grid-cols-1 gap-6 lg:gap-8 lg:grid-cols-[minmax(0,1fr)_560px]">
+        <div className="min-w-0 space-y-6">
           {/* Building */}
           <Card>
             <CardHeader title={t.building} />
@@ -419,7 +420,7 @@ export default function NewInvoicePage() {
           {/* Tenant & Unit */}
           <Card>
             <CardHeader title={t.tenantUnit} />
-            <div className="p-6 grid grid-cols-2 gap-4">
+            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
               <LabeledField label={t.unitLabel}>
                 <EditorialInput value={unit} onChange={setUnit} placeholder={t.unitPlaceholder} />
               </LabeledField>
@@ -450,7 +451,7 @@ export default function NewInvoicePage() {
           {/* Agent */}
           <Card>
             <CardHeader title={t.agent} />
-            <div className="p-6 grid grid-cols-2 gap-4">
+            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
               <LabeledField label={t.nameLabel}>
                 <EditorialInput value={agentName} onChange={setAgentName} placeholder={t.namePlaceholder} />
               </LabeledField>

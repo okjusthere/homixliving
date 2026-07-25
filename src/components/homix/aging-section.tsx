@@ -95,7 +95,7 @@ export function AgingSection() {
       </div>
 
       {/* Bucket summary */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {AGING_BUCKETS.map((bucket) => {
           const cell = data.summary[bucket];
           const t = bucketTone(bucket);
@@ -140,7 +140,7 @@ export function AgingSection() {
           </div>
         </Card>
       ) : (
-        <div className="grid grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* By building */}
           <Card>
             <div

@@ -629,7 +629,7 @@ export default function AgentsPage() {
               </button>
             </div>
             <div className="flex-1 overflow-auto px-8 py-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <LabeledField label={t.labelName}>
                   <EditorialInput value={editAgent.name || ""} onChange={(v) => updateField("name", v)} placeholder={t.namePlaceholder} />
                 </LabeledField>

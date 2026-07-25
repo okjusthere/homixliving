@@ -576,8 +576,11 @@ export function RentalDealFormPage({ mode = "new", dealId }: RentalDealFormPageP
         }
       />
 
-      <div className="grid gap-8" style={{ gridTemplateColumns: "minmax(0, 1fr) 520px" }}>
-        <div className="space-y-6">
+      {/* Single column on phones — the 520px summary rail is wider than a
+          phone viewport, so as a fixed grid track it forced ~194px of
+          horizontal overflow and pushed the form off-screen. */}
+      <div className="grid grid-cols-1 gap-6 lg:gap-8 lg:grid-cols-[minmax(0,1fr)_520px]">
+        <div className="min-w-0 space-y-6">
           <Card>
             <CardHeader title={t.building} />
             <div className="p-6 space-y-4">
@@ -599,15 +602,15 @@ export function RentalDealFormPage({ mode = "new", dealId }: RentalDealFormPageP
               ) : (
                 <>
                   <div className="flex items-center gap-2">
-                    <div className="flex-1 flex items-center gap-2 h-10 px-3 rounded-lg" style={{ background: tone.card, border: `1px solid ${tone.line}` }}>
-                      <span style={{ color: tone.ink30 }}>
+                    <div className="flex min-w-0 flex-1 items-center gap-2 h-11 sm:h-10 px-3 rounded-lg" style={{ background: tone.card, border: `1px solid ${tone.line}` }}>
+                      <span className="shrink-0" style={{ color: tone.ink30 }}>
                         <Icons.Search />
                       </span>
                       <input
                         value={buildingSearch}
                         onChange={(e) => setBuildingSearch(e.target.value)}
                         placeholder={t.searchBuildings}
-                        className="flex-1 bg-transparent outline-none text-[13.5px]"
+                        className="min-w-0 flex-1 bg-transparent outline-none text-[13.5px]"
                         style={{ color: tone.ink }}
                       />
                     </div>
@@ -658,7 +661,7 @@ export function RentalDealFormPage({ mode = "new", dealId }: RentalDealFormPageP
 
           <Card>
             <CardHeader title={t.tenantLease} />
-            <div className="p-6 grid grid-cols-2 gap-4">
+            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
               <LabeledField label={t.unit}>
                 <EditorialInput value={unit} onChange={setUnit} placeholder="12F" />
               </LabeledField>
@@ -699,7 +702,7 @@ export function RentalDealFormPage({ mode = "new", dealId }: RentalDealFormPageP
                   className="rounded-xl p-4 space-y-4"
                   style={{ background: tone.paper, border: `1px solid ${tone.lineSoft}` }}
                 >
-                  <div className="grid grid-cols-[1fr_120px_auto] gap-3 items-end">
+                  <div className="grid grid-cols-1 sm:grid-cols-[1fr_120px_auto] gap-3 sm:items-end">
                     <LabeledField label={participant.isPrimary ? t.primaryAgent : t.agent}>
                       <select
                         value={participant.agentId || ""}
@@ -708,7 +711,7 @@ export function RentalDealFormPage({ mode = "new", dealId }: RentalDealFormPageP
                             agentId: Number(e.target.value) || null,
                           })
                         }
-                        className="w-full h-10 rounded-lg px-3 text-[13.5px] outline-none"
+                        className="w-full h-11 sm:h-10 rounded-lg px-3 text-[13.5px] outline-none"
                         style={{ background: tone.card, border: `1px solid ${tone.line}`, color: tone.ink }}
                       >
                         <option value="">{t.selectAgent}</option>
@@ -810,7 +813,7 @@ export function RentalDealFormPage({ mode = "new", dealId }: RentalDealFormPageP
               </label>
               {hasReferrer && (
                 <div className="space-y-4">
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <LabeledField label={t.referrerName}>
                       <EditorialInput
                         value={referrerName}
@@ -819,7 +822,7 @@ export function RentalDealFormPage({ mode = "new", dealId }: RentalDealFormPageP
                       />
                     </LabeledField>
                     <LabeledField label={t.type}>
-                      <select value={referrerType} onChange={(e) => setReferrerType(e.target.value as "percent" | "flat")} className="w-full h-10 rounded-lg px-3 text-[13.5px] outline-none" style={{ background: tone.card, border: `1px solid ${tone.line}`, color: tone.ink }}>
+                      <select value={referrerType} onChange={(e) => setReferrerType(e.target.value as "percent" | "flat")} className="w-full h-11 sm:h-10 rounded-lg px-3 text-[13.5px] outline-none" style={{ background: tone.card, border: `1px solid ${tone.line}`, color: tone.ink }}>
                         <option value="percent">{t.percent}</option>
                         <option value="flat">{t.flat}</option>
                       </select>
@@ -866,7 +869,7 @@ export function RentalDealFormPage({ mode = "new", dealId }: RentalDealFormPageP
               <LabeledField label={t.totalCommissionLabel}>
                 <EditorialInput value={totalCommission} onChange={setTotalCommission} type="number" prefix="$" mono />
               </LabeledField>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="rounded-lg p-4" style={{ background: tone.paper }}>
                   <div className="text-[10px] uppercase tracking-[0.1em]" style={{ color: tone.ink50 }}>
                     {t.referrer}
@@ -971,7 +974,7 @@ export function RentalDealFormPage({ mode = "new", dealId }: RentalDealFormPageP
         </div>
 
         <div>
-          <div className="sticky top-24 space-y-4">
+          <div className="sticky top-24 min-w-0 space-y-4">
             <div className="text-[11px] uppercase tracking-[0.14em]" style={{ color: tone.ink50 }}>
               {t.rentalSummary}
             </div>
@@ -1067,7 +1070,7 @@ export function RentalDealFormPage({ mode = "new", dealId }: RentalDealFormPageP
             </div>
 
             <div className="px-7 py-5 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <LabeledField label={t.name}>
                   <EditorialInput
                     value={newBuildingName}

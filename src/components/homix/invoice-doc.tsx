@@ -414,7 +414,13 @@ export function InvoiceDoc({
 }
 
 /**
- * Wrapper that scales InvoiceDoc to fit a container width.
+ * Wrapper that scales InvoiceDoc to fit its container.
+ *
+ * `targetWidth` is the DESIRED width, not a fixed one: on a phone the
+ * container is narrower than any sensible target, so the preview measures the
+ * space actually available and scales to that. Hard-coding the width made the
+ * US-Letter page (816px) render at a fixed 528px inside a ~358px column, which
+ * widened the whole page and knocked the invoice form out of alignment.
  */
 export function ScaledInvoiceDoc({
   invoice,
@@ -430,10 +436,28 @@ export function ScaledInvoiceDoc({
   shadow?: boolean;
 }) {
   const baseWidth = 816;
-  const scale = targetWidth / baseWidth;
+  const hostRef = React.useRef<HTMLDivElement>(null);
+  const [available, setAvailable] = React.useState<number | null>(null);
+
+  React.useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    const measure = () => setAvailable(host.clientWidth || null);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(host);
+    return () => ro.disconnect();
+  }, []);
+
+  // Before the first measurement, render at the requested width so the
+  // server-rendered markup matches the desktop layout.
+  const width = available === null ? targetWidth : Math.min(targetWidth, available);
+  const scale = width / baseWidth;
   return (
-    <div style={{ width: targetWidth, height: 1056 * scale, position: "relative" }}>
-      <InvoiceDoc invoice={invoice} building={building} settings={settings} scale={scale} shadow={shadow} />
+    <div ref={hostRef} className="w-full">
+      <div style={{ width, height: 1056 * scale, position: "relative" }}>
+        <InvoiceDoc invoice={invoice} building={building} settings={settings} scale={scale} shadow={shadow} />
+      </div>
     </div>
   );
 }

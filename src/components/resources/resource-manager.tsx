@@ -140,7 +140,7 @@ export function ResourceManager({ initialResources }: { initialResources: Resour
             {t.lead}
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Btn variant="outline" size="sm" onClick={syncSheet} disabled={syncing}>
             {syncing ? t.syncing : t.syncSheet}
           </Btn>

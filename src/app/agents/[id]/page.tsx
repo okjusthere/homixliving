@@ -274,7 +274,7 @@ export default function AgentDetailPage() {
         />
       </div>
 
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
           [t.mtdRental, report.summary.mtdDeals, ""],
           [t.mtdTake, `$${fmtMoney(report.summary.mtdTake)}`, month],
@@ -373,7 +373,7 @@ export default function AgentDetailPage() {
         )}
       </Card>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card>
           <CardHeader title={t.contact} />
           <div className="p-5 space-y-4">
@@ -408,7 +408,7 @@ export default function AgentDetailPage() {
               </button>
             </div>
             <div className="flex-1 overflow-auto px-8 py-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <LabeledField label={t.name}>
                   <EditorialInput value={editAgent.name || ""} onChange={(v) => updateField("name", v)} />
                 </LabeledField>

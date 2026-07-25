@@ -195,7 +195,7 @@ export default function ReportsPage() {
         </p>
       ) : (
         <>
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {(
               [
                 [
@@ -232,7 +232,7 @@ export default function ReportsPage() {
             ))}
           </div>
 
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card>
               <CardHeader title={t.topAgents} />
               <div className="grid text-[11px] uppercase tracking-[0.1em] px-6 py-3" style={{ gridTemplateColumns: "2fr 1fr 1fr", color: tone.ink50, borderBottom: `1px solid ${tone.lineSoft}` }}>
@@ -307,7 +307,7 @@ export default function ReportsPage() {
                 title={t.bySource}
                 subtitle={t.bySourceSubtitle}
               />
-              <div className="p-6 grid grid-cols-3 gap-3">
+              <div className="p-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {report.perSource.map((row) => {
                   const totalDeals = report.summary.totalDeals || 1;
                   const pct = Math.round((row.deals / totalDeals) * 100);

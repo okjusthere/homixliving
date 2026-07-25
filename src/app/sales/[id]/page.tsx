@@ -308,7 +308,7 @@ export default function SaleDetailPage() {
             </div>
           </Card>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Card>
               <div className="p-6 space-y-4">
                 <div className="text-[11px] uppercase tracking-[0.12em]" style={{ color: tone.ink50 }}>
@@ -336,7 +336,7 @@ export default function SaleDetailPage() {
 
           <Card>
             <CardHeader title={t.parties} />
-            <div className="p-6 grid grid-cols-2 gap-4">
+            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
               <SoftField label={t.buyers} value={saleDeal.buyerNames || "—"} />
               <SoftField label={t.sellers} value={saleDeal.sellerNames || "—"} />
             </div>
@@ -367,7 +367,7 @@ export default function SaleDetailPage() {
 
           <Card>
             <CardHeader title={t.outsideContacts} />
-            <div className="p-6 grid grid-cols-2 gap-4">
+            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
               <SoftField label={t.listingAgent} value={saleDeal.listingAgentName || "—"} />
               <SoftField label={t.listingEmail} value={saleDeal.listingAgentEmail || "—"} mono />
               <SoftField label={t.listingBrokerage} value={saleDeal.listingBrokerage || "—"} />
@@ -379,7 +379,7 @@ export default function SaleDetailPage() {
 
           <Card>
             <CardHeader title={t.closingContacts} />
-            <div className="p-6 grid grid-cols-2 gap-4">
+            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
               <SoftField label={t.buyerAttorney} value={saleDeal.buyerAttorney || "—"} />
               <SoftField label={t.sellerAttorney} value={saleDeal.sellerAttorney || "—"} />
               <SoftField label={t.titleCompany} value={saleDeal.titleCompany || "—"} />

@@ -42,7 +42,13 @@ export function PageHeader({
         )}
         <h1
           className="font-serif"
-          style={{ fontSize: 40, lineHeight: 1.02, letterSpacing: "-0.01em", color: tone.ink }}
+          style={{
+            // Scales down on phones; a flat 40px ate most of a 390px screen.
+            fontSize: "clamp(28px, 7vw, 40px)",
+            lineHeight: 1.02,
+            letterSpacing: "-0.01em",
+            color: tone.ink,
+          }}
         >
           {title}
         </h1>
@@ -52,14 +58,20 @@ export function PageHeader({
           </p>
         )}
       </div>
-      {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+      {/* Actions wrap onto their own line on phones rather than squeezing the
+          title; `shrink-0` alone forced the header into a cramped two-column row. */}
+      {actions && <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:shrink-0">{actions}</div>}
     </div>
   );
 }
 
 /** Container for a filters/search row beneath a PageHeader. */
 export function Toolbar({ children }: { children: ReactNode }) {
-  return <div className="flex flex-wrap items-center justify-between gap-3">{children}</div>;
+  return (
+    <div className="flex w-full min-w-0 flex-wrap items-center justify-between gap-3">
+      {children}
+    </div>
+  );
 }
 
 /** Segmented filter tabs (e.g. status filters), with optional counts. */
@@ -73,7 +85,15 @@ export function FilterTabs<T extends string>({
   onChange: (v: T) => void;
 }) {
   return (
-    <div className="flex items-center gap-1 rounded-lg p-1" style={{ background: tone.paperDeep }}>
+    // Scrolls instead of overflowing: on a narrow phone the full set of status
+    // filters is wider than the screen and used to push the page sideways.
+    <div
+      // min-w-0 is what actually lets this shrink inside the Toolbar's flex row
+      // (max-w-full alone resolves against an already-widened parent), which in
+      // turn lets the internal overflow-x-auto scroll instead of the page.
+      className="flex w-full min-w-0 items-center gap-1 overflow-x-auto rounded-lg p-1 sm:w-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      style={{ background: tone.paperDeep }}
+    >
       {options.map((o) => {
         const selected = o.id === value;
         return (
@@ -81,7 +101,7 @@ export function FilterTabs<T extends string>({
             key={o.id}
             type="button"
             onClick={() => onChange(o.id)}
-            className="flex h-8 items-center gap-2 rounded-md px-3 text-[12.5px] font-medium transition-colors"
+            className="flex h-9 shrink-0 items-center gap-2 rounded-md px-3 text-[12.5px] font-medium transition-colors sm:h-8"
             style={{
               background: selected ? tone.card : "transparent",
               color: selected ? tone.ink : tone.ink50,
@@ -115,7 +135,9 @@ export function SearchInput({
 }) {
   return (
     <div
-      className={`flex h-9 min-w-[260px] items-center gap-2 rounded-md px-3 ${className}`}
+      // Full width on phones: a 260px minimum plus sibling filters overflowed a
+      // 390px viewport and pushed list pages sideways.
+      className={`flex h-11 w-full items-center gap-2 rounded-md px-3 sm:h-9 sm:w-auto sm:min-w-[260px] ${className}`}
       style={{ background: tone.card, border: `1px solid ${tone.line}` }}
     >
       <span style={{ color: tone.ink30 }}>
@@ -196,8 +218,13 @@ export function DataTable<T>({
   const t = M[useLocale()];
   const gridCols = columns.map((c) => c.width).join(" ");
   const rowClass = "grid w-full items-center px-6 py-4 text-left transition-colors";
+  // Column tracks are authored for desktop widths. On a phone they can't all
+  // fit, so the table scrolls sideways *inside its own card* (min-w-max) rather
+  // than widening the page and knocking the whole layout out of alignment.
   return (
     <div className="overflow-hidden rounded-xl" style={{ background: tone.card, border: `1px solid ${tone.line}` }}>
+      <div className="overflow-x-auto">
+      <div className="min-w-max sm:min-w-0">
       <div
         className="grid px-6 py-3 text-[11px] font-medium uppercase tracking-[0.1em]"
         style={{ gridTemplateColumns: gridCols, color: tone.ink50, borderBottom: `1px solid ${tone.lineSoft}` }}
@@ -269,6 +296,8 @@ export function DataTable<T>({
           );
         })
       )}
+      </div>
+      </div>
     </div>
   );
 }

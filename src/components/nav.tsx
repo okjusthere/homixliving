@@ -126,7 +126,10 @@ export function Nav() {
             <Link href="/" prefetch={false} className="flex-none">
               <HomixMark />
             </Link>
-            <div className="hidden lg:flex items-center gap-0.5">
+            {/* min-w-0 + scroll: with every admin item visible the row is wider
+                than the 1280px container, and without this it pushed the page
+                sideways instead of staying inside the bar. */}
+            <div className="hidden lg:flex items-center gap-0.5 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {visibleItems.map((item) => {
                 const active = isActive(item.href);
                 return (
@@ -134,7 +137,7 @@ export function Nav() {
                     key={item.href}
                     href={item.href}
                     prefetch={false}
-                    className="px-3 h-9 rounded-md text-[13px] font-medium transition-colors flex items-center"
+                    className="px-2 h-9 shrink-0 rounded-md text-[13px] font-medium transition-colors flex items-center"
                     style={{
                       color: active ? tone.ink : tone.ink50,
                       background: active ? tone.paperDeep : "transparent",

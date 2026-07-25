@@ -193,6 +193,28 @@
   }
 }
 
+/* ---------------------------------------------------------------------------
+   Mobile form usability
+
+   iOS Safari auto-zooms the viewport whenever a focused form control renders
+   below 16px, and never zooms back out — so on a phone every tap into a field
+   left the page scaled up and horizontally displaced. Agents work these forms
+   from their phones all day, so the editorial 13.5px type has to yield to 16px
+   on small screens. !important is deliberate: the size is a platform-behavior
+   guard rather than a style choice, and it has to beat the ~177 per-element
+   Tailwind text-[13.5px]/text-[13px] utilities used across the app.
+
+   Checkboxes and radios are excluded — they have no text and their box size is
+   driven by width/height, so bumping font-size would only shift layout.
+--------------------------------------------------------------------------- */
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
 /* Print style for invoice */
 @media print {
   body {

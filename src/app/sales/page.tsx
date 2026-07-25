@@ -261,7 +261,7 @@ export default function SalesPage() {
           value={search}
           onChange={setSearch}
           placeholder={t.searchPlaceholder}
-          className="min-w-[340px]"
+          className="sm:min-w-[340px]"
         />
       </Toolbar>
 

@@ -331,7 +331,7 @@ export default function DealDetailPage() {
             </div>
           </Card>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Card>
               <div className="p-6 space-y-4">
                 <div className="text-[11px] uppercase tracking-[0.12em]" style={{ color: tone.ink50 }}>
@@ -425,7 +425,7 @@ export default function DealDetailPage() {
                 <p className="text-[13.5px] leading-relaxed" style={{ color: tone.ink70 }}>
                   {paymentDetail(invoiceSummary, t)}
                 </p>
-                <div className="mt-5 grid grid-cols-2 gap-3">
+                <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <SoftField
                     label={t.outstanding}
                     value={`$${fmtMoney(invoiceSummary.totalOutstanding)}`}

@@ -36,10 +36,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <>
       <Nav />
       <main className="flex-1">
-        <div className="mx-auto max-w-[1280px] px-8 py-10">{children}</div>
+        <div className="mx-auto max-w-[1280px] px-4 py-6 sm:px-8 sm:py-10">{children}</div>
       </main>
       <footer
-        className="mx-auto max-w-[1280px] px-8 py-10 flex items-center justify-between text-[11px] w-full"
+        className="mx-auto max-w-[1280px] px-4 py-6 sm:px-8 sm:py-10 flex items-center justify-between text-[11px] w-full"
         style={{ color: "#7A756C" }}
       >
         <div className="font-mono">agents.homixny.com</div>

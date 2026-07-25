@@ -144,7 +144,7 @@ export default function SettingsPage() {
         }
       />
 
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Email */}
         <Card>
           <CardHeader title={t.emailTitle} subtitle={t.emailSubtitle} />
@@ -262,7 +262,7 @@ export default function SettingsPage() {
                 placeholder="Chase Bank"
               />
             </LabeledField>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <LabeledField label={t.routing}>
                 <EditorialInput
                   value={settings.ach_routing_number || ""}
@@ -304,7 +304,7 @@ export default function SettingsPage() {
                 placeholder="Chase Bank"
               />
             </LabeledField>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <LabeledField label={t.wireRouting}>
                 <EditorialInput
                   value={settings.wire_routing_number || ""}

@@ -107,10 +107,12 @@ export function Btn({
 }) {
   const base =
     "inline-flex items-center gap-2 font-medium transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap";
+  // Taller on phones: 44px is the Apple HIG / WCAG 2.5.8 minimum touch target,
+  // and agents work these screens one-handed. Desktop keeps the denser sizing.
   const sizes: Record<BtnSize, string> = {
-    sm: "h-8 px-3 text-[13px]",
-    md: "h-10 px-4 text-sm",
-    lg: "h-11 px-5 text-sm",
+    sm: "h-10 sm:h-8 px-3 text-[13px]",
+    md: "h-11 sm:h-10 px-4 text-sm",
+    lg: "h-12 sm:h-11 px-5 text-sm",
   };
   const variants: Record<BtnVariant, string> = {
     primary: "text-white rounded-lg",
@@ -214,11 +216,14 @@ export function EditorialInput({
 }) {
   return (
     <div
-      className={`flex items-center h-10 px-3 rounded-lg ${className}`}
+      // min-w-0 lets this shrink inside flex/grid parents. Without it an <input>
+      // keeps its intrinsic ~20-character width (~199px), so two fields in a row
+      // overflowed a phone viewport instead of narrowing.
+      className={`flex min-w-0 items-center h-11 sm:h-10 px-3 rounded-lg ${className}`}
       style={{ background: tone.card, border: `1px solid ${tone.line}` }}
     >
       {prefix && (
-        <span className="mr-2 text-[13px]" style={{ color: tone.ink50 }}>
+        <span className="mr-2 shrink-0 text-[13px]" style={{ color: tone.ink50 }}>
           {prefix}
         </span>
       )}
@@ -227,7 +232,7 @@ export function EditorialInput({
         type={type}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className={`flex-1 bg-transparent outline-none text-[13.5px] ${mono ? "font-mono" : ""}`}
+        className={`min-w-0 flex-1 bg-transparent outline-none text-[13.5px] ${mono ? "font-mono" : ""}`}
         style={{ color: tone.ink }}
       />
     </div>

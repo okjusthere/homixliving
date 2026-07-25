@@ -316,7 +316,7 @@ export default function BuildingsPage() {
           value={search}
           onChange={setSearch}
           placeholder={t.searchPlaceholder}
-          className="min-w-[340px]"
+          className="sm:min-w-[340px]"
         />
       </Toolbar>
 
@@ -392,7 +392,7 @@ export default function BuildingsPage() {
 
             {/* Body */}
             <div className="flex-1 overflow-auto px-8 py-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <LabeledField label={t.labelName}>
                   <EditorialInput
                     value={editBuilding.name || ""}

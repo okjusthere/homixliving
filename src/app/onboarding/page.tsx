@@ -290,7 +290,7 @@ export default async function OnboardingPage() {
                 <p className="mt-5 text-base leading-relaxed text-ink-50">
                   {o.socialMedia.lead}
                 </p>
-                <div className="mt-7 grid grid-cols-3 gap-px overflow-hidden rounded-sm border border-line bg-line">
+                <div className="mt-7 grid grid-cols-1 sm:grid-cols-3 gap-px overflow-hidden rounded-sm border border-line bg-line">
                   {o.socialMedia.stats.map((stat, i) => (
                     <div key={stat.label} className="bg-paper p-4">
                       <div

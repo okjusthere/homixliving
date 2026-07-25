@@ -303,7 +303,7 @@ export default function DealsPage() {
           value={search}
           onChange={setSearch}
           placeholder={t.searchPlaceholder}
-          className="min-w-[320px]"
+          className="sm:min-w-[320px]"
         />
       </Toolbar>
 

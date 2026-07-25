@@ -188,7 +188,7 @@ function SelectShell({
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="w-full h-10 rounded-lg px-3 text-[13.5px] outline-none"
+      className="w-full h-11 sm:h-10 rounded-lg px-3 text-[13.5px] outline-none"
       style={{ background: tone.card, border: `1px solid ${tone.line}`, color: tone.ink }}
     >
       {children}
@@ -405,11 +405,13 @@ export default function NewSalePage() {
         />
       </div>
 
-      <div className="grid gap-8" style={{ gridTemplateColumns: "minmax(0, 1fr) 520px" }}>
-        <div className="space-y-6">
+      {/* Single column on phones — see the note in rental/new: a fixed 520px
+          track overflows a phone viewport and displaces the whole form. */}
+      <div className="grid grid-cols-1 gap-6 lg:gap-8 lg:grid-cols-[minmax(0,1fr)_520px]">
+        <div className="min-w-0 space-y-6">
           <Card>
             <CardHeader title={t.transaction} />
-            <div className="p-6 grid grid-cols-2 gap-4">
+            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
               <LabeledField label={t.representation}>
                 <SelectShell value={representationType} onChange={(value) => setRepresentationType(value as SaleRepresentation)}>
                   {SALE_REPRESENTATION_OPTIONS.map((option) => (
@@ -439,7 +441,7 @@ export default function NewSalePage() {
 
           <Card>
             <CardHeader title={t.property} />
-            <div className="p-6 grid grid-cols-2 gap-4">
+            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
               <LabeledField label={t.address} wide>
                 <EditorialInput value={propertyAddress} onChange={setPropertyAddress} placeholder={t.addressPlaceholder} />
               </LabeledField>
@@ -466,7 +468,7 @@ export default function NewSalePage() {
 
           <Card>
             <CardHeader title={t.parties} />
-            <div className="p-6 grid grid-cols-2 gap-4">
+            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
               <LabeledField label={t.buyerNames} wide>
                 <EditorialInput value={buyerNames} onChange={setBuyerNames} placeholder={t.buyerNamesPlaceholder} />
               </LabeledField>
@@ -485,7 +487,7 @@ export default function NewSalePage() {
                   className="rounded-xl p-4 space-y-4"
                   style={{ background: tone.paper, border: `1px solid ${tone.lineSoft}` }}
                 >
-                  <div className="grid grid-cols-[1fr_120px_auto] gap-3 items-end">
+                  <div className="grid grid-cols-1 sm:grid-cols-[1fr_120px_auto] gap-3 sm:items-end">
                     <LabeledField label={participant.isPrimary ? t.primaryAgent : t.agent}>
                       <SelectShell
                         value={participant.agentId || ""}
@@ -554,7 +556,7 @@ export default function NewSalePage() {
 
           <Card>
             <CardHeader title={t.commission} />
-            <div className="p-6 grid grid-cols-2 gap-4">
+            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
               <LabeledField label={t.purchasePrice}>
                 <EditorialInput value={purchasePrice} onChange={setPurchasePrice} type="number" prefix="$" mono />
               </LabeledField>
@@ -572,7 +574,7 @@ export default function NewSalePage() {
 
           <Card>
             <CardHeader title={t.outsideContacts} />
-            <div className="p-6 grid grid-cols-2 gap-4">
+            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
               <LabeledField label={t.listingAgent}>
                 <EditorialInput value={listingAgentName} onChange={setListingAgentName} />
               </LabeledField>
@@ -596,7 +598,7 @@ export default function NewSalePage() {
 
           <Card>
             <CardHeader title={t.closingContacts} />
-            <div className="p-6 grid grid-cols-2 gap-4">
+            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
               <LabeledField label={t.buyerAttorney}>
                 <EditorialInput value={buyerAttorney} onChange={setBuyerAttorney} />
               </LabeledField>
@@ -630,7 +632,7 @@ export default function NewSalePage() {
         </div>
 
         <div>
-          <div className="sticky top-24 space-y-4">
+          <div className="sticky top-24 min-w-0 space-y-4">
             <div className="text-[11px] font-medium uppercase tracking-[0.16em]" style={{ color: tone.ink50 }}>
               {t.saleSummary}
             </div>
