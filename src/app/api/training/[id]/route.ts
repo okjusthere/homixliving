@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { trainingVideos } from "@/db/schema";
 import { requireAdminApi } from "@/lib/auth-guards";
 import { logAudit } from "@/lib/audit";
+import { normalizeTrainingCategory } from "@/lib/training-categories";
 
 export async function PATCH(
   req: NextRequest,
@@ -25,7 +26,16 @@ export async function PATCH(
   const patch: Record<string, unknown> = { updatedAt: new Date().toISOString() };
   if (typeof body.isPublished === "boolean") patch.isPublished = body.isPublished;
   if (typeof body.title === "string" && body.title.trim()) patch.title = body.title.trim();
-  if (typeof body.category === "string") patch.category = body.category.trim() || "General";
+  if (body.category !== undefined) {
+    const category = normalizeTrainingCategory(body.category);
+    if (!category) {
+      return NextResponse.json(
+        { error: "Invalid training category" },
+        { status: 400 },
+      );
+    }
+    patch.category = category;
+  }
   if (typeof body.description === "string") patch.description = body.description.trim() || null;
   if (typeof body.durationLabel === "string") patch.durationLabel = body.durationLabel.trim() || null;
   if (typeof body.cloudflareUid === "string" && body.cloudflareUid.trim())

@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { trainingVideos } from "@/db/schema";
 import { requireActiveAgentApi, requireAdminApi } from "@/lib/auth-guards";
 import { logAudit } from "@/lib/audit";
+import { normalizeTrainingCategory } from "@/lib/training-categories";
 
 export async function GET() {
   const auth = await requireActiveAgentApi();
@@ -28,15 +29,19 @@ export async function POST(req: NextRequest) {
 
   const title = String(body.title || "").trim();
   const cloudflareUid = String(body.cloudflareUid || "").trim();
+  const category = normalizeTrainingCategory(body.category);
   if (!title) return NextResponse.json({ error: "Title is required" }, { status: 400 });
   if (!cloudflareUid) return NextResponse.json({ error: "Cloudflare UID is required" }, { status: 400 });
+  if (!category) {
+    return NextResponse.json({ error: "Invalid training category" }, { status: 400 });
+  }
 
   const [row] = await db
     .insert(trainingVideos)
     .values({
       title,
       cloudflareUid,
-      category: String(body.category || "").trim() || "General",
+      category,
       description: String(body.description || "").trim() || null,
       durationLabel: String(body.durationLabel || "").trim() || null,
     })

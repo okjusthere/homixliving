@@ -12,11 +12,12 @@
  *   CLOUDFLARE_ACCOUNT_ID                       — Cloudflare dashboard → account id
  *   CLOUDFLARE_API_TOKEN                         — a token with "Stream:Read"
  *
- * The category is guessed from the video's Cloudflare name (买家/卖家/IP keywords)
- * and defaults to 买家课程 — you can fix each one with the dropdown on /training.
+ * The category is guessed from the video's Cloudflare name and defaults to
+ * 地产实务与工具 — you can fix each one with the dropdown on /training.
  */
 import { readFileSync } from "node:fs";
 import postgres from "postgres";
+import type { TrainingCategory } from "../src/lib/training-categories";
 
 function loadDotEnvLocal(): void {
   try {
@@ -43,17 +44,25 @@ interface CfResponse {
   result: CfVideo[];
 }
 
-const CATEGORIES = ["买家课程", "卖家课程", "IP 培训 / 个人品牌", "Inman 2026"];
-
-function categoryFor(name: string): string {
+function categoryFor(name: string): TrainingCategory {
   const n = name.toLowerCase();
-  // Pure-English uploads are the Inman 2026 conference sessions; the Chinese
-  // course videos all carry CJK names.
-  if (name.trim() && !/[一-鿿]/.test(name)) return "Inman 2026";
+  if (n.includes("inman") || n.includes("conference") || n.includes("峰会"))
+    return "行业趋势与活动";
+  if (n.includes("租赁") || n.includes("出租") || n.includes("rental"))
+    return "租赁实务";
   if (n.includes("买家") || n.includes("buyer")) return "买家课程";
   if (n.includes("卖家") || n.includes("seller")) return "卖家课程";
-  if (n.includes("ip") || n.includes("品牌") || n.includes("brand")) return "IP 培训 / 个人品牌";
-  return CATEGORIES[0];
+  if (
+    n.includes("自媒体") ||
+    n.includes("内容") ||
+    n.includes("media") ||
+    n.includes("brand") ||
+    n.includes("品牌") ||
+    n.includes("ip")
+  ) {
+    return "内容营销与个人品牌";
+  }
+  return "地产实务与工具";
 }
 
 async function fetchAllVideos(accountId: string, token: string): Promise<CfVideo[]> {

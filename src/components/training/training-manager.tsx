@@ -4,7 +4,10 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Btn, Card, EditorialInput } from "@/components/homix/primitives";
 import { tone } from "@/components/homix/tokens";
-import { TRAINING_CATEGORIES } from "@/lib/training-categories";
+import {
+  isTrainingCategory,
+  TRAINING_CATEGORIES,
+} from "@/lib/training-categories";
 import type { TrainingVideo } from "@/db/schema";
 import { useLocale } from "@/lib/i18n-client";
 import type { TrainingVideoViewRecord, TrainingVideoViewSummary } from "@/lib/training-views";
@@ -268,7 +271,7 @@ export function TrainingManager({
           {initialVideos.length > 0 && (
             <div className="mt-5">
               {initialVideos.map((v) => {
-                const catOptions = TRAINING_CATEGORIES.includes(v.category)
+                const catOptions = isTrainingCategory(v.category)
                   ? TRAINING_CATEGORIES
                   : [v.category, ...TRAINING_CATEGORIES];
                 const summary = viewsByVideo.get(v.id);

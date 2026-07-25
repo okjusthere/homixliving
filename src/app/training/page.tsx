@@ -14,7 +14,10 @@ import { PageHeader } from "@/components/homix/page-kit";
 import { TrainingManager } from "@/components/training/training-manager";
 import { TrainingLibrary } from "@/components/training/training-library";
 import { cloudflareStreamConfigured } from "@/lib/cloudflare-stream";
-import { TRAINING_CATEGORIES } from "@/lib/training-categories";
+import {
+  normalizeTrainingCategory,
+  TRAINING_CATEGORIES,
+} from "@/lib/training-categories";
 import { getLocale } from "@/lib/i18n";
 import { summarizeTrainingVideoViews } from "@/lib/training-views";
 
@@ -39,10 +42,18 @@ const M = {
 
 export const metadata: Metadata = { title: "Training · Homix" };
 
-function groupByCategory(items: TrainingVideo[]): [string, TrainingVideo[]][] {
-  const map = new Map<string, TrainingVideo[]>();
+function groupByCategory(
+  items: TrainingVideo[],
+  includeEmpty: boolean,
+): [string, TrainingVideo[]][] {
+  const map = new Map<string, TrainingVideo[]>(
+    includeEmpty
+      ? TRAINING_CATEGORIES.map((category) => [category, []])
+      : [],
+  );
   for (const it of items) {
-    const key = it.category || "General";
+    const key =
+      normalizeTrainingCategory(it.category) || it.category || "General";
     const arr = map.get(key) ?? [];
     arr.push(it);
     map.set(key, arr);
@@ -84,10 +95,14 @@ export default async function TrainingPage() {
   );
   const visible = isAdmin ? all : all.filter((v) => v.isPublished);
   const order = (c: string) => {
-    const i = TRAINING_CATEGORIES.indexOf(c);
+    const normalized = normalizeTrainingCategory(c);
+    if (!normalized) return 999;
+    const i = TRAINING_CATEGORIES.indexOf(normalized);
     return i === -1 ? 999 : i;
   };
-  const groups = groupByCategory(visible).sort((a, b) => order(a[0]) - order(b[0]));
+  const groups = groupByCategory(visible, isAdmin).sort(
+    (a, b) => order(a[0]) - order(b[0]),
+  );
 
   return (
     <div className="space-y-7">

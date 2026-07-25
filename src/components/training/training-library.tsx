@@ -4,6 +4,7 @@ import { useState } from "react";
 import { tone } from "@/components/homix/tokens";
 import { streamIframeUrl, streamThumbnailUrl } from "@/lib/cloudflare-stream";
 import { useLocale } from "@/lib/i18n-client";
+import { trainingCategoryDescription } from "@/lib/training-categories";
 import { Watermark } from "./watermark";
 import type { TrainingVideo } from "@/db/schema";
 
@@ -13,6 +14,7 @@ const M = {
     videoCount: (n: number) => `${n} videos`,
     collapse: "Collapse",
     expandAll: (n: number) => `Show all ${n} videos`,
+    noVideos: "No videos in this group yet.",
     close: "Close",
   },
   zh: {
@@ -20,6 +22,7 @@ const M = {
     videoCount: (n: number) => `${n} 个视频`,
     collapse: "收起",
     expandAll: (n: number) => `展开全部 ${n} 个视频`,
+    noVideos: "该分组暂时还没有视频。",
     close: "关闭",
   },
 } as const;
@@ -42,7 +45,8 @@ function Chevron({ open }: { open: boolean }) {
  *  title overlaid. The gradient unifies the look so an awkward auto-frame still
  *  reads as an intentional, branded thumbnail. */
 function VideoCover({ video, onPlay }: { video: TrainingVideo; onPlay: () => void }) {
-  const t = M[useLocale()];
+  const locale = useLocale();
+  const t = M[locale];
   const thumb = streamThumbnailUrl(video.cloudflareUid);
   return (
     <button type="button" onClick={onPlay} className="group block w-full text-left">
@@ -132,7 +136,8 @@ export function TrainingLibrary({
   groups: [string, TrainingVideo[]][];
   watermark: string;
 }) {
-  const t = M[useLocale()];
+  const locale = useLocale();
+  const t = M[locale];
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [active, setActive] = useState<TrainingVideo | null>(null);
 
@@ -142,6 +147,7 @@ export function TrainingLibrary({
         const isExpanded = expanded[category] ?? false;
         const shown = isExpanded ? items : items.slice(0, ROW);
         const hasMore = items.length > ROW;
+        const description = trainingCategoryDescription(category, locale);
         return (
           <section
             key={category}
@@ -149,31 +155,47 @@ export function TrainingLibrary({
             style={{ border: `1px solid ${tone.line}`, background: tone.card }}
           >
             <div
-              className="flex items-baseline justify-between px-5 py-4"
+              className="flex items-start justify-between px-5 py-4"
               style={{ borderBottom: `1px solid ${tone.lineSoft}` }}
             >
-              <div className="flex items-baseline gap-3">
-                <span className="font-serif" style={{ fontSize: 18, color: tone.ink }}>
-                  {category}
-                </span>
-                <span className="text-[12px]" style={{ color: tone.ink50 }}>
-                  {t.videoCount(items.length)}
-                </span>
+              <div>
+                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  <span className="font-serif" style={{ fontSize: 18, color: tone.ink }}>
+                    {category}
+                  </span>
+                  <span className="text-[12px]" style={{ color: tone.ink50 }}>
+                    {t.videoCount(items.length)}
+                  </span>
+                </div>
+                {description && (
+                  <p
+                    className="mt-1 max-w-3xl text-[12.5px] leading-relaxed"
+                    style={{ color: tone.ink50 }}
+                  >
+                    {description}
+                  </p>
+                )}
               </div>
             </div>
 
-            <div className="grid gap-4 px-5 pt-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {shown.map((v) => (
-                <VideoCover
-                  key={v.id}
-                  video={v}
-                  onPlay={() => {
-                    recordVideoOpen(v.id);
-                    setActive(v);
-                  }}
-                />
-              ))}
-            </div>
+            {shown.length > 0 ? (
+              <div className="grid gap-4 px-5 pt-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {shown.map((v) => (
+                  <VideoCover
+                    key={v.id}
+                    video={v}
+                    onPlay={() => {
+                      recordVideoOpen(v.id);
+                      setActive(v);
+                    }}
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className="px-5 py-5 text-[12.5px]" style={{ color: tone.ink50 }}>
+                {t.noVideos}
+              </p>
+            )}
 
             {hasMore ? (
               <button
@@ -185,9 +207,9 @@ export function TrainingLibrary({
                 {isExpanded ? t.collapse : t.expandAll(items.length)}
                 <Chevron open={isExpanded} />
               </button>
-            ) : (
+            ) : shown.length > 0 ? (
               <div className="pb-5" />
-            )}
+            ) : null}
           </section>
         );
       })}
