@@ -75,6 +75,7 @@ export function PublicProfileEditor({
   profile,
   targetAgentId,
   isOwn,
+  canCreate,
   agentName,
   agentPhone,
   agentLicense,
@@ -85,6 +86,7 @@ export function PublicProfileEditor({
   profile: PublicProfile | null;
   targetAgentId: number;
   isOwn: boolean;
+  canCreate: boolean;
   agentName: string;
   agentPhone: string | null;
   agentLicense: string | null;
@@ -110,8 +112,9 @@ export function PublicProfileEditor({
     );
   }
 
-  // A missing profile means the automatic onboarding sync failed or this is a
-  // legacy unlinked row. Keep an explicit repair action.
+  // Only an administrator may decide that no legacy profile exists and create
+  // a new one. This prevents a newly approved login from duplicating an
+  // established website profile.
   if (!linked || !profile) {
     async function publish() {
       setBusy(true);
@@ -133,19 +136,25 @@ export function PublicProfileEditor({
       <Card className="p-6 space-y-4">
         <CardHeader title="尚未发布对外主页" />
         <p className="text-[13.5px] leading-relaxed" style={{ color: tone.ink70 }}>
-          {isOwn ? "你" : agentName} 目前在对外网站 www.homixny.com 上还没有主页。点击发布会建立一个
-          <b>默认公开</b>的简版主页，之后可以在这里完善资料并随时显示或隐藏。
+          {canCreate
+            ? `${isOwn ? "你" : agentName} 目前尚未关联官网档案。请先到“对外名册”确认没有既有档案；确实是新经纪人时，再创建默认公开的简版主页。`
+            : "你的 Portal 账号尚未关联官网经纪人档案。请联系管理员关联既有档案；完成后即可在这里编辑并控制显示状态。"}
         </p>
-        <div className="flex items-center gap-3">
-          <Btn variant="primary" onClick={publish} disabled={busy}>
-            {busy ? "发布中…" : "发布对外主页"}
-          </Btn>
-          {msg && (
-            <span className="text-[12.5px]" style={{ color: msg.ok ? tone.green : tone.rose }}>
-              {msg.text}
-            </span>
-          )}
-        </div>
+        {canCreate && (
+          <div className="flex flex-wrap items-center gap-3">
+            <Link href="/roster" className="text-[12.5px] underline" style={{ color: tone.accent }}>
+              先检查对外名册
+            </Link>
+            <Btn variant="primary" onClick={publish} disabled={busy}>
+              {busy ? "创建中…" : "确认没有既有档案，创建新主页"}
+            </Btn>
+            {msg && (
+              <span className="text-[12.5px]" style={{ color: msg.ok ? tone.green : tone.rose }}>
+                {msg.text}
+              </span>
+            )}
+          </div>
+        )}
       </Card>
     );
   }

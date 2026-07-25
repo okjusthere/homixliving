@@ -40,6 +40,7 @@ export default async function RosterEditPage({
         profile={profile ?? null}
         targetAgentId={0}
         isOwn={false}
+        canCreate={true}
         agentName={profile?.name || id}
         agentPhone={profile?.phone ?? null}
         agentLicense={profile?.license_number ?? null}

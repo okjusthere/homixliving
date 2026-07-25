@@ -6,13 +6,16 @@ import { requireAdminApi } from "@/lib/auth-guards";
 import { notify } from "@/lib/notify";
 import { logAudit } from "@/lib/audit";
 import {
-  ensurePublicProfile,
+  fetchPublicProfile,
+  fetchPublicProfileById,
   hidePublicProfileForOffboarding,
+  linkPublicProfile,
   setAdminPublicVisibility,
+  type PublicProfile,
 } from "@/lib/homixweb";
 
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const authResult = await requireAdminApi();
@@ -22,28 +25,107 @@ export async function POST(
   if (!Number.isFinite(parsedId)) {
     return NextResponse.json({ error: "Invalid agent id" }, { status: 400 });
   }
+
+  const body = await req.json().catch(() => ({}));
+  const publicProfileId =
+    typeof body.publicProfileId === "string" ? body.publicProfileId.trim() : "";
+  const [existing] = await db
+    .select()
+    .from(agents)
+    .where(eq(agents.id, parsedId))
+    .limit(1);
+  if (!existing) {
+    return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+  }
+
+  let selectedProfile: PublicProfile | null = null;
+  if (publicProfileId) {
+    const selected = await fetchPublicProfileById(publicProfileId);
+    if (selected.unreachable) {
+      return NextResponse.json(
+        { error: "Unable to verify the selected public profile." },
+        { status: 502 },
+      );
+    }
+    if (selected.notFound || !selected.profile) {
+      return NextResponse.json(
+        { error: "Selected public profile not found." },
+        { status: 404 },
+      );
+    }
+    if (
+      selected.profile.portal_agent_id != null &&
+      selected.profile.portal_agent_id !== parsedId
+    ) {
+      return NextResponse.json(
+        { error: "Selected public profile is already linked." },
+        { status: 409 },
+      );
+    }
+    selectedProfile = selected.profile;
+  }
+
+  // An existing company profile is better identity evidence than an
+  // unreviewed Google display name. Preserve admin-entered phone/license when
+  // present, otherwise seed them from the selected public profile.
+  const name = selectedProfile?.name?.trim() || existing.name;
+  const phone = existing.phone || selectedProfile?.phone || null;
+  const licenseNumber =
+    existing.licenseNumber || selectedProfile?.license_number || null;
   const [agent] = await db
     .update(agents)
-    .set({ accountStatus: "active", updatedAt: new Date().toISOString() })
+    .set({
+      accountStatus: "active",
+      name,
+      phone,
+      licenseNumber,
+      updatedAt: new Date().toISOString(),
+    })
     .where(eq(agents.id, parsedId))
     .returning();
-  if (!agent) return NextResponse.json({ error: "Agent not found" }, { status: 404 });
 
-  const publicProfile = await ensurePublicProfile({
-    agentId: agent.id,
-    name: agent.name,
-    phone: agent.phone,
-    license: agent.licenseNumber,
-  });
-  const publicVisibility = publicProfile.ok
-    ? await setAdminPublicVisibility({
+  let publicResult = null;
+  if (selectedProfile) {
+    const linked = await linkPublicProfile({
+      publicId: selectedProfile.id,
+      agentId: agent.id,
+      name: agent.name,
+      phone: agent.phone,
+      license: agent.licenseNumber,
+    });
+    if (linked.ok) {
+      publicResult = await setAdminPublicVisibility({
+        publicId: selectedProfile.id,
+        visibilityStatus: "visible",
+      });
+    } else {
+      if (linked.body.linked === true) {
+        await setAdminPublicVisibility({
+          publicId: selectedProfile.id,
+          visibilityStatus: "visible",
+        });
+      }
+      publicResult = linked;
+    }
+  } else if (existing.accountStatus === "inactive") {
+    const current = await fetchPublicProfile(agent.id);
+    if (current.linked) {
+      publicResult = await setAdminPublicVisibility({
         agentId: agent.id,
         visibilityStatus: "visible",
-      })
-    : publicProfile;
-  const publicReady = publicProfile.ok && publicVisibility.ok;
+      });
+    }
+  }
 
-  await logAudit(authResult.session, "approve", "agent", parsedId, `批准经纪人 #${parsedId} 账号`);
+  await logAudit(
+    authResult.session,
+    "approve",
+    "agent",
+    parsedId,
+    publicProfileId
+      ? `批准经纪人 #${parsedId} 账号并关联对外档案 ${publicProfileId}`
+      : `批准经纪人 #${parsedId} 账号`,
+  );
 
   // Tell the agent their account is live. No dedupeKey: re-approval after a
   // revoke is a real event and should notify again.
@@ -62,11 +144,11 @@ export async function POST(
 
   return NextResponse.json({
     success: true,
-    publicProfileCreated: publicReady,
-    ...(!publicReady
+    publicProfileLinked: publicResult?.ok ?? false,
+    ...((publicResult && !publicResult.ok)
       ? {
           warning: String(
-            publicVisibility.body.error || "Public profile sync failed",
+            publicResult.body.error || "Public profile sync failed",
           ),
         }
       : {}),

@@ -39,6 +39,9 @@ const M = {
     searchPlaceholder: "Search name, team, license, email…",
     pendingApprovals: "Pending approvals",
     pendingSubtitle: "New brokers awaiting activation",
+    existingPublicProfile: "Existing website profile (optional)",
+    noExistingPublicProfile: "No existing profile — approve Portal access only",
+    loadingPublicProfiles: "Loading website profiles…",
     inactiveAgents: "Inactive agents",
     inactiveSubtitle: "Former or disabled accounts; history is retained",
     reactivate: "Reactivate",
@@ -98,6 +101,9 @@ const M = {
     searchPlaceholder: "搜索姓名、团队、执照、邮箱…",
     pendingApprovals: "待审批",
     pendingSubtitle: "等待激活的新经纪人",
+    existingPublicProfile: "关联既有官网经纪人（可选）",
+    noExistingPublicProfile: "没有既有档案——仅批准 Portal 权限",
+    loadingPublicProfiles: "正在读取官网经纪人…",
     inactiveAgents: "已停用经纪人",
     inactiveSubtitle: "离职或停用账号；历史成交和付款记录仍会保留",
     reactivate: "重新启用",
@@ -140,6 +146,13 @@ type AgentRow = {
   mtdTake: number;
 };
 
+type PublicRosterRow = {
+  id: string;
+  name: string | null;
+  slug: string;
+  portal_agent_id: number | null;
+};
+
 const emptyAgent: Partial<Agent> = {
   name: "",
   email: "",
@@ -169,6 +182,9 @@ export default function AgentsPage() {
   const { data: session, status } = useSession();
   const [agents, setAgents] = useState<AgentRow[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
+  const [publicAgents, setPublicAgents] = useState<PublicRosterRow[]>([]);
+  const [publicRosterLoading, setPublicRosterLoading] = useState(false);
+  const [approvalLinks, setApprovalLinks] = useState<Record<number, string>>({});
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [editAgent, setEditAgent] = useState<Partial<Agent> | null>(null);
@@ -183,6 +199,19 @@ export default function AgentsPage() {
       .then(([agentRows, teamRows]) => {
         setAgents(agentRows);
         setTeams(teamRows);
+        if (agentRows.some((row: AgentRow) => row.agent.accountStatus === "pending")) {
+          // Candidate lookup is useful only for approvals and must not hold up
+          // the primary Portal roster if the public website is slow.
+          setPublicRosterLoading(true);
+          void fetch("/api/admin/roster")
+            .then((r) => (r.ok ? r.json() : { agents: [] }))
+            .then((publicRoster) => setPublicAgents(publicRoster.agents ?? []))
+            .catch(() => setPublicAgents([]))
+            .finally(() => setPublicRosterLoading(false));
+        } else {
+          setPublicAgents([]);
+          setPublicRosterLoading(false);
+        }
       })
       .finally(() => setLoading(false));
   };
@@ -211,6 +240,14 @@ export default function AgentsPage() {
     [agents]
   );
 
+  const unlinkedPublicAgents = useMemo(
+    () =>
+      publicAgents
+        .filter((agent) => agent.portal_agent_id == null)
+        .sort((a, b) => (a.name || a.slug).localeCompare(b.name || b.slug)),
+    [publicAgents],
+  );
+
   const filtered = useMemo(() => {
     const activeAgents = agents.filter((row) => row.agent.accountStatus === "active");
     if (!search) return activeAgents;
@@ -226,12 +263,19 @@ export default function AgentsPage() {
 
   const handleApprove = async (id: number) => {
     try {
-      const res = await fetch(`/api/agents/${id}/approve`, { method: "POST" });
-      if (!res.ok) throw new Error();
+      const publicProfileId = approvalLinks[id] || undefined;
+      const res = await fetch(`/api/agents/${id}/approve`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ publicProfileId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || t.couldNotApprove);
       toast.success(t.agentApproved);
+      if (data.warning) toast.warning(data.warning);
       fetchAgents();
-    } catch {
-      toast.error(t.couldNotApprove);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t.couldNotApprove);
     }
   };
 
@@ -379,6 +423,34 @@ export default function AgentsPage() {
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center justify-end gap-2">
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[10.5px]" style={{ color: tone.ink50 }}>
+                      {t.existingPublicProfile}
+                    </span>
+                    <select
+                      value={approvalLinks[agent.id] || ""}
+                      onChange={(event) =>
+                        setApprovalLinks((current) => ({
+                          ...current,
+                          [agent.id]: event.target.value,
+                        }))
+                      }
+                      disabled={publicRosterLoading}
+                      className="h-9 max-w-[260px] rounded border bg-white px-2 text-[12px] disabled:opacity-60"
+                      style={{ borderColor: tone.line, color: tone.ink }}
+                    >
+                      <option value="">
+                        {publicRosterLoading
+                          ? t.loadingPublicProfiles
+                          : t.noExistingPublicProfile}
+                      </option>
+                      {unlinkedPublicAgents.map((profile) => (
+                        <option key={profile.id} value={profile.id}>
+                          {profile.name || profile.slug} · /{profile.slug}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                   <Btn
                     variant="outline"
                     size="sm"
@@ -398,6 +470,7 @@ export default function AgentsPage() {
                     size="sm"
                     icon={<Icons.Check />}
                     onClick={() => handleApprove(agent.id)}
+                    disabled={publicRosterLoading}
                   >
                     {t.approve}
                   </Btn>

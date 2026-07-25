@@ -9,12 +9,21 @@ import { logAudit } from "@/lib/audit";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Repair/create a missing public profile. Normal onboarding creates this
-// automatically when an admin adds or approves the agent. New profiles start
-// visible; the agent can hide their own and admins can force-hide them.
+// Create a missing public profile only after an administrator has confirmed
+// there is no existing website profile to link. New profiles start visible;
+// the agent can hide their own and admins can force-hide them.
 export async function POST(req: NextRequest) {
   const auth = await requireActiveAgentApi();
   if ("error" in auth) return auth.error;
+  if (!auth.session.user.isAdmin) {
+    return NextResponse.json(
+      {
+        error:
+          "Ask an administrator to link an existing website profile or create a new one.",
+      },
+      { status: 403 },
+    );
+  }
   if (!isHomixwebConfigured()) {
     return NextResponse.json({ error: "Website sync is not configured." }, { status: 503 });
   }

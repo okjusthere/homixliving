@@ -27,7 +27,7 @@ The lifecycle migration is deliberately expand/contract:
 3. Verify:
    - unknown Google login becomes `pending`;
    - admin-created/approved account becomes `active`;
-   - its public profile is created `visible`;
+   - an administrator explicitly links an existing public profile or creates a new one;
    - the agent can switch `visible` ↔ `agent_hidden`;
    - admin hiding uses `admin_hidden`;
    - deactivation sets `inactive` and `admin_hidden`.
@@ -68,15 +68,19 @@ used by code, CI, local development, or deployment.
 
 ## Existing public roster reconciliation
 
-New Portal accounts create and link their public profile automatically. Older
-website profiles can remain unlinked because public contact details, nicknames,
-and Portal login emails are not reliable identity keys.
+Portal approval grants internal access only; it does not create a public
+profile. Existing website profiles can remain unlinked because public contact
+details, nicknames, and Portal login emails are not reliable identity keys.
 
 Administrators reconcile those records from `/roster`:
 
-1. Find a public profile without the `已关联` badge.
-2. Select the matching active Portal agent by name and login email.
-3. Click `关联`.
+1. For a pending login, select the matching existing website profile before
+   approving it; or approve access without creating a public page.
+2. Existing active accounts can also be linked from `/roster`: find a public
+   profile without the `已关联` badge, select the matching Portal agent, and
+   click `关联`.
+3. Only when no existing profile exists, open the agent's `对外主页` from the
+   agent detail page and explicitly create a new page.
 
 The operation is admin-only and auditable. It copies Portal-owned identity
 fields after linking, and database uniqueness prevents one Portal account from

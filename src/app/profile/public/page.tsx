@@ -49,6 +49,7 @@ export default async function PublicProfilePage({
         profile={profile ?? null}
         targetAgentId={targetAgentId}
         isOwn={isOwn}
+        canCreate={session.user.isAdmin}
         agentName={agent.name}
         agentPhone={agent.phone}
         agentLicense={agent.licenseNumber}

@@ -18,7 +18,7 @@ import {
   isAgentAccountStatus,
   normalizeAgentAccountStatus,
 } from "@/lib/agent-lifecycle";
-import { ensurePublicProfile, hidePublicProfileForOffboarding } from "@/lib/homixweb";
+import { hidePublicProfileForOffboarding } from "@/lib/homixweb";
 
 function numberOrNull(value: unknown) {
   if (value === undefined || value === null || value === "") return null;
@@ -179,22 +179,7 @@ export async function POST(req: NextRequest) {
       .insert(agents)
       .values({ ...data, email, createdAt: new Date().toISOString() })
       .returning();
-    const publicProfile = await ensurePublicProfile({
-      agentId: created.id,
-      name: created.name,
-      phone: created.phone,
-      license: created.licenseNumber,
-    });
-    return NextResponse.json(
-      {
-        ...created,
-        publicProfileCreated: publicProfile.ok,
-        ...(!publicProfile.ok
-          ? { warning: String(publicProfile.body.error || "Public profile sync failed") }
-          : {}),
-      },
-      { status: 201 },
-    );
+    return NextResponse.json(created, { status: 201 });
   } catch {
     return NextResponse.json({ error: "Agent creation failed" }, { status: 500 });
   }

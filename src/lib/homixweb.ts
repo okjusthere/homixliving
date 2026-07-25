@@ -48,6 +48,7 @@ export type PublicProfile = {
   show_past_deals: boolean | null;
   visibility_status: PublicProfileVisibility | null;
   mls_id: string | null;
+  portal_agent_id: number | null;
 };
 
 export type PublicProfileVisibility = "visible" | "agent_hidden" | "admin_hidden";
@@ -115,14 +116,17 @@ async function postHomixwebJson(
   }
 }
 
-/** Idempotently create the minimal, initially visible public profile. */
-export async function ensurePublicProfile(input: {
+/** Explicitly link one existing website profile to one Portal account. */
+export async function linkPublicProfile(input: {
+  publicId: string;
   agentId: number;
   name: string;
   phone?: string | null;
   license?: string | null;
 }) {
-  return postHomixwebJson("/api/agent-profile/publish", {
+  return postHomixwebJson("/api/agent-admin", {
+    action: "link",
+    id: input.publicId,
     portalAgentId: input.agentId,
     name: input.name,
     phone: input.phone,
