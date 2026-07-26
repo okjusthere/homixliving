@@ -11,6 +11,16 @@ const nextConfig: NextConfig = {
     root: fileURLToPath(new URL(".", import.meta.url)),
   },
   images: {
+    // Vercel's image optimizer is a metered resource, and this project had
+    // exhausted its transformation quota: /_next/image started returning
+    // 402 OPTIMIZED_IMAGE_REQUEST_PAYMENT_REQUIRED for any variant not already
+    // cached. Desktops kept working (their widths were cached from earlier
+    // visits) while phones — which request narrower variants — got broken
+    // images on /onboarding. Serving the files directly is free and unmetered;
+    // they are pre-sized to their rendered dimensions by
+    // scripts/optimize-public-images.mjs. Matches the marketing site, which
+    // already sets this for the same reason.
+    unoptimized: true,
     remotePatterns: [new URL("https://www.homixny.com/homix-mark.webp")],
   },
   outputFileTracingIncludes: {
