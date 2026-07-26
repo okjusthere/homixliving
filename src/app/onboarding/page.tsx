@@ -6,7 +6,14 @@ import { Container } from "@/components/marketing/Container";
 import { Eyebrow } from "@/components/marketing/Eyebrow";
 import { Reveal } from "@/components/marketing/Reveal";
 import { SocialPlatformIcon } from "@/components/marketing/SocialPlatformIcon";
-import { getT } from "@/lib/i18n";
+import { eq } from "drizzle-orm";
+import { getT, getLocale } from "@/lib/i18n";
+import { auth } from "@/auth";
+import { db } from "@/db";
+import { agentPaymentProfiles, agents } from "@/db/schema";
+import { fetchPublicProfile } from "@/lib/homixweb";
+import { computeOnboarding } from "@/lib/onboarding-progress";
+import { OnboardingProgressCard } from "@/components/homix/onboarding-progress-card";
 
 export const metadata: Metadata = {
   title: "Agent Onboarding",
@@ -42,9 +49,47 @@ function initials(name: string): string {
     .toUpperCase();
 }
 
+/** What this reader still has outstanding, or null when there's nothing to show. */
+async function onboardingForViewer() {
+  const session = await auth();
+  const agentId = session?.user?.agentId;
+  if (!agentId) return null;
+
+  const [agent] = await db.select().from(agents).where(eq(agents.id, agentId)).limit(1);
+  if (!agent) return null;
+  const [payment] = await db
+    .select()
+    .from(agentPaymentProfiles)
+    .where(eq(agentPaymentProfiles.agentId, agentId))
+    .limit(1);
+  const publicProfile = await fetchPublicProfile(agentId);
+
+  return computeOnboarding({
+    accountStatus: agent.accountStatus,
+    licenseNumber: agent.licenseNumber,
+    hasPublicProfile: publicProfile.linked,
+    publicProfile: publicProfile.profile
+      ? { photoUrl: publicProfile.profile.photo_url, bio: publicProfile.profile.bio }
+      : null,
+    payment: payment
+      ? {
+          routingNumber: payment.routingNumber,
+          accountNumber: payment.accountNumber,
+          payeeName: payment.payeeName,
+          w9ObjectKey: payment.w9ObjectKey,
+        }
+      : null,
+  });
+}
+
 export default async function OnboardingPage() {
   const { t } = await getT();
   const o = t.onboarding;
+  const locale = await getLocale();
+  // This page was pure reading material with no next action. Leading with the
+  // reader's own outstanding items turns it into a starting point; the card
+  // renders nothing once they're fully set up.
+  const onboarding = await onboardingForViewer();
 
   return (
     <>
@@ -57,6 +102,11 @@ export default async function OnboardingPage() {
           </h1>
           <p className="mt-6 text-lg leading-relaxed text-ink-50">{o.lead}</p>
         </div>
+        {onboarding && (
+          <div className="mt-10 max-w-2xl">
+            <OnboardingProgressCard {...onboarding} locale={locale} />
+          </div>
+        )}
       </Container>
 
       {/* Vision & Mission */}

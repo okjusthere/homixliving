@@ -6,6 +6,9 @@ import { agentPaymentProfiles, agentPayouts, agents } from "@/db/schema";
 import { requireActiveAgent } from "@/lib/auth-guards";
 import { PageHeader } from "@/components/homix/page-kit";
 import { getLocale } from "@/lib/i18n";
+import { fetchPublicProfile } from "@/lib/homixweb";
+import { computeOnboarding } from "@/lib/onboarding-progress";
+import { OnboardingProgressCard } from "@/components/homix/onboarding-progress-card";
 import { ProfileClient } from "./profile-client";
 
 export const metadata: Metadata = { title: "My Profile · Homix" };
@@ -27,7 +30,8 @@ const M = {
 export default async function ProfilePage() {
   const session = await requireActiveAgent();
   const agentId = session.user.agentId;
-  const t = M[await getLocale()];
+  const locale = await getLocale();
+  const t = M[locale];
 
   const [agent] = agentId
     ? await db.select().from(agents).where(eq(agents.id, agentId)).limit(1)
@@ -63,9 +67,31 @@ export default async function ProfilePage() {
       }
     : null;
 
+  // Onboarding completeness needs the website profile too (headshot + bio live
+  // there). Kept off the critical path: if the site is unreachable those two
+  // steps simply read as outstanding rather than blocking this page.
+  const publicProfile = agentId ? await fetchPublicProfile(agentId) : null;
+  const onboarding = computeOnboarding({
+    accountStatus: agent?.accountStatus,
+    licenseNumber: agent?.licenseNumber,
+    hasPublicProfile: publicProfile?.linked ?? false,
+    publicProfile: publicProfile?.profile
+      ? { photoUrl: publicProfile.profile.photo_url, bio: publicProfile.profile.bio }
+      : null,
+    payment: profile
+      ? {
+          routingNumber: profile.routingNumber,
+          accountNumber: profile.accountNumber,
+          payeeName: profile.payeeName,
+          w9ObjectKey: profile.w9ObjectKey,
+        }
+      : null,
+  });
+
   return (
     <div className="space-y-7">
       <PageHeader eyebrow={t.eyebrow} title={t.title} description={t.description} />
+      <OnboardingProgressCard {...onboarding} locale={locale} />
       <Link
         href="/profile/public"
         className="flex items-center justify-between gap-4 rounded-xl px-5 py-4 transition-colors hover:bg-[#FAF7F0]"

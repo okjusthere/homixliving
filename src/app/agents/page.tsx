@@ -10,6 +10,7 @@ import { PageHeader, Toolbar, SearchInput, CardHeader } from "@/components/homix
 import { fmtMoney, tone } from "@/components/homix/tokens";
 import { DEFAULT_AGENT_SPLIT_PCT, splitLabel } from "@/lib/splits";
 import { useLocale } from "@/lib/i18n-client";
+import { computeOnboarding } from "@/lib/onboarding-progress";
 import type { Agent, Team } from "@/db/schema";
 
 const M = {
@@ -78,6 +79,9 @@ const M = {
     colTeamSplit: "Team / Split",
     colMtd: "MTD",
     referredByShort: "Referred by",
+    setupIncompleteHint: "Setup incomplete — profile still publishes; this is just a heads-up.",
+    referralLeaders: "Referrals",
+    referralLeadersSub: "Who brought whom into the brokerage",
     namePlaceholder: "e.g. Alice Chen",
     revokeAccess: "Revoke access",
     cancel: "Cancel",
@@ -149,6 +153,9 @@ const M = {
     colTeamSplit: "团队 / 分成",
     colMtd: "本月",
     referredByShort: "推荐人",
+    setupIncompleteHint: "资料未齐全——主页照常展示，这里只是提醒。",
+    referralLeaders: "推荐榜",
+    referralLeadersSub: "谁把谁带进了公司",
     namePlaceholder: "例如 Alice Chen",
     revokeAccess: "撤销权限",
     cancel: "取消",
@@ -162,6 +169,9 @@ type AgentRow = {
   teamName: string | null;
   mtdDeals: number;
   mtdTake: number;
+  /** Payout readiness (presence only — never the bank digits themselves). */
+  hasPayout?: boolean;
+  hasW9?: boolean;
 };
 
 type PublicRosterRow = {
@@ -171,6 +181,7 @@ type PublicRosterRow = {
   portal_agent_id: number | null;
   /** Headshot from the linked website profile — the portal stores no photos. */
   photo_url?: string | null;
+  bio?: string | null;
 };
 
 const emptyAgent: Partial<Agent> = {
@@ -230,6 +241,7 @@ export default function AgentsPage() {
   const [publicAgents, setPublicAgents] = useState<PublicRosterRow[]>([]);
   const [publicRosterLoading, setPublicRosterLoading] = useState(false);
   const [approvalLinks, setApprovalLinks] = useState<Record<number, string>>({});
+  const [approvalReferrers, setApprovalReferrers] = useState<Record<number, string>>({});
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [editAgent, setEditAgent] = useState<Partial<Agent> | null>(null);
@@ -301,6 +313,35 @@ export default function AgentsPage() {
   }, [publicAgents]);
   const photoFor = (id: number) => photoByAgentId.get(id);
 
+  const publicByAgentId = useMemo(() => {
+    const map = new Map<number, PublicRosterRow>();
+    for (const p of publicAgents) {
+      if (p.portal_agent_id != null) map.set(p.portal_agent_id, p);
+    }
+    return map;
+  }, [publicAgents]);
+
+  // How much of this agent's setup is still outstanding. Purely informational
+  // — an incomplete profile still shows on the public site, since a
+  // well-staffed roster matters more than every bio being polished.
+  const setupFor = (row: AgentRow) => {
+    const pub = publicByAgentId.get(row.agent.id);
+    return computeOnboarding({
+      accountStatus: row.agent.accountStatus,
+      licenseNumber: row.agent.licenseNumber,
+      hasPublicProfile: Boolean(pub),
+      publicProfile: pub ? { photoUrl: pub.photo_url, bio: pub.bio } : null,
+      payment: {
+        // The API exposes readiness flags only, never the digits — synthesize
+        // the shape the calculator expects.
+        routingNumber: row.hasPayout ? "set" : null,
+        accountNumber: row.hasPayout ? "set" : null,
+        payeeName: row.hasPayout ? "set" : null,
+        w9ObjectKey: row.hasW9 ? "set" : null,
+      },
+    });
+  };
+
   // agent id -> display name, for rendering the referred-by column.
   const nameByAgentId = useMemo(() => {
     const map = new Map<number, string>();
@@ -328,10 +369,11 @@ export default function AgentsPage() {
   const handleApprove = async (id: number) => {
     try {
       const publicProfileId = approvalLinks[id] || undefined;
+      const referredByAgentId = approvalReferrers[id] || undefined;
       const res = await fetch(`/api/agents/${id}/approve`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ publicProfileId }),
+        body: JSON.stringify({ publicProfileId, referredByAgentId }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || t.couldNotApprove);
@@ -366,6 +408,22 @@ export default function AgentsPage() {
       toast.error(t.couldNotRevoke);
     }
   };
+
+  // Referrers ranked by how many people they've brought in.
+  const referralLeaders = useMemo(() => {
+    const byReferrer = new Map<number, { id: number; name: string; recruits: { id: number; name: string }[] }>();
+    for (const { agent } of agents) {
+      const refId = agent.referredByAgentId;
+      if (refId == null) continue;
+      const referrerName = nameByAgentId.get(refId);
+      if (!referrerName) continue; // referrer no longer on the roster
+      if (!byReferrer.has(refId)) byReferrer.set(refId, { id: refId, name: referrerName, recruits: [] });
+      byReferrer.get(refId)!.recruits.push({ id: agent.id, name: agent.name });
+    }
+    return [...byReferrer.values()].sort(
+      (a, b) => b.recruits.length - a.recruits.length || a.name.localeCompare(b.name),
+    );
+  }, [agents, nameByAgentId]);
 
   const grouped = useMemo(() => {
     return filtered.reduce<Record<string, AgentRow[]>>((acc, row) => {
@@ -462,12 +520,8 @@ export default function AgentsPage() {
             {pending.map(({ agent }) => (
               <div
                 key={agent.id}
-                className="grid items-center px-6 py-4"
-                style={{
-                  gridTemplateColumns: "auto 1fr auto",
-                  gap: 16,
-                  borderBottom: `1px solid ${tone.lineSoft}`,
-                }}
+                className="grid items-start gap-4 px-5 py-4 sm:items-center sm:px-6 sm:[grid-template-columns:auto_1fr_auto]"
+                style={{ borderBottom: `1px solid ${tone.lineSoft}` }}
               >
                 <div
                   className="w-10 h-10 rounded-full flex items-center justify-center font-medium"
@@ -486,8 +540,8 @@ export default function AgentsPage() {
                     )}
                   </div>
                 </div>
-                <div className="flex flex-wrap items-center justify-end gap-2">
-                  <label className="flex flex-col gap-1">
+                <div className="col-span-full flex min-w-0 flex-wrap items-center gap-2 sm:col-span-1 sm:justify-end">
+                  <label className="flex min-w-0 flex-1 flex-col gap-1 sm:flex-none">
                     <span className="text-[10.5px]" style={{ color: tone.ink50 }}>
                       {t.existingPublicProfile}
                     </span>
@@ -500,7 +554,7 @@ export default function AgentsPage() {
                         }))
                       }
                       disabled={publicRosterLoading}
-                      className="h-9 max-w-[260px] rounded border bg-white px-2 text-[12px] disabled:opacity-60"
+                      className="h-9 w-full rounded border bg-white px-2 text-[12px] disabled:opacity-60 sm:max-w-[260px]"
                       style={{ borderColor: tone.line, color: tone.ink }}
                     >
                       <option value="">
@@ -513,6 +567,34 @@ export default function AgentsPage() {
                           {profile.name || profile.slug} · /{profile.slug}
                         </option>
                       ))}
+                    </select>
+                  </label>
+                  {/* Captured here because approval is the one moment an admin
+                      is already looking at this person; asked for later, it
+                      rarely gets filled in. Optional. */}
+                  <label className="flex min-w-0 flex-1 flex-col gap-1 sm:flex-none">
+                    <span className="text-[10.5px]" style={{ color: tone.ink50 }}>
+                      {t.labelReferredBy}
+                    </span>
+                    <select
+                      value={approvalReferrers[agent.id] || ""}
+                      onChange={(event) =>
+                        setApprovalReferrers((current) => ({
+                          ...current,
+                          [agent.id]: event.target.value,
+                        }))
+                      }
+                      className="h-9 w-full rounded border bg-white px-2 text-[12px] sm:max-w-[180px]"
+                      style={{ borderColor: tone.line, color: tone.ink }}
+                    >
+                      <option value="">{t.noReferrer}</option>
+                      {agents
+                        .filter(({ agent: a }) => a.accountStatus === "active" && a.id !== agent.id)
+                        .map(({ agent: a }) => (
+                          <option key={a.id} value={a.id}>
+                            {a.name}
+                          </option>
+                        ))}
                     </select>
                   </label>
                   <Btn
@@ -556,12 +638,8 @@ export default function AgentsPage() {
             {inactive.map(({ agent }) => (
               <div
                 key={agent.id}
-                className="grid items-center px-6 py-4"
-                style={{
-                  gridTemplateColumns: "auto 1fr auto",
-                  gap: 16,
-                  borderBottom: `1px solid ${tone.lineSoft}`,
-                }}
+                className="grid items-start gap-4 px-5 py-4 sm:items-center sm:px-6 sm:[grid-template-columns:auto_1fr_auto]"
+                style={{ borderBottom: `1px solid ${tone.lineSoft}` }}
               >
                 <div
                   className="w-10 h-10 rounded-full flex items-center justify-center font-medium"
@@ -626,7 +704,10 @@ export default function AgentsPage() {
                   cards forced a 3-across grid that buried the fields an admin
                   actually compares (licence, split, MTD, who recruited whom). */}
               <div className="divide-y" style={{ borderColor: tone.lineSoft }}>
-                {rows.map(({ agent, mtdDeals, mtdTake }) => (
+                {rows.map((row) => {
+                  const { agent, mtdDeals, mtdTake } = row;
+                  const setup = setupFor(row);
+                  return (
                   <Link
                     key={agent.id}
                     href={`/agents/${agent.id}`}
@@ -682,12 +763,49 @@ export default function AgentsPage() {
                       </div>
                     </div>
 
+                    {!setup.complete && (
+                      <span
+                        className="rounded-full px-2 py-0.5 text-[10.5px] whitespace-nowrap"
+                        style={{ background: tone.amberSoft, color: tone.amber }}
+                        title={t.setupIncompleteHint}
+                      >
+                        {setup.completed}/{setup.total}
+                      </span>
+                    )}
                     <Pill tone="accent">{splitLabel(agent.splitPct)}</Pill>
                   </Link>
-                ))}
+                  );
+                })}
               </div>
             </Card>
           ))
+      )}
+
+      {/* Who has recruited whom. Now that referrals are recorded, this turns
+          the field into something actionable — recruiting credit, and a read
+          on how the team is actually growing. */}
+      {referralLeaders.length > 0 && (
+        <Card>
+          <CardHeader
+            title={t.referralLeaders}
+            subtitle={t.referralLeadersSub}
+            action={<Pill tone="neutral">{referralLeaders.length}</Pill>}
+          />
+          <div className="divide-y" style={{ borderColor: tone.lineSoft }}>
+            {referralLeaders.map(({ id, name, recruits }) => (
+              <div key={id} className="flex items-center gap-3 px-5 py-3 sm:px-6">
+                <Avatar name={name} src={photoFor(id)} />
+                <div className="min-w-0 flex-1 truncate text-[13.5px]" style={{ color: tone.ink }}>
+                  {name}
+                </div>
+                <div className="min-w-0 flex-1 truncate text-[12px]" style={{ color: tone.ink50 }}>
+                  {recruits.map((r) => r.name).join(" · ")}
+                </div>
+                <Pill tone="accent">{recruits.length}</Pill>
+              </div>
+            ))}
+          </div>
+        </Card>
       )}
 
       {editAgent && (

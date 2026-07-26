@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { agents } from "@/db/schema";
+import { agents, teams } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { requireAdminApi } from "@/lib/auth-guards";
 import { notify } from "@/lib/notify";
@@ -36,6 +36,50 @@ export async function POST(
     .limit(1);
   if (!existing) {
     return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+  }
+
+  // Roster details are captured here because approval is the one moment an
+  // admin is already looking at this person. Collected later they tend never
+  // to be filled in at all. All three are optional — approval still works
+  // without them.
+  const referredByAgentId =
+    body.referredByAgentId === undefined || body.referredByAgentId === null || body.referredByAgentId === ""
+      ? undefined
+      : Number(body.referredByAgentId);
+  if (referredByAgentId !== undefined) {
+    if (!Number.isInteger(referredByAgentId) || referredByAgentId <= 0) {
+      return NextResponse.json({ error: "Invalid referring agent" }, { status: 400 });
+    }
+    if (referredByAgentId === parsedId) {
+      return NextResponse.json({ error: "An agent cannot refer themselves" }, { status: 400 });
+    }
+    const [referrer] = await db
+      .select({ id: agents.id })
+      .from(agents)
+      .where(eq(agents.id, referredByAgentId))
+      .limit(1);
+    if (!referrer) {
+      return NextResponse.json({ error: "Referring agent not found" }, { status: 404 });
+    }
+  }
+
+  const teamId =
+    body.teamId === undefined || body.teamId === null || body.teamId === ""
+      ? undefined
+      : Number(body.teamId);
+  if (teamId !== undefined) {
+    if (!Number.isInteger(teamId) || teamId <= 0) {
+      return NextResponse.json({ error: "Invalid team" }, { status: 400 });
+    }
+    const [team] = await db.select({ id: teams.id }).from(teams).where(eq(teams.id, teamId)).limit(1);
+    if (!team) return NextResponse.json({ error: "Team not found" }, { status: 404 });
+  }
+
+  const splitPct = body.splitPct === undefined || body.splitPct === null || body.splitPct === ""
+    ? undefined
+    : Number(body.splitPct);
+  if (splitPct !== undefined && (!Number.isFinite(splitPct) || splitPct < 0 || splitPct > 100)) {
+    return NextResponse.json({ error: "Split must be between 0 and 100" }, { status: 400 });
   }
 
   let selectedProfile: PublicProfile | null = null;
@@ -79,6 +123,12 @@ export async function POST(
       name,
       phone,
       licenseNumber,
+      // Only overwrite when the admin actually supplied a value, so
+      // re-approving someone (e.g. after a revoke) can't silently wipe
+      // roster detail set earlier.
+      ...(referredByAgentId !== undefined ? { referredByAgentId } : {}),
+      ...(teamId !== undefined ? { teamId } : {}),
+      ...(splitPct !== undefined ? { splitPct } : {}),
       updatedAt: new Date().toISOString(),
     })
     .where(eq(agents.id, parsedId))

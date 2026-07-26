@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { agents, dealAgents, deals, teams } from "@/db/schema";
+import { agentPaymentProfiles, agents, dealAgents, deals, teams } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { requireActiveAgentApi, requireAdminApi } from "@/lib/auth-guards";
 import {
@@ -115,6 +115,27 @@ export async function GET(req: NextRequest) {
   const allAgents = rows.map((row) => row.agent);
   const currentMonth = getMonthKey();
 
+  // Payout readiness per agent, for the roster's onboarding hint. Only the
+  // presence of the details is exposed — never routing/account digits.
+  const paymentRows = await db
+    .select({
+      agentId: agentPaymentProfiles.agentId,
+      routingNumber: agentPaymentProfiles.routingNumber,
+      accountNumber: agentPaymentProfiles.accountNumber,
+      payeeName: agentPaymentProfiles.payeeName,
+      w9ObjectKey: agentPaymentProfiles.w9ObjectKey,
+    })
+    .from(agentPaymentProfiles);
+  const paymentByAgent = new Map(
+    paymentRows.map((p) => [
+      p.agentId,
+      {
+        hasPayout: Boolean(p.routingNumber && p.accountNumber && p.payeeName),
+        hasW9: Boolean(p.w9ObjectKey),
+      },
+    ]),
+  );
+
   const result = visibleRows.map((row) => {
     const monthDealIds = new Set(
       allDealAgents
@@ -142,7 +163,14 @@ export async function GET(req: NextRequest) {
         })
       );
     }, 0);
-    return { ...row, mtdDeals: monthDeals.length, mtdTake };
+    const payment = paymentByAgent.get(row.agent.id);
+    return {
+      ...row,
+      mtdDeals: monthDeals.length,
+      mtdTake,
+      hasPayout: payment?.hasPayout ?? false,
+      hasW9: payment?.hasW9 ?? false,
+    };
   });
 
   return NextResponse.json(result);
