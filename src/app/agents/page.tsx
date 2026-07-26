@@ -69,6 +69,15 @@ const M = {
     labelCompany: "Licensed company",
     labelJoined: "Joined",
     labelNotes: "Notes",
+    labelLegalName: "Legal name",
+    legalNamePlaceholder: "As it appears on the license",
+    labelReferredBy: "Referred by",
+    noReferrer: "No referrer",
+    colAgent: "Agent",
+    colContact: "Contact",
+    colTeamSplit: "Team / Split",
+    colMtd: "MTD",
+    referredByShort: "Referred by",
     namePlaceholder: "e.g. Alice Chen",
     revokeAccess: "Revoke access",
     cancel: "Cancel",
@@ -131,6 +140,15 @@ const M = {
     labelCompany: "持照公司",
     labelJoined: "加入日期",
     labelNotes: "备注",
+    labelLegalName: "法定姓名",
+    legalNamePlaceholder: "与执照上一致",
+    labelReferredBy: "推荐人",
+    noReferrer: "无推荐人",
+    colAgent: "经纪人",
+    colContact: "联系方式",
+    colTeamSplit: "团队 / 分成",
+    colMtd: "本月",
+    referredByShort: "推荐人",
     namePlaceholder: "例如 Alice Chen",
     revokeAccess: "撤销权限",
     cancel: "取消",
@@ -151,6 +169,8 @@ type PublicRosterRow = {
   name: string | null;
   slug: string;
   portal_agent_id: number | null;
+  /** Headshot from the linked website profile — the portal stores no photos. */
+  photo_url?: string | null;
 };
 
 const emptyAgent: Partial<Agent> = {
@@ -176,6 +196,31 @@ function initials(name: string) {
     .join("");
 }
 
+/** Roster headshot. Falls back to initials when the agent has no linked
+ *  website profile, or when the website roster couldn't be reached. */
+function Avatar({ name, src }: { name: string; src?: string | null }) {
+  return (
+    <div
+      className="h-10 w-10 shrink-0 overflow-hidden rounded-full"
+      style={{ background: tone.accentSoft }}
+    >
+      {src ? (
+        // A plain <img>: these are remote Supabase URLs at a fixed 40px, so
+        // there is nothing for next/image to optimize.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={src} alt="" className="h-full w-full object-cover" loading="lazy" />
+      ) : (
+        <div
+          className="flex h-full w-full items-center justify-center font-serif"
+          style={{ color: tone.accent, fontSize: 15 }}
+        >
+          {initials(name)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AgentsPage() {
   const t = M[useLocale()];
   const router = useRouter();
@@ -199,19 +244,17 @@ export default function AgentsPage() {
       .then(([agentRows, teamRows]) => {
         setAgents(agentRows);
         setTeams(teamRows);
-        if (agentRows.some((row: AgentRow) => row.agent.accountStatus === "pending")) {
-          // Candidate lookup is useful only for approvals and must not hold up
-          // the primary Portal roster if the public website is slow.
-          setPublicRosterLoading(true);
-          void fetch("/api/admin/roster")
-            .then((r) => (r.ok ? r.json() : { agents: [] }))
-            .then((publicRoster) => setPublicAgents(publicRoster.agents ?? []))
-            .catch(() => setPublicAgents([]))
-            .finally(() => setPublicRosterLoading(false));
-        } else {
-          setPublicAgents([]);
-          setPublicRosterLoading(false);
-        }
+        // Always load the public roster: it supplies candidate profiles for
+        // approvals AND the headshots the roster rows show (the portal stores
+        // no photos of its own). Kept off the critical path so a slow or
+        // unreachable website never delays the portal list — rows just fall
+        // back to initials.
+        setPublicRosterLoading(true);
+        void fetch("/api/admin/roster")
+          .then((r) => (r.ok ? r.json() : { agents: [] }))
+          .then((publicRoster) => setPublicAgents(publicRoster.agents ?? []))
+          .catch(() => setPublicAgents([]))
+          .finally(() => setPublicRosterLoading(false));
       })
       .finally(() => setLoading(false));
   };
@@ -248,6 +291,25 @@ export default function AgentsPage() {
     [publicAgents],
   );
 
+  // portal agent id -> headshot from their linked website profile.
+  const photoByAgentId = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const p of publicAgents) {
+      if (p.portal_agent_id != null && p.photo_url) map.set(p.portal_agent_id, p.photo_url);
+    }
+    return map;
+  }, [publicAgents]);
+  const photoFor = (id: number) => photoByAgentId.get(id);
+
+  // agent id -> display name, for rendering the referred-by column.
+  const nameByAgentId = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const { agent } of agents) map.set(agent.id, agent.name);
+    return map;
+  }, [agents]);
+  const referrerName = (id: number | null | undefined) =>
+    id == null ? null : nameByAgentId.get(id) ?? null;
+
   const filtered = useMemo(() => {
     const activeAgents = agents.filter((row) => row.agent.accountStatus === "active");
     if (!search) return activeAgents;
@@ -255,6 +317,8 @@ export default function AgentsPage() {
     return activeAgents.filter(
       ({ agent, teamName }) =>
         agent.name.toLowerCase().includes(q) ||
+        // Searchable by the licence/tax name too — admins often only have that.
+        (agent.legalName || "").toLowerCase().includes(q) ||
         (agent.email || "").toLowerCase().includes(q) ||
         (agent.licenseNumber || "").toLowerCase().includes(q) ||
         (teamName || "").toLowerCase().includes(q)
@@ -558,53 +622,67 @@ export default function AgentsPage() {
           .map(([teamName, rows]) => (
             <Card key={teamName}>
               <CardHeader title={teamName === "Unassigned" ? t.unassigned : teamName} action={<Pill tone="neutral">{rows.length}</Pill>} />
-              <div className="p-6 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {/* One row per agent. Scanning a roster is a vertical task —
+                  cards forced a 3-across grid that buried the fields an admin
+                  actually compares (licence, split, MTD, who recruited whom). */}
+              <div className="divide-y" style={{ borderColor: tone.lineSoft }}>
                 {rows.map(({ agent, mtdDeals, mtdTake }) => (
                   <Link
                     key={agent.id}
                     href={`/agents/${agent.id}`}
                     prefetch={false}
-                    className="rounded-xl p-4 transition-colors hover:bg-[#FAF7F0]"
-                    style={{ border: `1px solid ${tone.line}`, background: tone.card }}
+                    className="flex flex-wrap items-center gap-x-4 gap-y-3 px-5 py-3.5 transition-colors hover:bg-[#FAF7F0] sm:px-6"
                   >
-                    <div className="flex items-start gap-3">
-                      <div
-                        className="w-11 h-11 rounded-full flex items-center justify-center font-serif shrink-0"
-                        style={{ background: tone.accentSoft, color: tone.accent, fontSize: 18 }}
-                      >
-                        {initials(agent.name)}
+                    <Avatar name={agent.name} src={photoFor(agent.id)} />
+
+                    {/* Identity — display name, plus the legal name when it
+                        differs, since that's what payouts and licences use. */}
+                    <div className="min-w-0 flex-1 basis-[190px]">
+                      <div className="truncate font-serif" style={{ fontSize: 17, color: tone.ink }}>
+                        {agent.name}
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="font-serif truncate" style={{ fontSize: 20, color: tone.ink }}>
-                          {agent.name}
-                        </div>
-                        <div className="text-[11.5px] mt-1 font-mono truncate" style={{ color: tone.ink50 }}>
-                          {agent.licenseNumber || t.noLicense}
-                        </div>
-                      </div>
-                      <Pill tone="accent">{splitLabel(agent.splitPct)}</Pill>
-                    </div>
-                    <div className="mt-4 grid grid-cols-2 gap-3">
-                      <div className="rounded-lg p-3" style={{ background: tone.paper }}>
-                        <div className="text-[10px] uppercase tracking-[0.1em]" style={{ color: tone.ink50 }}>
-                          {t.rentalMtd}
-                        </div>
-                        <div className="mt-1 font-serif" style={{ fontSize: 24, color: tone.ink }}>
-                          {mtdDeals}
-                        </div>
-                      </div>
-                      <div className="rounded-lg p-3" style={{ background: tone.paper }}>
-                        <div className="text-[10px] uppercase tracking-[0.1em]" style={{ color: tone.ink50 }}>
-                          {t.mtdTake}
-                        </div>
-                        <div className="mt-1 font-serif" style={{ fontSize: 24, color: tone.ink }}>
-                          ${fmtMoney(Number(mtdTake || 0))}
-                        </div>
+                      <div className="mt-0.5 truncate text-[11.5px]" style={{ color: tone.ink50 }}>
+                        {agent.legalName && agent.legalName !== agent.name ? (
+                          <span>{agent.legalName} · </span>
+                        ) : null}
+                        <span className="font-mono">{agent.licenseNumber || t.noLicense}</span>
                       </div>
                     </div>
-                    <div className="mt-4 text-[12px]" style={{ color: tone.ink50 }}>
-                      {agent.email || t.noEmailCap} {agent.phone ? `· ${agent.phone}` : ""}
+
+                    {/* Contact */}
+                    <div className="min-w-0 basis-full sm:basis-[190px]">
+                      <div className="truncate text-[12.5px]" style={{ color: tone.ink70 }}>
+                        {agent.email || t.noEmailCap}
+                      </div>
+                      {agent.phone && (
+                        <div className="mt-0.5 truncate font-mono text-[11.5px]" style={{ color: tone.ink50 }}>
+                          {agent.phone}
+                        </div>
+                      )}
                     </div>
+
+                    {/* Who recruited them */}
+                    <div className="min-w-0 basis-[130px]">
+                      <div className="text-[10px] uppercase tracking-[0.1em]" style={{ color: tone.ink50 }}>
+                        {t.referredByShort}
+                      </div>
+                      <div className="mt-0.5 truncate text-[12.5px]" style={{ color: tone.ink70 }}>
+                        {referrerName(agent.referredByAgentId) || "—"}
+                      </div>
+                    </div>
+
+                    {/* MTD — the two numbers the cards used to spend a whole
+                        row each on. */}
+                    <div className="basis-[104px] text-right">
+                      <div className="text-[10px] uppercase tracking-[0.1em]" style={{ color: tone.ink50 }}>
+                        {t.colMtd}
+                      </div>
+                      <div className="mt-0.5 font-serif" style={{ fontSize: 15, color: tone.ink }}>
+                        {mtdDeals} · ${fmtMoney(Number(mtdTake || 0))}
+                      </div>
+                    </div>
+
+                    <Pill tone="accent">{splitLabel(agent.splitPct)}</Pill>
                   </Link>
                 ))}
               </div>
@@ -668,6 +746,33 @@ export default function AgentsPage() {
                 </LabeledField>}
                 {editAgent.id && <LabeledField label={t.labelJoined}>
                   <EditorialInput value={editAgent.joinedAt || ""} onChange={(v) => updateField("joinedAt", v)} type="date" mono />
+                </LabeledField>}
+                {editAgent.id && <LabeledField label={t.labelLegalName}>
+                  <EditorialInput
+                    value={editAgent.legalName || ""}
+                    onChange={(v) => updateField("legalName", v)}
+                    placeholder={t.legalNamePlaceholder}
+                  />
+                </LabeledField>}
+                {editAgent.id && <LabeledField label={t.labelReferredBy}>
+                  <select
+                    value={editAgent.referredByAgentId ?? ""}
+                    onChange={(e) =>
+                      updateField("referredByAgentId", e.target.value ? Number(e.target.value) : null)
+                    }
+                    className="w-full h-11 sm:h-10 rounded-lg px-3 text-[13.5px] outline-none"
+                    style={{ background: tone.card, border: `1px solid ${tone.line}`, color: tone.ink }}
+                  >
+                    <option value="">{t.noReferrer}</option>
+                    {agents
+                      // Can't be referred by yourself; the API rejects it too.
+                      .filter(({ agent }) => agent.id !== editAgent.id)
+                      .map(({ agent }) => (
+                        <option key={agent.id} value={agent.id}>
+                          {agent.name}
+                        </option>
+                      ))}
+                  </select>
                 </LabeledField>}
               </div>
               {editAgent.id && <LabeledField label={t.labelNotes}>

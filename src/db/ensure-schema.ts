@@ -306,6 +306,28 @@ export async function ensureSchema(sql: Sql) {
   // until the explicit contract step after both deployments are verified.
   await ensureAgentLifecycleExpand(sql);
 
+  // Roster detail added for the admin agent list:
+  //  - legal_name: the name on the licence / tax forms, which often differs
+  //    from the display name Google supplies (e.g. "Zhengle Wei (Eric)").
+  //  - referred_by_agent_id: which existing agent recruited this one. Set by an
+  //    admin by hand — never inferred — and nulled rather than cascading if the
+  //    referrer's row is ever removed, so a deletion can't erase roster history.
+  await run(`
+    ALTER TABLE portal.agents
+      ADD COLUMN IF NOT EXISTS legal_name TEXT,
+      ADD COLUMN IF NOT EXISTS referred_by_agent_id INTEGER`);
+  await run(`
+    DO $$ BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'agents_referred_by_fk'
+      ) THEN
+        ALTER TABLE portal.agents
+          ADD CONSTRAINT agents_referred_by_fk
+          FOREIGN KEY (referred_by_agent_id) REFERENCES portal.agents(id)
+          ON DELETE SET NULL;
+      END IF;
+    END $$`);
+
   // teams.leader_agent_id → agents.id (added after both tables exist to break
   // the circular reference)
   await run(`

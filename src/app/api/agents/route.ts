@@ -59,6 +59,10 @@ function cleanAdminAgentPayload(body: Record<string, unknown>) {
     accountStatus: normalizeAgentAccountStatus(body.accountStatus, "active"),
     joinedAt: stringOrNull(body.joinedAt),
     notes: stringOrNull(body.notes),
+    legalName: stringOrNull(body.legalName),
+    // Which existing agent recruited this one. Admin-entered only; the caller
+    // sends an agent id, and self-referral is rejected below.
+    referredByAgentId: numberOrNull(body.referredByAgentId),
     updatedAt: new Date().toISOString(),
   };
 }
@@ -219,6 +223,10 @@ export async function PUT(req: NextRequest) {
       "joinedAt",
       "notes",
       "accountStatus",
+      // Roster bookkeeping: an agent must not retitle themselves on the tax
+      // forms or claim who recruited them.
+      "legalName",
+      "referredByAgentId",
     ];
     if (!isAdmin && restrictedFields.some((field) => field in body)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -244,6 +252,8 @@ export async function PUT(req: NextRequest) {
             body.accountStatus === undefined ? existing.accountStatus : cleaned.accountStatus,
           joinedAt: cleaned.joinedAt,
           notes: cleaned.notes,
+          legalName: cleaned.legalName,
+          referredByAgentId: cleaned.referredByAgentId,
           updatedAt: cleaned.updatedAt,
         }
       : {
@@ -264,6 +274,21 @@ export async function PUT(req: NextRequest) {
       (data.splitPct < 0 || data.splitPct > 100)
     ) {
       return NextResponse.json({ error: "Split must be between 0 and 100" }, { status: 400 });
+    }
+    // A referrer must be a real, different agent — a self-referral would make
+    // recruiting credit meaningless, and a dangling id would render as a blank.
+    if ("referredByAgentId" in data && data.referredByAgentId != null) {
+      if (data.referredByAgentId === id) {
+        return NextResponse.json({ error: "An agent cannot refer themselves" }, { status: 400 });
+      }
+      const referrer = await db
+        .select({ id: agents.id })
+        .from(agents)
+        .where(eq(agents.id, data.referredByAgentId))
+        .then((rows) => rows[0]);
+      if (!referrer) {
+        return NextResponse.json({ error: "Referring agent not found" }, { status: 404 });
+      }
     }
     if ("teamId" in data && data.teamId) {
       const team = await db.select().from(teams).where(eq(teams.id, data.teamId)).then((rows) => rows[0]);

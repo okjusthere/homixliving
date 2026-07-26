@@ -101,6 +101,13 @@ export const agents = portal.table("agents", {
     .default("pending"),
   joinedAt: text("joined_at"),
   notes: text("notes"),
+  /** Name on the licence / tax forms, when it differs from the display name. */
+  legalName: text("legal_name"),
+  /** Which existing agent recruited this one — set by an admin, never inferred. */
+  referredByAgentId: integer("referred_by_agent_id").references(
+    (): AnyPgColumn => agents.id,
+    { onDelete: "set null" },
+  ),
   createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
   updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
 });
