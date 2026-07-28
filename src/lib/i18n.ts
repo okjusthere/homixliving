@@ -571,6 +571,10 @@ const en = {
     eyebrow: "Agent Onboarding",
     title: "Your first 90 days at Homix, mapped out",
     lead: "Joining a brokerage should feel like joining a team that has already cleared the runway for you. This is the full picture of what onboarding at Homix Realty involves — from the moment you accept our offer in Flushing to the day you close your first deal. Six phases, no guesswork: licensing and compliance handled correctly under New York law, every account and system set up, a media kit and personal brand built in our in-house studio, and a bilingual mentor walking beside you the whole way.",
+    phasesHeading: {
+      eyebrow: "The six phases",
+      title: "From signed agreement to your first closing.",
+    },
     visionMission: {
       eyebrow: "Homix Vision & Mission",
       title: "Build the most agent-forward real estate media company in New York.",
@@ -632,60 +636,6 @@ const en = {
           image: "/onboarding/henry-ju.jpg",
           imagePosition: "50% 26%",
           body: "Helps keep commissions, reimbursements, invoices, deal-related payments, and finance questions moving with clear records and timely follow-up.",
-        },
-      ],
-    },
-    adminChecklist: {
-      eyebrow: "Admin onboarding checklist",
-      title: "The internal checklist that keeps every new agent moving.",
-      lead: "Use this as the office-side tracker for each new Homix agent. Every item has one owner, a clear handoff, and a reason it matters before the agent starts working leads.",
-      groups: [
-        {
-          title: "Paperwork & license file",
-          owner: "Office Manager",
-          items: [
-            "Signed Independent Contractor Agreement and commission tier recorded.",
-            "W-9, direct deposit, emergency contact, and internal profile created.",
-            "License transfer or sponsorship steps confirmed in eAccessNY.",
-          ],
-        },
-        {
-          title: "Systems access",
-          owner: "Office Manager + Operations",
-          items: [
-            "@homix email, agent portal, CRM, AI workspace, and shared drive access issued.",
-            "OneKey MLS onboarding status tracked and MLS rules orientation scheduled.",
-            "Transaction tools, e-signature access, and compliant forms library bookmarked.",
-            "Private website edit link sent and confirmed working.",
-          ],
-        },
-        {
-          title: "Branding & marketing",
-          owner: "Marketing Coordinator",
-          items: [
-            "Agent bio rewritten, translated where needed, and approved for the website.",
-            "Business cards, email signature, WeChat profile avatar creation, social bios, license details, and Equal Housing Opportunity disclosures prepared.",
-            "For Sale sign, Open House sign, riders, QR codes, and print templates ready for first listing.",
-          ],
-        },
-        {
-          title: "Training & mentor handoff",
-          owner: "Leadership + Mentor",
-          items: [
-            "Training video path assigned: foundations, buyer/seller playbooks, compliance, and media.",
-            "Shadowing appointments, role-play sessions, and first consultation review scheduled.",
-            "First-deal support path documented: who reviews offer terms, files, and timelines.",
-          ],
-        },
-        {
-          title: "Finance setup",
-          owner: "Accounting / Finance",
-          items: [
-            "Commission split, payout method, and deal accounting notes entered.",
-            "Invoice, reimbursement, and referral fee process explained.",
-            "Agent understands what documents accounting needs before commission release.",
-            "Finance contact and escalation path shared with the agent.",
-          ],
         },
       ],
     },
@@ -1625,6 +1575,10 @@ const zh: Dict = {
     eyebrow: "经纪人入职",
     title: "在 Homix 的前 90 天，为你铺好每一步",
     lead: "加入一家经纪公司，应当像加入一支早已为你扫清跑道的团队。这里是 Homix Realty 入职流程的完整图景——从你在法拉盛接受我们的 offer，到成交第一单。六个阶段，无需自己摸索：依据纽约州法律正确办妥执照与合规、配齐所有账户与系统、在自有摄影棚打造你的媒体素材包与个人品牌，并由一位中英双语导师全程陪你同行。",
+    phasesHeading: {
+      eyebrow: "六个阶段",
+      title: "从签下协议，到成交第一单。",
+    },
     visionMission: {
       eyebrow: "Homix 愿景与使命",
       title: "打造纽约最以经纪人为核心的地产媒体公司。",
@@ -1686,60 +1640,6 @@ const zh: Dict = {
           image: "/onboarding/henry-ju.jpg",
           imagePosition: "50% 26%",
           body: "协助佣金、报销、发票、交易相关款项与财务问题，确保记录清楚、跟进及时。",
-        },
-      ],
-    },
-    adminChecklist: {
-      eyebrow: "内部行政入职清单",
-      title: "内部行政入职清单，确保每位新经纪人顺利推进。",
-      lead: "这是一份办公室端使用的 tracker。每一项都有负责人、交接节点和明确目的，确保经纪人在开始跟进线索前，执照、系统、品牌和支持路径都已经准备好。",
-      groups: [
-        {
-          title: "文件与执照档案",
-          owner: "办公室经理",
-          items: [
-            "签署 Independent Contractor Agreement，并记录佣金档位。",
-            "完成 W-9、direct deposit、紧急联系人与内部档案建立。",
-            "确认 eAccessNY 中的执照转挂靠或 sponsorship 步骤。",
-          ],
-        },
-        {
-          title: "系统权限",
-          owner: "办公室经理 + 运营",
-          items: [
-            "开通 @homix 邮箱、agent portal、CRM、AI workspace 与 shared drive 权限。",
-            "跟进 OneKey MLS onboarding 状态，并安排 MLS rules orientation。",
-            "开通交易工具、电子签名权限，并收藏合规表单库。",
-            "发送个人网站编辑链接，并确认可正常使用。",
-          ],
-        },
-        {
-          title: "品牌与营销",
-          owner: "市场协调",
-          items: [
-            "经纪人 bio 改写、必要时翻译，并确认官网版本。",
-            "准备名片、邮件签名、微信头像制作、社交账号 bio、执照信息与平等住房机会声明。",
-            "准备 For Sale sign、Open House sign、riders、二维码与首个房源可用的印刷模板。",
-          ],
-        },
-        {
-          title: "培训与导师交接",
-          owner: "领导团队 + 导师",
-          items: [
-            "分配培训视频路径：基础课程、买卖双方流程、合规与媒体课程。",
-            "安排跟随资深经纪人观摩实战、话术演练与第一次客户咨询复盘。",
-            "明确第一单支持路径：报价条款、文件与时间线由谁复核。",
-          ],
-        },
-        {
-          title: "财务设置",
-          owner: "会计 / 财务",
-          items: [
-            "录入佣金分成、付款方式与交易财务备注。",
-            "说明 invoice、报销与 referral fee 流程。",
-            "确认经纪人了解 commission release 前财务需要哪些文件。",
-            "告知财务联系人与问题升级路径。",
-          ],
         },
       ],
     },

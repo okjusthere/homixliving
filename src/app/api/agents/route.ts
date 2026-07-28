@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { agentPaymentProfiles, agents, dealAgents, deals, teams } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { requireActiveAgentApi, requireAdminApi } from "@/lib/auth-guards";
+import { isAgentPlan, isAgentPractice } from "@/lib/agent-plans";
 import {
   activeDeal,
   commissionAgentsForDeal,
@@ -60,6 +61,10 @@ function cleanAdminAgentPayload(body: Record<string, unknown>) {
     joinedAt: stringOrNull(body.joinedAt),
     notes: stringOrNull(body.notes),
     legalName: stringOrNull(body.legalName),
+    // Commission plan and practice area. Invalid values fall back rather than
+    // 500 — the UI only ever sends the known set.
+    plan: isAgentPlan(body.plan) ? body.plan : "standard",
+    practice: isAgentPractice(body.practice) ? body.practice : null,
     // Which existing agent recruited this one. Admin-entered only; the caller
     // sends an agent id, and self-referral is rejected below.
     referredByAgentId: numberOrNull(body.referredByAgentId),
@@ -255,6 +260,8 @@ export async function PUT(req: NextRequest) {
       // forms or claim who recruited them.
       "legalName",
       "referredByAgentId",
+      "plan",
+      "practice",
     ];
     if (!isAdmin && restrictedFields.some((field) => field in body)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -282,6 +289,8 @@ export async function PUT(req: NextRequest) {
           notes: cleaned.notes,
           legalName: cleaned.legalName,
           referredByAgentId: cleaned.referredByAgentId,
+          plan: cleaned.plan,
+          practice: cleaned.practice,
           updatedAt: cleaned.updatedAt,
         }
       : {

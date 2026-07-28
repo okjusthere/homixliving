@@ -19,6 +19,7 @@ import {
   uniqueIndex,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
+import type { AgentPlan, AgentPractice } from "@/lib/agent-plans";
 
 export const portal = pgSchema("portal");
 
@@ -103,6 +104,10 @@ export const agents = portal.table("agents", {
   notes: text("notes"),
   /** Name on the licence / tax forms, when it differs from the display name. */
   legalName: text("legal_name"),
+  /** Commission plan — see lib/agent-plans.ts (standard 80 / growth 92 / elite 100). */
+  plan: text("plan").$type<AgentPlan>().notNull().default("standard"),
+  /** rental | sales | both. Null when not yet specified. */
+  practice: text("practice").$type<AgentPractice>(),
   /** Which existing agent recruited this one — set by an admin, never inferred. */
   referredByAgentId: integer("referred_by_agent_id").references(
     (): AnyPgColumn => agents.id,

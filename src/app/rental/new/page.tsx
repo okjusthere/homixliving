@@ -61,6 +61,7 @@ const M = {
     leaseLength: "Lease length",
     monthlyRent: "Monthly rent",
     agents: "Agents",
+    agentsHint: "(If a team leader helped on this deal, list them here too.)",
     primaryAgent: "Primary agent *",
     agent: "Agent",
     selectAgent: "Select agent",
@@ -162,6 +163,7 @@ const M = {
     leaseLength: "租约时长",
     monthlyRent: "月租",
     agents: "经纪人",
+    agentsHint: "（如有组长帮助，请将组长列入。）",
     primaryAgent: "主理经纪人 *",
     agent: "经纪人",
     selectAgent: "选择经纪人",
@@ -690,7 +692,7 @@ export function RentalDealFormPage({ mode = "new", dealId }: RentalDealFormPageP
           </Card>
 
           <Card>
-            <CardHeader title={t.agents} />
+            <CardHeader title={t.agents} subtitle={t.agentsHint} />
             <div className="p-6 space-y-4">
               {dealParticipants.map((participant, index) => (
                 (() => {

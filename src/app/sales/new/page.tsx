@@ -48,6 +48,7 @@ const M = {
     sellerNames: "Seller name(s)",
     sellerNamesPlaceholder: "Use commas for multiple sellers",
     agents: "Agents",
+    agentsHint: "(If a team leader helped on this deal, list them here too.)",
     primaryAgent: "Primary agent *",
     agent: "Agent",
     selectAgent: "Select agent",
@@ -117,6 +118,7 @@ const M = {
     sellerNames: "卖家姓名",
     sellerNamesPlaceholder: "多位卖家请用逗号分隔",
     agents: "经纪人",
+    agentsHint: "（如有组长帮助，请将组长列入。）",
     primaryAgent: "主经纪人 *",
     agent: "经纪人",
     selectAgent: "选择经纪人",
@@ -479,7 +481,7 @@ export default function NewSalePage() {
           </Card>
 
           <Card>
-            <CardHeader title={t.agents} />
+            <CardHeader title={t.agents} subtitle={t.agentsHint} />
             <div className="p-6 space-y-4">
               {saleParticipants.map((participant, index) => (
                 <div

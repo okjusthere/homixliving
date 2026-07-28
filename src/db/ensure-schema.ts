@@ -316,6 +316,13 @@ export async function ensureSchema(sql: Sql) {
     ALTER TABLE portal.agents
       ADD COLUMN IF NOT EXISTS legal_name TEXT,
       ADD COLUMN IF NOT EXISTS referred_by_agent_id INTEGER`);
+
+  // Commission plan + practice area. Plans mirror the desk-fee products in
+  // lib/commerce/catalog.ts; practice is rental | sales | both.
+  await run(`
+    ALTER TABLE portal.agents
+      ADD COLUMN IF NOT EXISTS plan TEXT NOT NULL DEFAULT 'standard',
+      ADD COLUMN IF NOT EXISTS practice TEXT`);
   await run(`
     DO $$ BEGIN
       IF NOT EXISTS (

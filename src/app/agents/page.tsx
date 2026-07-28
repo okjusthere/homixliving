@@ -11,6 +11,14 @@ import { fmtMoney, tone } from "@/components/homix/tokens";
 import { DEFAULT_AGENT_SPLIT_PCT, splitLabel } from "@/lib/splits";
 import { useLocale } from "@/lib/i18n-client";
 import { computeOnboarding } from "@/lib/onboarding-progress";
+import {
+  AGENT_PLANS,
+  AGENT_PRACTICES,
+  PLAN_LABELS,
+  PLAN_SPLIT_PCT,
+  PRACTICE_LABELS,
+  normalizeAgentPlan,
+} from "@/lib/agent-plans";
 import type { Agent, Team } from "@/db/schema";
 
 const M = {
@@ -59,7 +67,9 @@ const M = {
     noEmailCap: "No email",
     noLicense: "No license #",
     newEyebrow: "New",
+    editEyebrow: "Edit",
     addAgentTitle: "Add agent",
+    editAgentTitle: "Edit agent",
     labelName: "Name *",
     labelTeam: "Team",
     labelEmail: "Email",
@@ -82,6 +92,9 @@ const M = {
     setupIncompleteHint: "Setup incomplete — profile still publishes; this is just a heads-up.",
     referralLeaders: "Referrals",
     referralLeadersSub: "Who brought whom into the brokerage",
+    labelPlan: "Commission plan",
+    labelPractice: "Practice area",
+    colPlan: "Plan",
     namePlaceholder: "e.g. Alice Chen",
     revokeAccess: "Revoke access",
     cancel: "Cancel",
@@ -133,7 +146,9 @@ const M = {
     noEmailCap: "无邮箱",
     noLicense: "无执照号",
     newEyebrow: "新建",
+    editEyebrow: "编辑",
     addAgentTitle: "添加经纪人",
+    editAgentTitle: "编辑经纪人",
     labelName: "姓名 *",
     labelTeam: "团队",
     labelEmail: "邮箱",
@@ -156,6 +171,9 @@ const M = {
     setupIncompleteHint: "资料未齐全——主页照常展示，这里只是提醒。",
     referralLeaders: "推荐榜",
     referralLeadersSub: "谁把谁带进了公司",
+    labelPlan: "佣金方案",
+    labelPractice: "业务类型",
+    colPlan: "方案",
     namePlaceholder: "例如 Alice Chen",
     revokeAccess: "撤销权限",
     cancel: "取消",
@@ -196,6 +214,8 @@ const emptyAgent: Partial<Agent> = {
   accountStatus: "active",
   joinedAt: "",
   notes: "",
+  plan: "standard",
+  practice: null,
 };
 
 function initials(name: string) {
@@ -233,7 +253,8 @@ function Avatar({ name, src }: { name: string; src?: string | null }) {
 }
 
 export default function AgentsPage() {
-  const t = M[useLocale()];
+  const locale = useLocale();
+  const t = M[locale];
   const router = useRouter();
   const { data: session, status } = useSession();
   const [agents, setAgents] = useState<AgentRow[]>([]);
@@ -541,7 +562,7 @@ export default function AgentsPage() {
                   </div>
                 </div>
                 <div className="col-span-full flex min-w-0 flex-wrap items-center gap-2 sm:col-span-1 sm:justify-end">
-                  <label className="flex min-w-0 flex-1 flex-col gap-1 sm:flex-none">
+                  <label className="flex w-full min-w-0 flex-col gap-1 sm:w-auto sm:flex-none">
                     <span className="text-[10.5px]" style={{ color: tone.ink50 }}>
                       {t.existingPublicProfile}
                     </span>
@@ -572,7 +593,7 @@ export default function AgentsPage() {
                   {/* Captured here because approval is the one moment an admin
                       is already looking at this person; asked for later, it
                       rarely gets filled in. Optional. */}
-                  <label className="flex min-w-0 flex-1 flex-col gap-1 sm:flex-none">
+                  <label className="flex w-full min-w-0 flex-col gap-1 sm:w-auto sm:flex-none">
                     <span className="text-[10.5px]" style={{ color: tone.ink50 }}>
                       {t.labelReferredBy}
                     </span>
@@ -708,12 +729,15 @@ export default function AgentsPage() {
                   const { agent, mtdDeals, mtdTake } = row;
                   const setup = setupFor(row);
                   return (
-                  <Link
+                  <div
                     key={agent.id}
-                    href={`/agents/${agent.id}`}
-                    prefetch={false}
                     className="flex flex-wrap items-center gap-x-4 gap-y-3 px-5 py-3.5 transition-colors hover:bg-[#FAF7F0] sm:px-6"
                   >
+                    <Link
+                      href={`/agents/${agent.id}`}
+                      prefetch={false}
+                      className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-3"
+                    >
                     <Avatar name={agent.name} src={photoFor(agent.id)} />
 
                     {/* Identity — display name, plus the legal name when it
@@ -752,6 +776,21 @@ export default function AgentsPage() {
                       </div>
                     </div>
 
+                    {/* Plan + practice area — the two things most often
+                        adjusted, so they're visible without opening anyone. */}
+                    <div className="min-w-0 basis-[120px]">
+                      <div className="text-[10px] uppercase tracking-[0.1em]" style={{ color: tone.ink50 }}>
+                        {t.colPlan}
+                      </div>
+                      <div className="mt-0.5 truncate text-[12.5px]" style={{ color: tone.ink70 }}>
+                        {PLAN_LABELS[locale][normalizeAgentPlan(agent.plan)]}
+                        {" · "}
+                        {agent.practice
+                          ? PRACTICE_LABELS[locale][agent.practice]
+                          : PRACTICE_LABELS[locale].unset}
+                      </div>
+                    </div>
+
                     {/* MTD — the two numbers the cards used to spend a whole
                         row each on. */}
                     <div className="basis-[104px] text-right">
@@ -773,7 +812,13 @@ export default function AgentsPage() {
                       </span>
                     )}
                     <Pill tone="accent">{splitLabel(agent.splitPct)}</Pill>
-                  </Link>
+                    </Link>
+                    {/* Edit in place: adjusting someone's plan or practice area
+                        shouldn't require opening their detail page first. */}
+                    <Btn variant="outline" size="sm" onClick={() => setEditAgent(agent)}>
+                      {t.edit}
+                    </Btn>
+                  </div>
                   );
                 })}
               </div>
@@ -814,10 +859,10 @@ export default function AgentsPage() {
             <div className="px-8 py-6 flex items-center justify-between" style={{ borderBottom: `1px solid ${tone.line}` }}>
               <div>
                 <div className="text-[11px] uppercase tracking-[0.14em]" style={{ color: tone.ink50 }}>
-                  {t.newEyebrow}
+                  {editAgent.id ? t.editEyebrow : t.newEyebrow}
                 </div>
                 <div className="font-serif" style={{ fontSize: 26, color: tone.ink, marginTop: 2 }}>
-                  {t.addAgentTitle}
+                  {editAgent.id ? t.editAgentTitle : t.addAgentTitle}
                 </div>
               </div>
               <button onClick={closeDialog} className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: tone.paperDeep, color: tone.ink70 }}>
@@ -858,6 +903,44 @@ export default function AgentsPage() {
                 </LabeledField>}
                 {editAgent.id && <LabeledField label={t.labelKeep}>
                   <EditorialInput value={editAgent.splitPct ?? DEFAULT_AGENT_SPLIT_PCT} onChange={(v) => updateField("splitPct", Number(v))} type="number" mono />
+                </LabeledField>}
+                {editAgent.id && <LabeledField label={t.labelPlan}>
+                  <select
+                    value={normalizeAgentPlan(editAgent.plan)}
+                    onChange={(e) => {
+                      const plan = e.target.value as (typeof AGENT_PLANS)[number];
+                      // Switching plan pre-fills that plan's standard split, but
+                      // the field stays editable — negotiated exceptions exist.
+                      setEditAgent((cur) =>
+                        cur ? { ...cur, plan, splitPct: PLAN_SPLIT_PCT[plan] } : cur,
+                      );
+                    }}
+                    className="w-full h-11 sm:h-10 rounded-lg px-3 text-[13.5px] outline-none"
+                    style={{ background: tone.card, border: `1px solid ${tone.line}`, color: tone.ink }}
+                  >
+                    {AGENT_PLANS.map((planKey) => (
+                      <option key={planKey} value={planKey}>
+                        {PLAN_LABELS[locale][planKey]} · {PLAN_SPLIT_PCT[planKey]}%
+                      </option>
+                    ))}
+                  </select>
+                </LabeledField>}
+                {editAgent.id && <LabeledField label={t.labelPractice}>
+                  <select
+                    value={editAgent.practice ?? ""}
+                    onChange={(e) =>
+                      updateField("practice", e.target.value ? e.target.value : null)
+                    }
+                    className="w-full h-11 sm:h-10 rounded-lg px-3 text-[13.5px] outline-none"
+                    style={{ background: tone.card, border: `1px solid ${tone.line}`, color: tone.ink }}
+                  >
+                    <option value="">{PRACTICE_LABELS[locale].unset}</option>
+                    {AGENT_PRACTICES.map((k) => (
+                      <option key={k} value={k}>
+                        {PRACTICE_LABELS[locale][k]}
+                      </option>
+                    ))}
+                  </select>
                 </LabeledField>}
                 {editAgent.id && <LabeledField label={t.labelCompany}>
                   <EditorialInput value={editAgent.licensedCompany || ""} onChange={(v) => updateField("licensedCompany", v)} />

@@ -241,47 +241,6 @@ export default async function OnboardingPage() {
         </Container>
       </section>
 
-      {/* Admin checklist */}
-      <Container className="py-16 sm:py-20">
-        <div className="grid gap-10 lg:grid-cols-[0.72fr_1.28fr]">
-          <div className="max-w-xl">
-            <Eyebrow>{o.adminChecklist.eyebrow}</Eyebrow>
-            <h2 className="mt-5 font-serif text-3xl font-normal leading-tight text-ink sm:text-[2.45rem]">
-              {o.adminChecklist.title}
-            </h2>
-            <p className="mt-5 text-base leading-relaxed text-ink-50">
-              {o.adminChecklist.lead}
-            </p>
-          </div>
-
-          <div className="divide-y divide-line border-y border-line">
-            {o.adminChecklist.groups.map((group, i) => (
-              <Reveal key={group.title} delay={i * 45}>
-                <div className="grid gap-5 py-7 md:grid-cols-[0.36fr_0.64fr]">
-                  <div>
-                    <p className="font-serif text-3xl text-bronze/70">{n2(i)}</p>
-                    <h3 className="mt-3 font-serif text-xl leading-tight text-ink">
-                      {group.title}
-                    </h3>
-                    <p className="mt-2 text-xs font-medium uppercase tracking-[0.14em] text-ink-50">
-                      {group.owner}
-                    </p>
-                  </div>
-                  <ul className="space-y-3">
-                    {group.items.map((item) => (
-                      <li key={item} className="flex gap-3 text-sm leading-relaxed text-ink/85">
-                        <Check />
-                        <span>{item}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </Reveal>
-            ))}
-          </div>
-        </div>
-      </Container>
-
       {/* Resources */}
       <section className="border-t border-line bg-surface py-16 sm:py-20">
         <Container>
@@ -435,9 +394,9 @@ export default async function OnboardingPage() {
       {/* Phases */}
       <Container className="pb-20">
         <div className="mb-10 max-w-3xl">
-          <Eyebrow>{o.eyebrow}</Eyebrow>
+          <Eyebrow>{o.phasesHeading.eyebrow}</Eyebrow>
           <h2 className="mt-5 font-serif text-3xl font-normal leading-tight text-ink sm:text-[2.55rem]">
-            {o.title}
+            {o.phasesHeading.title}
           </h2>
         </div>
         <div className="border-t border-line">
