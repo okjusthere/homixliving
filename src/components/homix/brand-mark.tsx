@@ -1,6 +1,6 @@
 import Image from "next/image";
 
-const HOMIX_MARK_URL = "https://www.homixny.com/homix-mark.webp";
+const HOMIX_MARK_URL = "https://www.homixny.com/homix-mark-small.webp";
 
 export function HomixMark({ size = 40 }: { size?: number }) {
   return (

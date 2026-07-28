@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { agents, buildings, dealAgents, deals, saleDealAgents, saleDeals } from "@/db/schema";
-import { computeCommission } from "@/lib/commission";
+import { computeCommission, roundCents } from "@/lib/commission";
 import {
   activeDeal,
   commissionAgentsForDeal,
@@ -152,19 +152,26 @@ export async function GET(req: NextRequest) {
       totalDeals: monthDeals.length + monthSales.length,
       rentalDeals: monthDeals.length,
       salesDeals: monthSales.length,
-      totalCommission:
+      // roundCents on every accumulated float so drift like 40417.000000000004
+      // never reaches the JSON/CSV.
+      totalCommission: roundCents(
         monthDeals.reduce((sum, deal) => sum + Number(deal.totalCommission || 0), 0) +
-        salesGrossCommission,
-      salesGrossCommission,
-      salesCommissionBase,
-      companyPool,
-      agentPayouts,
-      referrerPayouts,
+          salesGrossCommission
+      ),
+      salesGrossCommission: roundCents(salesGrossCommission),
+      salesCommissionBase: roundCents(salesCommissionBase),
+      companyPool: roundCents(companyPool),
+      agentPayouts: roundCents(agentPayouts),
+      referrerPayouts: roundCents(referrerPayouts),
     },
     topAgents: Array.from(agentStats.values())
-      .map((row) => ({ agent: row.agent, deals: row.deals.size, take: row.take }))
+      .map((row) => ({ agent: row.agent, deals: row.deals.size, take: roundCents(row.take) }))
       .sort((a, b) => b.take - a.take),
-    perBuilding: Array.from(buildingStats.values()).sort((a, b) => b.totalCommission - a.totalCommission),
-    perSource: Array.from(sourceStats.values()).sort((a, b) => b.deals - a.deals),
+    perBuilding: Array.from(buildingStats.values())
+      .map((row) => ({ ...row, totalCommission: roundCents(row.totalCommission) }))
+      .sort((a, b) => b.totalCommission - a.totalCommission),
+    perSource: Array.from(sourceStats.values())
+      .map((row) => ({ ...row, totalCommission: roundCents(row.totalCommission) }))
+      .sort((a, b) => b.deals - a.deals),
   });
 }

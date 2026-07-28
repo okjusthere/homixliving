@@ -11,6 +11,7 @@ import {
 import type { TrainingVideo } from "@/db/schema";
 import { useLocale } from "@/lib/i18n-client";
 import type { TrainingVideoViewRecord, TrainingVideoViewSummary } from "@/lib/training-views";
+import { parseDbTime } from "@/lib/db-time";
 
 const M = {
   en: {
@@ -92,9 +93,8 @@ function Chevron({ open }: { open: boolean }) {
 }
 
 function formatViewDate(value: string | null | undefined, locale: "en" | "zh") {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
+  const date = parseDbTime(value);
+  if (!date) return "—";
 
   return new Intl.DateTimeFormat(locale === "zh" ? "zh-CN" : "en-US", {
     year: "numeric",

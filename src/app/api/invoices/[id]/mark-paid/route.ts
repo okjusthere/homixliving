@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { requireAdminApi } from "@/lib/auth-guards";
 import { notify } from "@/lib/notify";
 import { logAudit } from "@/lib/audit";
+import { MAX_MONEY_AMOUNT } from "@/lib/commission";
 
 export async function POST(
   req: NextRequest,
@@ -40,7 +41,7 @@ export async function POST(
   let paidAmount = invoice.totalAmount;
   if (body.paidAmount !== undefined && body.paidAmount !== null) {
     const amount = Number(body.paidAmount);
-    if (!Number.isFinite(amount) || amount < 0) {
+    if (!Number.isFinite(amount) || amount < 0 || amount > MAX_MONEY_AMOUNT) {
       return NextResponse.json({ error: "Invalid paidAmount." }, { status: 400 });
     }
     paidAmount = amount;

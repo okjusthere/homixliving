@@ -20,6 +20,7 @@ import {
   normalizeAgentAccountStatus,
 } from "@/lib/agent-lifecycle";
 import { hidePublicProfileForOffboarding } from "@/lib/homixweb";
+import { dateOrNull } from "@/lib/db-time";
 
 function numberOrNull(value: unknown) {
   if (value === undefined || value === null || value === "") return null;
@@ -46,7 +47,9 @@ function invalidLicenseExpiry(body: Record<string, unknown>): boolean {
 }
 
 function cleanAdminAgentPayload(body: Record<string, unknown>) {
-  const splitPct = numberOrNull(body.splitPct);
+  const splitPctRaw = numberOrNull(body.splitPct);
+  // The column is an integer percent; round rather than 500 on "82.5".
+  const splitPct = splitPctRaw === null ? null : Math.round(splitPctRaw);
   const teamId = numberOrNull(body.teamId);
   return {
     name: String(body.name || "").trim(),
@@ -58,7 +61,7 @@ function cleanAdminAgentPayload(body: Record<string, unknown>) {
     splitPct: splitPct ?? DEFAULT_AGENT_SPLIT_PCT,
     teamId,
     accountStatus: normalizeAgentAccountStatus(body.accountStatus, "active"),
-    joinedAt: stringOrNull(body.joinedAt),
+    joinedAt: dateOrNull(body.joinedAt),
     notes: stringOrNull(body.notes),
     legalName: stringOrNull(body.legalName),
     // Commission plan and practice area. Invalid values fall back rather than

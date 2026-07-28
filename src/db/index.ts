@@ -29,6 +29,10 @@ const connectionString = url || LOCAL_DEV_URL;
 // socket caused intermittent CONNECT_TIMEOUTs and 300-second request hangs.
 export const pgPool = new Pool({
   connectionString,
+  // Timestamptz/date values reach the app as Postgres TEXT renderings, whose
+  // shape follows the session timezone — pin it so local dev (America/New_York
+  // machines) and Supabase (UTC) produce identical strings.
+  options: "-c TimeZone=UTC",
   max: 4,
   connectionTimeoutMillis: 5_000,
   idleTimeoutMillis: 10_000,
@@ -55,6 +59,7 @@ export const db = drizzle(pgPool, { schema });
 // lazy and no longer runs during application startup.
 export const pgClient = postgres(url || LOCAL_DEV_URL, {
   prepare: false,
+  connection: { TimeZone: "UTC" },
   max: 1,
   connect_timeout: 10,
   idle_timeout: 10,

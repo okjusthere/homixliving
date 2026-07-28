@@ -6,6 +6,7 @@ import { requireActiveAgentApi } from "@/lib/auth-guards";
 import { canEditDeal, canViewDeal } from "@/lib/visibility";
 import { summarizeInvoicePayment } from "@/lib/invoice-payment";
 import { logAudit } from "@/lib/audit";
+import { dateOrNull } from "@/lib/db-time";
 
 type DealAgentPayload = {
   agentId: number;
@@ -101,9 +102,9 @@ async function validateDealUpdate({
       tenantEmail: stringOrNull(body.tenantEmail),
       tenantPhone: stringOrNull(body.tenantPhone),
       apartmentAddress: stringOrNull(body.apartmentAddress),
-      moveInDate: stringOrNull(body.moveInDate),
-      leaseStartDate: stringOrNull(body.leaseStartDate),
-      leaseEndDate: stringOrNull(body.leaseEndDate),
+      moveInDate: dateOrNull(body.moveInDate),
+      leaseStartDate: dateOrNull(body.leaseStartDate),
+      leaseEndDate: dateOrNull(body.leaseEndDate),
       rentAmount: parseNumber(body.rentAmount),
       leaseLengthMonths: parseId(body.leaseLengthMonths),
       totalCommission,
@@ -113,7 +114,7 @@ async function validateDealUpdate({
       referrerAmount: parseNumber(body.referrerAmount),
       referrerPaymentInfo: stringOrNull(body.referrerPaymentInfo),
       status,
-      dealDate: stringOrNull(body.dealDate) || existing.dealDate,
+      dealDate: dateOrNull(body.dealDate) || existing.dealDate,
       source: stringOrNull(body.source),
       notes: stringOrNull(body.notes),
       updatedAt: new Date().toISOString(),

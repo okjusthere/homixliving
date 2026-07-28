@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "npm run test:commission && npm run test:visibility && npm run test:onboarding-progress && npm run test:lifecycle && npm run test:training-categories && npm run test:email-sender && npm run test:invoice-payment && npm run test:commerce && npm run test:aging && npm run test:reporting && npm run test:renewals && npm run test:training-views && npm run test:deal-document-storage",
+    "test": "npm run test:commission && npm run test:visibility && npm run test:onboarding-progress && npm run test:lifecycle && npm run test:training-categories && npm run test:email-sender && npm run test:invoice-payment && npm run test:commerce && npm run test:aging && npm run test:reporting && npm run test:renewals && npm run test:training-views && npm run test:deal-document-storage && npm run test:db-time",
     "test:commission": "tsx src/lib/__tests__/commission.test.ts",
     "test:visibility": "tsx src/lib/__tests__/visibility.test.ts",
     "test:lifecycle": "tsx src/lib/__tests__/agent-lifecycle.test.ts",
@@ -23,7 +23,8 @@
     "db:seed": "tsx src/db/seed.ts",
     "stripe:products": "tsx scripts/create-stripe-products.ts",
     "google:workspace:oauth": "tsx scripts/google-workspace-oauth.ts",
-    "test:onboarding-progress": "tsx src/lib/__tests__/onboarding-progress.test.ts"
+    "test:onboarding-progress": "tsx src/lib/__tests__/onboarding-progress.test.ts",
+    "test:db-time": "tsx src/lib/__tests__/db-time.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1092.0",

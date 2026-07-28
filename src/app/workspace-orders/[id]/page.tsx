@@ -6,6 +6,7 @@ import { db } from "@/db";
 import { commerceOrders } from "@/db/schema";
 import { requireActiveAgent } from "@/lib/auth-guards";
 import { formatProductAmount } from "@/lib/commerce/catalog";
+import { fmtTimestamp } from "@/lib/db-time";
 
 export const dynamic = "force-dynamic";
 
@@ -67,7 +68,7 @@ export default async function WorkspaceOrderPage({
               ["Payment status", order.status.replaceAll("_", " ")],
               ["Company email", order.requestedWorkspaceEmail || "—"],
               ["Workspace user ID", order.workspaceUserId || "—"],
-              ["Updated", order.updatedAt || "—"],
+              ["Updated", fmtTimestamp(order.updatedAt) || "—"],
             ].map(([label, value]) => (
               <div key={label} className="grid grid-cols-[170px_1fr] gap-4 px-4 py-3 text-[14px]">
                 <span className="text-ink-50">{label}</span>

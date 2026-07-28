@@ -1,14 +1,14 @@
 // Renewal pipeline helpers — find deals with leases ending soon.
 import type { Deal } from "@/db/schema";
+import { dbTimeMs } from "@/lib/db-time";
 
 export type RenewalWindow = "30" | "60" | "90" | "overdue";
 
 export const RENEWAL_WINDOWS: RenewalWindow[] = ["overdue", "30", "60", "90"];
 
 export function daysUntil(iso: string | null | undefined): number | null {
-  if (!iso) return null;
-  const t = new Date(iso).getTime();
-  if (isNaN(t)) return null;
+  const t = dbTimeMs(iso);
+  if (t === null) return null;
   return Math.ceil((t - Date.now()) / 86400000);
 }
 

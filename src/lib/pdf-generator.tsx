@@ -13,6 +13,7 @@ import {
   Circle,
 } from "@react-pdf/renderer";
 import type { LineItem, Building } from "@/db/schema";
+import { parseDbTime } from "@/lib/db-time";
 
 // Register fonts. For reliability, we use Helvetica (built-in) as body/mono
 // and Inter Display (or Times) as a serif stand-in for Instrument Serif.
@@ -392,9 +393,7 @@ function fmtMoney(n: number): string {
 // Parse "YYYY-MM-DD" as LOCAL midnight so US-timezone servers/clients don't
 // render date-only fields (invoice date, dates on the PDF) one day early.
 function toLocalDate(s: string): Date {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s.trim());
-  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-  return new Date(s);
+  return parseDbTime(s) ?? new Date(NaN);
 }
 function fmtDateShort(s: string): string {
   const d = toLocalDate(s);

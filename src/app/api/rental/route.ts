@@ -7,6 +7,8 @@ import { requireActiveAgentApi } from "@/lib/auth-guards";
 import { dealsVisibleToSql } from "@/lib/visibility";
 import { summarizeInvoicePayment } from "@/lib/invoice-payment";
 import { logAudit } from "@/lib/audit";
+import { dateOrNull } from "@/lib/db-time";
+import { MAX_MONEY_AMOUNT } from "@/lib/commission";
 
 type DealAgentPayload = {
   agentId: number;
@@ -51,6 +53,9 @@ async function cleanDealPayload(
 
   if (!buildingId || !stringOrNull(body.unit) || !stringOrNull(body.tenantName) || totalCommission === null) {
     return { error: "buildingId, unit, tenantName, and totalCommission are required" };
+  }
+  if (Math.abs(totalCommission) > MAX_MONEY_AMOUNT) {
+    return { error: "totalCommission is out of range" };
   }
   if (!payloadAgents || payloadAgents.length === 0) {
     return { error: "At least one deal agent is required" };
@@ -109,9 +114,9 @@ async function cleanDealPayload(
       tenantEmail: stringOrNull(body.tenantEmail),
       tenantPhone: stringOrNull(body.tenantPhone),
       apartmentAddress: stringOrNull(body.apartmentAddress),
-      moveInDate: stringOrNull(body.moveInDate),
-      leaseStartDate: stringOrNull(body.leaseStartDate),
-      leaseEndDate: stringOrNull(body.leaseEndDate),
+      moveInDate: dateOrNull(body.moveInDate),
+      leaseStartDate: dateOrNull(body.leaseStartDate),
+      leaseEndDate: dateOrNull(body.leaseEndDate),
       rentAmount: parseNumber(body.rentAmount),
       leaseLengthMonths: parseId(body.leaseLengthMonths),
       totalCommission,
@@ -121,7 +126,7 @@ async function cleanDealPayload(
       referrerAmount: parseNumber(body.referrerAmount),
       referrerPaymentInfo: stringOrNull(body.referrerPaymentInfo),
       status,
-      dealDate: stringOrNull(body.dealDate) || new Date().toISOString().slice(0, 10),
+      dealDate: dateOrNull(body.dealDate) || new Date().toISOString().slice(0, 10),
       source: stringOrNull(body.source),
       notes: stringOrNull(body.notes),
       updatedAt: new Date().toISOString(),

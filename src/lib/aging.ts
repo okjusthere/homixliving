@@ -1,14 +1,14 @@
 // Aging report helpers — bucket invoices by how long they've been outstanding.
 import type { Invoice } from "@/db/schema";
+import { dbTimeMs } from "@/lib/db-time";
 
 export type AgingBucket = "0-30" | "30-60" | "60-90" | "90+";
 
 export const AGING_BUCKETS: AgingBucket[] = ["0-30", "30-60", "60-90", "90+"];
 
 export function daysSince(iso: string | null | undefined): number | null {
-  if (!iso) return null;
-  const t = new Date(iso).getTime();
-  if (isNaN(t)) return null;
+  const t = dbTimeMs(iso);
+  if (t === null) return null;
   return Math.floor((Date.now() - t) / 86400000);
 }
 

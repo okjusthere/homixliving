@@ -7,6 +7,7 @@ import { tone } from "@/components/homix/tokens";
 import { Card, Pill } from "@/components/homix/server-primitives";
 import { requireActiveAgent } from "@/lib/auth-guards";
 import { getLocale } from "@/lib/i18n";
+import { parseDbTime } from "@/lib/db-time";
 
 export const dynamic = "force-dynamic";
 
@@ -57,8 +58,8 @@ function actionTone(action: string): "neutral" | "sent" | "draft" | "failed" | "
 
 function fmtTs(iso: string | null): string {
   if (!iso) return "";
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return iso;
+  const d = parseDbTime(iso);
+  if (!d) return iso;
   return d.toLocaleString("en-US", {
     timeZone: "America/New_York",
     month: "2-digit",

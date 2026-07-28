@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { tone } from "@/components/homix/tokens";
 import { useLocale } from "@/lib/i18n-client";
 import type { Notification } from "@/db/schema";
+import { dbTimeMs } from "@/lib/db-time";
 
 const M = {
   en: {
@@ -22,8 +23,9 @@ const M = {
 } as const;
 
 function timeAgo(iso: string | null, locale: "en" | "zh"): string {
-  if (!iso) return "";
-  const s = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
+  const t = dbTimeMs(iso);
+  if (t === null) return "";
+  const s = Math.max(0, Math.floor((Date.now() - t) / 1000));
   if (s < 60) return locale === "zh" ? "刚刚" : "just now";
   const m = Math.floor(s / 60);
   if (m < 60) return locale === "zh" ? `${m} 分钟前` : `${m}m ago`;

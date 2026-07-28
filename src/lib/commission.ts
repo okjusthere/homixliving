@@ -35,6 +35,9 @@ function percentInput(value: number) {
   return Number.isFinite(value) ? Math.min(100, Math.max(0, value)) : 0;
 }
 
+/** NUMERIC(14,2) ceiling — amounts at or above this would overflow the column. */
+export const MAX_MONEY_AMOUNT = 999_999_999_999.99;
+
 /** Round to cents, canonicalizing float noise (0.30000000000000004 → 0.3). */
 export function roundCents(value: number): number {
   return Math.round(value * 100) / 100;

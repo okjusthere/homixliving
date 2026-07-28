@@ -13,6 +13,7 @@ import { SendDialog } from "@/components/homix/send-dialog";
 import type { Building, Invoice, InvoiceSendLog, LineItem } from "@/db/schema";
 import { invoiceSettingsForDocument } from "@/lib/invoice-settings";
 import { useLocale } from "@/lib/i18n-client";
+import { parseDbTime } from "@/lib/db-time";
 
 const M = {
   en: {
@@ -327,7 +328,7 @@ export default function InvoiceDetailPage() {
           {invoice.status === "sent" && invoice.sentAt && (
             <span className="text-[12px]" style={{ color: tone.ink50 }}>
               {t.sentLabel} {fmtDate(invoice.sentAt)} {t.at}{" "}
-              {new Date(invoice.sentAt).toLocaleTimeString("en-US", {
+              {parseDbTime(invoice.sentAt)?.toLocaleTimeString("en-US", {
                 hour: "numeric",
                 minute: "2-digit",
               })}
@@ -594,7 +595,7 @@ export default function InvoiceDetailPage() {
                             evening sends show tomorrow's date. */}
                         {fmtDate(entry.sentAt)}{" "}
                         {entry.sentAt
-                          ? new Date(entry.sentAt).toLocaleTimeString("en-US", {
+                          ? parseDbTime(entry.sentAt)?.toLocaleTimeString("en-US", {
                               hour: "numeric",
                               minute: "2-digit",
                             })

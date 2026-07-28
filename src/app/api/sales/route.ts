@@ -5,6 +5,8 @@ import { agents, saleDealAgents, saleDeals } from "@/db/schema";
 import { requireActiveAgentApi } from "@/lib/auth-guards";
 import { saleDealsVisibleToSql } from "@/lib/visibility";
 import { logAudit } from "@/lib/audit";
+import { dateOrNull } from "@/lib/db-time";
+import { MAX_MONEY_AMOUNT } from "@/lib/commission";
 
 type SaleAgentPayload = {
   agentId: number;
@@ -69,8 +71,8 @@ async function cleanSalePayload(
   if (!statuses.has(status)) {
     return { error: "Invalid status" };
   }
-  if (grossCommission < 0) {
-    return { error: "grossCommission cannot be negative" };
+  if (grossCommission < 0 || grossCommission > MAX_MONEY_AMOUNT) {
+    return { error: "grossCommission is out of range" };
   }
   if (!payloadAgents || payloadAgents.length === 0) {
     return { error: "At least one sale agent is required" };
@@ -118,8 +120,8 @@ async function cleanSalePayload(
       fileId: stringOrNull(body.fileId),
       buyerNames: stringOrNull(body.buyerNames),
       sellerNames: stringOrNull(body.sellerNames),
-      contractDate: stringOrNull(body.contractDate),
-      closingDate: stringOrNull(body.closingDate),
+      contractDate: dateOrNull(body.contractDate),
+      closingDate: dateOrNull(body.closingDate),
       purchasePrice: parseNumber(body.purchasePrice),
       grossCommission,
       referralAmount: parseNumber(body.referralAmount),

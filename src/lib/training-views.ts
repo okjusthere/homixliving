@@ -1,3 +1,5 @@
+import { dbTimeMs } from "@/lib/db-time";
+
 export type TrainingVideoViewRecord = {
   videoId: number;
   agentId: number | null;
@@ -19,9 +21,7 @@ export type TrainingVideoViewSummary = {
 };
 
 function time(value: string | null | undefined) {
-  if (!value) return 0;
-  const parsed = Date.parse(value);
-  return Number.isFinite(parsed) ? parsed : 0;
+  return dbTimeMs(value) ?? 0;
 }
 
 export function summarizeTrainingVideoViews(

@@ -1,3 +1,4 @@
+import { parseDbTime } from "@/lib/db-time";
 // Homix Invoice design tokens — warm editorial palette
 export const tone = {
   paper: "#F7F4EE",
@@ -34,9 +35,7 @@ export function fmtMoney(n: number): string {
 // day (e.g. a "2026-08-01" lease-end renders "07/31/2026"). Full ISO timestamps
 // keep their normal `new Date` handling.
 function toLocalDate(s: string): Date {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s.trim());
-  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-  return new Date(s);
+  return parseDbTime(s) ?? new Date(NaN);
 }
 
 export function fmtDate(s?: string | null): string {

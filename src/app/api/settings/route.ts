@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { settings } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { requireActiveAgentApi, requireAdminApi } from "@/lib/auth-guards";
-import { withInvoiceSettingDefaults } from "@/lib/invoice-settings";
+import { DEFAULT_INVOICE_SETTINGS, withInvoiceSettingDefaults } from "@/lib/invoice-settings";
 import { logAudit } from "@/lib/audit";
 
 export async function GET() {
@@ -12,7 +12,18 @@ export async function GET() {
 
   const allSettings = await db.select().from(settings);
   const settingsMap = Object.fromEntries(allSettings.map((s) => [s.key, s.value]));
-  return NextResponse.json(withInvoiceSettingDefaults(settingsMap));
+  const merged = withInvoiceSettingDefaults(settingsMap);
+
+  // Agents need the invoice-instruction keys (they are printed on every
+  // invoice PDF), but nothing else that may live in this table — an
+  // allowlist keeps any future non-invoice setting admin-only by default.
+  if (!authResult.session.user.isAdmin) {
+    const allowed = new Set(Object.keys(DEFAULT_INVOICE_SETTINGS));
+    return NextResponse.json(
+      Object.fromEntries(Object.entries(merged).filter(([key]) => allowed.has(key)))
+    );
+  }
+  return NextResponse.json(merged);
 }
 
 export async function PUT(req: NextRequest) {

@@ -6,6 +6,8 @@ import { generateInvoiceNumber, generateFileName, generateEmailSubject } from "@
 import { requireActiveAgentApi } from "@/lib/auth-guards";
 import { dealsVisibleToSql } from "@/lib/visibility";
 import { logAudit } from "@/lib/audit";
+import { dateOrNull } from "@/lib/db-time";
+import { MAX_MONEY_AMOUNT } from "@/lib/commission";
 
 export async function GET() {
   const authResult = await requireActiveAgentApi();
@@ -60,12 +62,16 @@ export async function POST(req: NextRequest) {
   let totalAmount = 0;
   for (const item of lineItems) {
     const amount = Number(item?.amount);
-    if (!Number.isFinite(amount)) {
+    if (!Number.isFinite(amount) || Math.abs(amount) > MAX_MONEY_AMOUNT) {
       return NextResponse.json({ error: "Each line item needs a numeric amount." }, { status: 400 });
     }
-    totalAmount += amount;
+    item.amount = Math.round(amount * 100) / 100;
+    totalAmount += item.amount;
   }
   totalAmount = Math.round(totalAmount * 100) / 100;
+  if (Math.abs(totalAmount) > MAX_MONEY_AMOUNT) {
+    return NextResponse.json({ error: "Invoice total is out of range." }, { status: 400 });
+  }
 
   // Bind the invoice's agent to the caller for non-admins so an agent can't
   // create an invoice attributed to (and later visible to) a colleague. Admins
@@ -91,7 +97,7 @@ export async function POST(req: NextRequest) {
     agentName,
     agentPhone,
     apartmentAddress,
-    moveInDate,
+    moveInDate: dateOrNull(moveInDate),
     licensedCompany,
     year: invoiceYear,
     lineItems,

@@ -425,13 +425,13 @@ export default async function Dashboard() {
       activeCount: sql<number>`count(*) filter (where ${deals.status} = 'active')`,
       completedMonth: sql<number>`count(*) filter (
         where ${deals.status} = 'completed'
-          and coalesce(${deals.dealDate}, ${deals.updatedAt}, ${deals.createdAt}, '') >= ${monthStart}
-          and coalesce(${deals.dealDate}, ${deals.updatedAt}, ${deals.createdAt}, '') < ${nextMonthStart}
+          and coalesce(nullif(${deals.dealDate}::text, '')::date, nullif(${deals.updatedAt}::text, '')::date, nullif(${deals.createdAt}::text, '')::date) >= ${monthStart}::date
+          and coalesce(nullif(${deals.dealDate}::text, '')::date, nullif(${deals.updatedAt}::text, '')::date, nullif(${deals.createdAt}::text, '')::date) < ${nextMonthStart}::date
       )`,
       upcomingRenewals: sql<number>`count(*) filter (
         where ${deals.status} = 'active'
           and ${deals.leaseEndDate} is not null
-          and ${deals.leaseEndDate} <= ${ninetyDaysOut}
+          and nullif(${deals.leaseEndDate}::text, '')::date <= ${ninetyDaysOut}::date
           and coalesce(${deals.renewalStatus}, 'pending') not in ('renewed', 'lost')
       )`,
       personalCommission: sql<number>`coalesce(sum(
@@ -452,7 +452,7 @@ export default async function Dashboard() {
             * least(100, greatest(0, coalesce(${agents.splitPct}, 0))) / 100.0
           else 0
         end
-      ), 0)`,
+      ), 0)::float8`,
     })
     .from(deals)
     .leftJoin(
@@ -466,14 +466,14 @@ export default async function Dashboard() {
       activeCount: sql<number>`count(*) filter (where ${saleDeals.status} = 'active')`,
       completedMonth: sql<number>`count(*) filter (
         where ${saleDeals.status} = 'completed'
-          and coalesce(${saleDeals.closingDate}, ${saleDeals.updatedAt}, ${saleDeals.createdAt}, '') >= ${monthStart}
-          and coalesce(${saleDeals.closingDate}, ${saleDeals.updatedAt}, ${saleDeals.createdAt}, '') < ${nextMonthStart}
+          and coalesce(nullif(${saleDeals.closingDate}::text, '')::date, nullif(${saleDeals.updatedAt}::text, '')::date, nullif(${saleDeals.createdAt}::text, '')::date) >= ${monthStart}::date
+          and coalesce(nullif(${saleDeals.closingDate}::text, '')::date, nullif(${saleDeals.updatedAt}::text, '')::date, nullif(${saleDeals.createdAt}::text, '')::date) < ${nextMonthStart}::date
       )`,
       closingSoon: sql<number>`count(*) filter (
         where ${saleDeals.status} = 'active'
           and ${saleDeals.closingDate} is not null
-          and ${saleDeals.closingDate} >= ${today}
-          and ${saleDeals.closingDate} <= ${sixtyDaysOut}
+          and nullif(${saleDeals.closingDate}::text, '')::date >= ${today}::date
+          and nullif(${saleDeals.closingDate}::text, '')::date <= ${sixtyDaysOut}::date
       )`,
       personalCommission: sql<number>`coalesce(sum(
         case
@@ -488,7 +488,7 @@ export default async function Dashboard() {
             * least(100, greatest(0, coalesce(${agents.splitPct}, 0))) / 100.0
           else 0
         end
-      ), 0)`,
+      ), 0)::float8`,
     })
     .from(saleDeals)
     .leftJoin(
@@ -507,7 +507,7 @@ export default async function Dashboard() {
       tenantName: deals.tenantName,
       totalCommission: deals.totalCommission,
       status: deals.status,
-      sortAt: sql<string>`coalesce(${deals.updatedAt}, ${deals.createdAt}, '')`,
+      sortAt: sql<string>`coalesce(${deals.updatedAt}::text, ${deals.createdAt}::text, '')`,
       buildingName: buildings.name,
     })
     .from(deals)
@@ -524,7 +524,7 @@ export default async function Dashboard() {
       grossCommission: saleDeals.grossCommission,
       status: saleDeals.status,
       stage: saleDeals.stage,
-      sortAt: sql<string>`coalesce(${saleDeals.updatedAt}, ${saleDeals.createdAt}, '')`,
+      sortAt: sql<string>`coalesce(${saleDeals.updatedAt}::text, ${saleDeals.createdAt}::text, '')`,
     })
     .from(saleDeals)
     .where(salesVisibility)

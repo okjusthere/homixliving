@@ -1,3 +1,5 @@
+import { dbTimeMs } from "@/lib/db-time";
+
 export type InvoicePaymentStatus = "none" | "draft" | "awaiting_payment" | "paid" | "failed";
 
 export type InvoicePaymentSummary = {
@@ -25,9 +27,7 @@ type InvoiceLike = {
 };
 
 function timestamp(value?: string | null) {
-  if (!value) return 0;
-  const parsed = Date.parse(value);
-  return Number.isFinite(parsed) ? parsed : 0;
+  return dbTimeMs(value) ?? 0;
 }
 
 function newest<T extends InvoiceLike>(rows: T[]) {

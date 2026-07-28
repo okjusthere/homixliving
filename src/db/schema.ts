@@ -5,23 +5,38 @@
 // Porting notes from the original SQLite schema:
 // - integer-boolean columns became real booleans
 // - autoincrement ids became BY DEFAULT identities (imports may set ids)
-// - all date/time columns stay TEXT ISO strings — application code treats
-//   them as strings everywhere; changing to timestamptz would be a silent
-//   behavior change across every comparison and slice()
+// - date/time columns are real timestamptz/date and money columns are exact
+//   numeric — but the app still sees STRINGS for temporal values (drizzle's
+//   node-postgres session reads those OIDs as raw text) and NUMBERS for
+//   money. Parse temporal strings through src/lib/db-time.ts, never with a
+//   bare `new Date(value)` (Safari rejects Postgres's text format).
 import {
   pgSchema,
   text,
   integer,
-  doublePrecision,
   boolean,
   jsonb,
   primaryKey,
   uniqueIndex,
+  timestamp,
+  date,
+  numeric,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import type { AgentPlan, AgentPractice } from "@/lib/agent-plans";
 
 export const portal = pgSchema("portal");
+
+// Column shorthands. Temporal defaults write ISO strings — Postgres casts
+// them on assignment, and they are also valid for any not-yet-migrated TEXT
+// column, which is what makes deploy-before-migrate safe.
+const timestamptz = (name: string) =>
+  timestamp(name, { withTimezone: true, mode: "string" });
+const dateCol = (name: string) => date(name, { mode: "string" });
+/** Dollars with cents, exact. Reads back as a JS number. */
+const money = (name: string) => numeric(name, { precision: 14, scale: 2, mode: "number" });
+/** Percentage that may be fractional (e.g. a 33.333 three-way split). */
+const fractionalPct = (name: string) => numeric(name, { precision: 6, scale: 3, mode: "number" });
 
 export const buildings = portal.table("buildings", {
   id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
@@ -36,8 +51,8 @@ export const buildings = portal.table("buildings", {
   contactEmail: text("contact_email"), // 大楼/管理公司收件邮箱
   specialNotes: text("special_notes"), // 特殊要求备注
   isOutOfState: boolean("is_out_of_state").default(false),
-  createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
-  updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
+  createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
+  updatedAt: timestamptz("updated_at").$defaultFn(() => new Date().toISOString()),
 });
 
 export const invoices = portal.table("invoices", {
@@ -55,19 +70,19 @@ export const invoices = portal.table("invoices", {
   agentName: text("agent_name"),
   agentPhone: text("agent_phone"), // 经纪人电话
   apartmentAddress: text("apartment_address"), // 客人入住的完整公寓地址
-  moveInDate: text("move_in_date"), // 入住日期
+  moveInDate: dateCol("move_in_date"), // 入住日期
   licensedCompany: text("licensed_company").notNull(), // 持证公司
   year: integer("year").notNull().default(2026),
   lineItems: jsonb("line_items").$type<LineItem[]>(),
-  totalAmount: doublePrecision("total_amount").notNull(),
+  totalAmount: money("total_amount").notNull(),
   notes: text("notes"),
   status: text("status").notNull().default("draft"), // draft, sent, paid, failed
-  sentAt: text("sent_at"),
-  paidAt: text("paid_at"), // when payment received
-  paidAmount: doublePrecision("paid_amount"), // actual amount received (defaults to totalAmount)
+  sentAt: timestamptz("sent_at"),
+  paidAt: timestamptz("paid_at"), // when payment received
+  paidAmount: money("paid_amount"), // actual amount received (defaults to totalAmount)
   pdfData: text("pdf_data"), // base64 encoded PDF for storage
-  createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
-  updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
+  createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
+  updatedAt: timestamptz("updated_at").$defaultFn(() => new Date().toISOString()),
 });
 
 export const settings = portal.table("settings", {
@@ -91,16 +106,16 @@ export const agents = portal.table("agents", {
   phone: text("phone"),
   licenseNumber: text("license_number"),
   // NY licenses expire every 2 years — the reminder cron watches this date.
-  licenseExpiresAt: text("license_expires_at"),
+  licenseExpiresAt: dateCol("license_expires_at"),
   licensedCompany: text("licensed_company"),
-  splitPct: doublePrecision("split_pct").notNull().default(80),
+  splitPct: integer("split_pct").notNull().default(80),
   teamId: integer("team_id").references((): AnyPgColumn => teams.id, { onDelete: "set null" }),
   isAdmin: boolean("is_admin").notNull().default(false),
   accountStatus: text("account_status")
     .$type<AgentAccountStatus>()
     .notNull()
     .default("pending"),
-  joinedAt: text("joined_at"),
+  joinedAt: dateCol("joined_at"),
   notes: text("notes"),
   /** Name on the licence / tax forms, when it differs from the display name. */
   legalName: text("legal_name"),
@@ -113,8 +128,8 @@ export const agents = portal.table("agents", {
     (): AnyPgColumn => agents.id,
     { onDelete: "set null" },
   ),
-  createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
-  updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
+  createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
+  updatedAt: timestamptz("updated_at").$defaultFn(() => new Date().toISOString()),
 });
 
 export const rentalDeals = portal.table("rental_deals", {
@@ -127,33 +142,33 @@ export const rentalDeals = portal.table("rental_deals", {
   tenantEmail: text("tenant_email"),
   tenantPhone: text("tenant_phone"),
   apartmentAddress: text("apartment_address"),
-  moveInDate: text("move_in_date"),
-  leaseStartDate: text("lease_start_date"),
-  leaseEndDate: text("lease_end_date"),
-  rentAmount: doublePrecision("rent_amount"),
+  moveInDate: dateCol("move_in_date"),
+  leaseStartDate: dateCol("lease_start_date"),
+  leaseEndDate: dateCol("lease_end_date"),
+  rentAmount: money("rent_amount"),
   leaseLengthMonths: integer("lease_length_months"),
-  totalCommission: doublePrecision("total_commission").notNull(),
+  totalCommission: money("total_commission").notNull(),
   licensedCompany: text("licensed_company").notNull(),
   referrerName: text("referrer_name"), // free-text referral contact name
   referrerType: text("referrer_type"),
-  referrerAmount: doublePrecision("referrer_amount"),
+  referrerAmount: money("referrer_amount"),
   // Payment instructions for paying the referrer once Homix gets paid by the
   // building. Free text — typical content: "Zelle 555-0102", "ACH bank XYZ
   // routing 1234 acct 5678", "Wire to ...". Sensitive but lower stakes than
   // tenant docs since it's the referrer's own info that they gave us.
   referrerPaymentInfo: text("referrer_payment_info"),
   status: text("status").notNull().default("active"),
-  dealDate: text("deal_date"),
+  dealDate: dateCol("deal_date"),
   source: text("source"), // 客源来源 — see DealSource in src/lib/sources.ts
   notes: text("notes"),
   // Renewal tracking — for upcoming lease-end follow-ups
   renewalStatus: text("renewal_status"), // null | 'pending' | 'renewing' | 'moving_out' | 'renewed' | 'lost'
-  renewalNotedAt: text("renewal_noted_at"),
+  renewalNotedAt: timestamptz("renewal_noted_at"),
   renewedToDealId: integer("renewed_to_rental_deal_id"), // FK to rental_deals.id once renewal closes
   // 登单人 — the signed-in account that entered this deal.
   createdByEmail: text("created_by_email"),
-  createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
-  updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
+  createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
+  updatedAt: timestamptz("updated_at").$defaultFn(() => new Date().toISOString()),
 });
 
 export const rentalDealAgents = portal.table(
@@ -165,9 +180,9 @@ export const rentalDealAgents = portal.table(
     agentId: integer("agent_id")
       .notNull()
       .references(() => agents.id, { onDelete: "restrict" }),
-    sharePct: doublePrecision("share_pct").notNull(),
+    sharePct: fractionalPct("share_pct").notNull(),
     isPrimary: boolean("is_primary").notNull().default(false),
-    createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
+    createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
   },
   (table) => [primaryKey({ columns: [table.dealId, table.agentId] })]
 );
@@ -190,12 +205,12 @@ export const saleDeals = portal.table("sale_deals", {
   fileId: text("file_id"),
   buyerNames: text("buyer_names"),
   sellerNames: text("seller_names"),
-  contractDate: text("contract_date"),
-  closingDate: text("closing_date"),
-  purchasePrice: doublePrecision("purchase_price"),
-  grossCommission: doublePrecision("gross_commission").notNull().default(0),
-  referralAmount: doublePrecision("referral_amount"),
-  brokerageFee: doublePrecision("brokerage_fee"),
+  contractDate: dateCol("contract_date"),
+  closingDate: dateCol("closing_date"),
+  purchasePrice: money("purchase_price"),
+  grossCommission: money("gross_commission").notNull().default(0),
+  referralAmount: money("referral_amount"),
+  brokerageFee: money("brokerage_fee"),
   listingAgentName: text("listing_agent_name"),
   listingAgentEmail: text("listing_agent_email"),
   listingBrokerage: text("listing_brokerage"),
@@ -211,8 +226,8 @@ export const saleDeals = portal.table("sale_deals", {
   notes: text("notes"),
   // 登单人 — the signed-in account that entered this deal.
   createdByEmail: text("created_by_email"),
-  createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
-  updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
+  createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
+  updatedAt: timestamptz("updated_at").$defaultFn(() => new Date().toISOString()),
 });
 
 export const saleDealAgents = portal.table(
@@ -224,9 +239,9 @@ export const saleDealAgents = portal.table(
     agentId: integer("agent_id")
       .notNull()
       .references(() => agents.id, { onDelete: "restrict" }),
-    sharePct: doublePrecision("share_pct").notNull(),
+    sharePct: fractionalPct("share_pct").notNull(),
     isPrimary: boolean("is_primary").notNull().default(false),
-    createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
+    createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
   },
   (table) => [primaryKey({ columns: [table.saleDealId, table.agentId] })]
 );
@@ -249,7 +264,7 @@ export const invoiceSendLog = portal.table("invoice_send_log", {
   subject: text("subject").notNull(),
   status: text("status").notNull(), // 'sent' | 'failed'
   errorMessage: text("error_message"),
-  sentAt: text("sent_at").$defaultFn(() => new Date().toISOString()),
+  sentAt: timestamptz("sent_at").$defaultFn(() => new Date().toISOString()),
 });
 
 // ============================================================
@@ -265,8 +280,8 @@ export const trainingVideos = portal.table("training_videos", {
   durationLabel: text("duration_label"), // e.g. "8 min"
   sortOrder: integer("sort_order").notNull().default(100),
   isPublished: boolean("is_published").notNull().default(true),
-  createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
-  updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
+  createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
+  updatedAt: timestamptz("updated_at").$defaultFn(() => new Date().toISOString()),
 });
 
 export const trainingVideoViews = portal.table(
@@ -278,11 +293,11 @@ export const trainingVideoViews = portal.table(
       .references(() => trainingVideos.id, { onDelete: "cascade" }),
     agentId: integer("agent_id").references(() => agents.id, { onDelete: "set null" }),
     agentEmail: text("agent_email").notNull(),
-    firstViewedAt: text("first_viewed_at").notNull(),
-    lastViewedAt: text("last_viewed_at").notNull(),
+    firstViewedAt: timestamptz("first_viewed_at").notNull(),
+    lastViewedAt: timestamptz("last_viewed_at").notNull(),
     openCount: integer("open_count").notNull().default(1),
-    createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
-    updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
+    createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
+    updatedAt: timestamptz("updated_at").$defaultFn(() => new Date().toISOString()),
   },
   (table) => [
     uniqueIndex("idx_training_video_views_unique_viewer").on(
@@ -307,8 +322,8 @@ export const resources = portal.table("resources", {
   sampleUrl: text("sample_url"),
   sortOrder: integer("sort_order").notNull().default(100),
   isPublished: boolean("is_published").notNull().default(true),
-  createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
-  updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
+  createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
+  updatedAt: timestamptz("updated_at").$defaultFn(() => new Date().toISOString()),
 });
 
 // Required-documents checklists (做单必交文件), grouped by deal stage — e.g.
@@ -320,8 +335,8 @@ export const checklistItems = portal.table("checklist_items", {
   groupKey: text("group_key").notNull(),
   label: text("label").notNull(),
   sortOrder: integer("sort_order").notNull().default(100),
-  createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
-  updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
+  createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
+  updatedAt: timestamptz("updated_at").$defaultFn(() => new Date().toISOString()),
 });
 
 export const commerceOrders = portal.table("commerce_orders", {
@@ -348,9 +363,9 @@ export const commerceOrders = portal.table("commerce_orders", {
   workspaceStatus: text("workspace_status").notNull().default("not_required"),
   workspaceUserId: text("workspace_user_id"),
   workspaceError: text("workspace_error"),
-  paidAt: text("paid_at"),
-  createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
-  updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
+  paidAt: timestamptz("paid_at"),
+  createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
+  updatedAt: timestamptz("updated_at").$defaultFn(() => new Date().toISOString()),
 });
 
 // Every real money movement on a commerce order — one row per Stripe
@@ -372,10 +387,10 @@ export const commerceCharges = portal.table("commerce_charges", {
   productName: text("product_name"),
   customerEmail: text("customer_email"),
   customerName: text("customer_name"),
-  periodStart: text("period_start"),
-  periodEnd: text("period_end"),
-  paidAt: text("paid_at"),
-  createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
+  periodStart: timestamptz("period_start"),
+  periodEnd: timestamptz("period_end"),
+  paidAt: timestamptz("paid_at"),
+  createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
 });
 
 // Agent payment profile — self-service W-9 + ACH details so the office can
@@ -399,8 +414,8 @@ export const agentPaymentProfiles = portal.table("agent_payment_profiles", {
   accountNumber: text("account_number"),
   w9ObjectKey: text("w9_object_key"),
   w9FileName: text("w9_file_name"),
-  w9UploadedAt: text("w9_uploaded_at"),
-  updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
+  w9UploadedAt: timestamptz("w9_uploaded_at"),
+  updatedAt: timestamptz("updated_at").$defaultFn(() => new Date().toISOString()),
 });
 
 // Commission disbursements to agents. The actual money moves OUTSIDE the
@@ -419,10 +434,10 @@ export const agentPayouts = portal.table("agent_payouts", {
   memo: text("memo"),
   dealType: text("deal_type"), // rental | sale (optional link)
   dealId: integer("deal_id"),
-  paidAt: text("paid_at").notNull(), // date the money actually moved
+  paidAt: dateCol("paid_at").notNull(), // date the money actually moved
   createdByEmail: text("created_by_email"),
-  createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
-  updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()),
+  createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
+  updatedAt: timestamptz("updated_at").$defaultFn(() => new Date().toISOString()),
 });
 
 export const stripeEvents = portal.table("stripe_events", {
@@ -431,7 +446,7 @@ export const stripeEvents = portal.table("stripe_events", {
   orderId: integer("commerce_order_id").references(() => commerceOrders.id, {
     onDelete: "set null",
   }),
-  receivedAt: text("received_at").$defaultFn(() => new Date().toISOString()),
+  receivedAt: timestamptz("received_at").$defaultFn(() => new Date().toISOString()),
 });
 
 export type LineItem = {
@@ -456,8 +471,8 @@ export const notifications = portal.table("notifications", {
   body: text("body"),
   href: text("href"), // in-app path, e.g. /rental/123
   dedupeKey: text("dedupe_key").unique(),
-  readAt: text("read_at"),
-  createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
+  readAt: timestamptz("read_at"),
+  createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
 });
 
 // ============================================================
@@ -472,7 +487,7 @@ export const auditLog = portal.table("audit_log", {
   entityId: text("entity_id"),
   summary: text("summary").notNull(),
   detail: text("detail"), // optional JSON snapshot of the change
-  createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
+  createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
 });
 
 // ============================================================
@@ -496,7 +511,7 @@ export const dealDocuments = portal.table("deal_documents", {
   // Which required-document checklist item this upload satisfies (nullable —
   // freeform uploads stay allowed). Drives the per-deal checklist progress.
   checklistItemId: integer("checklist_item_id"),
-  createdAt: text("created_at").$defaultFn(() => new Date().toISOString()),
+  createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
 });
 
 export type Building = typeof buildings.$inferSelect;

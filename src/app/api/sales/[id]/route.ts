@@ -5,6 +5,7 @@ import { agents, saleDealAgents, saleDeals } from "@/db/schema";
 import { requireActiveAgentApi } from "@/lib/auth-guards";
 import { canEditSaleDeal, canViewSaleDeal } from "@/lib/visibility";
 import { logAudit } from "@/lib/audit";
+import { dateOrNull } from "@/lib/db-time";
 
 type SaleAgentPayload = {
   agentId: number;
@@ -122,8 +123,8 @@ async function validateSaleUpdate({
       fileId: stringOrNull(body.fileId),
       buyerNames: stringOrNull(body.buyerNames),
       sellerNames: stringOrNull(body.sellerNames),
-      contractDate: stringOrNull(body.contractDate),
-      closingDate: stringOrNull(body.closingDate),
+      contractDate: dateOrNull(body.contractDate),
+      closingDate: dateOrNull(body.closingDate),
       purchasePrice: parseNumber(body.purchasePrice),
       grossCommission,
       referralAmount: parseNumber(body.referralAmount),

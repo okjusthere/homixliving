@@ -77,7 +77,7 @@ export async function POST(
 
   const splitPct = body.splitPct === undefined || body.splitPct === null || body.splitPct === ""
     ? undefined
-    : Number(body.splitPct);
+    : Math.round(Number(body.splitPct));
   if (splitPct !== undefined && (!Number.isFinite(splitPct) || splitPct < 0 || splitPct > 100)) {
     return NextResponse.json({ error: "Split must be between 0 and 100" }, { status: 400 });
   }

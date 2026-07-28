@@ -265,8 +265,8 @@ export async function ensureSchema(sql: Sql) {
       contact_email TEXT,
       special_notes TEXT,
       is_out_of_state BOOLEAN DEFAULT FALSE,
-      created_at TEXT,
-      updated_at TEXT
+      created_at TIMESTAMPTZ,
+      updated_at TIMESTAMPTZ
     )`);
 
   await run(`
@@ -290,16 +290,16 @@ export async function ensureSchema(sql: Sql) {
       email TEXT NOT NULL UNIQUE,
       phone TEXT,
       license_number TEXT,
-      license_expires_at TEXT,
+      license_expires_at DATE,
       licensed_company TEXT,
-      split_pct DOUBLE PRECISION NOT NULL DEFAULT 80,
+      split_pct INTEGER NOT NULL DEFAULT 80,
       team_id INTEGER REFERENCES portal.teams(id) ON DELETE SET NULL,
       is_admin BOOLEAN NOT NULL DEFAULT FALSE,
       account_status TEXT NOT NULL DEFAULT 'pending',
-      joined_at TEXT,
+      joined_at DATE,
       notes TEXT,
-      created_at TEXT,
-      updated_at TEXT
+      created_at TIMESTAMPTZ,
+      updated_at TIMESTAMPTZ
     )`);
 
   // Expand from the former account/visibility columns. Legacy columns remain
@@ -357,36 +357,36 @@ export async function ensureSchema(sql: Sql) {
       tenant_email TEXT,
       tenant_phone TEXT,
       apartment_address TEXT,
-      move_in_date TEXT,
-      lease_start_date TEXT,
-      lease_end_date TEXT,
-      rent_amount DOUBLE PRECISION,
+      move_in_date DATE,
+      lease_start_date DATE,
+      lease_end_date DATE,
+      rent_amount NUMERIC(14,2),
       lease_length_months INTEGER,
-      total_commission DOUBLE PRECISION NOT NULL,
+      total_commission NUMERIC(14,2) NOT NULL,
       licensed_company TEXT NOT NULL,
       referrer_name TEXT,
       referrer_type TEXT,
-      referrer_amount DOUBLE PRECISION,
+      referrer_amount NUMERIC(14,2),
       referrer_payment_info TEXT,
       status TEXT NOT NULL DEFAULT 'active',
-      deal_date TEXT,
+      deal_date DATE,
       source TEXT,
       notes TEXT,
       renewal_status TEXT,
-      renewal_noted_at TEXT,
+      renewal_noted_at TIMESTAMPTZ,
       renewed_to_rental_deal_id INTEGER REFERENCES portal.rental_deals(id) ON DELETE SET NULL,
       created_by_email TEXT,
-      created_at TEXT,
-      updated_at TEXT
+      created_at TIMESTAMPTZ,
+      updated_at TIMESTAMPTZ
     )`);
 
   await run(`
     CREATE TABLE IF NOT EXISTS portal.rental_deal_agents (
       rental_deal_id INTEGER NOT NULL REFERENCES portal.rental_deals(id) ON DELETE CASCADE,
       agent_id INTEGER NOT NULL REFERENCES portal.agents(id) ON DELETE RESTRICT,
-      share_pct DOUBLE PRECISION NOT NULL,
+      share_pct NUMERIC(6,3) NOT NULL,
       is_primary BOOLEAN NOT NULL DEFAULT FALSE,
-      created_at TEXT,
+      created_at TIMESTAMPTZ,
       PRIMARY KEY (rental_deal_id, agent_id)
     )`);
   await run(`
@@ -408,12 +408,12 @@ export async function ensureSchema(sql: Sql) {
       file_id TEXT,
       buyer_names TEXT,
       seller_names TEXT,
-      contract_date TEXT,
-      closing_date TEXT,
-      purchase_price DOUBLE PRECISION,
-      gross_commission DOUBLE PRECISION NOT NULL DEFAULT 0,
-      referral_amount DOUBLE PRECISION,
-      brokerage_fee DOUBLE PRECISION,
+      contract_date DATE,
+      closing_date DATE,
+      purchase_price NUMERIC(14,2),
+      gross_commission NUMERIC(14,2) NOT NULL DEFAULT 0,
+      referral_amount NUMERIC(14,2),
+      brokerage_fee NUMERIC(14,2),
       listing_agent_name TEXT,
       listing_agent_email TEXT,
       listing_brokerage TEXT,
@@ -428,17 +428,17 @@ export async function ensureSchema(sql: Sql) {
       source TEXT,
       notes TEXT,
       created_by_email TEXT,
-      created_at TEXT,
-      updated_at TEXT
+      created_at TIMESTAMPTZ,
+      updated_at TIMESTAMPTZ
     )`);
 
   await run(`
     CREATE TABLE IF NOT EXISTS portal.sale_deal_agents (
       sale_deal_id INTEGER NOT NULL REFERENCES portal.sale_deals(id) ON DELETE CASCADE,
       agent_id INTEGER NOT NULL REFERENCES portal.agents(id) ON DELETE RESTRICT,
-      share_pct DOUBLE PRECISION NOT NULL,
+      share_pct NUMERIC(6,3) NOT NULL,
       is_primary BOOLEAN NOT NULL DEFAULT FALSE,
-      created_at TEXT,
+      created_at TIMESTAMPTZ,
       PRIMARY KEY (sale_deal_id, agent_id)
     )`);
   await run(`
@@ -459,19 +459,19 @@ export async function ensureSchema(sql: Sql) {
       agent_name TEXT,
       agent_phone TEXT,
       apartment_address TEXT,
-      move_in_date TEXT,
+      move_in_date DATE,
       licensed_company TEXT NOT NULL,
       year INTEGER NOT NULL DEFAULT 2026,
       line_items JSONB,
-      total_amount DOUBLE PRECISION NOT NULL,
+      total_amount NUMERIC(14,2) NOT NULL,
       notes TEXT,
       status TEXT NOT NULL DEFAULT 'draft',
-      sent_at TEXT,
-      paid_at TEXT,
-      paid_amount DOUBLE PRECISION,
+      sent_at TIMESTAMPTZ,
+      paid_at TIMESTAMPTZ,
+      paid_amount NUMERIC(14,2),
       pdf_data TEXT,
-      created_at TEXT,
-      updated_at TEXT
+      created_at TIMESTAMPTZ,
+      updated_at TIMESTAMPTZ
     )`);
 
   await run(`
@@ -485,7 +485,7 @@ export async function ensureSchema(sql: Sql) {
       subject TEXT NOT NULL,
       status TEXT NOT NULL,
       error_message TEXT,
-      sent_at TEXT
+      sent_at TIMESTAMPTZ
     )`);
   await run(`
     CREATE INDEX IF NOT EXISTS idx_invoice_send_log_invoice
@@ -516,9 +516,9 @@ export async function ensureSchema(sql: Sql) {
       workspace_status TEXT NOT NULL DEFAULT 'not_required',
       workspace_user_id TEXT,
       workspace_error TEXT,
-      paid_at TEXT,
-      created_at TEXT,
-      updated_at TEXT
+      paid_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ,
+      updated_at TIMESTAMPTZ
     )`);
   await run(`
     CREATE INDEX IF NOT EXISTS idx_commerce_orders_subscription
@@ -532,7 +532,7 @@ export async function ensureSchema(sql: Sql) {
       id TEXT PRIMARY KEY,
       type TEXT NOT NULL,
       commerce_order_id INTEGER REFERENCES portal.commerce_orders(id) ON DELETE SET NULL,
-      received_at TEXT
+      received_at TIMESTAMPTZ
     )`);
 
   await run(`
@@ -548,10 +548,10 @@ export async function ensureSchema(sql: Sql) {
       product_name TEXT,
       customer_email TEXT,
       customer_name TEXT,
-      period_start TEXT,
-      period_end TEXT,
-      paid_at TEXT,
-      created_at TEXT
+      period_start TIMESTAMPTZ,
+      period_end TIMESTAMPTZ,
+      paid_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ
     )`);
   await run(`
     CREATE INDEX IF NOT EXISTS idx_commerce_charges_paid_at
@@ -570,8 +570,8 @@ export async function ensureSchema(sql: Sql) {
       duration_label TEXT,
       sort_order INTEGER NOT NULL DEFAULT 100,
       is_published BOOLEAN NOT NULL DEFAULT TRUE,
-      created_at TEXT,
-      updated_at TEXT
+      created_at TIMESTAMPTZ,
+      updated_at TIMESTAMPTZ
     )`);
 
   await run(`
@@ -580,11 +580,11 @@ export async function ensureSchema(sql: Sql) {
       video_id INTEGER NOT NULL REFERENCES portal.training_videos(id) ON DELETE CASCADE,
       agent_id INTEGER REFERENCES portal.agents(id) ON DELETE SET NULL,
       agent_email TEXT NOT NULL,
-      first_viewed_at TEXT NOT NULL,
-      last_viewed_at TEXT NOT NULL,
+      first_viewed_at TIMESTAMPTZ NOT NULL,
+      last_viewed_at TIMESTAMPTZ NOT NULL,
       open_count INTEGER NOT NULL DEFAULT 1,
-      created_at TEXT,
-      updated_at TEXT
+      created_at TIMESTAMPTZ,
+      updated_at TIMESTAMPTZ
     )`);
   await run(`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_training_video_views_unique_viewer
@@ -603,8 +603,8 @@ export async function ensureSchema(sql: Sql) {
       sample_url TEXT,
       sort_order INTEGER NOT NULL DEFAULT 100,
       is_published BOOLEAN NOT NULL DEFAULT TRUE,
-      created_at TEXT,
-      updated_at TEXT
+      created_at TIMESTAMPTZ,
+      updated_at TIMESTAMPTZ
     )`);
 
   await run(`
@@ -613,8 +613,8 @@ export async function ensureSchema(sql: Sql) {
       group_key TEXT NOT NULL,
       label TEXT NOT NULL,
       sort_order INTEGER NOT NULL DEFAULT 100,
-      created_at TEXT,
-      updated_at TEXT
+      created_at TIMESTAMPTZ,
+      updated_at TIMESTAMPTZ
     )`);
   await run(`
     CREATE INDEX IF NOT EXISTS idx_checklist_items_group
@@ -629,8 +629,8 @@ export async function ensureSchema(sql: Sql) {
       body TEXT,
       href TEXT,
       dedupe_key TEXT UNIQUE,
-      read_at TEXT,
-      created_at TEXT
+      read_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ
     )`);
   await run(`
     CREATE INDEX IF NOT EXISTS idx_notifications_recipient
@@ -645,7 +645,7 @@ export async function ensureSchema(sql: Sql) {
       entity_id TEXT,
       summary TEXT NOT NULL,
       detail TEXT,
-      created_at TEXT
+      created_at TIMESTAMPTZ
     )`);
   await run(`
     CREATE INDEX IF NOT EXISTS idx_audit_log_entity
@@ -664,7 +664,7 @@ export async function ensureSchema(sql: Sql) {
       size INTEGER,
       uploaded_by_email TEXT,
       checklist_item_id INTEGER,
-      created_at TEXT
+      created_at TIMESTAMPTZ
     )`);
   await run(`
     CREATE INDEX IF NOT EXISTS idx_deal_documents_deal
@@ -685,8 +685,8 @@ export async function ensureSchema(sql: Sql) {
       account_number TEXT,
       w9_object_key TEXT,
       w9_file_name TEXT,
-      w9_uploaded_at TEXT,
-      updated_at TEXT
+      w9_uploaded_at TIMESTAMPTZ,
+      updated_at TIMESTAMPTZ
     )`);
 
   await run(`
@@ -699,10 +699,10 @@ export async function ensureSchema(sql: Sql) {
       memo TEXT,
       deal_type TEXT,
       deal_id INTEGER,
-      paid_at TEXT NOT NULL,
+      paid_at DATE NOT NULL,
       created_by_email TEXT,
-      created_at TEXT,
-      updated_at TEXT
+      created_at TIMESTAMPTZ,
+      updated_at TIMESTAMPTZ
     )`);
   await run(`
     CREATE INDEX IF NOT EXISTS idx_agent_payouts_agent_paid

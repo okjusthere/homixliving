@@ -21,7 +21,7 @@ const nextConfig: NextConfig = {
     // scripts/optimize-public-images.mjs. Matches the marketing site, which
     // already sets this for the same reason.
     unoptimized: true,
-    remotePatterns: [new URL("https://www.homixny.com/homix-mark.webp")],
+    remotePatterns: [new URL("https://www.homixny.com/homix-mark-small.webp")],
   },
   outputFileTracingIncludes: {
     "/api/invoices/*/send": ["src/assets/homix-living-inc-w9.pdf"],
