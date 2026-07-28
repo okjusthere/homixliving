@@ -1,31 +1,46 @@
--- Real types for temporal and money columns.
+-- Real types for temporal and money columns — hardened for legacy junk.
 --
---   * every *_at instant        TEXT  -> TIMESTAMPTZ
---   * every calendar date       TEXT  -> DATE        (lease/closing/joined/…)
---   * every dollar amount       DOUBLE PRECISION -> NUMERIC(14,2)
---   * per-deal share_pct        DOUBLE PRECISION -> NUMERIC(6,3)  (33.333 splits)
---   * agents.split_pct          DOUBLE PRECISION -> INTEGER       (plans are whole %)
+-- Supersedes 20260728-temporal-and-money-types.sql, which assumed every stored
+-- value was a real timestamp. The Turso/SQLite port left literal strings like
+-- "CURRENT_TIMESTAMP" in some rows, which aborted the plain ::timestamptz cast.
 --
--- Deploy the application FIRST, then run this. The new code reads and writes
--- both the old and the new types (temporal values stay strings through
--- drizzle's node-postgres text parsers; ISO strings cast on assignment), so
--- there is no window in either order — but code-first means the historical
--- mixed formats (ISO from the app vs `now()::text` from earlier migrations)
--- are normalized the moment this commits, which also fixes text-order
--- comparisons on updated_at that those rows currently break.
+-- Two classes of junk are handled:
+--   * unparseable      "CURRENT_TIMESTAMP", "", garbage  -> NULL
+--   * relative literals "now", "now()", "today", "epoch" -> NULL
+--     (Postgres ACCEPTS these and would silently stamp them with the moment
+--     this migration runs — a wrong value is worse than a missing one.)
 --
--- Existing values: app-written ISO-8601 UTC strings ("2026-07-28T01:14:31.123Z"),
--- migration-written `now()::text` ("2026-07-26 22:20:13.4+00" on Supabase/UTC),
--- and "YYYY-MM-DD" for date fields — all cast cleanly. NULLIF() guards the
--- nullable columns against any stray empty string.
+-- Guards: refuses to run twice, refuses on fractional split_pct, and refuses
+-- if agent_payouts.paid_at (the 1099 basis) holds anything unparseable —
+-- that column must never be guessed.
 
 BEGIN;
 
 SET LOCAL timezone = 'UTC';
 
--- Refuse to run twice: on already-converted columns the NULLIF('') literals
--- below would fail with confusing cast errors partway through. Aborting here
--- keeps the transaction untouched.
+-- ── helpers ───────────────────────────────────────────────────────────────
+-- A value that only Postgres's "special" date input would accept carries no
+-- real information; treat it as absent rather than as "whenever this ran".
+CREATE OR REPLACE FUNCTION portal.__relative(v text) RETURNS boolean AS $$
+  SELECT btrim(lower(coalesce(v, ''))) ~
+    '^(now|today|tomorrow|yesterday|epoch|allballs|current_timestamp|current_date|current_time|infinity|[+-]infinity)(\(\))?$';
+$$ LANGUAGE sql IMMUTABLE;
+
+CREATE OR REPLACE FUNCTION portal.__ts(v text) RETURNS timestamptz AS $$
+BEGIN
+  IF v IS NULL OR btrim(v) = '' OR portal.__relative(v) THEN RETURN NULL; END IF;
+  RETURN v::timestamptz;
+EXCEPTION WHEN others THEN RETURN NULL;
+END $$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION portal.__dt(v text) RETURNS date AS $$
+BEGIN
+  IF v IS NULL OR btrim(v) = '' OR portal.__relative(v) THEN RETURN NULL; END IF;
+  RETURN v::date;
+EXCEPTION WHEN others THEN RETURN NULL;
+END $$ LANGUAGE plpgsql;
+
+-- ── guards ────────────────────────────────────────────────────────────────
 DO $$
 BEGIN
   IF (SELECT data_type FROM information_schema.columns
@@ -34,7 +49,6 @@ BEGIN
   END IF;
 END $$;
 
--- Abort rather than silently round if a fractional split ever slipped in.
 DO $$
 DECLARE bad integer;
 BEGIN
@@ -44,110 +58,154 @@ BEGIN
   END IF;
 END $$;
 
+-- The 1099 basis. Never guess this one.
+DO $$
+DECLARE bad integer;
+BEGIN
+  SELECT count(*) INTO bad FROM portal.agent_payouts WHERE portal.__dt(paid_at) IS NULL;
+  IF bad > 0 THEN
+    RAISE EXCEPTION 'portal.agent_payouts has % row(s) whose paid_at is not a real date — fix those rows by hand first (they drive 1099 totals)', bad;
+  END IF;
+END $$;
+
+-- Legacy column DEFAULTs that are themselves uncastable text literals would
+-- break ALTER ... TYPE independently of the data. Drop them; the application
+-- writes these columns explicitly on every insert.
+DO $$
+DECLARE r record;
+BEGIN
+  FOR r IN
+    SELECT c.table_name AS t, c.column_name AS cn
+    FROM information_schema.columns c
+    WHERE c.table_schema = 'portal' AND c.data_type = 'text'
+      AND c.column_default IS NOT NULL
+      AND (c.column_name LIKE '%\_at' OR c.column_name LIKE '%\_date'
+           OR c.column_name IN ('period_start','period_end'))
+  LOOP
+    EXECUTE format('ALTER TABLE portal.%I ALTER COLUMN %I DROP DEFAULT', r.t, r.cn);
+    RAISE NOTICE 'dropped legacy default on %.%', r.t, r.cn;
+  END LOOP;
+END $$;
+
+-- NOT NULL analytics timestamps: fall back to the row's own created_at before
+-- the column becomes NOT NULL timestamptz (these are view counters, not money).
+UPDATE portal.training_video_views
+   SET first_viewed_at = coalesce(portal.__ts(first_viewed_at), portal.__ts(created_at), now())::text
+ WHERE portal.__ts(first_viewed_at) IS NULL;
+UPDATE portal.training_video_views
+   SET last_viewed_at = coalesce(portal.__ts(last_viewed_at), portal.__ts(created_at), now())::text
+ WHERE portal.__ts(last_viewed_at) IS NULL;
+
+-- ── conversions ───────────────────────────────────────────────────────────
 ALTER TABLE portal.buildings
-  ALTER COLUMN created_at TYPE timestamptz USING NULLIF(created_at, '')::timestamptz,
-  ALTER COLUMN updated_at TYPE timestamptz USING NULLIF(updated_at, '')::timestamptz;
+  ALTER COLUMN created_at TYPE timestamptz USING portal.__ts(created_at),
+  ALTER COLUMN updated_at TYPE timestamptz USING portal.__ts(updated_at);
 
 ALTER TABLE portal.invoices
-  ALTER COLUMN move_in_date TYPE date        USING NULLIF(move_in_date, '')::date,
-  ALTER COLUMN sent_at      TYPE timestamptz USING NULLIF(sent_at, '')::timestamptz,
-  ALTER COLUMN paid_at      TYPE timestamptz USING NULLIF(paid_at, '')::timestamptz,
-  ALTER COLUMN created_at   TYPE timestamptz USING NULLIF(created_at, '')::timestamptz,
-  ALTER COLUMN updated_at   TYPE timestamptz USING NULLIF(updated_at, '')::timestamptz,
+  ALTER COLUMN move_in_date TYPE date        USING portal.__dt(move_in_date),
+  ALTER COLUMN sent_at      TYPE timestamptz USING portal.__ts(sent_at),
+  ALTER COLUMN paid_at      TYPE timestamptz USING portal.__ts(paid_at),
+  ALTER COLUMN created_at   TYPE timestamptz USING portal.__ts(created_at),
+  ALTER COLUMN updated_at   TYPE timestamptz USING portal.__ts(updated_at),
   ALTER COLUMN total_amount TYPE numeric(14,2) USING round(total_amount::numeric, 2),
   ALTER COLUMN paid_amount  TYPE numeric(14,2) USING round(paid_amount::numeric, 2);
 
 ALTER TABLE portal.agents
-  ALTER COLUMN license_expires_at TYPE date USING NULLIF(license_expires_at, '')::date,
-  ALTER COLUMN joined_at          TYPE date USING NULLIF(joined_at, '')::date,
-  ALTER COLUMN created_at TYPE timestamptz USING NULLIF(created_at, '')::timestamptz,
-  ALTER COLUMN updated_at TYPE timestamptz USING NULLIF(updated_at, '')::timestamptz,
+  ALTER COLUMN license_expires_at TYPE date USING portal.__dt(license_expires_at),
+  ALTER COLUMN joined_at          TYPE date USING portal.__dt(joined_at),
+  ALTER COLUMN created_at TYPE timestamptz USING portal.__ts(created_at),
+  ALTER COLUMN updated_at TYPE timestamptz USING portal.__ts(updated_at),
   ALTER COLUMN split_pct  TYPE integer     USING round(split_pct)::integer;
 
 ALTER TABLE portal.rental_deals
-  ALTER COLUMN move_in_date     TYPE date USING NULLIF(move_in_date, '')::date,
-  ALTER COLUMN lease_start_date TYPE date USING NULLIF(lease_start_date, '')::date,
-  ALTER COLUMN lease_end_date   TYPE date USING NULLIF(lease_end_date, '')::date,
-  ALTER COLUMN deal_date        TYPE date USING NULLIF(deal_date, '')::date,
-  ALTER COLUMN renewal_noted_at TYPE timestamptz USING NULLIF(renewal_noted_at, '')::timestamptz,
-  ALTER COLUMN created_at       TYPE timestamptz USING NULLIF(created_at, '')::timestamptz,
-  ALTER COLUMN updated_at       TYPE timestamptz USING NULLIF(updated_at, '')::timestamptz,
+  ALTER COLUMN move_in_date     TYPE date USING portal.__dt(move_in_date),
+  ALTER COLUMN lease_start_date TYPE date USING portal.__dt(lease_start_date),
+  ALTER COLUMN lease_end_date   TYPE date USING portal.__dt(lease_end_date),
+  ALTER COLUMN deal_date        TYPE date USING portal.__dt(deal_date),
+  ALTER COLUMN renewal_noted_at TYPE timestamptz USING portal.__ts(renewal_noted_at),
+  ALTER COLUMN created_at       TYPE timestamptz USING portal.__ts(created_at),
+  ALTER COLUMN updated_at       TYPE timestamptz USING portal.__ts(updated_at),
   ALTER COLUMN rent_amount      TYPE numeric(14,2) USING round(rent_amount::numeric, 2),
   ALTER COLUMN total_commission TYPE numeric(14,2) USING round(total_commission::numeric, 2),
   ALTER COLUMN referrer_amount  TYPE numeric(14,2) USING round(referrer_amount::numeric, 2);
 
 ALTER TABLE portal.rental_deal_agents
-  ALTER COLUMN created_at TYPE timestamptz  USING NULLIF(created_at, '')::timestamptz,
+  ALTER COLUMN created_at TYPE timestamptz  USING portal.__ts(created_at),
   ALTER COLUMN share_pct  TYPE numeric(6,3) USING round(share_pct::numeric, 3);
 
 ALTER TABLE portal.sale_deals
-  ALTER COLUMN contract_date    TYPE date USING NULLIF(contract_date, '')::date,
-  ALTER COLUMN closing_date     TYPE date USING NULLIF(closing_date, '')::date,
-  ALTER COLUMN created_at       TYPE timestamptz USING NULLIF(created_at, '')::timestamptz,
-  ALTER COLUMN updated_at       TYPE timestamptz USING NULLIF(updated_at, '')::timestamptz,
+  ALTER COLUMN contract_date    TYPE date USING portal.__dt(contract_date),
+  ALTER COLUMN closing_date     TYPE date USING portal.__dt(closing_date),
+  ALTER COLUMN created_at       TYPE timestamptz USING portal.__ts(created_at),
+  ALTER COLUMN updated_at       TYPE timestamptz USING portal.__ts(updated_at),
   ALTER COLUMN purchase_price   TYPE numeric(14,2) USING round(purchase_price::numeric, 2),
   ALTER COLUMN gross_commission TYPE numeric(14,2) USING round(gross_commission::numeric, 2),
   ALTER COLUMN referral_amount  TYPE numeric(14,2) USING round(referral_amount::numeric, 2),
   ALTER COLUMN brokerage_fee    TYPE numeric(14,2) USING round(brokerage_fee::numeric, 2);
 
 ALTER TABLE portal.sale_deal_agents
-  ALTER COLUMN created_at TYPE timestamptz  USING NULLIF(created_at, '')::timestamptz,
+  ALTER COLUMN created_at TYPE timestamptz  USING portal.__ts(created_at),
   ALTER COLUMN share_pct  TYPE numeric(6,3) USING round(share_pct::numeric, 3);
 
 ALTER TABLE portal.invoice_send_log
-  ALTER COLUMN sent_at TYPE timestamptz USING NULLIF(sent_at, '')::timestamptz;
+  ALTER COLUMN sent_at TYPE timestamptz USING portal.__ts(sent_at);
 
 ALTER TABLE portal.training_videos
-  ALTER COLUMN created_at TYPE timestamptz USING NULLIF(created_at, '')::timestamptz,
-  ALTER COLUMN updated_at TYPE timestamptz USING NULLIF(updated_at, '')::timestamptz;
+  ALTER COLUMN created_at TYPE timestamptz USING portal.__ts(created_at),
+  ALTER COLUMN updated_at TYPE timestamptz USING portal.__ts(updated_at);
 
 ALTER TABLE portal.training_video_views
-  ALTER COLUMN first_viewed_at TYPE timestamptz USING first_viewed_at::timestamptz,
-  ALTER COLUMN last_viewed_at  TYPE timestamptz USING last_viewed_at::timestamptz,
-  ALTER COLUMN created_at      TYPE timestamptz USING NULLIF(created_at, '')::timestamptz,
-  ALTER COLUMN updated_at      TYPE timestamptz USING NULLIF(updated_at, '')::timestamptz;
+  ALTER COLUMN first_viewed_at TYPE timestamptz USING portal.__ts(first_viewed_at),
+  ALTER COLUMN last_viewed_at  TYPE timestamptz USING portal.__ts(last_viewed_at),
+  ALTER COLUMN created_at      TYPE timestamptz USING portal.__ts(created_at),
+  ALTER COLUMN updated_at      TYPE timestamptz USING portal.__ts(updated_at);
 
 ALTER TABLE portal.resources
-  ALTER COLUMN created_at TYPE timestamptz USING NULLIF(created_at, '')::timestamptz,
-  ALTER COLUMN updated_at TYPE timestamptz USING NULLIF(updated_at, '')::timestamptz;
+  ALTER COLUMN created_at TYPE timestamptz USING portal.__ts(created_at),
+  ALTER COLUMN updated_at TYPE timestamptz USING portal.__ts(updated_at);
 
 ALTER TABLE portal.checklist_items
-  ALTER COLUMN created_at TYPE timestamptz USING NULLIF(created_at, '')::timestamptz,
-  ALTER COLUMN updated_at TYPE timestamptz USING NULLIF(updated_at, '')::timestamptz;
+  ALTER COLUMN created_at TYPE timestamptz USING portal.__ts(created_at),
+  ALTER COLUMN updated_at TYPE timestamptz USING portal.__ts(updated_at);
 
 ALTER TABLE portal.commerce_orders
-  ALTER COLUMN paid_at    TYPE timestamptz USING NULLIF(paid_at, '')::timestamptz,
-  ALTER COLUMN created_at TYPE timestamptz USING NULLIF(created_at, '')::timestamptz,
-  ALTER COLUMN updated_at TYPE timestamptz USING NULLIF(updated_at, '')::timestamptz;
+  ALTER COLUMN paid_at    TYPE timestamptz USING portal.__ts(paid_at),
+  ALTER COLUMN created_at TYPE timestamptz USING portal.__ts(created_at),
+  ALTER COLUMN updated_at TYPE timestamptz USING portal.__ts(updated_at);
 
 ALTER TABLE portal.commerce_charges
-  ALTER COLUMN period_start TYPE timestamptz USING NULLIF(period_start, '')::timestamptz,
-  ALTER COLUMN period_end   TYPE timestamptz USING NULLIF(period_end, '')::timestamptz,
-  ALTER COLUMN paid_at      TYPE timestamptz USING NULLIF(paid_at, '')::timestamptz,
-  ALTER COLUMN created_at   TYPE timestamptz USING NULLIF(created_at, '')::timestamptz;
+  ALTER COLUMN period_start TYPE timestamptz USING portal.__ts(period_start),
+  ALTER COLUMN period_end   TYPE timestamptz USING portal.__ts(period_end),
+  ALTER COLUMN paid_at      TYPE timestamptz USING portal.__ts(paid_at),
+  ALTER COLUMN created_at   TYPE timestamptz USING portal.__ts(created_at);
 
 ALTER TABLE portal.agent_payment_profiles
-  ALTER COLUMN w9_uploaded_at TYPE timestamptz USING NULLIF(w9_uploaded_at, '')::timestamptz,
-  ALTER COLUMN updated_at     TYPE timestamptz USING NULLIF(updated_at, '')::timestamptz;
+  ALTER COLUMN w9_uploaded_at TYPE timestamptz USING portal.__ts(w9_uploaded_at),
+  ALTER COLUMN updated_at     TYPE timestamptz USING portal.__ts(updated_at);
 
 -- paid_at here is "date the money actually moved" (regex-validated YYYY-MM-DD)
--- and drives 1099 year bucketing — a calendar date, not an instant.
+-- and drives 1099 year bucketing — a calendar date, not an instant. The guard
+-- above proved every value parses.
 ALTER TABLE portal.agent_payouts
-  ALTER COLUMN paid_at    TYPE date        USING paid_at::date,
-  ALTER COLUMN created_at TYPE timestamptz USING NULLIF(created_at, '')::timestamptz,
-  ALTER COLUMN updated_at TYPE timestamptz USING NULLIF(updated_at, '')::timestamptz;
+  ALTER COLUMN paid_at    TYPE date        USING portal.__dt(paid_at),
+  ALTER COLUMN created_at TYPE timestamptz USING portal.__ts(created_at),
+  ALTER COLUMN updated_at TYPE timestamptz USING portal.__ts(updated_at);
 
 ALTER TABLE portal.stripe_events
-  ALTER COLUMN received_at TYPE timestamptz USING NULLIF(received_at, '')::timestamptz;
+  ALTER COLUMN received_at TYPE timestamptz USING portal.__ts(received_at);
 
 ALTER TABLE portal.notifications
-  ALTER COLUMN read_at    TYPE timestamptz USING NULLIF(read_at, '')::timestamptz,
-  ALTER COLUMN created_at TYPE timestamptz USING NULLIF(created_at, '')::timestamptz;
+  ALTER COLUMN read_at    TYPE timestamptz USING portal.__ts(read_at),
+  ALTER COLUMN created_at TYPE timestamptz USING portal.__ts(created_at);
 
 ALTER TABLE portal.audit_log
-  ALTER COLUMN created_at TYPE timestamptz USING NULLIF(created_at, '')::timestamptz;
+  ALTER COLUMN created_at TYPE timestamptz USING portal.__ts(created_at);
 
 ALTER TABLE portal.deal_documents
-  ALTER COLUMN created_at TYPE timestamptz USING NULLIF(created_at, '')::timestamptz;
+  ALTER COLUMN created_at TYPE timestamptz USING portal.__ts(created_at);
+
+DROP FUNCTION portal.__ts(text);
+DROP FUNCTION portal.__dt(text);
+DROP FUNCTION portal.__relative(text);
 
 COMMIT;
