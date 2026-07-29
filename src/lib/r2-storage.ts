@@ -174,3 +174,62 @@ export async function deleteAgentDocument(objectKey: string): Promise<void> {
   const { client, bucket } = getClient();
   await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: objectKey }));
 }
+
+// ---------------------------------------------------------------------------
+// Company documents. These share the private bucket with deal and agent files
+// but use their own prefix so retention and access rules stay unambiguous.
+// ---------------------------------------------------------------------------
+
+const COMPANY_DOC_PREFIX = "company-docs/";
+
+export function companyW9ObjectKey(fileName: string): string {
+  const sanitized =
+    fileName.replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 80) || "company-w9.pdf";
+  return `${COMPANY_DOC_PREFIX}w9-${crypto.randomUUID()}-${sanitized}`;
+}
+
+export async function putCompanyDocument(
+  objectKey: string,
+  body: Buffer,
+  contentType: string,
+): Promise<void> {
+  const { client, bucket } = getClient();
+  await client.send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: objectKey,
+      Body: body,
+      ContentType: contentType,
+    }),
+  );
+}
+
+export async function createCompanyDocumentDownloadUrl(
+  objectKey: string,
+  fileName: string,
+): Promise<string> {
+  const { client, bucket } = getClient();
+  return getSignedUrl(
+    client,
+    new GetObjectCommand({
+      Bucket: bucket,
+      Key: objectKey,
+      ResponseContentDisposition: contentDisposition(fileName),
+    }),
+    { expiresIn: DOWNLOAD_URL_TTL_SECONDS },
+  );
+}
+
+export async function getCompanyDocument(objectKey: string): Promise<Buffer> {
+  const { client, bucket } = getClient();
+  const result = await client.send(
+    new GetObjectCommand({ Bucket: bucket, Key: objectKey }),
+  );
+  if (!result.Body) throw new Error("Company document is empty");
+  return Buffer.from(await result.Body.transformToByteArray());
+}
+
+export async function deleteCompanyDocument(objectKey: string): Promise<void> {
+  const { client, bucket } = getClient();
+  await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: objectKey }));
+}

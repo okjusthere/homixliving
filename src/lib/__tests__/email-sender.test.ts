@@ -18,6 +18,17 @@ async function main() {
   assert.equal(Buffer.from(attachments[0].content, "base64").toString(), "%PDF-test-invoice");
   assert.equal(Buffer.from(attachments[1].content, "base64").subarray(0, 4).toString(), "%PDF");
 
+  const uploadedW9 = Buffer.from("%PDF-admin-upload");
+  const uploadedAttachments = await buildInvoiceEmailAttachments(
+    "Uploaded-W9-Invoice",
+    invoicePdf,
+    uploadedW9,
+  );
+  assert.equal(
+    Buffer.from(uploadedAttachments[1].content, "base64").toString(),
+    "%PDF-admin-upload",
+  );
+
   console.log("email sender tests passed");
 }
 

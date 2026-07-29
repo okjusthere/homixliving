@@ -9,6 +9,8 @@ import { PageHeader, CardHeader } from "@/components/homix/page-kit";
 import { ResourceManager } from "@/components/resources/resource-manager";
 import { ChecklistManager } from "@/components/resources/checklist-manager";
 import { RequiredDocs } from "@/components/resources/required-docs";
+import { CompanyDocuments } from "@/components/resources/company-documents";
+import { getCompanyW9Metadata } from "@/lib/company-w9";
 import { getLocale } from "@/lib/i18n";
 
 export const metadata: Metadata = { title: "Resources · Homix" };
@@ -83,7 +85,10 @@ export default async function ResourcesPage() {
   const isAdmin = !!session.user.isAdmin;
   const t = M[await getLocale()];
 
-  const [all, checklist] = await loadLibrary();
+  const [[all, checklist], companyW9] = await Promise.all([
+    loadLibrary(),
+    getCompanyW9Metadata(),
+  ]);
   const visible = isAdmin ? all : all.filter((r) => r.isPublished);
   const groups = groupByCategory(visible);
 
@@ -156,6 +161,8 @@ export default async function ResourcesPage() {
           ))}
         </div>
       )}
+
+      <CompanyDocuments initialW9={companyW9} isAdmin={isAdmin} />
     </div>
   );
 }
