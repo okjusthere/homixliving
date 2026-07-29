@@ -56,6 +56,9 @@ const M = {
     commission: "Commission",
     addLine: "Add line",
     descriptionPlaceholder: "Description",
+    quantity: "Qty",
+    unitPrice: "Unit price",
+    amount: "Amount",
     invoicePreview: "Invoice № preview",
     total: "Total",
     notes: "Notes",
@@ -99,6 +102,9 @@ const M = {
     commission: "佣金",
     addLine: "添加明细",
     descriptionPlaceholder: "描述",
+    quantity: "数量",
+    unitPrice: "单价",
+    amount: "金额",
     invoicePreview: "发票编号预览",
     total: "合计",
     notes: "备注",
@@ -304,7 +310,7 @@ export default function NewInvoicePage() {
       />
 
       <Card>
-        <div className="px-5 py-4 flex items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-5">
           <div className="text-[13px]" style={{ color: tone.ink70 }}>
             <span className="font-medium" style={{ color: tone.ink }}>
               {t.tip}
@@ -320,11 +326,11 @@ export default function NewInvoicePage() {
       {/* Split layout — single column on phones; the 560px preview track is
           wider than a phone viewport and would push the form off-screen. */}
       <div className="grid grid-cols-1 gap-6 lg:gap-8 lg:grid-cols-[minmax(0,1fr)_560px]">
-        <div className="min-w-0 space-y-6">
+        <div className="min-w-0 space-y-4 sm:space-y-6">
           {/* Building */}
           <Card>
             <CardHeader title={t.building} />
-            <div className="p-6 space-y-4">
+            <div className="space-y-4 p-4 sm:p-6">
               {selectedBuilding ? (
                 <div
                   className="flex items-center justify-between rounded-lg p-4"
@@ -357,7 +363,7 @@ export default function NewInvoicePage() {
               ) : (
                 <>
                   <div
-                    className="flex items-center gap-2 h-10 px-3 rounded-lg"
+                    className="flex h-11 min-w-0 items-center gap-2 rounded-lg px-3 sm:h-10"
                     style={{ background: tone.card, border: `1px solid ${tone.line}` }}
                   >
                     <span style={{ color: tone.ink30 }}>
@@ -367,7 +373,7 @@ export default function NewInvoicePage() {
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
                       placeholder={t.searchBuildings}
-                      className="flex-1 bg-transparent outline-none text-[13.5px]"
+                      className="min-w-0 flex-1 bg-transparent outline-none text-[13.5px]"
                       style={{ color: tone.ink }}
                     />
                   </div>
@@ -420,7 +426,7 @@ export default function NewInvoicePage() {
           {/* Tenant & Unit */}
           <Card>
             <CardHeader title={t.tenantUnit} />
-            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 sm:p-6">
               <LabeledField label={t.unitLabel}>
                 <EditorialInput value={unit} onChange={setUnit} placeholder={t.unitPlaceholder} />
               </LabeledField>
@@ -451,7 +457,7 @@ export default function NewInvoicePage() {
           {/* Agent */}
           <Card>
             <CardHeader title={t.agent} />
-            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 sm:p-6">
               <LabeledField label={t.nameLabel}>
                 <EditorialInput value={agentName} onChange={setAgentName} placeholder={t.namePlaceholder} />
               </LabeledField>
@@ -491,17 +497,27 @@ export default function NewInvoicePage() {
                 </Btn>
               }
             />
-            <div className="p-6 space-y-3">
+            <div className="space-y-3 p-4 sm:p-6">
               {lineItems.map((item, index) => (
-                <div key={index} className="grid grid-cols-12 gap-2 items-center">
-                  <div className="col-span-5">
+                <div
+                  key={index}
+                  className="grid grid-cols-2 items-end gap-3 rounded-lg border p-3 sm:grid-cols-12 sm:gap-2 sm:rounded-none sm:border-0 sm:p-0"
+                  style={{ borderColor: tone.lineSoft }}
+                >
+                  <div className="col-span-2 sm:col-span-5">
+                    <div className="mb-1.5 text-[10px] uppercase tracking-[0.1em] sm:hidden" style={{ color: tone.ink50 }}>
+                      {t.descriptionPlaceholder}
+                    </div>
                     <EditorialInput
                       value={item.description}
                       onChange={(v) => updateLineItem(index, "description", v)}
                       placeholder={t.descriptionPlaceholder}
                     />
                   </div>
-                  <div className="col-span-2">
+                  <div className="sm:col-span-2">
+                    <div className="mb-1.5 text-[10px] uppercase tracking-[0.1em] sm:hidden" style={{ color: tone.ink50 }}>
+                      {t.quantity}
+                    </div>
                     <EditorialInput
                       value={item.quantity}
                       onChange={(v) => updateLineItem(index, "quantity", Number(v))}
@@ -509,7 +525,10 @@ export default function NewInvoicePage() {
                       mono
                     />
                   </div>
-                  <div className="col-span-2">
+                  <div className="sm:col-span-2">
+                    <div className="mb-1.5 text-[10px] uppercase tracking-[0.1em] sm:hidden" style={{ color: tone.ink50 }}>
+                      {t.unitPrice}
+                    </div>
                     <EditorialInput
                       value={item.unitPrice}
                       onChange={(v) => updateLineItem(index, "unitPrice", Number(v))}
@@ -519,12 +538,15 @@ export default function NewInvoicePage() {
                     />
                   </div>
                   <div
-                    className="col-span-2 text-right font-mono text-[13.5px]"
+                    className="sm:col-span-2 sm:text-right"
                     style={{ color: tone.ink }}
                   >
-                    ${fmtMoney(Number(item.amount || 0))}
+                    <div className="mb-1 text-[10px] uppercase tracking-[0.1em] sm:hidden" style={{ color: tone.ink50 }}>
+                      {t.amount}
+                    </div>
+                    <div className="font-mono text-[13.5px]">${fmtMoney(Number(item.amount || 0))}</div>
                   </div>
-                  <div className="col-span-1 flex justify-end">
+                  <div className="flex justify-end sm:col-span-1">
                     <button
                       type="button"
                       onClick={() => removeLineItem(index)}
@@ -578,7 +600,7 @@ export default function NewInvoicePage() {
           {/* Notes */}
           <Card>
             <CardHeader title={t.notes} />
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}

@@ -582,10 +582,10 @@ export function RentalDealFormPage({ mode = "new", dealId }: RentalDealFormPageP
           phone viewport, so as a fixed grid track it forced ~194px of
           horizontal overflow and pushed the form off-screen. */}
       <div className="grid grid-cols-1 gap-6 lg:gap-8 lg:grid-cols-[minmax(0,1fr)_520px]">
-        <div className="min-w-0 space-y-6">
+        <div className="min-w-0 space-y-4 sm:space-y-6">
           <Card>
             <CardHeader title={t.building} />
-            <div className="p-6 space-y-4">
+            <div className="space-y-4 p-4 sm:p-6">
               {selectedBuilding ? (
                 <div className="flex items-center justify-between rounded-lg p-4" style={{ background: tone.accentSoft, border: `1px solid ${tone.accent}` }}>
                   <div>
@@ -663,7 +663,7 @@ export function RentalDealFormPage({ mode = "new", dealId }: RentalDealFormPageP
 
           <Card>
             <CardHeader title={t.tenantLease} />
-            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 sm:p-6">
               <LabeledField label={t.unit}>
                 <EditorialInput value={unit} onChange={setUnit} placeholder="12F" />
               </LabeledField>
@@ -693,7 +693,7 @@ export function RentalDealFormPage({ mode = "new", dealId }: RentalDealFormPageP
 
           <Card>
             <CardHeader title={t.agents} subtitle={t.agentsHint} />
-            <div className="p-6 space-y-4">
+            <div className="space-y-4 p-4 sm:p-6">
               {dealParticipants.map((participant, index) => (
                 (() => {
                   const selectedAgent = selectedParticipants[index]?.agent || null;
@@ -808,7 +808,7 @@ export function RentalDealFormPage({ mode = "new", dealId }: RentalDealFormPageP
 
           <Card>
             <CardHeader title={t.referral} />
-            <div className="p-6 space-y-4">
+            <div className="space-y-4 p-4 sm:p-6">
               <label className="flex items-center gap-2 text-[13px]" style={{ color: tone.ink70 }}>
                 <input type="checkbox" checked={hasReferrer} onChange={(e) => setHasReferrer(e.target.checked)} />
                 {t.hasReferrer}
@@ -867,7 +867,7 @@ export function RentalDealFormPage({ mode = "new", dealId }: RentalDealFormPageP
 
           <Card>
             <CardHeader title={t.commission} />
-            <div className="p-6 space-y-4">
+            <div className="space-y-4 p-4 sm:p-6">
               <LabeledField label={t.totalCommissionLabel}>
                 <EditorialInput value={totalCommission} onChange={setTotalCommission} type="number" prefix="$" mono />
               </LabeledField>
@@ -905,8 +905,8 @@ export function RentalDealFormPage({ mode = "new", dealId }: RentalDealFormPageP
                       className="rounded-lg p-4"
                       style={{ background: tone.card, border: `1px solid ${tone.line}` }}
                     >
-                      <div className="flex items-center justify-between gap-4">
-                        <div>
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                        <div className="min-w-0">
                           <div className="font-serif" style={{ fontSize: 20, color: tone.ink }}>
                             {agentBreakdown.name || t.agent}
                           </div>
@@ -914,7 +914,7 @@ export function RentalDealFormPage({ mode = "new", dealId }: RentalDealFormPageP
                             {agentBreakdown.sharePct}% {t.agentDealShare} · {splitLabel(agentBreakdown.splitPct)} {t.splitSuffix}
                           </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-3 text-right">
+                        <div className="grid w-full grid-cols-2 gap-3 sm:w-auto sm:text-right">
                           <div>
                             <div className="text-[10px] uppercase tracking-[0.1em]" style={{ color: tone.green }}>
                               {t.agent}
@@ -942,7 +942,7 @@ export function RentalDealFormPage({ mode = "new", dealId }: RentalDealFormPageP
 
           <Card>
             <CardHeader title={t.source} subtitle={t.sourceSubtitle} />
-            <div className="p-6 grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 gap-2 p-4 sm:grid-cols-3 sm:p-6">
               {SOURCE_OPTIONS.map((opt) => {
                 const active = source === opt.value;
                 return (
@@ -969,7 +969,7 @@ export function RentalDealFormPage({ mode = "new", dealId }: RentalDealFormPageP
 
           <Card>
             <CardHeader title={t.notes} />
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
               <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className="w-full rounded-lg p-3 text-[13.5px] outline-none" style={{ background: tone.card, border: `1px solid ${tone.line}`, color: tone.ink, resize: "vertical" }} />
             </div>
           </Card>

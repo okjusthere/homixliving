@@ -135,7 +135,7 @@ export function NotificationBell() {
 
       {open && (
         <div
-          className="absolute right-0 top-11 w-[340px] rounded-xl overflow-hidden z-40"
+          className="fixed inset-x-4 top-[72px] z-40 overflow-hidden rounded-xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-11 sm:w-[340px]"
           style={{
             background: tone.card,
             border: `1px solid ${tone.line}`,

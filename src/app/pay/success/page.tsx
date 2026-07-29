@@ -28,7 +28,7 @@ export default async function PaySuccessPage({
         <div className="flex size-12 items-center justify-center rounded-md bg-homix-green-soft text-homix-green">
           <CheckCircle2 className="size-6" />
         </div>
-        <h1 className="mt-6 font-serif text-[42px] leading-[1.05]">Payment received</h1>
+        <h1 className="mt-6 font-serif text-[34px] leading-[1.05] sm:text-[42px]">Payment received</h1>
         <p className="mt-3 text-[15px] leading-6 text-ink-70">
           Stripe has accepted the checkout. Homix will use the payment confirmation
           webhook to finish internal processing.
@@ -36,24 +36,24 @@ export default async function PaySuccessPage({
 
         {order ? (
           <div className="mt-7 divide-y divide-line-soft rounded-lg border border-line">
-            <div className="grid grid-cols-[140px_1fr] gap-3 px-4 py-3 text-[14px]">
+            <div className="grid gap-1 px-4 py-3 text-[14px] sm:grid-cols-[140px_1fr] sm:gap-3">
               <span className="text-ink-50">Order</span>
               <span className="font-mono">#{order.id}</span>
             </div>
-            <div className="grid grid-cols-[140px_1fr] gap-3 px-4 py-3 text-[14px]">
+            <div className="grid gap-1 px-4 py-3 text-[14px] sm:grid-cols-[140px_1fr] sm:gap-3">
               <span className="text-ink-50">Product</span>
               <span>{order.productName}</span>
             </div>
-            <div className="grid grid-cols-[140px_1fr] gap-3 px-4 py-3 text-[14px]">
+            <div className="grid gap-1 px-4 py-3 text-[14px] sm:grid-cols-[140px_1fr] sm:gap-3">
               <span className="text-ink-50">Amount</span>
               <span className="font-mono">{formatProductAmount(order.amountCents)}</span>
             </div>
-            <div className="grid grid-cols-[140px_1fr] gap-3 px-4 py-3 text-[14px]">
+            <div className="grid gap-1 px-4 py-3 text-[14px] sm:grid-cols-[140px_1fr] sm:gap-3">
               <span className="text-ink-50">Status</span>
               <span className="capitalize">{order.status.replaceAll("_", " ")}</span>
             </div>
             {order.requestedWorkspaceEmail && (
-              <div className="grid grid-cols-[140px_1fr] gap-3 px-4 py-3 text-[14px]">
+              <div className="grid gap-1 px-4 py-3 text-[14px] sm:grid-cols-[140px_1fr] sm:gap-3">
                 <span className="text-ink-50">Company email</span>
                 <span className="flex items-center gap-2">
                   <Mail className="size-4 text-homix-accent" />
@@ -62,7 +62,7 @@ export default async function PaySuccessPage({
               </div>
             )}
             {order.requestedWorkspaceEmail && (
-              <div className="grid grid-cols-[140px_1fr] gap-3 px-4 py-3 text-[14px]">
+              <div className="grid gap-1 px-4 py-3 text-[14px] sm:grid-cols-[140px_1fr] sm:gap-3">
                 <span className="text-ink-50">Workspace</span>
                 <span className="flex items-center gap-2 capitalize">
                   <Clock className="size-4 text-homix-amber" />

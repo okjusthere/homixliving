@@ -23,11 +23,13 @@ export function PageHeader({
   title,
   description,
   actions,
+  actionsClassName = "",
 }: {
   eyebrow?: string;
   title: string;
   description?: string;
   actions?: ReactNode;
+  actionsClassName?: string;
 }) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-4">
@@ -60,7 +62,11 @@ export function PageHeader({
       </div>
       {/* Actions wrap onto their own line on phones rather than squeezing the
           title; `shrink-0` alone forced the header into a cramped two-column row. */}
-      {actions && <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:shrink-0">{actions}</div>}
+      {actions && (
+        <div className={`flex w-full flex-wrap items-center gap-2 sm:w-auto sm:shrink-0 ${actionsClassName}`}>
+          {actions}
+        </div>
+      )}
     </div>
   );
 }
@@ -166,7 +172,7 @@ export function CardHeader({
 }) {
   return (
     <div
-      className="flex items-center justify-between gap-4 px-5 py-4"
+      className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 sm:gap-4 sm:px-5"
       style={{ borderBottom: `1px solid ${tone.lineSoft}` }}
     >
       <div className="min-w-0">

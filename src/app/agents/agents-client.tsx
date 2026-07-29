@@ -836,9 +836,9 @@ export default function AgentsConsole() {
       )}
 
       {editAgent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-8" style={{ background: "rgba(26, 24, 20, 0.4)", backdropFilter: "blur(4px)" }} onClick={closeDialog}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8" style={{ background: "rgba(26, 24, 20, 0.4)", backdropFilter: "blur(4px)" }} onClick={closeDialog}>
           <div className="w-full max-w-2xl rounded-2xl max-h-[90vh] overflow-hidden flex flex-col" style={{ background: tone.card, border: `1px solid ${tone.line}`, boxShadow: "0 30px 80px -20px rgba(0,0,0,0.3)" }} onClick={(e) => e.stopPropagation()}>
-            <div className="px-8 py-6 flex items-center justify-between" style={{ borderBottom: `1px solid ${tone.line}` }}>
+            <div className="flex items-center justify-between gap-4 px-5 py-4 sm:px-8 sm:py-6" style={{ borderBottom: `1px solid ${tone.line}` }}>
               <div>
                 <div className="text-[11px] uppercase tracking-[0.14em]" style={{ color: tone.ink50 }}>
                   {editAgent.id ? t.editEyebrow : t.newEyebrow}
@@ -847,11 +847,11 @@ export default function AgentsConsole() {
                   {editAgent.id ? t.editAgentTitle : t.addAgentTitle}
                 </div>
               </div>
-              <button onClick={closeDialog} className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: tone.paperDeep, color: tone.ink70 }}>
+              <button onClick={closeDialog} className="flex h-10 w-10 items-center justify-center rounded-full sm:h-8 sm:w-8" style={{ background: tone.paperDeep, color: tone.ink70 }}>
                 x
               </button>
             </div>
-            <div className="flex-1 overflow-auto px-8 py-6 space-y-4">
+            <div className="flex-1 space-y-4 overflow-auto px-5 py-5 sm:px-8 sm:py-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <LabeledField label={t.labelName}>
                   <EditorialInput value={editAgent.name || ""} onChange={(v) => updateField("name", v)} placeholder={t.namePlaceholder} />
@@ -863,7 +863,7 @@ export default function AgentsConsole() {
                   <select
                     value={editAgent.teamId || ""}
                     onChange={(e) => updateField("teamId", e.target.value ? Number(e.target.value) : null)}
-                    className="w-full h-10 rounded-lg px-3 text-[13.5px] outline-none"
+                    className="h-11 w-full rounded-lg px-3 text-[13.5px] outline-none sm:h-10"
                     style={{ background: tone.card, border: `1px solid ${tone.line}`, color: tone.ink }}
                   >
                     <option value="">{t.unassigned}</option>
@@ -968,7 +968,7 @@ export default function AgentsConsole() {
                 />
               </LabeledField>}
             </div>
-            <div className="px-8 py-5 flex items-center justify-between gap-2" style={{ borderTop: `1px solid ${tone.line}`, background: tone.paper }}>
+            <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 sm:px-8 sm:py-5" style={{ borderTop: `1px solid ${tone.line}`, background: tone.paper }}>
               <div>
                 {editAgent.id && editAgent.accountStatus === "active" && (
                   <Btn

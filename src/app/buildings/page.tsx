@@ -344,7 +344,7 @@ export default function BuildingsPage() {
       {/* Edit Dialog */}
       {editBuilding && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-8"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8"
           style={{ background: "rgba(26, 24, 20, 0.4)", backdropFilter: "blur(4px)" }}
           onClick={closeDialog}
         >
@@ -359,7 +359,7 @@ export default function BuildingsPage() {
           >
             {/* Header */}
             <div
-              className="px-8 py-6 flex items-center justify-between"
+              className="flex items-center justify-between gap-4 px-5 py-4 sm:px-8 sm:py-6"
               style={{ borderBottom: `1px solid ${tone.line}` }}
             >
               <div>
@@ -383,7 +383,7 @@ export default function BuildingsPage() {
               </div>
               <button
                 onClick={closeDialog}
-                className="w-8 h-8 rounded-full flex items-center justify-center"
+                className="flex h-10 w-10 items-center justify-center rounded-full sm:h-8 sm:w-8"
                 style={{ background: tone.paperDeep, color: tone.ink70 }}
               >
                 ×
@@ -391,7 +391,7 @@ export default function BuildingsPage() {
             </div>
 
             {/* Body */}
-            <div className="flex-1 overflow-auto px-8 py-6 space-y-4">
+            <div className="flex-1 space-y-4 overflow-auto px-5 py-5 sm:px-8 sm:py-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <LabeledField label={t.labelName}>
                   <EditorialInput
@@ -481,7 +481,7 @@ export default function BuildingsPage() {
 
             {/* Footer */}
             <div
-              className="px-8 py-5 flex items-center justify-between"
+              className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 sm:px-8 sm:py-5"
               style={{ borderTop: `1px solid ${tone.line}`, background: tone.paper }}
             >
               <div>

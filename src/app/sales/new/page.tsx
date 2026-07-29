@@ -76,6 +76,9 @@ const M = {
     lender: "Lender",
     escrowHolder: "Escrow holder",
     notes: "Notes",
+    optionalDetailsHint: "Outside agents, closing contacts, and notes",
+    showOptional: "Add optional details",
+    hideOptional: "Hide optional details",
     saleSummary: "Sale Summary",
     propertyAddress: "Property address",
     locationPending: "Location pending",
@@ -146,6 +149,9 @@ const M = {
     lender: "贷款机构",
     escrowHolder: "托管方",
     notes: "备注",
+    optionalDetailsHint: "外部联系人、过户联系人与备注",
+    showOptional: "填写选填信息",
+    hideOptional: "收起选填信息",
     saleSummary: "交易摘要",
     propertyAddress: "房产地址",
     locationPending: "地点待定",
@@ -234,6 +240,7 @@ export default function NewSalePage() {
   const [lenderName, setLenderName] = useState("");
   const [escrowHolder, setEscrowHolder] = useState("");
   const [notes, setNotes] = useState("");
+  const [showOptional, setShowOptional] = useState(false);
   const [saleParticipants, setSaleParticipants] = useState<SaleParticipantInput[]>([
     { agentId: null, sharePct: 100, isPrimary: true },
   ]);
@@ -386,7 +393,7 @@ export default function NewSalePage() {
   };
 
   return (
-    <form onSubmit={submit} className="space-y-7">
+    <form onSubmit={submit} className="space-y-6 pb-24 sm:space-y-7 lg:pb-0">
       <div className="space-y-4">
         <Link href="/sales" className="flex w-fit items-center gap-1.5 text-[12.5px]" style={{ color: tone.ink50 }}>
           <Icons.Back /> {t.back}
@@ -394,6 +401,7 @@ export default function NewSalePage() {
         <PageHeader
           eyebrow={t.eyebrow}
           title={t.title}
+          actionsClassName="hidden lg:flex"
           actions={
             <>
               <Btn variant="outline" onClick={() => router.back()}>
@@ -410,10 +418,10 @@ export default function NewSalePage() {
       {/* Single column on phones — see the note in rental/new: a fixed 520px
           track overflows a phone viewport and displaces the whole form. */}
       <div className="grid grid-cols-1 gap-6 lg:gap-8 lg:grid-cols-[minmax(0,1fr)_520px]">
-        <div className="min-w-0 space-y-6">
+        <div className="min-w-0 space-y-4 sm:space-y-6">
           <Card>
             <CardHeader title={t.transaction} />
-            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 sm:p-6">
               <LabeledField label={t.representation}>
                 <SelectShell value={representationType} onChange={(value) => setRepresentationType(value as SaleRepresentation)}>
                   {SALE_REPRESENTATION_OPTIONS.map((option) => (
@@ -443,7 +451,7 @@ export default function NewSalePage() {
 
           <Card>
             <CardHeader title={t.property} />
-            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 sm:p-6">
               <LabeledField label={t.address} wide>
                 <EditorialInput value={propertyAddress} onChange={setPropertyAddress} placeholder={t.addressPlaceholder} />
               </LabeledField>
@@ -470,7 +478,7 @@ export default function NewSalePage() {
 
           <Card>
             <CardHeader title={t.parties} />
-            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 sm:p-6">
               <LabeledField label={t.buyerNames} wide>
                 <EditorialInput value={buyerNames} onChange={setBuyerNames} placeholder={t.buyerNamesPlaceholder} />
               </LabeledField>
@@ -482,11 +490,11 @@ export default function NewSalePage() {
 
           <Card>
             <CardHeader title={t.agents} subtitle={t.agentsHint} />
-            <div className="p-6 space-y-4">
+            <div className="space-y-4 p-4 sm:p-6">
               {saleParticipants.map((participant, index) => (
                 <div
                   key={index}
-                  className="rounded-xl p-4 space-y-4"
+                  className="space-y-4 rounded-xl p-3 sm:p-4"
                   style={{ background: tone.paper, border: `1px solid ${tone.lineSoft}` }}
                 >
                   <div className="grid grid-cols-1 sm:grid-cols-[1fr_120px_auto] gap-3 sm:items-end">
@@ -558,7 +566,7 @@ export default function NewSalePage() {
 
           <Card>
             <CardHeader title={t.commission} />
-            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 sm:p-6">
               <LabeledField label={t.purchasePrice}>
                 <EditorialInput value={purchasePrice} onChange={setPurchasePrice} type="number" prefix="$" mono />
               </LabeledField>
@@ -574,66 +582,91 @@ export default function NewSalePage() {
             </div>
           </Card>
 
-          <Card>
-            <CardHeader title={t.outsideContacts} />
-            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <LabeledField label={t.listingAgent}>
-                <EditorialInput value={listingAgentName} onChange={setListingAgentName} />
-              </LabeledField>
-              <LabeledField label={t.listingAgentEmail}>
-                <EditorialInput value={listingAgentEmail} onChange={setListingAgentEmail} mono />
-              </LabeledField>
-              <LabeledField label={t.listingBrokerage} wide>
-                <EditorialInput value={listingBrokerage} onChange={setListingBrokerage} />
-              </LabeledField>
-              <LabeledField label={t.cooperatingAgent}>
-                <EditorialInput value={cooperatingAgentName} onChange={setCooperatingAgentName} />
-              </LabeledField>
-              <LabeledField label={t.cooperatingAgentEmail}>
-                <EditorialInput value={cooperatingAgentEmail} onChange={setCooperatingAgentEmail} mono />
-              </LabeledField>
-              <LabeledField label={t.cooperatingBrokerage} wide>
-                <EditorialInput value={cooperatingBrokerage} onChange={setCooperatingBrokerage} />
-              </LabeledField>
-            </div>
-          </Card>
+          <button
+            type="button"
+            onClick={() => setShowOptional((current) => !current)}
+            className="flex w-full items-center justify-between gap-4 rounded-xl p-4 text-left lg:hidden"
+            style={{ background: tone.card, border: `1px solid ${tone.line}` }}
+            aria-expanded={showOptional}
+          >
+            <span className="min-w-0">
+              <span className="block font-medium text-[14px]" style={{ color: tone.ink }}>
+                {showOptional ? t.hideOptional : t.showOptional}
+              </span>
+              <span className="mt-1 block text-[12px]" style={{ color: tone.ink50 }}>
+                {t.optionalDetailsHint}
+              </span>
+            </span>
+            <span
+              className={`shrink-0 transition-transform ${showOptional ? "rotate-180" : ""}`}
+              style={{ color: tone.ink50 }}
+            >
+              <Icons.ChevDown />
+            </span>
+          </button>
 
-          <Card>
-            <CardHeader title={t.closingContacts} />
-            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <LabeledField label={t.buyerAttorney}>
-                <EditorialInput value={buyerAttorney} onChange={setBuyerAttorney} />
-              </LabeledField>
-              <LabeledField label={t.sellerAttorney}>
-                <EditorialInput value={sellerAttorney} onChange={setSellerAttorney} />
-              </LabeledField>
-              <LabeledField label={t.titleCompany}>
-                <EditorialInput value={titleCompany} onChange={setTitleCompany} />
-              </LabeledField>
-              <LabeledField label={t.lender}>
-                <EditorialInput value={lenderName} onChange={setLenderName} />
-              </LabeledField>
-              <LabeledField label={t.escrowHolder} wide>
-                <EditorialInput value={escrowHolder} onChange={setEscrowHolder} />
-              </LabeledField>
-            </div>
-          </Card>
+          <div className={`${showOptional ? "space-y-4 sm:space-y-6" : "hidden"} lg:block lg:space-y-6`}>
+            <Card>
+              <CardHeader title={t.outsideContacts} />
+              <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 sm:p-6">
+                <LabeledField label={t.listingAgent}>
+                  <EditorialInput value={listingAgentName} onChange={setListingAgentName} />
+                </LabeledField>
+                <LabeledField label={t.listingAgentEmail}>
+                  <EditorialInput value={listingAgentEmail} onChange={setListingAgentEmail} mono />
+                </LabeledField>
+                <LabeledField label={t.listingBrokerage} wide>
+                  <EditorialInput value={listingBrokerage} onChange={setListingBrokerage} />
+                </LabeledField>
+                <LabeledField label={t.cooperatingAgent}>
+                  <EditorialInput value={cooperatingAgentName} onChange={setCooperatingAgentName} />
+                </LabeledField>
+                <LabeledField label={t.cooperatingAgentEmail}>
+                  <EditorialInput value={cooperatingAgentEmail} onChange={setCooperatingAgentEmail} mono />
+                </LabeledField>
+                <LabeledField label={t.cooperatingBrokerage} wide>
+                  <EditorialInput value={cooperatingBrokerage} onChange={setCooperatingBrokerage} />
+                </LabeledField>
+              </div>
+            </Card>
 
-          <Card>
-            <CardHeader title={t.notes} />
-            <div className="p-6">
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                rows={4}
-                className="w-full rounded-lg p-3 text-[13.5px] outline-none"
-                style={{ background: tone.card, border: `1px solid ${tone.line}`, color: tone.ink, resize: "vertical" }}
-              />
-            </div>
-          </Card>
+            <Card>
+              <CardHeader title={t.closingContacts} />
+              <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 sm:p-6">
+                <LabeledField label={t.buyerAttorney}>
+                  <EditorialInput value={buyerAttorney} onChange={setBuyerAttorney} />
+                </LabeledField>
+                <LabeledField label={t.sellerAttorney}>
+                  <EditorialInput value={sellerAttorney} onChange={setSellerAttorney} />
+                </LabeledField>
+                <LabeledField label={t.titleCompany}>
+                  <EditorialInput value={titleCompany} onChange={setTitleCompany} />
+                </LabeledField>
+                <LabeledField label={t.lender}>
+                  <EditorialInput value={lenderName} onChange={setLenderName} />
+                </LabeledField>
+                <LabeledField label={t.escrowHolder} wide>
+                  <EditorialInput value={escrowHolder} onChange={setEscrowHolder} />
+                </LabeledField>
+              </div>
+            </Card>
+
+            <Card>
+              <CardHeader title={t.notes} />
+              <div className="p-4 sm:p-6">
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  rows={4}
+                  className="w-full rounded-lg p-3 text-[13.5px] outline-none"
+                  style={{ background: tone.card, border: `1px solid ${tone.line}`, color: tone.ink, resize: "vertical" }}
+                />
+              </div>
+            </Card>
+          </div>
         </div>
 
-        <div>
+        <div className="hidden lg:block">
           <div className="sticky top-24 min-w-0 space-y-4">
             <div className="text-[11px] font-medium uppercase tracking-[0.16em]" style={{ color: tone.ink50 }}>
               {t.saleSummary}
@@ -688,6 +721,37 @@ export default function NewSalePage() {
               </div>
             </Card>
           </div>
+        </div>
+      </div>
+
+      <div
+        className="fixed inset-x-0 bottom-0 z-20 border-t px-4 pt-3 lg:hidden"
+        style={{
+          background: "rgba(255, 255, 255, 0.96)",
+          borderColor: tone.line,
+          paddingBottom: "max(12px, env(safe-area-inset-bottom))",
+          boxShadow: "0 -8px 24px rgba(26, 24, 20, 0.08)",
+          backdropFilter: "blur(12px)",
+        }}
+      >
+        <div className="mx-auto flex max-w-[1280px] items-center justify-between gap-4">
+          <div className="min-w-0">
+            <div className="text-[10px] font-medium uppercase tracking-[0.12em]" style={{ color: tone.ink50 }}>
+              {t.grossCommissionLabel}
+            </div>
+            <div className="mt-0.5 truncate font-mono text-[14px]" style={{ color: tone.ink }}>
+              ${fmtMoney(Number(grossCommission || 0))}
+            </div>
+          </div>
+          <Btn
+            variant="primary"
+            icon={<Icons.Check />}
+            type="submit"
+            disabled={saving}
+            className="min-w-[136px] justify-center"
+          >
+            {saving ? t.saving : t.saveSale}
+          </Btn>
         </div>
       </div>
     </form>

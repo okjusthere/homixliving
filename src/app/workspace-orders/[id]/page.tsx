@@ -50,7 +50,9 @@ export default async function WorkspaceOrderPage({
             <p className="text-[12px] uppercase tracking-[0.14em] text-ink-50">
               Workspace order
             </p>
-            <h1 className="mt-2 font-serif text-[42px] leading-[1.05]">Order #{order.id}</h1>
+            <h1 className="mt-2 break-words font-serif text-[34px] leading-[1.05] sm:text-[42px]">
+              Order #{order.id}
+            </h1>
           </div>
           <Link
             href="/pay"
@@ -70,12 +72,12 @@ export default async function WorkspaceOrderPage({
               ["Workspace user ID", order.workspaceUserId || "—"],
               ["Updated", fmtTimestamp(order.updatedAt) || "—"],
             ].map(([label, value]) => (
-              <div key={label} className="grid grid-cols-[170px_1fr] gap-4 px-4 py-3 text-[14px]">
+              <div key={label} className="grid gap-1 px-4 py-3 text-[14px] sm:grid-cols-[170px_1fr] sm:gap-4">
                 <span className="text-ink-50">{label}</span>
-                <span>{value}</span>
+                <span className="min-w-0 break-words">{value}</span>
               </div>
             ))}
-            <div className="grid grid-cols-[170px_1fr] gap-4 px-4 py-3 text-[14px]">
+            <div className="grid gap-1 px-4 py-3 text-[14px] sm:grid-cols-[170px_1fr] sm:gap-4">
               <span className="text-ink-50">Workspace status</span>
               <span
                 className={`inline-flex w-fit items-center rounded-md border px-2 py-1 capitalize ${statusClass(

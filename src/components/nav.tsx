@@ -149,7 +149,7 @@ export function Nav() {
               })}
             </div>
           </div>
-          <div className="flex items-center gap-3" ref={menuRef}>
+          <div className="flex items-center gap-2 sm:gap-3" ref={menuRef}>
             <button
               type="button"
               onClick={toggleLocale}

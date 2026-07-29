@@ -91,7 +91,7 @@ export default async function AuditPage({
     .limit(200);
 
   return (
-    <div className="mx-auto max-w-[1280px] px-8 py-8">
+    <div className="mx-auto max-w-[1280px] py-2 sm:px-8 sm:py-8">
       <div className="mb-6">
         <h1 className="font-serif" style={{ fontSize: 28, color: tone.ink }}>
           {t.title}

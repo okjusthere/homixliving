@@ -267,9 +267,9 @@ export default function TeamsConsole() {
       )}
 
       {editTeam && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-8" style={{ background: "rgba(26, 24, 20, 0.4)", backdropFilter: "blur(4px)" }} onClick={() => setEditTeam(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8" style={{ background: "rgba(26, 24, 20, 0.4)", backdropFilter: "blur(4px)" }} onClick={() => setEditTeam(null)}>
           <div className="w-full max-w-xl rounded-2xl overflow-hidden" style={{ background: tone.card, border: `1px solid ${tone.line}`, boxShadow: "0 30px 80px -20px rgba(0,0,0,0.3)" }} onClick={(e) => e.stopPropagation()}>
-            <div className="px-8 py-6 flex items-center justify-between" style={{ borderBottom: `1px solid ${tone.line}` }}>
+            <div className="flex items-center justify-between gap-4 px-5 py-4 sm:px-8 sm:py-6" style={{ borderBottom: `1px solid ${tone.line}` }}>
               <div>
                 <div className="text-[11px] uppercase tracking-[0.14em]" style={{ color: tone.ink50 }}>
                   {editTeam.id ? t.editLabel : t.newLabel}
@@ -278,11 +278,11 @@ export default function TeamsConsole() {
                   {editTeam.id ? editTeam.name : t.addTeamModal}
                 </div>
               </div>
-              <button onClick={() => setEditTeam(null)} className="w-8 h-8 rounded-full" style={{ background: tone.paperDeep, color: tone.ink70 }}>
+              <button onClick={() => setEditTeam(null)} className="h-10 w-10 rounded-full sm:h-8 sm:w-8" style={{ background: tone.paperDeep, color: tone.ink70 }}>
                 x
               </button>
             </div>
-            <div className="px-8 py-6 space-y-4">
+            <div className="space-y-4 px-5 py-5 sm:px-8 sm:py-6">
               <LabeledField label={t.nameField}>
                 <EditorialInput value={editTeam.name || ""} onChange={(v) => updateField("name", v)} placeholder={t.namePlaceholder} />
               </LabeledField>
@@ -290,7 +290,7 @@ export default function TeamsConsole() {
                 <select
                   value={editTeam.leaderAgentId || ""}
                   onChange={(e) => updateField("leaderAgentId", e.target.value ? Number(e.target.value) : null)}
-                  className="w-full h-10 rounded-lg px-3 text-[13.5px] outline-none"
+                  className="h-11 w-full rounded-lg px-3 text-[13.5px] outline-none sm:h-10"
                   style={{ background: tone.card, border: `1px solid ${tone.line}`, color: tone.ink }}
                 >
                   <option value="">{t.unassigned}</option>
@@ -311,7 +311,7 @@ export default function TeamsConsole() {
                 />
               </LabeledField>
             </div>
-            <div className="px-8 py-5 flex items-center justify-between" style={{ borderTop: `1px solid ${tone.line}`, background: tone.paper }}>
+            <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 sm:px-8 sm:py-5" style={{ borderTop: `1px solid ${tone.line}`, background: tone.paper }}>
               <div>
                 {editTeam.id && (
                   <Btn variant="danger" size="sm" icon={<Icons.Trash />} onClick={handleDelete}>
