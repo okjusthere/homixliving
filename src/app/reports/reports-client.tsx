@@ -233,69 +233,77 @@ export default function ReportsConsole() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
+            <Card className="overflow-hidden">
               <CardHeader title={t.topAgents} />
-              <div className="grid text-[11px] uppercase tracking-[0.1em] px-6 py-3" style={{ gridTemplateColumns: "2fr 1fr 1fr", color: tone.ink50, borderBottom: `1px solid ${tone.lineSoft}` }}>
-                <div>{t.colAgent}</div>
-                <div>{t.colRentalDeals}</div>
-                <div className="text-right">{t.colTake}</div>
-              </div>
               {report.topAgents.length === 0 ? (
                 <div className="px-6 py-12 text-center text-[13px]" style={{ color: tone.ink50 }}>
                   {t.noAgentPayouts}
                 </div>
               ) : (
-                report.topAgents.map((row, index) => (
-                  <div key={row.agent.id} className="grid px-6 py-4 items-center" style={{ gridTemplateColumns: "2fr 1fr 1fr", borderBottom: index < report.topAgents.length - 1 ? `1px solid ${tone.lineSoft}` : "none" }}>
-                    <div>
-                      <div className="text-[13px]" style={{ color: tone.ink }}>
-                        {row.agent.name}
+                <div className="overflow-x-auto">
+                  <div className="min-w-[360px]">
+                    <div className="grid text-[11px] uppercase tracking-[0.1em] px-6 py-3" style={{ gridTemplateColumns: "2fr 1fr 1fr", color: tone.ink50, borderBottom: `1px solid ${tone.lineSoft}` }}>
+                      <div>{t.colAgent}</div>
+                      <div>{t.colRentalDeals}</div>
+                      <div className="text-right">{t.colTake}</div>
+                    </div>
+                    {report.topAgents.map((row, index) => (
+                      <div key={row.agent.id} className="grid px-6 py-4 items-center" style={{ gridTemplateColumns: "2fr 1fr 1fr", borderBottom: index < report.topAgents.length - 1 ? `1px solid ${tone.lineSoft}` : "none" }}>
+                        <div>
+                          <div className="text-[13px]" style={{ color: tone.ink }}>
+                            {row.agent.name}
+                          </div>
+                          <div className="text-[11.5px] mt-0.5" style={{ color: tone.ink50 }}>
+                            {Number(row.agent.splitPct || 0)}% {t.split}
+                          </div>
+                        </div>
+                        <div className="font-serif" style={{ fontSize: 20, color: tone.ink }}>
+                          {row.deals}
+                        </div>
+                        <div className="text-right font-serif" style={{ fontSize: 20, color: tone.green }}>
+                          ${fmtMoney(row.take)}
+                        </div>
                       </div>
-                      <div className="text-[11.5px] mt-0.5" style={{ color: tone.ink50 }}>
-                        {Number(row.agent.splitPct || 0)}% {t.split}
-                      </div>
-                    </div>
-                    <div className="font-serif" style={{ fontSize: 20, color: tone.ink }}>
-                      {row.deals}
-                    </div>
-                    <div className="text-right font-serif" style={{ fontSize: 20, color: tone.green }}>
-                      ${fmtMoney(row.take)}
-                    </div>
+                    ))}
                   </div>
-                ))
+                </div>
               )}
             </Card>
 
-            <Card>
+            <Card className="overflow-hidden">
               <CardHeader title={t.perBuilding} />
-              <div className="grid text-[11px] uppercase tracking-[0.1em] px-6 py-3" style={{ gridTemplateColumns: "2fr 1fr 1fr", color: tone.ink50, borderBottom: `1px solid ${tone.lineSoft}` }}>
-                <div>{t.colBuilding}</div>
-                <div>{t.colRentalDeals}</div>
-                <div className="text-right">{t.colCommission}</div>
-              </div>
               {report.perBuilding.length === 0 ? (
                 <div className="px-6 py-12 text-center text-[13px]" style={{ color: tone.ink50 }}>
                   {t.noBuildingProduction}
                 </div>
               ) : (
-                report.perBuilding.map((row, index) => (
-                  <div key={row.building.id} className="grid px-6 py-4 items-center" style={{ gridTemplateColumns: "2fr 1fr 1fr", borderBottom: index < report.perBuilding.length - 1 ? `1px solid ${tone.lineSoft}` : "none" }}>
-                    <div>
-                      <div className="text-[13px]" style={{ color: tone.ink }}>
-                        {row.building.name}
+                <div className="overflow-x-auto">
+                  <div className="min-w-[360px]">
+                    <div className="grid text-[11px] uppercase tracking-[0.1em] px-6 py-3" style={{ gridTemplateColumns: "2fr 1fr 1fr", color: tone.ink50, borderBottom: `1px solid ${tone.lineSoft}` }}>
+                      <div>{t.colBuilding}</div>
+                      <div>{t.colRentalDeals}</div>
+                      <div className="text-right">{t.colCommission}</div>
+                    </div>
+                    {report.perBuilding.map((row, index) => (
+                      <div key={row.building.id} className="grid px-6 py-4 items-center" style={{ gridTemplateColumns: "2fr 1fr 1fr", borderBottom: index < report.perBuilding.length - 1 ? `1px solid ${tone.lineSoft}` : "none" }}>
+                        <div>
+                          <div className="text-[13px]" style={{ color: tone.ink }}>
+                            {row.building.name}
+                          </div>
+                          <div className="text-[11.5px] mt-0.5" style={{ color: tone.ink50 }}>
+                            {row.building.region}
+                          </div>
+                        </div>
+                        <div className="font-serif" style={{ fontSize: 20, color: tone.ink }}>
+                          {row.deals}
+                        </div>
+                        <div className="text-right font-serif" style={{ fontSize: 20, color: tone.ink }}>
+                          ${fmtMoney(row.totalCommission)}
+                        </div>
                       </div>
-                      <div className="text-[11.5px] mt-0.5" style={{ color: tone.ink50 }}>
-                        {row.building.region}
-                      </div>
-                    </div>
-                    <div className="font-serif" style={{ fontSize: 20, color: tone.ink }}>
-                      {row.deals}
-                    </div>
-                    <div className="text-right font-serif" style={{ fontSize: 20, color: tone.ink }}>
-                      ${fmtMoney(row.totalCommission)}
-                    </div>
+                    ))}
                   </div>
-                ))
+                </div>
               )}
             </Card>
           </div>

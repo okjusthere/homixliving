@@ -12,10 +12,12 @@
 //   bare `new Date(value)` (Safari rejects Postgres's text format).
 import {
   pgSchema,
+  pgTable,
   text,
   integer,
   boolean,
   jsonb,
+  index,
   primaryKey,
   uniqueIndex,
   timestamp,
@@ -449,6 +451,84 @@ export const stripeEvents = portal.table("stripe_events", {
   receivedAt: timestamptz("received_at").$defaultFn(() => new Date().toISOString()),
 });
 
+// ============================================================
+// Cross-site content sharing. These tables intentionally live in public.*
+// because both the Portal database connection and Homix Web's Supabase
+// service-role client need them. RLS is enabled by the migration with no
+// browser-facing policies; all access remains server-side.
+// ============================================================
+export const shareLinks = pgTable(
+  "share_links",
+  {
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    code: text("code").notNull().unique(),
+    agentId: integer("agent_id")
+      .notNull()
+      .references(() => agents.id, { onDelete: "cascade" }),
+    contentKind: text("content_kind").notNull(),
+    contentKey: text("content_key").notNull(),
+    contentPath: text("content_path").notNull(),
+    contentTitle: text("content_title").notNull(),
+    contentSubtitle: text("content_subtitle"),
+    contentImage: text("content_image"),
+    locale: text("locale").notNull().default("zh"),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
+    updatedAt: timestamptz("updated_at").$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => [
+    uniqueIndex("idx_share_links_agent_content").on(
+      table.agentId,
+      table.contentKind,
+      table.contentKey,
+      table.locale,
+    ),
+    index("idx_share_links_agent_created").on(table.agentId, table.createdAt),
+  ],
+);
+
+export const shareVisits = pgTable(
+  "share_visits",
+  {
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    shareLinkId: integer("share_link_id")
+      .notNull()
+      .references(() => shareLinks.id, { onDelete: "cascade" }),
+    sessionKey: text("session_key").notNull().unique(),
+    visitorHash: text("visitor_hash").notNull(),
+    referrerDomain: text("referrer_domain"),
+    deviceType: text("device_type"),
+    activeSeconds: integer("active_seconds").notNull().default(0),
+    maxScrollDepth: integer("max_scroll_depth").notNull().default(0),
+    startedAt: timestamptz("started_at").$defaultFn(() => new Date().toISOString()),
+    lastSeenAt: timestamptz("last_seen_at").$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => [
+    index("idx_share_visits_link_started").on(table.shareLinkId, table.startedAt),
+    index("idx_share_visits_link_visitor").on(table.shareLinkId, table.visitorHash),
+  ],
+);
+
+export const shareEvents = pgTable(
+  "share_events",
+  {
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    shareLinkId: integer("share_link_id")
+      .notNull()
+      .references(() => shareLinks.id, { onDelete: "cascade" }),
+    visitId: integer("visit_id").references(() => shareVisits.id, {
+      onDelete: "set null",
+    }),
+    eventType: text("event_type").notNull(),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+    createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => [
+    index("idx_share_events_link_created").on(table.shareLinkId, table.createdAt),
+    index("idx_share_events_type_created").on(table.eventType, table.createdAt),
+  ],
+);
+
 export type LineItem = {
   description: string;
   quantity: number;
@@ -551,6 +631,10 @@ export type AgentPayout = typeof agentPayouts.$inferSelect;
 export type NewCommerceOrder = typeof commerceOrders.$inferInsert;
 export type StripeEvent = typeof stripeEvents.$inferSelect;
 export type NewStripeEvent = typeof stripeEvents.$inferInsert;
+export type ShareLink = typeof shareLinks.$inferSelect;
+export type NewShareLink = typeof shareLinks.$inferInsert;
+export type ShareVisit = typeof shareVisits.$inferSelect;
+export type ShareEvent = typeof shareEvents.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;
 export type NewNotification = typeof notifications.$inferInsert;
 export type AuditLogEntry = typeof auditLog.$inferSelect;

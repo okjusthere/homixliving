@@ -176,7 +176,7 @@ export default function TeamsConsole() {
           {t.loading}
         </p>
       ) : teams.length === 0 ? (
-        <Card>
+        <Card className="overflow-hidden">
           <div className="px-6 py-16 text-center">
             <div className="font-serif mb-2" style={{ fontSize: 24, color: tone.ink }}>
               {t.noTeams}
@@ -187,7 +187,7 @@ export default function TeamsConsole() {
           </div>
         </Card>
       ) : (
-        <Card>
+        <Card className="overflow-hidden">
           {teams.map((row, index) => {
             const expanded = expandedId === row.team.id;
             return (
@@ -202,8 +202,7 @@ export default function TeamsConsole() {
                       setExpandedId(expanded ? null : row.team.id);
                     }
                   }}
-                  className="w-full px-6 py-5 text-left grid items-center transition-colors hover:bg-[#FAF7F0]"
-                  style={{ gridTemplateColumns: "2fr 1fr 1fr 1fr 120px" }}
+                  className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-5 text-left transition-colors hover:bg-[#FAF7F0] sm:px-6 md:grid-cols-[2fr_1fr_1fr_1fr_120px]"
                 >
                   <div>
                     <div className="font-serif" style={{ fontSize: 22, color: tone.ink }}>
@@ -212,14 +211,17 @@ export default function TeamsConsole() {
                     <div className="text-[12px] mt-1" style={{ color: tone.ink50 }}>
                       {t.leader}: {row.leader?.name || t.unassigned}
                     </div>
+                    <div className="mt-2 md:hidden">
+                      <Pill tone="neutral">{row.memberCount} {t.members}</Pill>
+                    </div>
                   </div>
-                  <div>
+                  <div className="hidden md:block">
                     <Pill tone="neutral">{row.memberCount} {t.members}</Pill>
                   </div>
-                  <div className="font-serif" style={{ fontSize: 22, color: tone.ink }}>
+                  <div className="hidden font-serif md:block" style={{ fontSize: 22, color: tone.ink }}>
                     {row.mtdDeals}
                   </div>
-                  <div className="font-serif" style={{ fontSize: 22, color: tone.green }}>
+                  <div className="hidden font-serif md:block" style={{ fontSize: 22, color: tone.green }}>
                     ${fmtMoney(row.mtdTake)}
                   </div>
                   <div className="flex justify-end gap-2">
@@ -237,7 +239,7 @@ export default function TeamsConsole() {
                   </div>
                 </div>
                 {expanded && (
-                  <div className="px-6 pb-5">
+                  <div className="px-4 pb-5 sm:px-6">
                     <div className="rounded-xl p-4" style={{ background: tone.paper, border: `1px solid ${tone.lineSoft}` }}>
                       {row.members.length === 0 ? (
                         <div className="text-[13px]" style={{ color: tone.ink50 }}>

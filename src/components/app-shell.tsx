@@ -35,8 +35,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <>
       <Nav />
-      <main className="flex-1">
-        <div className="mx-auto max-w-[1280px] px-4 py-6 sm:px-8 sm:py-10">{children}</div>
+      <main className="min-w-0 w-full flex-1">
+        <div className="mx-auto w-full max-w-[1280px] px-4 py-6 sm:px-8 sm:py-10">{children}</div>
       </main>
       <footer
         className="mx-auto max-w-[1280px] px-4 py-6 sm:px-8 sm:py-10 flex items-center justify-between text-[11px] w-full"

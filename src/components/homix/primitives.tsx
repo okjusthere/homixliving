@@ -156,7 +156,7 @@ export function Card({
 }) {
   return (
     <div
-      className={`rounded-xl ${className}`}
+      className={`min-w-0 rounded-xl ${className}`}
       style={{ background: tone.card, border: `1px solid ${tone.line}`, ...s }}
     >
       {children}
@@ -177,12 +177,12 @@ export function SoftField({
   mono?: boolean;
 }) {
   return (
-    <div>
+    <div className="min-w-0">
       <div className="text-[11px] uppercase tracking-[0.1em]" style={{ color: tone.ink50 }}>
         {label}
       </div>
       <div
-        className={`mt-1 text-[13.5px] leading-snug ${mono ? "font-mono" : ""}`}
+        className={`mt-1 min-w-0 break-words text-[13.5px] leading-snug ${mono ? "font-mono" : ""}`}
         style={{ color: tone.ink }}
       >
         {value || "—"}

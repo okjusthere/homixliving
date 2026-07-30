@@ -187,8 +187,8 @@ export function DealDocuments({
   return (
     <Card>
       <CardHeader title={t.title} />
-      <div className="flex items-center justify-between gap-3 mb-3">
-        <div className="text-[12px]" style={{ color: tone.ink50 }}>
+      <div className="mb-3 flex min-w-0 items-start justify-between gap-3 px-4 pt-4 sm:px-5 sm:pt-5">
+        <div className="min-w-0 flex-1 break-words text-[12px]" style={{ color: tone.ink50 }}>
           {t.hint}
         </div>
         <div className="flex-none">
@@ -217,7 +217,7 @@ export function DealDocuments({
       </div>
 
       {checklist.length > 0 && (
-        <div className="mb-4 space-y-3">
+        <div className="mb-4 space-y-3 px-4 sm:px-5">
           {checklist.map((group) => {
             const done = group.items.filter((i) => i.documents.length > 0).length;
             return (
@@ -242,7 +242,7 @@ export function DealDocuments({
                     return (
                       <div
                         key={item.id}
-                        className="flex items-start gap-2 py-1.5"
+                        className="flex min-w-0 items-start gap-2 py-1.5"
                         style={{ borderTop: `1px solid ${tone.lineSoft}` }}
                       >
                         <span
@@ -253,7 +253,7 @@ export function DealDocuments({
                         </span>
                         <div className="flex-1 min-w-0">
                           <div
-                            className="text-[12.5px] leading-5"
+                            className="break-words text-[12.5px] leading-5"
                             style={{ color: satisfied ? tone.ink70 : tone.ink }}
                           >
                             {item.label}
@@ -306,11 +306,11 @@ export function DealDocuments({
       )}
 
       {docs.length === 0 ? (
-        <div className="text-[12.5px] py-2" style={{ color: tone.ink50 }}>
+        <div className="px-4 pb-5 pt-2 text-[12.5px] sm:px-5" style={{ color: tone.ink50 }}>
           {t.empty}
         </div>
       ) : (
-        <div>
+        <div className="px-4 pb-4 sm:px-5 sm:pb-5">
           {docs.map((doc) => (
             <div
               key={doc.id}

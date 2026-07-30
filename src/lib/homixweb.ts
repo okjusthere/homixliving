@@ -28,6 +28,87 @@ export function isHomixwebConfigured(): boolean {
   return Boolean(homixwebSecret());
 }
 
+export type ShareContentKind =
+  | "listing"
+  | "neighborhood"
+  | "community"
+  | "development"
+  | "guide";
+
+export type ShareCatalogItem = {
+  kind: ShareContentKind;
+  key: string;
+  path: string;
+  title: string;
+  subtitle: string;
+  image: string | null;
+  eyebrow?: string | null;
+};
+
+export type ShareCatalogResult = {
+  items: ShareCatalogItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  overview: boolean;
+  unavailable?: boolean;
+  counts: Partial<Record<ShareContentKind | "all", number>>;
+};
+
+export async function fetchShareCatalog(input: {
+  kind: ShareContentKind | "all";
+  locale: "en" | "zh";
+  query?: string;
+  page?: number;
+  pageSize?: number;
+}): Promise<ShareCatalogResult | null> {
+  if (!isHomixwebConfigured()) return null;
+  const params = new URLSearchParams({
+    kind: input.kind,
+    locale: input.locale,
+    page: String(input.page ?? 1),
+    pageSize: String(input.pageSize ?? 24),
+  });
+  if (input.query?.trim()) params.set("q", input.query.trim());
+  try {
+    const response = await fetch(
+      `${homixwebBase()}/api/share-catalog?${params.toString()}`,
+      {
+        headers: { authorization: `Bearer ${homixwebSecret()}` },
+        cache: "no-store",
+        signal: AbortSignal.timeout(12_000),
+      },
+    );
+    if (!response.ok) return null;
+    return (await response.json()) as ShareCatalogResult;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchShareCatalogItem(
+  path: string,
+  locale: "en" | "zh",
+): Promise<ShareCatalogItem | null> {
+  if (!isHomixwebConfigured()) return null;
+  const params = new URLSearchParams({ path, locale });
+  try {
+    const response = await fetch(
+      `${homixwebBase()}/api/share-catalog?${params.toString()}`,
+      {
+        headers: { authorization: `Bearer ${homixwebSecret()}` },
+        cache: "no-store",
+        signal: AbortSignal.timeout(12_000),
+      },
+    );
+    if (!response.ok) return null;
+    const body = (await response.json()) as { item?: ShareCatalogItem };
+    return body.item ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export type PublicProfile = {
   id: string;
   slug: string;

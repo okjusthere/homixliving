@@ -80,7 +80,7 @@ export function SendDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-8"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8"
       style={{ background: "rgba(26, 24, 20, 0.4)", backdropFilter: "blur(4px)" }}
       onClick={onClose}
     >
@@ -95,7 +95,7 @@ export function SendDialog({
       >
         {/* Header */}
         <div
-          className="px-8 py-6 flex items-center justify-between"
+          className="flex items-center justify-between gap-4 px-5 py-4 sm:px-8 sm:py-6"
           style={{ borderBottom: `1px solid ${tone.line}` }}
         >
           <div>
@@ -128,7 +128,7 @@ export function SendDialog({
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-auto px-8 py-6 space-y-5">
+        <div className="flex-1 space-y-5 overflow-auto px-5 py-5 sm:px-8 sm:py-6">
           {/* Email composer */}
           <div className="rounded-lg overflow-hidden" style={{ border: `1px solid ${tone.line}` }}>
             <FieldRow
@@ -254,13 +254,13 @@ export function SendDialog({
 
         {/* Footer */}
         <div
-          className="px-8 py-5 flex items-center justify-between"
+          className="flex flex-col items-stretch gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-8 sm:py-5"
           style={{ borderTop: `1px solid ${tone.line}`, background: tone.paper }}
         >
           <div className="text-[11.5px]" style={{ color: tone.ink50 }}>
             Sent via Resend · tracked
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Btn variant="outline" onClick={onClose}>
               Cancel
             </Btn>
@@ -304,7 +304,7 @@ function FieldRow({
       >
         {label}
       </div>
-      <div className="flex-1">{value}</div>
+      <div className="min-w-0 flex-1">{value}</div>
     </div>
   );
 }

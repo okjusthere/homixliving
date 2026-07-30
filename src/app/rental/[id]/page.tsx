@@ -314,15 +314,18 @@ export default function DealDetailPage() {
         />
       </div>
 
-      <div className="grid gap-8" style={{ gridTemplateColumns: "minmax(0, 1fr) 520px" }}>
-        <div className="space-y-6">
+      <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(380px,520px)] xl:gap-8">
+        <div className="min-w-0 space-y-6">
           <Card>
-            <div className="p-8">
+            <div className="p-5 sm:p-8">
               <div className="text-[11px] uppercase tracking-[0.14em]" style={{ color: tone.ink50 }}>
                 {t.totalCommission}
               </div>
-              <div className="font-serif" style={{ fontSize: 76, lineHeight: 0.9, color: tone.ink, marginTop: 8 }}>
-                <span style={{ fontSize: 32, color: tone.ink50, marginRight: 6 }}>$</span>
+              <div
+                className="break-words font-serif text-[36px] sm:text-[56px] xl:text-[64px]"
+                style={{ lineHeight: 0.95, color: tone.ink, marginTop: 8 }}
+              >
+                <span className="text-[22px] sm:text-[28px]" style={{ color: tone.ink50, marginRight: 6 }}>$</span>
                 {fmtMoney(Number(deal.totalCommission || 0))}
               </div>
               <div className="mt-4 text-[12.5px]" style={{ color: tone.ink70 }}>
@@ -410,8 +413,8 @@ export default function DealDetailPage() {
           )}
         </div>
 
-        <div>
-          <div className="sticky top-24 space-y-6">
+        <div className="min-w-0">
+          <div className="space-y-6 xl:sticky xl:top-24">
             <Card>
               <CardHeader
                 title={t.paymentStatus}
@@ -464,43 +467,43 @@ export default function DealDetailPage() {
               <div className="p-6">
                 <DealBreakdownBar breakdown={breakdown} />
                 <div className="mt-6 space-y-3 text-[13px]">
-                  <div className="flex justify-between" style={{ color: tone.ink }}>
-                    <span>{t.totalCommission}</span>
-                    <span className="font-mono">${fmtMoney(breakdown.totalCommission)}</span>
+                  <div className="flex min-w-0 justify-between gap-3" style={{ color: tone.ink }}>
+                    <span className="min-w-0">{t.totalCommission}</span>
+                    <span className="shrink-0 font-mono">${fmtMoney(breakdown.totalCommission)}</span>
                   </div>
                   {referrerDisplayName && (
-                    <div className="flex justify-between" style={{ color: tone.amber }}>
-                      <span>{t.referrer} ({referrerDisplayName}, {referrerLabel})</span>
-                      <span className="font-mono">-${fmtMoney(breakdown.referrerCut)}</span>
+                    <div className="flex min-w-0 justify-between gap-3" style={{ color: tone.amber }}>
+                      <span className="min-w-0 break-words">{t.referrer} ({referrerDisplayName}, {referrerLabel})</span>
+                      <span className="shrink-0 font-mono">-${fmtMoney(breakdown.referrerCut)}</span>
                     </div>
                   )}
                   <div style={{ borderTop: `1px solid ${tone.lineSoft}` }} />
                   {breakdown.agents.map((agentBreakdown) => (
                     <div key={agentBreakdown.agentId} className="space-y-1">
-                      <div className="flex justify-between" style={{ color: tone.ink }}>
-                        <span>
+                      <div className="flex min-w-0 justify-between gap-3" style={{ color: tone.ink }}>
+                        <span className="min-w-0 break-words">
                           {agentBreakdown.isPrimary ? t.primary : t.agent} — {agentBreakdown.name || t.unknown}
                         </span>
-                        <span className="font-mono">${fmtMoney(agentBreakdown.agentTake)} {t.take}</span>
+                        <span className="shrink-0 font-mono">${fmtMoney(agentBreakdown.agentTake)} {t.take}</span>
                       </div>
-                      <div className="flex justify-between text-[12px]" style={{ color: tone.ink50 }}>
+                      <div className="flex justify-between gap-3 text-[12px]" style={{ color: tone.ink50 }}>
                         <span>{t.companyPool}</span>
-                        <span className="font-mono">${fmtMoney(agentBreakdown.companyPool)}</span>
+                        <span className="shrink-0 font-mono">${fmtMoney(agentBreakdown.companyPool)}</span>
                       </div>
                     </div>
                   ))}
                   <div style={{ borderTop: `1px solid ${tone.lineSoft}` }} />
-                  <div className="flex justify-between font-medium" style={{ color: tone.green }}>
+                  <div className="flex justify-between gap-3 font-medium" style={{ color: tone.green }}>
                     <span>{t.agentTakeTotal}</span>
-                    <span className="font-mono">${fmtMoney(breakdown.agentTakeTotal)}</span>
+                    <span className="shrink-0 font-mono">${fmtMoney(breakdown.agentTakeTotal)}</span>
                   </div>
-                  <div className="flex justify-between font-medium" style={{ color: tone.ink }}>
+                  <div className="flex justify-between gap-3 font-medium" style={{ color: tone.ink }}>
                     <span>{t.companyPool}</span>
-                    <span className="font-mono">${fmtMoney(breakdown.companyPoolTotal)}</span>
+                    <span className="shrink-0 font-mono">${fmtMoney(breakdown.companyPoolTotal)}</span>
                   </div>
-                  <div className="flex justify-between font-medium" style={{ color: tone.amber }}>
+                  <div className="flex justify-between gap-3 font-medium" style={{ color: tone.amber }}>
                     <span>{t.referrerTotal}</span>
-                    <span className="font-mono">${fmtMoney(breakdown.referrerCut)}</span>
+                    <span className="shrink-0 font-mono">${fmtMoney(breakdown.referrerCut)}</span>
                   </div>
                 </div>
                 {deal.referrerPaymentInfo && (

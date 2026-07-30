@@ -299,8 +299,8 @@ export default function AgentDetailConsole() {
         ))}
       </div>
 
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-1 p-1 rounded-lg" style={{ background: tone.paperDeep }}>
+      <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-1 overflow-x-auto rounded-lg p-1" style={{ background: tone.paperDeep }}>
           {monthOptions.map((option) => (
             <button
               key={option.value}
@@ -316,18 +316,11 @@ export default function AgentDetailConsole() {
             </button>
           ))}
         </div>
-        <EditorialInput value={month} onChange={setMonth} type="month" mono className="max-w-[170px]" />
+        <EditorialInput value={month} onChange={setMonth} type="month" mono className="w-full sm:max-w-[170px]" />
       </div>
 
-      <Card>
+      <Card className="overflow-hidden">
         <CardHeader title={t.rentalForMonth(month)} />
-        <div className="grid text-[11px] uppercase tracking-[0.1em] px-6 py-3" style={{ gridTemplateColumns: "1fr 2fr 1fr 1fr 1fr", color: tone.ink50, borderBottom: `1px solid ${tone.lineSoft}` }}>
-          <div>{t.rentalNum}</div>
-          <div>{t.buildingTenant}</div>
-          <div>{t.rentalDate}</div>
-          <div className="text-right">{t.commission}</div>
-          <div className="text-right">{t.personalTake}</div>
-        </div>
         {report.deals.length === 0 ? (
           <div className="px-6 py-14 text-center">
             <div className="font-serif mb-2" style={{ fontSize: 22, color: tone.ink }}>
@@ -338,38 +331,49 @@ export default function AgentDetailConsole() {
             </p>
           </div>
         ) : (
-          report.deals.map(({ deal, buildingName, personalTake }, index) => (
-            <Link
-              key={deal.id}
-              href={`/rental/${deal.id}`}
-              className="grid px-6 py-4 items-center transition-colors hover:bg-[#FAF7F0]"
-              style={{
-                gridTemplateColumns: "1fr 2fr 1fr 1fr 1fr",
-                borderBottom: index < report.deals.length - 1 ? `1px solid ${tone.lineSoft}` : "none",
-              }}
-            >
-              <div className="font-mono text-[12.5px]" style={{ color: tone.ink }}>
-                #{deal.id}
+          <div className="overflow-x-auto">
+            <div className="min-w-[680px]">
+              <div className="grid text-[11px] uppercase tracking-[0.1em] px-6 py-3" style={{ gridTemplateColumns: "1fr 2fr 1fr 1fr 1fr", color: tone.ink50, borderBottom: `1px solid ${tone.lineSoft}` }}>
+                <div>{t.rentalNum}</div>
+                <div>{t.buildingTenant}</div>
+                <div>{t.rentalDate}</div>
+                <div className="text-right">{t.commission}</div>
+                <div className="text-right">{t.personalTake}</div>
               </div>
-              <div>
-                <div className="text-[13px]" style={{ color: tone.ink }}>
-                  {buildingName || "—"} · {t.unit} {deal.unit}
-                </div>
-                <div className="text-[11.5px] mt-0.5" style={{ color: tone.ink50 }}>
-                  {deal.tenantName}
-                </div>
-              </div>
-              <div className="font-mono text-[12.5px]" style={{ color: tone.ink70 }}>
-                {fmtDate(deal.dealDate || deal.createdAt)}
-              </div>
-              <div className="text-right font-serif" style={{ fontSize: 18, color: tone.ink }}>
-                ${fmtMoney(Number(deal.totalCommission || 0))}
-              </div>
-              <div className="text-right font-serif" style={{ fontSize: 18, color: tone.green }}>
-                ${fmtMoney(personalTake)}
-              </div>
-            </Link>
-          ))
+              {report.deals.map(({ deal, buildingName, personalTake }, index) => (
+                <Link
+                  key={deal.id}
+                  href={`/rental/${deal.id}`}
+                  className="grid items-center px-6 py-4 transition-colors hover:bg-[#FAF7F0]"
+                  style={{
+                    gridTemplateColumns: "1fr 2fr 1fr 1fr 1fr",
+                    borderBottom: index < report.deals.length - 1 ? `1px solid ${tone.lineSoft}` : "none",
+                  }}
+                >
+                  <div className="font-mono text-[12.5px]" style={{ color: tone.ink }}>
+                    #{deal.id}
+                  </div>
+                  <div>
+                    <div className="text-[13px]" style={{ color: tone.ink }}>
+                      {buildingName || "—"} · {t.unit} {deal.unit}
+                    </div>
+                    <div className="text-[11.5px] mt-0.5" style={{ color: tone.ink50 }}>
+                      {deal.tenantName}
+                    </div>
+                  </div>
+                  <div className="font-mono text-[12.5px]" style={{ color: tone.ink70 }}>
+                    {fmtDate(deal.dealDate || deal.createdAt)}
+                  </div>
+                  <div className="text-right font-serif" style={{ fontSize: 18, color: tone.ink }}>
+                    ${fmtMoney(Number(deal.totalCommission || 0))}
+                  </div>
+                  <div className="text-right font-serif" style={{ fontSize: 18, color: tone.green }}>
+                    ${fmtMoney(personalTake)}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
         )}
       </Card>
 
@@ -381,7 +385,7 @@ export default function AgentDetailConsole() {
             <SoftField label={t.phone} value={agent.phone || "—"} mono />
           </div>
         </Card>
-        <Card className="col-span-2">
+        <Card className="sm:col-span-2">
           <CardHeader title={t.notes} />
           <div className="p-5">
             <div className="text-[13.5px] leading-relaxed" style={{ color: tone.ink70 }}>
@@ -392,9 +396,9 @@ export default function AgentDetailConsole() {
       </div>
 
       {editAgent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-8" style={{ background: "rgba(26, 24, 20, 0.4)", backdropFilter: "blur(4px)" }} onClick={() => setEditAgent(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8" style={{ background: "rgba(26, 24, 20, 0.4)", backdropFilter: "blur(4px)" }} onClick={() => setEditAgent(null)}>
           <div className="w-full max-w-2xl rounded-2xl max-h-[90vh] overflow-hidden flex flex-col" style={{ background: tone.card, border: `1px solid ${tone.line}`, boxShadow: "0 30px 80px -20px rgba(0,0,0,0.3)" }} onClick={(e) => e.stopPropagation()}>
-            <div className="px-8 py-6 flex items-center justify-between" style={{ borderBottom: `1px solid ${tone.line}` }}>
+            <div className="flex items-center justify-between gap-4 px-5 py-4 sm:px-8 sm:py-6" style={{ borderBottom: `1px solid ${tone.line}` }}>
               <div>
                 <div className="text-[11px] uppercase tracking-[0.14em]" style={{ color: tone.ink50 }}>
                   {t.edit}
@@ -407,7 +411,7 @@ export default function AgentDetailConsole() {
                 x
               </button>
             </div>
-            <div className="flex-1 overflow-auto px-8 py-6 space-y-4">
+            <div className="flex-1 space-y-4 overflow-auto px-5 py-5 sm:px-8 sm:py-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <LabeledField label={t.name}>
                   <EditorialInput value={editAgent.name || ""} onChange={(v) => updateField("name", v)} />
@@ -456,7 +460,7 @@ export default function AgentDetailConsole() {
                 />
               </LabeledField>
             </div>
-            <div className="px-8 py-5 flex items-center justify-end gap-2" style={{ borderTop: `1px solid ${tone.line}`, background: tone.paper }}>
+            <div className="flex flex-wrap items-center justify-end gap-2 px-5 py-4 sm:px-8 sm:py-5" style={{ borderTop: `1px solid ${tone.line}`, background: tone.paper }}>
               <Btn variant="outline" onClick={() => setEditAgent(null)}>
                 {t.cancel}
               </Btn>

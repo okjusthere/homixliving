@@ -349,12 +349,12 @@ export default function InvoiceDetailPage() {
       )}
 
       {/* Split layout */}
-      <div className="grid gap-8" style={{ gridTemplateColumns: "minmax(0, 1fr) 560px" }}>
+      <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(420px,560px)] xl:gap-8">
         {/* LEFT: details */}
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-6">
           {/* Amount hero */}
           <Card>
-            <div className="p-8">
+            <div className="p-5 sm:p-8">
               <div
                 className="text-[11px] uppercase tracking-[0.14em]"
                 style={{ color: tone.ink50 }}
@@ -362,20 +362,19 @@ export default function InvoiceDetailPage() {
                 {t.totalDue}
               </div>
               <div
-                className="font-serif"
+                className="break-words font-serif text-[36px] sm:text-[56px] xl:text-[64px]"
                 style={{
-                  fontSize: 76,
-                  lineHeight: 0.9,
+                  lineHeight: 0.95,
                   letterSpacing: "-0.03em",
                   color: tone.ink,
                   marginTop: 8,
                 }}
               >
-                <span style={{ fontSize: 32, color: tone.ink50, marginRight: 6 }}>$</span>
+                <span className="text-[22px] sm:text-[28px]" style={{ color: tone.ink50, marginRight: 6 }}>$</span>
                 {fmtMoney(invoice.totalAmount)}
               </div>
               <div
-                className="mt-4 flex items-center gap-6 text-[12.5px]"
+                className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-[12.5px]"
                 style={{ color: tone.ink70 }}
               >
                 <span>
@@ -619,8 +618,8 @@ export default function InvoiceDetailPage() {
         </div>
 
         {/* RIGHT: PDF preview */}
-        <div>
-          <div className="sticky top-24">
+        <div className="min-w-0">
+          <div className="xl:sticky xl:top-24">
             <div className="flex items-center justify-between mb-3">
               <div
                 className="text-[11px] uppercase tracking-[0.14em]"

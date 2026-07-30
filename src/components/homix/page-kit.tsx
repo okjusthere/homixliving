@@ -43,7 +43,7 @@ export function PageHeader({
           </div>
         )}
         <h1
-          className="font-serif"
+          className="break-words font-serif"
           style={{
             // Scales down on phones; a flat 40px ate most of a 390px screen.
             fontSize: "clamp(28px, 7vw, 40px)",

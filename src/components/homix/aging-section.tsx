@@ -142,7 +142,7 @@ export function AgingSection() {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* By building */}
-          <Card>
+          <Card className="overflow-hidden">
             <div
               className="px-6 py-5"
               style={{ borderBottom: `1px solid ${tone.lineSoft}` }}
@@ -151,60 +151,62 @@ export function AgingSection() {
                 By building
               </div>
             </div>
-            <div
-              className="grid text-[11px] uppercase tracking-[0.1em] px-6 py-3"
-              style={{
-                gridTemplateColumns: "2fr 0.6fr 1fr 0.7fr",
-                color: tone.ink50,
-                borderBottom: `1px solid ${tone.lineSoft}`,
-              }}
-            >
-              <div>Building</div>
-              <div className="text-right">Inv</div>
-              <div className="text-right">Total</div>
-              <div className="text-right">Oldest</div>
-            </div>
-            {data.perBuilding.slice(0, 8).map((row, i) => (
+            <div className="overflow-x-auto">
               <div
-                key={row.buildingId}
-                className="grid items-center px-6 py-3"
+                className="grid min-w-[460px] text-[11px] uppercase tracking-[0.1em] px-6 py-3"
                 style={{
                   gridTemplateColumns: "2fr 0.6fr 1fr 0.7fr",
-                  borderBottom:
-                    i < Math.min(data.perBuilding.length, 8) - 1
-                      ? `1px solid ${tone.lineSoft}`
-                      : "none",
+                  color: tone.ink50,
+                  borderBottom: `1px solid ${tone.lineSoft}`,
                 }}
               >
-                <div>
-                  <div className="text-[13px]" style={{ color: tone.ink }}>
-                    {row.buildingName}
-                  </div>
-                  <div className="text-[11px] mt-0.5" style={{ color: tone.ink50 }}>
-                    {row.buildingRegion}
-                  </div>
-                </div>
-                <div
-                  className="text-right text-[13px] font-mono"
-                  style={{ color: tone.ink70 }}
-                >
-                  {row.count}
-                </div>
-                <div
-                  className="text-right font-serif"
-                  style={{ fontSize: 17, color: tone.ink }}
-                >
-                  ${fmtMoney(row.total)}
-                </div>
-                <div className="text-right text-[12px]" style={{ color: tone.ink50 }}>
-                  {row.oldestDays} d
-                </div>
+                <div>Building</div>
+                <div className="text-right">Inv</div>
+                <div className="text-right">Total</div>
+                <div className="text-right">Oldest</div>
               </div>
-            ))}
+              {data.perBuilding.slice(0, 8).map((row, i) => (
+                <div
+                  key={row.buildingId}
+                  className="grid min-w-[460px] items-center px-6 py-3"
+                  style={{
+                    gridTemplateColumns: "2fr 0.6fr 1fr 0.7fr",
+                    borderBottom:
+                      i < Math.min(data.perBuilding.length, 8) - 1
+                        ? `1px solid ${tone.lineSoft}`
+                        : "none",
+                  }}
+                >
+                  <div>
+                    <div className="text-[13px]" style={{ color: tone.ink }}>
+                      {row.buildingName}
+                    </div>
+                    <div className="text-[11px] mt-0.5" style={{ color: tone.ink50 }}>
+                      {row.buildingRegion}
+                    </div>
+                  </div>
+                  <div
+                    className="text-right text-[13px] font-mono"
+                    style={{ color: tone.ink70 }}
+                  >
+                    {row.count}
+                  </div>
+                  <div
+                    className="text-right font-serif"
+                    style={{ fontSize: 17, color: tone.ink }}
+                  >
+                    ${fmtMoney(row.total)}
+                  </div>
+                  <div className="text-right text-[12px]" style={{ color: tone.ink50 }}>
+                    {row.oldestDays} d
+                  </div>
+                </div>
+              ))}
+            </div>
           </Card>
 
           {/* Oldest invoices */}
-          <Card>
+          <Card className="overflow-hidden">
             <div
               className="px-6 py-5"
               style={{ borderBottom: `1px solid ${tone.lineSoft}` }}
@@ -213,70 +215,72 @@ export function AgingSection() {
                 Needs attention
               </div>
             </div>
-            <div
-              className="grid text-[11px] uppercase tracking-[0.1em] px-6 py-3"
-              style={{
-                gridTemplateColumns: "1.4fr 1.5fr 0.7fr 0.9fr",
-                color: tone.ink50,
-                borderBottom: `1px solid ${tone.lineSoft}`,
-              }}
-            >
-              <div>Invoice</div>
-              <div>Building</div>
-              <div>Days</div>
-              <div className="text-right">Amount</div>
-            </div>
-            {data.items.slice(0, 8).map((it, i) => (
-              <Link
-                key={it.invoiceId}
-                href={`/invoices/${it.invoiceId}`}
-                className="grid items-center px-6 py-3 hover:bg-[#FAF7F0]"
+            <div className="overflow-x-auto">
+              <div
+                className="grid min-w-[520px] text-[11px] uppercase tracking-[0.1em] px-6 py-3"
                 style={{
                   gridTemplateColumns: "1.4fr 1.5fr 0.7fr 0.9fr",
-                  borderBottom:
-                    i < Math.min(data.items.length, 8) - 1
-                      ? `1px solid ${tone.lineSoft}`
-                      : "none",
+                  color: tone.ink50,
+                  borderBottom: `1px solid ${tone.lineSoft}`,
                 }}
               >
-                <div>
-                  <div
-                    className="font-mono text-[12px]"
-                    style={{ color: tone.ink }}
-                  >
-                    {it.invoiceNumber}
-                  </div>
-                  <div
-                    className="text-[11px] mt-0.5"
-                    style={{ color: tone.ink50 }}
-                  >
-                    {it.tenantName} · {it.unit}
-                  </div>
-                </div>
-                <div className="text-[12.5px]" style={{ color: tone.ink70 }}>
-                  {it.buildingName || "—"}
-                  {it.sentAt && (
+                <div>Invoice</div>
+                <div>Building</div>
+                <div>Days</div>
+                <div className="text-right">Amount</div>
+              </div>
+              {data.items.slice(0, 8).map((it, i) => (
+                <Link
+                  key={it.invoiceId}
+                  href={`/invoices/${it.invoiceId}`}
+                  className="grid min-w-[520px] items-center px-6 py-3 hover:bg-[#FAF7F0]"
+                  style={{
+                    gridTemplateColumns: "1.4fr 1.5fr 0.7fr 0.9fr",
+                    borderBottom:
+                      i < Math.min(data.items.length, 8) - 1
+                        ? `1px solid ${tone.lineSoft}`
+                        : "none",
+                  }}
+                >
+                  <div>
                     <div
-                      className="text-[10.5px] mt-0.5 font-mono"
+                      className="font-mono text-[12px]"
+                      style={{ color: tone.ink }}
+                    >
+                      {it.invoiceNumber}
+                    </div>
+                    <div
+                      className="text-[11px] mt-0.5"
                       style={{ color: tone.ink50 }}
                     >
-                      sent {fmtDate(it.sentAt)}
+                      {it.tenantName} · {it.unit}
                     </div>
-                  )}
-                </div>
-                <div>
-                  {it.bucket && (
-                    <Pill tone={bucketTone(it.bucket)}>{it.daysOutstanding} d</Pill>
-                  )}
-                </div>
-                <div
-                  className="text-right font-serif"
-                  style={{ fontSize: 17, color: tone.ink }}
-                >
-                  ${fmtMoney(it.amount)}
-                </div>
-              </Link>
-            ))}
+                  </div>
+                  <div className="text-[12.5px]" style={{ color: tone.ink70 }}>
+                    {it.buildingName || "—"}
+                    {it.sentAt && (
+                      <div
+                        className="text-[10.5px] mt-0.5 font-mono"
+                        style={{ color: tone.ink50 }}
+                      >
+                        sent {fmtDate(it.sentAt)}
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    {it.bucket && (
+                      <Pill tone={bucketTone(it.bucket)}>{it.daysOutstanding} d</Pill>
+                    )}
+                  </div>
+                  <div
+                    className="text-right font-serif"
+                    style={{ fontSize: 17, color: tone.ink }}
+                  >
+                    ${fmtMoney(it.amount)}
+                  </div>
+                </Link>
+              ))}
+            </div>
           </Card>
         </div>
       )}
