@@ -33,7 +33,8 @@ export type ShareContentKind =
   | "neighborhood"
   | "community"
   | "development"
-  | "guide";
+  | "guide"
+  | "news";
 
 export type ShareCatalogItem = {
   kind: ShareContentKind;

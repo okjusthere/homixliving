@@ -25,6 +25,7 @@ export const SHARE_KINDS = [
   "community",
   "development",
   "guide",
+  "news",
 ] as const;
 
 export type ShareKind = (typeof SHARE_KINDS)[number];
