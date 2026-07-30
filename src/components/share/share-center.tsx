@@ -43,6 +43,7 @@ const COPY = {
     community: "Communities",
     development: "New developments",
     guide: "Guides & articles",
+    news: "News",
     overviewHint:
       "A mixed preview is shown here. Open a category to browse every item.",
     results: "items",
@@ -93,6 +94,7 @@ const COPY = {
     community: "封闭社区",
     development: "纽约新盘",
     guide: "指南与文章",
+    news: "地产新闻",
     overviewHint: "这里展示各分类的混合预览；进入具体分类可浏览其中全部内容。",
     results: "项内容",
     create: "生成我的分享链接",
@@ -140,6 +142,7 @@ const KINDS: CatalogKind[] = [
   "community",
   "development",
   "guide",
+  "news",
 ];
 
 function formatDuration(seconds: number): string {

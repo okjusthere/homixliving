@@ -33,6 +33,19 @@ The lifecycle migration is deliberately expand/contract:
    - deactivation sets `inactive` and `admin_hidden`.
 4. Apply `db/migrations/20260723-agent-lifecycle-phase-b.sql`.
 
+## Automated News
+
+`db/migrations/20260730-automated-news.sql` is an additive shared-database
+migration. Apply it before deploying the Homix Web `/news` routes or the Portal
+Share Center `news` tab. It creates private News pipeline tables, seeds RSS
+sources, installs the daily-run claim function, and extends
+`public.share_links.content_kind` to accept `news`.
+
+The same canonical SQL is mirrored in the website repository as
+`supabase/automated-news.sql` for Supabase SQL Editor use. No public RLS policy
+is added; only the server-side service role may read or write News pipeline
+state.
+
 The deployed Portal can perform the same operations with its own protected
 database connection. `phase=expand` is idempotent; contract additionally
 requires an explicit confirmation:

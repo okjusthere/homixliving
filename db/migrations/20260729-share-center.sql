@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS public.share_links (
   code TEXT NOT NULL UNIQUE,
   agent_id INTEGER NOT NULL REFERENCES portal.agents(id) ON DELETE CASCADE,
   content_kind TEXT NOT NULL
-    CHECK (content_kind IN ('listing', 'neighborhood', 'community', 'development', 'guide')),
+    CHECK (content_kind IN ('listing', 'neighborhood', 'community', 'development', 'guide', 'news')),
   content_key TEXT NOT NULL,
   content_path TEXT NOT NULL,
   content_title TEXT NOT NULL,
