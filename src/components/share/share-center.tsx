@@ -14,6 +14,9 @@ import {
   Download,
   ExternalLink,
   Link2,
+  Mail,
+  MessageSquare,
+  Phone,
   Search,
   Share2,
   X,
@@ -24,7 +27,10 @@ import type {
   ShareCatalogResult,
   ShareContentKind,
 } from "@/lib/homixweb";
-import type { ShareLinkSummary } from "@/lib/share-center";
+import type {
+  ShareInquiryDetail,
+  ShareLinkSummary,
+} from "@/lib/share-center";
 import { tone } from "@/components/homix/tokens";
 import { Card } from "@/components/homix/server-primitives";
 
@@ -63,6 +69,16 @@ const COPY = {
     views: "Page views",
     visitors: "Unique visitors",
     inquiries: "Inquiries",
+    inquiryDetails: "Inquiry details",
+    inquiryEmpty: "No inquiries have been submitted through this link.",
+    inquiryLoadError: "Unable to load inquiry details.",
+    submitted: "Submitted",
+    sourcePage: "Source page",
+    emailDelivery: "Email delivery",
+    deliverySent: "Sent",
+    deliveryFailed: "Failed",
+    deliveryStored: "Saved",
+    noMessage: "No message was provided.",
     noLinks: "No share links yet. Create one from the content library.",
     averageTime: "Avg. engaged",
     medianTime: "Median engaged",
@@ -113,6 +129,16 @@ const COPY = {
     views: "浏览次数",
     visitors: "独立访客",
     inquiries: "咨询提交",
+    inquiryDetails: "咨询明细",
+    inquiryEmpty: "这个分享链接还没有收到咨询。",
+    inquiryLoadError: "暂时无法读取咨询明细。",
+    submitted: "提交时间",
+    sourcePage: "来源页面",
+    emailDelivery: "邮件通知",
+    deliverySent: "已发送",
+    deliveryFailed: "发送失败",
+    deliveryStored: "已保存",
+    noMessage: "访客没有填写留言。",
     noLinks: "还没有分享链接，请先从内容库选择一项内容。",
     averageTime: "平均有效停留",
     medianTime: "中位有效停留",
@@ -187,6 +213,9 @@ export function ShareCenter({
   const [modalLink, setModalLink] = useState<ShareLinkSummary | null>(null);
   const [copied, setCopied] = useState(false);
   const [actionError, setActionError] = useState("");
+  const [inquiryRows, setInquiryRows] = useState<ShareInquiryDetail[]>([]);
+  const [inquiriesLoading, setInquiriesLoading] = useState(false);
+  const [inquiriesError, setInquiriesError] = useState("");
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedQuery(query.trim()), 300);
@@ -256,6 +285,44 @@ export function ShareCenter({
   useEffect(() => {
     void loadLinks(linkScope);
   }, [linkScope, loadLinks]);
+
+  useEffect(() => {
+    const linkId = modalLink?.id;
+    setInquiryRows([]);
+    setInquiriesError("");
+    if (!linkId) {
+      setInquiriesLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setInquiriesLoading(true);
+    fetch(`/api/share/inquiries?linkId=${linkId}`, {
+      cache: "no-store",
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        const body = (await response.json().catch(() => ({}))) as {
+          inquiries?: ShareInquiryDetail[];
+          error?: string;
+        };
+        if (!response.ok) {
+          throw new Error(body.error || t.inquiryLoadError);
+        }
+        setInquiryRows(body.inquiries ?? []);
+      })
+      .catch((error) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setInquiriesError(
+          error instanceof Error ? error.message : t.inquiryLoadError,
+        );
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setInquiriesLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [modalLink?.id, t.inquiryLoadError]);
 
   const linksByContent = useMemo(
     () =>
@@ -883,6 +950,169 @@ export function ShareCenter({
                 </div>
               ))}
             </div>
+
+            <section
+              className="mt-6 border-t pt-5"
+              style={{ borderColor: tone.lineSoft }}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <MessageSquare
+                    size={16}
+                    aria-hidden
+                    style={{ color: tone.accent }}
+                  />
+                  <h2
+                    className="text-[14px] font-semibold"
+                    style={{ color: tone.ink }}
+                  >
+                    {t.inquiryDetails}
+                  </h2>
+                </div>
+                <span
+                  className="font-mono text-[12px]"
+                  style={{ color: tone.ink50 }}
+                >
+                  {modalLink.inquiries}
+                </span>
+              </div>
+
+              {inquiriesLoading ? (
+                <div
+                  className="mt-4 h-28 animate-pulse rounded-md"
+                  style={{ background: tone.paperDeep }}
+                />
+              ) : inquiriesError ? (
+                <p
+                  role="alert"
+                  className="mt-4 rounded-md px-4 py-3 text-[12.5px]"
+                  style={{ background: tone.roseSoft, color: tone.rose }}
+                >
+                  {inquiriesError}
+                </p>
+              ) : inquiryRows.length === 0 ? (
+                <p
+                  className="mt-4 rounded-md px-4 py-4 text-[12.5px]"
+                  style={{ background: tone.paperDeep, color: tone.ink50 }}
+                >
+                  {t.inquiryEmpty}
+                </p>
+              ) : (
+                <div
+                  className="mt-4 overflow-hidden rounded-md"
+                  style={{ border: `1px solid ${tone.lineSoft}` }}
+                >
+                  {inquiryRows.map((inquiry, index) => (
+                    <article
+                      key={inquiry.id}
+                      className="p-4"
+                      style={{
+                        borderTop:
+                          index > 0 ? `1px solid ${tone.lineSoft}` : undefined,
+                      }}
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p
+                            className="font-medium text-[14px]"
+                            style={{ color: tone.ink }}
+                          >
+                            {inquiry.name}
+                          </p>
+                          <p
+                            className="mt-1 text-[11px]"
+                            style={{ color: tone.ink50 }}
+                          >
+                            {t.submitted}:{" "}
+                            {inquiry.createdAt
+                              ? new Intl.DateTimeFormat(
+                                  locale === "zh" ? "zh-CN" : "en-US",
+                                  {
+                                    year: "numeric",
+                                    month: "short",
+                                    day: "numeric",
+                                    hour: "numeric",
+                                    minute: "2-digit",
+                                  },
+                                ).format(new Date(inquiry.createdAt))
+                              : "—"}
+                          </p>
+                        </div>
+                        <span
+                          className="rounded-full px-2.5 py-1 text-[10px] font-medium"
+                          style={{
+                            background:
+                              inquiry.emailDelivery === "failed"
+                                ? tone.roseSoft
+                                : tone.greenSoft,
+                            color:
+                              inquiry.emailDelivery === "failed"
+                                ? tone.rose
+                                : tone.green,
+                          }}
+                          title={t.emailDelivery}
+                        >
+                          {inquiry.emailDelivery === "sent"
+                            ? t.deliverySent
+                            : inquiry.emailDelivery === "failed"
+                              ? t.deliveryFailed
+                              : t.deliveryStored}
+                        </span>
+                      </div>
+
+                      <div className="mt-3 flex min-w-0 flex-wrap gap-2">
+                        <a
+                          href={`mailto:${inquiry.email}`}
+                          className="inline-flex min-w-0 items-center gap-2 rounded-md px-3 py-2 text-[12px]"
+                          style={{
+                            background: tone.paperDeep,
+                            color: tone.ink70,
+                          }}
+                        >
+                          <Mail size={14} className="shrink-0" aria-hidden />
+                          <span className="truncate">{inquiry.email}</span>
+                        </a>
+                        {inquiry.phone && (
+                          <a
+                            href={`tel:${inquiry.phone}`}
+                            className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-[12px]"
+                            style={{
+                              background: tone.paperDeep,
+                              color: tone.ink70,
+                            }}
+                          >
+                            <Phone size={14} aria-hidden />
+                            {inquiry.phone}
+                          </a>
+                        )}
+                      </div>
+
+                      <p
+                        className="mt-3 whitespace-pre-wrap break-words text-[12.5px] leading-5"
+                        style={{ color: tone.ink70 }}
+                      >
+                        {inquiry.message || t.noMessage}
+                      </p>
+
+                      {inquiry.pageUrl && (
+                        <a
+                          href={inquiry.pageUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mt-3 inline-flex max-w-full items-center gap-1.5 text-[11.5px]"
+                          style={{ color: tone.accent }}
+                        >
+                          <ExternalLink size={13} className="shrink-0" />
+                          <span className="truncate">
+                            {t.sourcePage}: {inquiry.pagePath}
+                          </span>
+                        </a>
+                      )}
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
           </div>
         </div>
       )}

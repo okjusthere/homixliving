@@ -23,8 +23,10 @@ import {
   timestamp,
   date,
   numeric,
+  uuid,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import type { AgentPlan, AgentPractice } from "@/lib/agent-plans";
 
 export const portal = pgSchema("portal");
@@ -487,6 +489,41 @@ export const shareLinks = pgTable(
   ],
 );
 
+// Submitted by visitors on Homix Web. The marketing site owns writes to this
+// table; the Portal only reads agent-attributed inquiries.
+export const inquiries = pgTable(
+  "inquiries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    createdAt: timestamptz("created_at").notNull().defaultNow(),
+    name: text("name").notNull(),
+    phone: text("phone"),
+    email: text("email").notNull(),
+    message: text("message"),
+    consent: boolean("consent").notNull().default(false),
+    source: text("source").notNull().default("website"),
+    pagePath: text("page_path"),
+    locale: text("locale"),
+    status: text("status").notNull().default("received"),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    referrer: text("referrer"),
+    emailSentAt: timestamptz("email_sent_at"),
+    emailError: text("email_error"),
+    shareLinkId: integer("share_link_id").references(() => shareLinks.id, {
+      onDelete: "set null",
+    }),
+    referredAgentId: integer("referred_agent_id").references(() => agents.id, {
+      onDelete: "set null",
+    }),
+  },
+  (table) => [
+    index("idx_inquiries_share_link")
+      .on(table.shareLinkId)
+      .where(sql`${table.shareLinkId} IS NOT NULL`),
+  ],
+);
+
 export const shareVisits = pgTable(
   "share_visits",
   {
@@ -633,6 +670,7 @@ export type StripeEvent = typeof stripeEvents.$inferSelect;
 export type NewStripeEvent = typeof stripeEvents.$inferInsert;
 export type ShareLink = typeof shareLinks.$inferSelect;
 export type NewShareLink = typeof shareLinks.$inferInsert;
+export type Inquiry = typeof inquiries.$inferSelect;
 export type ShareVisit = typeof shareVisits.$inferSelect;
 export type ShareEvent = typeof shareEvents.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;

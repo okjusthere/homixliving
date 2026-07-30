@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import {
   avg,
+  and,
   count,
   countDistinct,
   desc,
@@ -12,11 +13,13 @@ import {
 import { db, pgClient } from "@/db";
 import {
   agents,
+  inquiries,
   shareEvents,
   shareLinks,
   shareVisits,
 } from "@/db/schema";
 import { ensureSchema } from "@/db/ensure-schema";
+import { parseDbTime } from "@/lib/db-time";
 import { homixwebBase } from "@/lib/homixweb";
 
 export const SHARE_KINDS = [
@@ -56,6 +59,26 @@ export type ShareLinkSummary = {
   wechatClicks: number;
   profileClicks: number;
   inquiries: number;
+};
+
+export type ShareInquiryDetail = {
+  id: string;
+  name: string;
+  phone: string | null;
+  email: string;
+  message: string | null;
+  pagePath: string | null;
+  pageUrl: string | null;
+  emailDelivery: "sent" | "failed" | "stored";
+  createdAt: string | null;
+};
+
+export type ShareInquiryResult = {
+  linkId: number;
+  linkTitle: string;
+  agentId: number;
+  agentName: string;
+  inquiries: ShareInquiryDetail[];
 };
 
 export function isShareKind(value: unknown): value is ShareKind {
@@ -184,4 +207,76 @@ export async function loadShareLinkSummaries(
   agentId: number | null,
 ): Promise<ShareLinkSummary[]> {
   return withShareSchemaRetry(() => queryShareLinkSummaries(agentId));
+}
+
+export async function loadShareInquiryDetails({
+  linkId,
+  viewerAgentId,
+  isAdmin,
+}: {
+  linkId: number;
+  viewerAgentId: number | null;
+  isAdmin: boolean;
+}): Promise<ShareInquiryResult | null> {
+  const [link] = await db
+    .select({
+      id: shareLinks.id,
+      title: shareLinks.contentTitle,
+      agentId: shareLinks.agentId,
+      agentName: agents.name,
+    })
+    .from(shareLinks)
+    .innerJoin(agents, eq(shareLinks.agentId, agents.id))
+    .where(
+      and(
+        eq(shareLinks.id, linkId),
+        isAdmin
+          ? undefined
+          : eq(shareLinks.agentId, viewerAgentId ?? -1),
+      ),
+    )
+    .limit(1);
+
+  if (!link) return null;
+
+  const rows = await db
+    .select({
+      id: inquiries.id,
+      name: inquiries.name,
+      phone: inquiries.phone,
+      email: inquiries.email,
+      message: inquiries.message,
+      pagePath: inquiries.pagePath,
+      emailSentAt: inquiries.emailSentAt,
+      emailError: inquiries.emailError,
+      createdAt: inquiries.createdAt,
+    })
+    .from(inquiries)
+    .where(eq(inquiries.shareLinkId, linkId))
+    .orderBy(desc(inquiries.createdAt))
+    .limit(100);
+
+  const websiteBase = homixwebBase();
+  return {
+    linkId: link.id,
+    linkTitle: link.title,
+    agentId: link.agentId,
+    agentName: link.agentName,
+    inquiries: rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      phone: row.phone,
+      email: row.email,
+      message: row.message,
+      pagePath: row.pagePath,
+      pageUrl:
+        row.pagePath?.startsWith("/") ? `${websiteBase}${row.pagePath}` : null,
+      emailDelivery: row.emailSentAt
+        ? "sent"
+        : row.emailError
+          ? "failed"
+          : "stored",
+      createdAt: parseDbTime(row.createdAt)?.toISOString() ?? null,
+    })),
+  };
 }
