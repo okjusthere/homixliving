@@ -648,7 +648,7 @@ const en = {
         alt: "Homix social media IP team group portrait",
       },
       stats: [
-        { value: "1M+", label: "cross-platform audience" },
+        { value: "1M+", label: "combined followers across affiliated accounts" },
         { value: "EN / 中文", label: "bilingual content engine" },
         { value: "IP", label: "agent personal-brand building" },
       ],
@@ -766,7 +766,7 @@ const en = {
           },
           {
             title: "Social Media Growth",
-            body: "Learn how to build your personal brand and generate business through social media strategies developed from Sunny's 300K+ audience across multiple platforms.",
+            body: "Learn how to build your personal brand and generate business through social media strategies developed from Sunny's 400K+ personal audience across multiple platforms.",
           },
           {
             title: "One-on-One Mentorship",
@@ -1139,7 +1139,7 @@ const en = {
       },
       {
         title: "Phase 4 — Brand & Media Kit",
-        blurb: "This is where Homix is different. Most brokerages hand you a logo and wish you luck. We put you in front of a camera. Our in-house studio and 1M+ audience exist to make you visible from day one — so the market meets a Homix professional, not an anonymous new agent. This phase turns you into recognizable, on-brand media.",
+        blurb: "This is where Homix is different. Most brokerages hand you a logo and wish you luck. We put you in front of a camera. Our in-house studio and affiliated channels with 1M+ combined followers support your distribution from day one. This phase turns you into recognizable, on-brand media; actual reach varies by content and platform.",
         items: [
           "Book your in-house studio session: professional headshots, a short intro reel, and on-brand profile photography.",
           "Publish your agent profile with approved bio, contact details, license disclosure, and listing connection.",
@@ -1270,7 +1270,7 @@ const en = {
       },
     ],
     closingTitle: "You're never onboarding alone",
-    closingBody: "Every phase here is something Homix does with you, not a checklist we hand off and forget. By the time you finish, you have an active New York license sponsored by Homix Realty, full OneKey MLS access, a complete tech and AI stack, a studio-built personal brand in front of a 1M+ audience, and a mentor who has already walked the same road. That is the difference between getting a job and being set up to win. Welcome to Homix.",
+    closingBody: "Every phase here is something Homix does with you, not a checklist we hand off and forget. By the time you finish, you have an active New York license sponsored by Homix Realty, full OneKey MLS access, a complete tech and AI stack, a studio-built personal brand supported by affiliated channels with 1M+ combined followers, and a mentor who has already walked the same road. That is the difference between getting a job and being set up to win. Welcome to Homix.",
     clientGuides: {
       eyebrow: "Client Guides · New York · OneKey MLS",
       title: "Buyer & Seller playbooks",
@@ -1445,7 +1445,7 @@ const en = {
           body: "Once the listing agreement is signed and the home is prepared, your property enters the market. Maximum exposure in the first days is critical — buyer attention peaks at launch, and a listing that sits generates price-reduction stigma.",
           items: [
             "Your listing goes live on OneKey MLS and syndicates automatically to StreetEasy, Zillow, Realtor.com, and dozens of partner portals.",
-            "Homix layers its own bilingual media on top: short-form video, neighborhood content, and targeted outreach to its 1M+ audience across 抖音, 小红书, and Instagram — reaching Chinese-speaking buyers who never visit English-only portals.",
+            "Homix layers its own bilingual media on top: short-form video, neighborhood content, and publishing through affiliated 抖音, 小红书, and Instagram accounts with 1M+ combined followers — extending distribution beyond English-only portals. Actual reach varies by campaign and platform.",
             "Open houses: Sunday 1–4 PM is the prime window in the New York metro. Prepare printed bilingual brochures, maximize natural light, control temperature, and — critically — have the seller leave so buyers speak freely.",
             "Private showings are scheduled via OneKey MLS ShowingTime; your advisor collects post-showing feedback and flags any patterns (price concerns, condition issues, strong interest) in real time.",
           ],
@@ -1652,7 +1652,7 @@ const zh: Dict = {
         alt: "Homix social media IP 团队大合照",
       },
       stats: [
-        { value: "1M+", label: "全平台受众基础" },
+        { value: "100 万+", label: "关联社媒账号合计粉丝" },
         { value: "EN / 中文", label: "双语内容体系" },
         { value: "IP", label: "经纪人个人品牌孵化" },
       ],
@@ -1770,7 +1770,7 @@ const zh: Dict = {
           },
           {
             title: "社媒成长",
-            body: "学习如何打造个人品牌，并借助源自 Sunny 全平台 30 万+ 粉丝沉淀出的社媒策略，把流量转化为生意。",
+            body: "学习如何打造个人品牌，并借助 Sunny 全平台 40 万+ 个人粉丝沉淀出的社媒策略，把流量转化为生意。",
           },
           {
             title: "一对一带教",
@@ -2143,7 +2143,7 @@ const zh: Dict = {
       },
       {
         title: "第四阶段 · 品牌与媒体素材包",
-        blurb: "这是 Homix 与众不同之处。多数经纪公司只给你一个 logo，然后祝你好运。我们把你请到镜头前。我们的自有摄影棚与百万级（1M+）受众，就是为了让你从第一天起就被看见——市场遇见的是一位 Homix 专业人士，而非一个无名的新人。本阶段，把你打造成可被识别、契合品牌的媒体形象。",
+        blurb: "这是 Homix 与众不同之处。多数经纪公司只给你一个 logo，然后祝你好运。我们把你请到镜头前。自有摄影棚与合计 100 万+ 粉丝的关联渠道，从第一天起支持你的内容分发。本阶段把你打造成可被识别、契合品牌的媒体形象；实际触达因内容与平台而异。",
         items: [
           "预约自有摄影棚拍摄：专业形象照、一段简短自我介绍影片，以及契合品牌的个人照片。",
           "发布经纪人主页：确认 bio、联系方式、执照披露，并关联到你的房源。",
@@ -2274,7 +2274,7 @@ const zh: Dict = {
       },
     ],
     closingTitle: "入职路上，你从不孤单",
-    closingBody: "这里的每一个阶段，都是 Homix 与你一起完成的，而非交出一张清单便不再过问。当你走完全程，你将拥有：由 Homix Realty 挂靠的有效纽约执照、完整的 OneKey MLS 权限、一整套技术与 AI 工具、在摄影棚打造并面向百万级受众的个人品牌，以及一位早已走过同一条路的导师。这正是\"找到一份工作\"与\"被托举着去赢\"之间的差别。欢迎加入 Homix。",
+    closingBody: "这里的每一个阶段，都是 Homix 与你一起完成的，而非交出一张清单便不再过问。当你走完全程，你将拥有：由 Homix Realty 挂靠的有效纽约执照、完整的 OneKey MLS 权限、一整套技术与 AI 工具、在摄影棚打造并由合计 100 万+ 粉丝的关联渠道支持分发的个人品牌，以及一位早已走过同一条路的导师。这正是\"找到一份工作\"与\"被托举着去赢\"之间的差别。欢迎加入 Homix。",
     clientGuides: {
       eyebrow: "客户指南 · 纽约 · OneKey MLS",
       title: "买家与卖家流程手册",
@@ -2449,7 +2449,7 @@ const zh: Dict = {
           body: "委托协议签署、房屋准备就绪后，你的房源正式进入市场。开盘头几天的曝光至关重要——买家关注度在上市初期最高，滞销房源一旦挂牌时间过长，就会产生需要降价才能成交的负面印象。",
           items: [
             "你的房源上线 OneKey MLS，自动同步至 StreetEasy、Zillow、Realtor.com 及数十个合作网站。",
-            "Homix 在此基础上叠加自有媒体推广：短视频、社区内容，以及向抖音、小红书、Instagram 百万+ 粉丝的精准触达——覆盖那些只在中文平台看房、从不上英文门户的华人买家群体。",
+            "Homix 在此基础上叠加自有媒体推广：短视频、社区内容，以及通过抖音、小红书、Instagram 等合计 100 万+ 粉丝的关联账号发布——把分发延伸到英文门户之外；实际触达因内容与平台而异。",
             "开放日：纽约都会圈黄金时段为周日下午 1–4 点。提前准备中英双语楼盘资料册，让自然光充分进入，保持整洁舒适——卖家应离开现场，让买家自由表达感受。",
             "私人带看通过 OneKey MLS ShowingTime 预约；顾问在每次带看后收集反馈，实时汇报价格疑虑、房况问题或浓厚兴趣等规律性信号。",
           ],
