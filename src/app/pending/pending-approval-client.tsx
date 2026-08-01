@@ -75,8 +75,10 @@ export function PendingApprovalClient({
       return;
     }
 
-    const checkNow = () => void refreshApproval(false);
-    const interval = window.setInterval(checkNow, 8_000);
+    const checkNow = () => {
+      if (document.visibilityState === "visible") void refreshApproval(false);
+    };
+    const interval = window.setInterval(checkNow, 15_000);
     const checkWhenVisible = () => {
       if (document.visibilityState === "visible") checkNow();
     };
