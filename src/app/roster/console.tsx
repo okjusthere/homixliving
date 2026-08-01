@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Btn, Card } from "@/components/homix/primitives";
 import { CardHeader } from "@/components/homix/page-kit";
@@ -19,16 +19,24 @@ export function RosterConsole({
   initialAgents,
   portalAgents,
   unreachable,
+  loading = false,
+  onAgentsChange,
 }: {
   initialAgents: AdminAgentRow[];
   portalAgents: PortalRosterCandidate[];
   unreachable: boolean;
+  loading?: boolean;
+  onAgentsChange?: (agents: AdminAgentRow[]) => void;
 }) {
   const router = useRouter();
   const [agents, setAgents] = useState<AdminAgentRow[]>(initialAgents);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [selectedLinks, setSelectedLinks] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    setAgents(initialAgents);
+  }, [initialAgents]);
   const availablePortalAgents = useMemo(() => {
     const linkedIds = new Set(
       agents
@@ -69,7 +77,8 @@ export function RosterConsole({
   async function toggleVisible(a: AdminAgentRow) {
     setBusy(a.id);
     setMsg(null);
-    const next = a.visibility_status === "visible" ? "admin_hidden" : "visible";
+    const next: "visible" | "admin_hidden" =
+      a.visibility_status === "visible" ? "admin_hidden" : "visible";
     const { ok, out } = await post({
       action: "visibility",
       id: a.id,
@@ -77,9 +86,13 @@ export function RosterConsole({
     });
     setBusy(null);
     if (!ok) return setMsg({ ok: false, text: out?.error || "操作失败" });
-    setAgents((prev) =>
-      prev.map((x) => (x.id === a.id ? { ...x, visibility_status: next } : x)),
-    );
+    setAgents((prev) => {
+      const updated = prev.map((x) =>
+        x.id === a.id ? { ...x, visibility_status: next } : x,
+      );
+      onAgentsChange?.(updated);
+      return updated;
+    });
     setMsg({ ok: true, text: `${a.name} 已${next === "visible" ? "显示" : "由管理员隐藏"}` });
   }
 
@@ -90,12 +103,14 @@ export function RosterConsole({
     const next = agents.slice();
     [next[idx], next[j]] = [next[j], next[idx]];
     setAgents(next);
+    onAgentsChange?.(next);
     setBusy("reorder");
     setMsg(null);
     const { ok, out } = await post({ action: "reorder", ids: next.map((x) => x.id) });
     setBusy(null);
     if (!ok) {
       setAgents(prev); // revert on failure
+      onAgentsChange?.(prev);
       setMsg({ ok: false, text: out?.error || "排序失败" });
     }
   }
@@ -122,8 +137,8 @@ export function RosterConsole({
       setMsg({ ok: false, text: out.error || "关联失败" });
       return;
     }
-    setAgents((prev) =>
-      prev.map((agent) =>
+    setAgents((prev) => {
+      const updated = prev.map((agent) =>
         agent.id === a.id
           ? {
               ...agent,
@@ -131,8 +146,10 @@ export function RosterConsole({
               portal_agent_id: portalAgentId,
             }
           : agent,
-      ),
-    );
+      );
+      onAgentsChange?.(updated);
+      return updated;
+    });
     setSelectedLinks((prev) => {
       const next = { ...prev };
       delete next[a.id];
@@ -156,7 +173,7 @@ export function RosterConsole({
       <Card className="flex flex-col">
         <CardHeader
           title={`经纪人（${agents.length}）`}
-          subtitle="新增和停用请前往“经纪人”；这里管理官网显示状态与顺序"
+          subtitle="在同一处管理官网显示状态、顺序、账号关联与公开资料"
         />
         <div className="divide-y" style={{ borderColor: tone.line }}>
           {agents.map((a, idx) => (
@@ -275,7 +292,12 @@ export function RosterConsole({
               </div>
             </div>
           ))}
-          {agents.length === 0 && (
+          {loading && agents.length === 0 && (
+            <div className="px-5 py-8 text-center text-[13px]" style={{ color: tone.ink50 }}>
+              正在读取官网名册…
+            </div>
+          )}
+          {!loading && agents.length === 0 && (
             <div className="px-5 py-8 text-center text-[13px]" style={{ color: tone.ink50 }}>
               名册为空。
             </div>

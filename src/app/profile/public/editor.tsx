@@ -137,13 +137,13 @@ export function PublicProfileEditor({
         <CardHeader title="尚未发布对外主页" />
         <p className="text-[13.5px] leading-relaxed" style={{ color: tone.ink70 }}>
           {canCreate
-            ? `${isOwn ? "你" : agentName} 目前尚未关联官网档案。请先到“对外名册”确认没有既有档案；确实是新经纪人时，再创建默认公开的简版主页。`
+            ? `${isOwn ? "你" : agentName} 目前尚未关联官网档案。请先到“经纪人 > 官网名册”确认没有既有档案；确实是新经纪人时，再创建默认公开的简版主页。`
             : "你的 Portal 账号尚未关联官网经纪人档案。请联系管理员关联既有档案；完成后即可在这里编辑并控制显示状态。"}
         </p>
         {canCreate && (
           <div className="flex flex-wrap items-center gap-3">
-            <Link href="/roster" className="text-[12.5px] underline" style={{ color: tone.accent }}>
-              先检查对外名册
+            <Link href="/agents?view=public" className="text-[12.5px] underline" style={{ color: tone.accent }}>
+              先检查官网名册
             </Link>
             <Btn variant="primary" onClick={publish} disabled={busy}>
               {busy ? "创建中…" : "确认没有既有档案，创建新主页"}

@@ -23,7 +23,6 @@ const navItems = [
   { href: "/share", key: "share", adminOnly: false },
   { href: "/profile/public", key: "profile", adminOnly: false },
   { href: "/agents", key: "agents", adminOnly: true },
-  { href: "/roster", key: "roster", adminOnly: true },
   { href: "/teams", key: "teams", adminOnly: true },
   { href: "/reports", key: "reports", adminOnly: true },
   { href: "/finance", key: "finance", adminOnly: true },
@@ -36,13 +35,13 @@ const LABELS = {
   en: {
     overview: "Overview", sales: "Sales", rental: "Rental", training: "Training",
     resources: "Resources", onboarding: "Onboarding", coach: "Coach", offer: "Offer", share: "Share",
-    agents: "Agents", roster: "Public roster", teams: "Teams", reports: "Reports", finance: "Finance", payouts: "Payouts", audit: "Audit", settings: "Settings",
+    agents: "Agents", teams: "Teams", reports: "Reports", finance: "Finance", payouts: "Payouts", audit: "Audit", settings: "Settings",
     search: "Search", signedIn: "Signed in", signOut: "Sign out", admin: "Admin", profile: "Public profile", accountProfile: "My profile",
   },
   zh: {
     overview: "概览", sales: "买卖", rental: "租赁", training: "培训",
     resources: "资料", onboarding: "入职", coach: "AI 教练", offer: "报价", share: "分享",
-    agents: "经纪人", roster: "对外名册", teams: "团队", reports: "报表", finance: "财务", payouts: "发放", audit: "审计", settings: "设置",
+    agents: "经纪人", teams: "团队", reports: "报表", finance: "财务", payouts: "发放", audit: "审计", settings: "设置",
     search: "搜索", signedIn: "已登录", signOut: "退出登录", admin: "管理员", profile: "个人主页", accountProfile: "我的档案",
   },
 } as const;
@@ -98,8 +97,8 @@ export function Nav() {
         pathname.startsWith("/buildings")
       );
     if (href === "/sales") return pathname === "/sales" || /^\/sales\/\d+/.test(pathname) || pathname === "/sales/new";
-    if (href === "/agents") return pathname === "/agents" || /^\/agents\/\d+/.test(pathname);
-    if (href === "/roster") return pathname === "/roster" || pathname.startsWith("/roster/");
+    if (href === "/agents")
+      return pathname === "/agents" || /^\/agents\/\d+/.test(pathname) || pathname.startsWith("/roster/");
     if (href === "/onboarding") return pathname === "/onboarding" || pathname.startsWith("/onboarding/");
     return pathname === href;
   };

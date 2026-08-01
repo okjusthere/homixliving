@@ -22,12 +22,12 @@ export default async function RosterEditPage({
   const { id } = await params;
 
   const { profile, unreachable, notFound } = await fetchPublicProfileById(id);
-  if (notFound) redirect("/roster");
+  if (notFound) redirect("/agents?view=public");
 
   return (
     <div className="space-y-6">
-      <Link href="/roster" className="text-[12.5px]" style={{ color: tone.ink50 }}>
-        ← 返回对外名册
+      <Link href="/agents?view=public" className="text-[12.5px]" style={{ color: tone.ink50 }}>
+        ← 返回官网名册
       </Link>
       <PageHeader
         eyebrow={`管理员编辑 · ${id}`}

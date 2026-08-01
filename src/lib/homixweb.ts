@@ -168,6 +168,7 @@ export type AdminAgentRow = {
   portal_agent_id: number | null;
   photo_url: string | null;
   license_number: string | null;
+  bio?: string | null;
 };
 
 async function postHomixwebJson(
@@ -211,6 +212,23 @@ export async function linkPublicProfile(input: {
     id: input.publicId,
     portalAgentId: input.agentId,
     name: input.name,
+    phone: input.phone,
+    license: input.license,
+  });
+}
+
+/** Publish the minimal website profile used for newly approved agents. */
+export async function publishPublicProfile(input: {
+  agentId: number;
+  name: string;
+  email?: string | null;
+  phone?: string | null;
+  license?: string | null;
+}) {
+  return postHomixwebJson("/api/agent-profile/publish", {
+    portalAgentId: input.agentId,
+    name: input.name,
+    email: input.email,
     phone: input.phone,
     license: input.license,
   });

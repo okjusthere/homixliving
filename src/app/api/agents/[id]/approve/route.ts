@@ -10,6 +10,7 @@ import {
   fetchPublicProfileById,
   hidePublicProfileForOffboarding,
   linkPublicProfile,
+  publishPublicProfile,
   setAdminPublicVisibility,
   type PublicProfile,
 } from "@/lib/homixweb";
@@ -157,12 +158,26 @@ export async function POST(
       }
       publicResult = linked;
     }
-  } else if (existing.accountStatus === "inactive") {
+  } else {
     const current = await fetchPublicProfile(agent.id);
     if (current.linked) {
       publicResult = await setAdminPublicVisibility({
         agentId: agent.id,
         visibilityStatus: "visible",
+      });
+    } else if (current.unreachable) {
+      publicResult = {
+        ok: false,
+        status: 502,
+        body: { error: "Website profile could not be checked or published." },
+      };
+    } else {
+      publicResult = await publishPublicProfile({
+        agentId: agent.id,
+        name: agent.name,
+        email: agent.email,
+        phone: agent.phone,
+        license: agent.licenseNumber,
       });
     }
   }
@@ -174,7 +189,7 @@ export async function POST(
     parsedId,
     publicProfileId
       ? `批准经纪人 #${parsedId} 账号并关联对外档案 ${publicProfileId}`
-      : `批准经纪人 #${parsedId} 账号`,
+      : `批准经纪人 #${parsedId} 账号并创建或恢复对外主页`,
   );
 
   // Tell the agent their account is live. No dedupeKey: re-approval after a

@@ -19,7 +19,7 @@ import {
   isAgentAccountStatus,
   normalizeAgentAccountStatus,
 } from "@/lib/agent-lifecycle";
-import { hidePublicProfileForOffboarding } from "@/lib/homixweb";
+import { hidePublicProfileForOffboarding, publishPublicProfile } from "@/lib/homixweb";
 import { dateOrNull } from "@/lib/db-time";
 
 function numberOrNull(value: unknown) {
@@ -219,7 +219,33 @@ export async function POST(req: NextRequest) {
       .insert(agents)
       .values({ ...data, email, createdAt: new Date().toISOString() })
       .returning();
-    return NextResponse.json(created, { status: 201 });
+    await logAudit(
+      authResult.session,
+      "create",
+      "agent",
+      created.id,
+      `创建经纪人 ${created.name} (#${created.id})`,
+    );
+    const publicResult = await publishPublicProfile({
+      agentId: created.id,
+      name: created.name,
+      email: created.email,
+      phone: created.phone,
+      license: created.licenseNumber,
+    });
+    return NextResponse.json(
+      {
+        ...created,
+        ...(!publicResult.ok
+          ? {
+              warning: String(
+                publicResult.body.error || "Public profile creation failed",
+              ),
+            }
+          : {}),
+      },
+      { status: 201 },
+    );
   } catch {
     return NextResponse.json({ error: "Agent creation failed" }, { status: 500 });
   }

@@ -27,7 +27,7 @@ The lifecycle migration is deliberately expand/contract:
 3. Verify:
    - unknown Google login becomes `pending`;
    - admin-created/approved account becomes `active`;
-   - an administrator explicitly links an existing public profile or creates a new one;
+   - an administrator links an existing public profile during approval, or approval creates a minimal profile automatically;
    - the agent can switch `visible` ↔ `agent_hidden`;
    - admin hiding uses `admin_hidden`;
    - deactivation sets `inactive` and `admin_hidden`.
@@ -81,19 +81,21 @@ used by code, CI, local development, or deployment.
 
 ## Existing public roster reconciliation
 
-Portal approval grants internal access only; it does not create a public
-profile. Existing website profiles can remain unlinked because public contact
-details, nicknames, and Portal login emails are not reliable identity keys.
+Portal approval grants internal access and ensures the agent has a public
+profile. Existing website profiles must be linked explicitly because public
+contact details, nicknames, and Portal login emails are not reliable identity
+keys; when no profile is selected, approval creates a minimal visible profile.
 
-Administrators reconcile those records from `/roster`:
+Administrators reconcile those records from `/agents` under "Website roster":
 
 1. For a pending login, select the matching existing website profile before
-   approving it; or approve access without creating a public page.
-2. Existing active accounts can also be linked from `/roster`: find a public
+   approving it. Leave the selection empty only when the person has no existing
+   profile; approval then creates and links one automatically.
+2. Existing active accounts can also be linked from the website-roster view: find a public
    profile without the `已关联` badge, select the matching Portal agent, and
    click `关联`.
-3. Only when no existing profile exists, open the agent's `对外主页` from the
-   agent detail page and explicitly create a new page.
+3. The old `/roster` URL redirects to `/agents?view=public`; public-profile edit
+   URLs remain compatible with existing bookmarks.
 
 The operation is admin-only and auditable. It copies Portal-owned identity
 fields after linking, and database uniqueness prevents one Portal account from

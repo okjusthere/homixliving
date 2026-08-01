@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Btn, Card, EditorialInput, Icons, LabeledField, Pill } from "@/components/homix/primitives";
-import { PageHeader, Toolbar, SearchInput, CardHeader } from "@/components/homix/page-kit";
+import { PageHeader, Toolbar, SearchInput, CardHeader, FilterTabs } from "@/components/homix/page-kit";
 import { fmtMoney, tone } from "@/components/homix/tokens";
 import { DEFAULT_AGENT_SPLIT_PCT, splitLabel } from "@/lib/splits";
 import { useLocale } from "@/lib/i18n-client";
@@ -18,6 +19,8 @@ import {
   normalizeAgentPlan,
 } from "@/lib/agent-plans";
 import type { Agent, Team } from "@/db/schema";
+import type { AdminAgentRow } from "@/lib/homixweb";
+import { RosterConsole } from "../roster/console";
 
 const M = {
   en: {
@@ -36,6 +39,10 @@ const M = {
     loading: "Loading…",
     eyebrow: "Team",
     title: "Agents",
+    accountsView: "Accounts & onboarding",
+    publicView: "Website roster",
+    publicTitle: "Website roster",
+    publicDescription: "Control website visibility, order, account links, and public profiles.",
     descPrefix: "",
     activeBrokerSingular: "active broker",
     activeBrokerPlural: "active brokers",
@@ -47,7 +54,7 @@ const M = {
     pendingApprovals: "Pending approvals",
     pendingSubtitle: "New brokers awaiting activation",
     existingPublicProfile: "Existing website profile (optional)",
-    noExistingPublicProfile: "No existing profile — approve Portal access only",
+    noExistingPublicProfile: "No existing profile — approve and create one",
     loadingPublicProfiles: "Loading website profiles…",
     inactiveAgents: "Inactive agents",
     inactiveSubtitle: "Former or disabled accounts; history is retained",
@@ -115,6 +122,10 @@ const M = {
     loading: "加载中…",
     eyebrow: "团队",
     title: "经纪人",
+    accountsView: "账号与入职",
+    publicView: "官网名册",
+    publicTitle: "官网名册",
+    publicDescription: "统一管理官网显示状态、顺序、账号关联和公开资料。",
     descPrefix: "共 ",
     activeBrokerSingular: "名在职经纪人",
     activeBrokerPlural: "名在职经纪人",
@@ -126,7 +137,7 @@ const M = {
     pendingApprovals: "待审批",
     pendingSubtitle: "等待激活的新经纪人",
     existingPublicProfile: "关联既有官网经纪人（可选）",
-    noExistingPublicProfile: "没有既有档案——仅批准 Portal 权限",
+    noExistingPublicProfile: "没有既有档案——批准并创建官网主页",
     loadingPublicProfiles: "正在读取官网经纪人…",
     inactiveAgents: "已停用经纪人",
     inactiveSubtitle: "离职或停用账号；历史成交和付款记录仍会保留",
@@ -190,15 +201,7 @@ type AgentRow = {
   hasW9?: boolean;
 };
 
-type PublicRosterRow = {
-  id: string;
-  name: string | null;
-  slug: string;
-  portal_agent_id: number | null;
-  /** Headshot from the linked website profile — the portal stores no photos. */
-  photo_url?: string | null;
-  bio?: string | null;
-};
+type AdminView = "accounts" | "public";
 
 const emptyAgent: Partial<Agent> = {
   name: "",
@@ -250,13 +253,16 @@ function Avatar({ name, src }: { name: string; src?: string | null }) {
   );
 }
 
-export default function AgentsConsole() {
+export default function AgentsConsole({ initialView }: { initialView: AdminView }) {
+  const router = useRouter();
   const locale = useLocale();
   const t = M[locale];
+  const [view, setView] = useState<AdminView>(initialView);
   const [agents, setAgents] = useState<AgentRow[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
-  const [publicAgents, setPublicAgents] = useState<PublicRosterRow[]>([]);
-  const [publicRosterLoading, setPublicRosterLoading] = useState(false);
+  const [publicAgents, setPublicAgents] = useState<AdminAgentRow[]>([]);
+  const [publicRosterLoading, setPublicRosterLoading] = useState(true);
+  const [publicRosterUnreachable, setPublicRosterUnreachable] = useState(false);
   const [approvalLinks, setApprovalLinks] = useState<Record<number, string>>({});
   const [approvalReferrers, setApprovalReferrers] = useState<Record<number, string>>({});
   const [search, setSearch] = useState("");
@@ -266,6 +272,25 @@ export default function AgentsConsole() {
 
   const fetchAgents = () => {
     setLoading(true);
+    // Public roster is independent of the Portal queries. Load it alongside
+    // them so a slow website cannot delay the account list, while a failed
+    // Portal request cannot leave the website-roster view spinning forever.
+    setPublicRosterLoading(true);
+    void fetch("/api/admin/roster")
+      .then(async (r) => {
+        if (!r.ok) throw new Error("Website roster unavailable");
+        return r.json();
+      })
+      .then((publicRoster) => {
+        setPublicAgents(publicRoster.agents ?? []);
+        setPublicRosterUnreachable(false);
+      })
+      .catch(() => {
+        setPublicAgents([]);
+        setPublicRosterUnreachable(true);
+      })
+      .finally(() => setPublicRosterLoading(false));
+
     Promise.all([
       fetch("/api/agents").then((r) => r.json()),
       fetch("/api/teams").then((r) => (r.ok ? r.json() : [])),
@@ -273,17 +298,6 @@ export default function AgentsConsole() {
       .then(([agentRows, teamRows]) => {
         setAgents(agentRows);
         setTeams(teamRows);
-        // Always load the public roster: it supplies candidate profiles for
-        // approvals AND the headshots the roster rows show (the portal stores
-        // no photos of its own). Kept off the critical path so a slow or
-        // unreachable website never delays the portal list — rows just fall
-        // back to initials.
-        setPublicRosterLoading(true);
-        void fetch("/api/admin/roster")
-          .then((r) => (r.ok ? r.json() : { agents: [] }))
-          .then((publicRoster) => setPublicAgents(publicRoster.agents ?? []))
-          .catch(() => setPublicAgents([]))
-          .finally(() => setPublicRosterLoading(false));
       })
       .finally(() => setLoading(false));
   };
@@ -291,6 +305,13 @@ export default function AgentsConsole() {
   useEffect(() => {
     fetchAgents();
   }, []);
+
+  const selectView = (next: AdminView) => {
+    setView(next);
+    router.replace(next === "public" ? "/agents?view=public" : "/agents", {
+      scroll: false,
+    });
+  };
 
   const pending = useMemo(
     () =>
@@ -325,7 +346,7 @@ export default function AgentsConsole() {
   const photoFor = (id: number) => photoByAgentId.get(id);
 
   const publicByAgentId = useMemo(() => {
-    const map = new Map<number, PublicRosterRow>();
+    const map = new Map<number, AdminAgentRow>();
     for (const p of publicAgents) {
       if (p.portal_agent_id != null) map.set(p.portal_agent_id, p);
     }
@@ -494,22 +515,48 @@ export default function AgentsConsole() {
     <div className="space-y-7">
       <PageHeader
         eyebrow={t.eyebrow}
-        title={t.title}
-        description={`${t.descPrefix}${filtered.length} ${filtered.length === 1 ? t.activeBrokerSingular : t.activeBrokerPlural} ${t.across} ${Object.keys(grouped).length} ${Object.keys(grouped).length === 1 ? t.teamSingular : t.teamPlural}.`}
-        actions={
+        title={view === "public" ? t.publicTitle : t.title}
+        description={
+          view === "public"
+            ? t.publicDescription
+            : `${t.descPrefix}${filtered.length} ${filtered.length === 1 ? t.activeBrokerSingular : t.activeBrokerPlural} ${t.across} ${Object.keys(grouped).length} ${Object.keys(grouped).length === 1 ? t.teamSingular : t.teamPlural}.`
+        }
+        actions={view === "accounts" ? (
           <Btn variant="primary" icon={<Icons.Plus />} onClick={() => setEditAgent(emptyAgent)}>
             {t.addAgent}
           </Btn>
-        }
+        ) : undefined}
       />
 
-      <Toolbar>
+      <FilterTabs
+        value={view}
+        onChange={selectView}
+        options={[
+          { id: "accounts", label: t.accountsView, count: agents.length },
+          { id: "public", label: t.publicView, count: publicAgents.length },
+        ]}
+      />
+
+      {view === "public" && (
+        <RosterConsole
+          initialAgents={publicAgents}
+          portalAgents={agents
+            .filter(({ agent }) => agent.accountStatus === "active")
+            .map(({ agent }) => ({ id: agent.id, name: agent.name, email: agent.email }))}
+          unreachable={publicRosterUnreachable}
+          loading={publicRosterLoading}
+          onAgentsChange={setPublicAgents}
+        />
+      )}
+
+      <div className={view === "accounts" ? "contents" : "hidden"}>
+        <Toolbar>
         <SearchInput
           value={search}
           onChange={setSearch}
           placeholder={t.searchPlaceholder}
         />
-      </Toolbar>
+        </Toolbar>
 
       {/* Pending approvals */}
       {pending.length > 0 && (
@@ -834,6 +881,7 @@ export default function AgentsConsole() {
           </div>
         </Card>
       )}
+      </div>
 
       {editAgent && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8" style={{ background: "rgba(26, 24, 20, 0.4)", backdropFilter: "blur(4px)" }} onClick={closeDialog}>
