@@ -45,6 +45,11 @@ const AUDIT: Record<string, { action: string; summary: (b: Record<string, unknow
     action: "update",
     summary: (b) => `关联对外档案（${b.id}）到经纪人 #${b.portalAgentId}`,
   },
+  merge_link: {
+    action: "delete",
+    summary: (b) =>
+      `更换经纪人 #${b.portalAgentId} 的关联主页：保留 ${b.keepProfileId}，删除重复主页 ${b.deleteProfileId}`,
+  },
 };
 
 export async function POST(req: NextRequest) {
@@ -56,12 +61,21 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const action = String(body.action || "");
   let outboundBody = body;
-  if (action === "link") {
+  if (action === "link" || action === "merge_link") {
     const publicId = String(body.id || "").trim();
+    const keepProfileId = String(body.keepProfileId || "").trim();
+    const deleteProfileId = String(body.deleteProfileId || "").trim();
     const portalAgentId = Number(body.portalAgentId);
-    if (!publicId || !Number.isInteger(portalAgentId) || portalAgentId <= 0) {
+    const validProfileSelection = action === "link"
+      ? Boolean(publicId)
+      : Boolean(
+          keepProfileId &&
+          deleteProfileId &&
+          keepProfileId !== deleteProfileId
+        );
+    if (!validProfileSelection || !Number.isInteger(portalAgentId) || portalAgentId <= 0) {
       return NextResponse.json(
-        { error: "id and portalAgentId required" },
+        { error: "Valid public profile ids and portalAgentId are required." },
         { status: 400 },
       );
     }
@@ -84,7 +98,9 @@ export async function POST(req: NextRequest) {
     }
     outboundBody = {
       action,
-      id: publicId,
+      ...(action === "link"
+        ? { id: publicId }
+        : { keepProfileId, deleteProfileId }),
       portalAgentId: agent.id,
       name: agent.name,
       phone: agent.phone,
