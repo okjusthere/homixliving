@@ -51,6 +51,8 @@ export type ShareCatalogResult = {
   total: number;
   page: number;
   pageSize: number;
+  hasMore: boolean;
+  totalIsEstimate: boolean;
   overview: boolean;
   unavailable?: boolean;
   counts: Partial<Record<ShareContentKind | "all", number>>;
@@ -59,6 +61,7 @@ export type ShareCatalogResult = {
 export async function fetchShareCatalog(input: {
   kind: ShareContentKind | "all";
   locale: "en" | "zh";
+  listingScope?: "homix" | "all";
   query?: string;
   page?: number;
   pageSize?: number;
@@ -70,6 +73,7 @@ export async function fetchShareCatalog(input: {
     page: String(input.page ?? 1),
     pageSize: String(input.pageSize ?? 24),
   });
+  if (input.listingScope) params.set("listingScope", input.listingScope);
   if (input.query?.trim()) params.set("q", input.query.trim());
   try {
     const response = await fetch(

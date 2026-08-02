@@ -37,12 +37,17 @@ import { Card } from "@/components/homix/server-primitives";
 type CatalogKind = ShareContentKind | "all";
 type ViewMode = "library" | "analytics";
 type LinkScope = "mine" | "all";
+type ListingScope = "homix" | "all";
 
 const COPY = {
   en: {
     library: "Content",
     analytics: "Analytics",
     search: "Search listings, guides, neighborhoods…",
+    listingSearch: "Search by address, ZIP code, or MLS number…",
+    listingSource: "Listing source",
+    allOneKey: "All OneKey listings",
+    homixOnly: "Homix listings",
     all: "All",
     listing: "Listings",
     neighborhood: "Neighborhoods",
@@ -104,6 +109,10 @@ const COPY = {
     library: "内容库",
     analytics: "分享数据",
     search: "搜索房源、指南、社区或楼盘…",
+    listingSearch: "按地址、邮编或 MLS 编号搜索…",
+    listingSource: "房源范围",
+    allOneKey: "全部 OneKey 房源",
+    homixOnly: "Homix 房源",
     all: "全部",
     listing: "房源",
     neighborhood: "区域指南",
@@ -200,6 +209,7 @@ export function ShareCenter({
   const [view, setView] = useState<ViewMode>("library");
   const [kind, setKind] = useState<CatalogKind>("all");
   const [contentLocale, setContentLocale] = useState<"en" | "zh">(locale);
+  const [listingScope, setListingScope] = useState<ListingScope>("all");
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [page, setPage] = useState(1);
@@ -224,7 +234,7 @@ export function ShareCenter({
 
   useEffect(() => {
     setPage(1);
-  }, [kind, contentLocale, debouncedQuery]);
+  }, [kind, contentLocale, debouncedQuery, listingScope]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -234,6 +244,7 @@ export function ShareCenter({
       kind,
       locale: contentLocale,
       page: String(page),
+      listingScope,
     });
     if (debouncedQuery) params.set("q", debouncedQuery);
     fetch(`/api/share/catalog?${params.toString()}`, {
@@ -255,7 +266,7 @@ export function ShareCenter({
       })
       .finally(() => setCatalogLoading(false));
     return () => controller.abort();
-  }, [contentLocale, debouncedQuery, kind, page, t.unavailable]);
+  }, [contentLocale, debouncedQuery, kind, listingScope, page, t.unavailable]);
 
   const loadLinks = useCallback(
     async (scope = linkScope) => {
@@ -415,8 +426,15 @@ export function ShareCenter({
 
   const pages =
     catalog && !catalog.overview
-      ? Math.max(1, Math.ceil(catalog.total / catalog.pageSize))
+      ? catalog.totalIsEstimate
+        ? page + (catalog.hasMore ? 1 : 0)
+        : Math.max(1, Math.ceil(catalog.total / catalog.pageSize))
       : 1;
+  const canGoNext = Boolean(
+    catalog &&
+      !catalog.overview &&
+      (catalog.totalIsEstimate ? catalog.hasMore : page < pages),
+  );
 
   return (
     <div className="min-w-0 w-full space-y-7">
@@ -519,7 +537,8 @@ export function ShareCenter({
                 <input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder={t.search}
+                  placeholder={kind === "listing" ? t.listingSearch : t.search}
+                  aria-label={kind === "listing" ? t.listingSearch : t.search}
                   className="min-w-0 flex-1 bg-transparent text-[13px] outline-none"
                 />
               </div>
@@ -569,6 +588,37 @@ export function ShareCenter({
                 </button>
               ))}
             </div>
+
+            {kind === "listing" && (
+              <div className="flex flex-wrap items-center gap-3">
+                <span
+                  className="text-[11px] font-medium uppercase tracking-[0.1em]"
+                  style={{ color: tone.ink50 }}
+                >
+                  {t.listingSource}
+                </span>
+                <div
+                  className="inline-flex rounded-lg p-1"
+                  style={{ background: tone.paperDeep }}
+                >
+                  {(["all", "homix"] as const).map((scope) => (
+                    <button
+                      key={scope}
+                      type="button"
+                      onClick={() => setListingScope(scope)}
+                      aria-pressed={listingScope === scope}
+                      className="h-9 rounded-md px-3 text-[12px] font-medium"
+                      style={{
+                        color: listingScope === scope ? tone.ink : tone.ink50,
+                        background: listingScope === scope ? tone.card : "transparent",
+                      }}
+                    >
+                      {scope === "all" ? t.allOneKey : t.homixOnly}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {catalog?.overview && (
@@ -680,7 +730,7 @@ export function ShareCenter({
                 })}
               </div>
 
-              {!catalog.overview && pages > 1 && (
+              {!catalog.overview && (page > 1 || canGoNext) && (
                 <div className="flex items-center justify-center gap-3">
                   <button
                     type="button"
@@ -693,12 +743,12 @@ export function ShareCenter({
                     {t.previous}
                   </button>
                   <span className="font-mono text-[12px]" style={{ color: tone.ink50 }}>
-                    {page} / {pages}
+                    {catalog.totalIsEstimate ? page : `${page} / ${pages}`}
                   </span>
                   <button
                     type="button"
-                    disabled={page >= pages}
-                    onClick={() => setPage((value) => Math.min(pages, value + 1))}
+                    disabled={!canGoNext}
+                    onClick={() => setPage((value) => value + 1)}
                     className="inline-flex h-10 items-center gap-1 rounded-md px-3 text-[12.5px] disabled:opacity-35"
                     style={{ background: tone.card, border: `1px solid ${tone.line}` }}
                   >

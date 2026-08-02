@@ -17,10 +17,15 @@ export async function GET(request: NextRequest) {
   if (!kind || !locale) {
     return NextResponse.json({ error: "Invalid filters" }, { status: 400 });
   }
+  const listingScope =
+    request.nextUrl.searchParams.get("listingScope") === "all"
+      ? "all"
+      : "homix";
 
   const result = await fetchShareCatalog({
     kind,
     locale,
+    listingScope,
     query: request.nextUrl.searchParams.get("q") || "",
     page: Number.parseInt(request.nextUrl.searchParams.get("page") || "1", 10),
     pageSize: 24,
