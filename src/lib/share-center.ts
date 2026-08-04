@@ -97,7 +97,7 @@ export function newShareCode(): string {
 }
 
 export function publicShareUrl(code: string): string {
-  return `${homixwebBase()}/s/${encodeURIComponent(code)}`;
+  return `${homixwebBase()}/s/${encodeURIComponent(code)}?card=agent-v1`;
 }
 
 export async function withShareSchemaRetry<T>(
