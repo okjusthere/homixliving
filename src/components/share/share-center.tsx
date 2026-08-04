@@ -209,7 +209,7 @@ export function ShareCenter({
   const [view, setView] = useState<ViewMode>("library");
   const [kind, setKind] = useState<CatalogKind>("all");
   const [contentLocale, setContentLocale] = useState<"en" | "zh">(locale);
-  const [listingScope, setListingScope] = useState<ListingScope>("all");
+  const [listingScope, setListingScope] = useState<ListingScope>("homix");
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [page, setPage] = useState(1);
@@ -601,7 +601,7 @@ export function ShareCenter({
                   className="inline-flex rounded-lg p-1"
                   style={{ background: tone.paperDeep }}
                 >
-                  {(["all", "homix"] as const).map((scope) => (
+                  {(["homix", "all"] as const).map((scope) => (
                     <button
                       key={scope}
                       type="button"
