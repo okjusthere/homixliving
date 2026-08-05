@@ -11,6 +11,7 @@ import {
   Home,
   Mail,
   ReceiptText,
+  Share2,
   TrendingUp,
 } from "lucide-react";
 import { and, desc, eq, sql } from "drizzle-orm";
@@ -40,6 +41,7 @@ const M = {
     workbench: "Agent Workbench",
     newSales: "New sale",
     newRental: "New rental",
+    share: "Share",
     rentalFile: "Rental file",
     rentalFileDetail: "Lease, agents, commission split",
     salesFile: "Sales file",
@@ -113,6 +115,7 @@ const M = {
     workbench: "经纪人工作台",
     newSales: "新建买卖",
     newRental: "新建租约",
+    share: "分享",
     rentalFile: "租赁档案",
     rentalFileDetail: "租约、经纪人、佣金分成",
     salesFile: "买卖档案",
@@ -662,7 +665,15 @@ export default async function Dashboard() {
                 )}
               </p>
             </div>
-            <div className="flex shrink-0 flex-wrap gap-2">
+            <div className="grid w-full shrink-0 grid-cols-2 gap-2 md:flex md:w-auto md:flex-wrap">
+              <Link
+                href="/share"
+                className="col-span-2 inline-flex h-10 items-center justify-center gap-2 rounded-md px-4 text-[13px] font-medium transition hover:opacity-90 md:col-span-1"
+                style={{ background: tone.ink, color: tone.card }}
+              >
+                <Share2 className="size-4" />
+                {t.share}
+              </Link>
               <Link
                 href="/sales/new"
                 className="inline-flex h-10 items-center justify-center gap-2 rounded-md border px-4 text-[13px] font-medium transition hover:bg-[#FAF7F0]"

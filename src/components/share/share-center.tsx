@@ -96,7 +96,9 @@ const COPY = {
       "The visitor sees your contact card above the original Homix content.",
     copy: "Copy link",
     copied: "Copied",
-    open: "Open",
+    share: "Share",
+    preview: "Preview page",
+    qrCode: "QR code",
     downloadQr: "Download QR",
     close: "Close",
     stop: "Disable link",
@@ -159,7 +161,9 @@ const COPY = {
     shareBody: "访客会先看到你的联系方式，再阅读 Homix 网站上的原始内容。",
     copy: "复制链接",
     copied: "已复制",
-    open: "打开",
+    share: "分享到微信",
+    preview: "预览页面",
+    qrCode: "二维码",
     downloadQr: "下载二维码",
     close: "关闭",
     stop: "停用链接",
@@ -417,11 +421,16 @@ export function ShareCenter({
       await copyLink(link.shareUrl);
       return;
     }
-    await navigator.share({
-      title: link.contentTitle,
-      text: link.contentSubtitle || link.contentTitle,
-      url: link.shareUrl,
-    });
+    try {
+      await navigator.share({
+        title: link.contentTitle,
+        text: link.contentSubtitle || link.contentTitle,
+        url: link.shareUrl,
+      });
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      await copyLink(link.shareUrl);
+    }
   }
 
   const pages =
@@ -879,85 +888,54 @@ export function ShareCenter({
               </button>
             </div>
 
-            <div className="mt-6 grid gap-6 sm:grid-cols-[220px_minmax(0,1fr)] sm:items-start">
-              <div>
-                <img
-                  src={`/api/share/qr?code=${encodeURIComponent(modalLink.code)}`}
-                  alt="QR code"
-                  className="aspect-square w-full rounded-md"
-                  style={{ border: `1px solid ${tone.line}` }}
-                />
-                <a
-                  href={`/api/share/qr?code=${encodeURIComponent(modalLink.code)}`}
-                  download={`homix-share-${modalLink.code}.svg`}
-                  className="mt-2 inline-flex h-9 w-full items-center justify-center gap-2 rounded-md text-[12px]"
-                  style={{ background: tone.paperDeep, color: tone.ink70 }}
-                >
-                  <Download size={14} aria-hidden />
-                  {t.downloadQr}
-                </a>
+            <div className="mt-6 min-w-0">
+              <p className="font-serif text-[19px] leading-snug" style={{ color: tone.ink }}>
+                {modalLink.contentTitle}
+              </p>
+              <p className="mt-2 text-[12.5px] leading-5" style={{ color: tone.ink50 }}>
+                {modalLink.contentSubtitle}
+              </p>
+              {isAdmin && linkScope === "all" && (
+                <p className="mt-3 text-[12px]" style={{ color: tone.ink50 }}>
+                  {t.createdFor}: {modalLink.agentName}
+                </p>
+              )}
+              <div
+                className="mt-4 break-all rounded-md px-3 py-3 font-mono text-[11px]"
+                style={{ background: tone.paperDeep, color: tone.ink70 }}
+              >
+                {modalLink.shareUrl}
               </div>
 
-              <div className="min-w-0">
-                <p className="font-serif text-[19px] leading-snug" style={{ color: tone.ink }}>
-                  {modalLink.contentTitle}
-                </p>
-                <p className="mt-2 text-[12.5px] leading-5" style={{ color: tone.ink50 }}>
-                  {modalLink.contentSubtitle}
-                </p>
-                {isAdmin && linkScope === "all" && (
-                  <p className="mt-3 text-[12px]" style={{ color: tone.ink50 }}>
-                    {t.createdFor}: {modalLink.agentName}
-                  </p>
-                )}
-                <div
-                  className="mt-4 break-all rounded-md px-3 py-3 font-mono text-[11px]"
-                  style={{ background: tone.paperDeep, color: tone.ink70 }}
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => void nativeShare(modalLink)}
+                  className="col-span-2 inline-flex min-h-12 items-center justify-center gap-2 rounded-md text-[13px] font-semibold transition hover:opacity-90"
+                  style={{ background: tone.ink, color: tone.card }}
                 >
-                  {modalLink.shareUrl}
-                </div>
-
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => void copyLink(modalLink.shareUrl)}
-                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md text-[13px] font-medium"
-                    style={{ background: tone.ink, color: tone.card }}
-                  >
-                    {copied ? <Check size={15} /> : <Copy size={15} />}
-                    {copied ? t.copied : t.copy}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void nativeShare(modalLink)}
-                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md text-[13px] font-medium"
-                    style={{ background: tone.paperDeep, color: tone.ink }}
-                  >
-                    <Share2 size={15} />
-                    {t.open}
-                  </button>
-                  <a
-                    href={modalLink.shareUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md text-[13px]"
-                    style={{ border: `1px solid ${tone.line}`, color: tone.ink70 }}
-                  >
-                    <ExternalLink size={15} />
-                    {t.open}
-                  </a>
-                  <button
-                    type="button"
-                    onClick={() => void toggleLink(modalLink)}
-                    className="min-h-11 rounded-md text-[13px]"
-                    style={{
-                      border: `1px solid ${modalLink.isActive ? tone.rose : tone.green}`,
-                      color: modalLink.isActive ? tone.rose : tone.green,
-                    }}
-                  >
-                    {modalLink.isActive ? t.stop : t.enable}
-                  </button>
-                </div>
+                  <Share2 size={16} />
+                  {t.share}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void copyLink(modalLink.shareUrl)}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md text-[13px] font-medium"
+                  style={{ background: tone.accentSoft, color: tone.accent }}
+                >
+                  {copied ? <Check size={15} /> : <Copy size={15} />}
+                  {copied ? t.copied : t.copy}
+                </button>
+                <a
+                  href={modalLink.shareUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-white text-[13px] font-medium"
+                  style={{ border: `1px solid ${tone.line}`, color: tone.ink }}
+                >
+                  <ExternalLink size={15} />
+                  {t.preview}
+                </a>
               </div>
             </div>
 
@@ -1162,6 +1140,45 @@ export function ShareCenter({
                   ))}
                 </div>
               )}
+            </section>
+
+            <section
+              className="mt-6 border-t pt-5"
+              style={{ borderColor: tone.lineSoft }}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-[14px] font-semibold" style={{ color: tone.ink }}>
+                  {t.qrCode}
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => void toggleLink(modalLink)}
+                  className="min-h-9 rounded-md px-3 text-[12px]"
+                  style={{
+                    border: `1px solid ${modalLink.isActive ? tone.rose : tone.green}`,
+                    color: modalLink.isActive ? tone.rose : tone.green,
+                  }}
+                >
+                  {modalLink.isActive ? t.stop : t.enable}
+                </button>
+              </div>
+              <div className="mt-4 flex flex-col items-start gap-3 sm:flex-row sm:items-center">
+                <img
+                  src={`/api/share/qr?code=${encodeURIComponent(modalLink.code)}`}
+                  alt={t.qrCode}
+                  className="aspect-square w-32 rounded-md sm:w-36"
+                  style={{ border: `1px solid ${tone.line}` }}
+                />
+                <a
+                  href={`/api/share/qr?code=${encodeURIComponent(modalLink.code)}`}
+                  download={`homix-share-${modalLink.code}.svg`}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-md px-4 text-[12px] font-medium"
+                  style={{ background: tone.paperDeep, color: tone.ink70 }}
+                >
+                  <Download size={14} aria-hidden />
+                  {t.downloadQr}
+                </a>
+              </div>
             </section>
           </div>
         </div>
