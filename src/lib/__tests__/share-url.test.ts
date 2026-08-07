@@ -12,7 +12,7 @@ const firstUrl = new URL(publicShareUrl("agent/code", firstUpdate));
 const secondUrl = new URL(publicShareUrl("agent/code", secondUpdate));
 
 assert.equal(firstUrl.pathname, "/s/agent%2Fcode");
-assert.equal(firstUrl.searchParams.get("card"), "agent-v2");
+assert.equal(firstUrl.searchParams.get("card"), "agent-v3");
 assert.notEqual(firstUrl.searchParams.get("v"), secondUrl.searchParams.get("v"));
 
 console.log("share URL tests passed");

@@ -9,7 +9,7 @@ export function shareCardVersion(updatedAt?: string | null): string {
 
 export function publicShareUrl(code: string, updatedAt?: string | null): string {
   const params = new URLSearchParams({
-    card: "agent-v2",
+    card: "agent-v3",
     v: shareCardVersion(updatedAt),
   });
   return `${homixwebBase()}/s/${encodeURIComponent(code)}?${params.toString()}`;
