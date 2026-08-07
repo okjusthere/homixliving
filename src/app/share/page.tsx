@@ -27,10 +27,23 @@ export default async function SharePage() {
   const locale = await getLocale();
   const t = COPY[locale];
   const agentId = session.user.agentId ?? null;
-  const profile = agentId ? await fetchPublicProfile(agentId) : null;
+  const profile = agentId
+    ? await fetchPublicProfile(agentId, { revalidateSeconds: 60 })
+    : null;
+  const profilePhoto = profile?.profile?.photo_url;
+  const hasPersonalPhoto = Boolean(
+    profilePhoto && !profilePhoto.endsWith("/agent-placeholder-logo.png"),
+  );
   const canShare =
     profile?.linked === true &&
-    profile.profile?.visibility_status === "visible";
+    profile.profile?.visibility_status === "visible" &&
+    hasPersonalPhoto;
+  const shareIdentity = profile?.profile
+    ? {
+        name: profile.profile.name || session.user.name || session.user.email || "Homix Agent",
+        photoUrl: hasPersonalPhoto ? profile.profile.photo_url : null,
+      }
+    : null;
 
   return (
     <div className="space-y-7">
@@ -44,6 +57,7 @@ export default async function SharePage() {
         isAdmin={Boolean(session.user.isAdmin)}
         canShare={canShare}
         agentId={agentId}
+        shareIdentity={shareIdentity}
       />
     </div>
   );

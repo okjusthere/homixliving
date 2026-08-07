@@ -21,6 +21,7 @@ import {
 import { ensureSchema } from "@/db/ensure-schema";
 import { parseDbTime } from "@/lib/db-time";
 import { homixwebBase } from "@/lib/homixweb";
+import { publicShareUrl } from "@/lib/share-url";
 
 export const SHARE_KINDS = [
   "listing",
@@ -47,6 +48,7 @@ export type ShareLinkSummary = {
   locale: "en" | "zh";
   isActive: boolean;
   createdAt: string | null;
+  updatedAt: string | null;
   shareUrl: string;
   visits: number;
   uniqueVisitors: number;
@@ -96,16 +98,17 @@ export function newShareCode(): string {
   return randomBytes(8).toString("base64url");
 }
 
-export function publicShareUrl(code: string): string {
-  return `${homixwebBase()}/s/${encodeURIComponent(code)}?card=agent-v1`;
-}
-
 export async function withShareSchemaRetry<T>(
   operation: () => Promise<T>,
 ): Promise<T> {
   try {
     return await operation();
-  } catch {
+  } catch (error) {
+    const code =
+      typeof error === "object" && error !== null && "code" in error
+        ? String((error as { code?: unknown }).code || "")
+        : "";
+    if (code !== "42P01" && code !== "42703") throw error;
     await ensureSchema(pgClient);
     return operation();
   }
@@ -113,6 +116,7 @@ export async function withShareSchemaRetry<T>(
 
 async function queryShareLinkSummaries(
   agentId: number | null,
+  includeAnalytics: boolean,
 ): Promise<ShareLinkSummary[]> {
   const links = await db
     .select({
@@ -129,6 +133,7 @@ async function queryShareLinkSummaries(
       locale: shareLinks.locale,
       isActive: shareLinks.isActive,
       createdAt: shareLinks.createdAt,
+      updatedAt: shareLinks.updatedAt,
     })
     .from(shareLinks)
     .innerJoin(agents, eq(shareLinks.agentId, agents.id))
@@ -136,6 +141,25 @@ async function queryShareLinkSummaries(
     .orderBy(desc(shareLinks.createdAt), desc(shareLinks.id));
 
   if (links.length === 0) return [];
+  if (!includeAnalytics) {
+    return links.map((link) => ({
+      ...link,
+      contentKind: link.contentKind as ShareKind,
+      locale: link.locale === "en" ? "en" : "zh",
+      shareUrl: publicShareUrl(link.code, link.updatedAt),
+      visits: 0,
+      uniqueVisitors: 0,
+      averageActiveSeconds: 0,
+      medianActiveSeconds: 0,
+      averageScrollDepth: 0,
+      lastVisitAt: null,
+      callClicks: 0,
+      emailClicks: 0,
+      wechatClicks: 0,
+      profileClicks: 0,
+      inquiries: 0,
+    }));
+  }
   const linkIds = links.map((link) => link.id);
   const visitRows = await db
     .select({
@@ -183,7 +207,7 @@ async function queryShareLinkSummaries(
       ...link,
       contentKind: link.contentKind as ShareKind,
       locale: link.locale === "en" ? "en" : "zh",
-      shareUrl: publicShareUrl(link.code),
+      shareUrl: publicShareUrl(link.code, link.updatedAt),
       visits: Number(visits?.visits ?? 0),
       uniqueVisitors: Number(visits?.uniqueVisitors ?? 0),
       averageActiveSeconds: Math.round(
@@ -205,8 +229,11 @@ async function queryShareLinkSummaries(
 
 export async function loadShareLinkSummaries(
   agentId: number | null,
+  includeAnalytics = true,
 ): Promise<ShareLinkSummary[]> {
-  return withShareSchemaRetry(() => queryShareLinkSummaries(agentId));
+  return withShareSchemaRetry(() =>
+    queryShareLinkSummaries(agentId, includeAnalytics),
+  );
 }
 
 export async function loadShareInquiryDetails({

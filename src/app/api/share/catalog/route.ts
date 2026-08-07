@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     listingScope,
     query: request.nextUrl.searchParams.get("q") || "",
     page: Number.parseInt(request.nextUrl.searchParams.get("page") || "1", 10),
-    pageSize: 24,
+    pageSize: 12,
   });
   if (!result) {
     return NextResponse.json(

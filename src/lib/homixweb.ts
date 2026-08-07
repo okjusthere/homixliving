@@ -71,16 +71,26 @@ export async function fetchShareCatalog(input: {
     kind: input.kind,
     locale: input.locale,
     page: String(input.page ?? 1),
-    pageSize: String(input.pageSize ?? 24),
+    pageSize: String(input.pageSize ?? 12),
   });
   if (input.listingScope) params.set("listingScope", input.listingScope);
   if (input.query?.trim()) params.set("q", input.query.trim());
   try {
+    const cacheable = !input.query?.trim();
     const response = await fetch(
       `${homixwebBase()}/api/share-catalog?${params.toString()}`,
       {
         headers: { authorization: `Bearer ${homixwebSecret()}` },
-        cache: "no-store",
+        ...(cacheable
+          ? {
+              next: {
+                revalidate: 60,
+                tags: [
+                  `share-catalog-${input.locale}-${input.kind}-${input.listingScope ?? "homix"}`,
+                ],
+              },
+            }
+          : { cache: "no-store" as const }),
         signal: AbortSignal.timeout(12_000),
       },
     );
@@ -142,6 +152,7 @@ export type PublicProfileVisibility = "visible" | "agent_hidden" | "admin_hidden
 /** Server-side fetch of a portal agent's linked public profile (or null). */
 export async function fetchPublicProfile(
   portalAgentId: number,
+  options?: { revalidateSeconds?: number },
 ): Promise<{ linked: boolean; profile?: PublicProfile; unreachable?: boolean }> {
   if (!isHomixwebConfigured()) return { linked: false, unreachable: true };
   try {
@@ -149,7 +160,14 @@ export async function fetchPublicProfile(
       `${homixwebBase()}/api/agent-profile?portalAgentId=${portalAgentId}`,
       {
         headers: { authorization: `Bearer ${homixwebSecret()}` },
-        cache: "no-store",
+        ...(options?.revalidateSeconds
+          ? {
+              next: {
+                revalidate: options.revalidateSeconds,
+                tags: [`public-profile-${portalAgentId}`],
+              },
+            }
+          : { cache: "no-store" as const }),
         signal: AbortSignal.timeout(8000),
       },
     );

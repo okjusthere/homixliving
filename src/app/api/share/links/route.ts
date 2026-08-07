@@ -9,9 +9,9 @@ import {
   isShareLocale,
   loadShareLinkSummaries,
   newShareCode,
-  publicShareUrl,
   withShareSchemaRetry,
 } from "@/lib/share-center";
+import { publicShareUrl } from "@/lib/share-url";
 
 export const dynamic = "force-dynamic";
 
@@ -28,8 +28,11 @@ export async function GET(request: NextRequest) {
   const companyScope =
     auth.session.user.isAdmin &&
     request.nextUrl.searchParams.get("scope") === "all";
+  const includeAnalytics =
+    request.nextUrl.searchParams.get("analytics") === "1";
   const links = await loadShareLinkSummaries(
     companyScope ? null : ownAgentId ?? null,
+    includeAnalytics,
   );
   return NextResponse.json(
     { links, scope: companyScope ? "all" : "mine" },
@@ -60,12 +63,14 @@ export async function POST(request: NextRequest) {
   const publicProfile = await fetchPublicProfile(agentId);
   if (
     !publicProfile.linked ||
-    publicProfile.profile?.visibility_status !== "visible"
+    publicProfile.profile?.visibility_status !== "visible" ||
+    !publicProfile.profile.photo_url ||
+    publicProfile.profile.photo_url.endsWith("/agent-placeholder-logo.png")
   ) {
     return NextResponse.json(
       {
         error:
-          "Publish your public profile before creating personal share links.",
+          "Publish your public profile and add your own headshot before creating personal share links.",
       },
       { status: publicProfile.unreachable ? 503 : 409 },
     );
@@ -132,7 +137,7 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     link: {
       ...link,
-      shareUrl: publicShareUrl(link.code),
+      shareUrl: publicShareUrl(link.code, link.updatedAt),
     },
   });
 }

@@ -19,6 +19,7 @@ import {
   Phone,
   Search,
   Share2,
+  UserRoundCheck,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -43,7 +44,7 @@ const COPY = {
   en: {
     library: "Content",
     analytics: "Analytics",
-    search: "Search listings, guides, neighborhoods…",
+    search: "Search guides, neighborhoods, developments…",
     listingSearch: "Search by address, ZIP code, or MLS number…",
     listingSource: "Listing source",
     allOneKey: "All OneKey listings",
@@ -55,15 +56,17 @@ const COPY = {
     development: "New developments",
     guide: "Guides & articles",
     news: "News",
-    overviewHint:
-      "A mixed preview is shown here. Open a category to browse every item.",
+    overviewHint: "Featured content is shown here. Open a category to browse all.",
     results: "items",
     create: "Create my link",
     openLink: "Open share link",
     profileNeeded: "Publish your public profile before sharing",
     profileNeededBody:
-      "Shared pages introduce you to the visitor, so your public profile must be visible first.",
+      "Shared pages introduce you to the visitor, so your public profile must be visible and include your own headshot.",
     editProfile: "Open public profile",
+    sharingAs: "Sharing as",
+    sharingAsBody: "This name and headshot appear on every personal share card.",
+    checkIdentity: "Check profile",
     empty: "No matching content.",
     unavailable: "Homix Web content is temporarily unavailable.",
     previous: "Previous",
@@ -110,7 +113,7 @@ const COPY = {
   zh: {
     library: "内容库",
     analytics: "分享数据",
-    search: "搜索房源、指南、社区或楼盘…",
+    search: "搜索指南、社区、楼盘或新闻…",
     listingSearch: "按地址、邮编或 MLS 编号搜索…",
     listingSource: "房源范围",
     allOneKey: "全部 OneKey 房源",
@@ -122,14 +125,17 @@ const COPY = {
     development: "纽约新盘",
     guide: "指南与文章",
     news: "地产新闻",
-    overviewHint: "这里展示各分类的混合预览；进入具体分类可浏览其中全部内容。",
+    overviewHint: "这里展示精选内容；进入具体分类可浏览全部。",
     results: "项内容",
     create: "生成我的分享链接",
     openLink: "打开专属链接",
     profileNeeded: "先公开个人主页，才能使用分享中心",
     profileNeededBody:
-      "分享页会向访客介绍你，因此需要先让自己的 Homix 对外主页处于公开状态。",
+      "分享页会向访客介绍你，因此需要先公开 Homix 对外主页并上传自己的头像。",
     editProfile: "前往个人主页",
+    sharingAs: "当前分享身份",
+    sharingAsBody: "每一张个人分享卡都会使用这里的姓名和头像。",
+    checkIdentity: "检查个人主页",
     empty: "没有符合条件的内容。",
     unavailable: "暂时无法读取 Homix Web 内容。",
     previous: "上一页",
@@ -203,11 +209,16 @@ export function ShareCenter({
   isAdmin,
   canShare,
   agentId,
+  shareIdentity,
 }: {
   locale: "en" | "zh";
   isAdmin: boolean;
   canShare: boolean;
   agentId: number | null;
+  shareIdentity: {
+    name: string;
+    photoUrl: string | null;
+  } | null;
 }) {
   const t = COPY[locale];
   const [view, setView] = useState<ViewMode>("library");
@@ -268,15 +279,19 @@ export function ShareCenter({
         if (error instanceof DOMException && error.name === "AbortError") return;
         setCatalogError(error instanceof Error ? error.message : t.unavailable);
       })
-      .finally(() => setCatalogLoading(false));
+      .finally(() => {
+        if (!controller.signal.aborted) setCatalogLoading(false);
+      });
     return () => controller.abort();
   }, [contentLocale, debouncedQuery, kind, listingScope, page, t.unavailable]);
 
   const loadLinks = useCallback(
-    async (scope = linkScope) => {
+    async (scope: LinkScope, includeAnalytics = false) => {
       setLinksLoading(true);
       try {
-        const response = await fetch(`/api/share/links?scope=${scope}`, {
+        const params = new URLSearchParams({ scope });
+        if (includeAnalytics) params.set("analytics", "1");
+        const response = await fetch(`/api/share/links?${params.toString()}`, {
           cache: "no-store",
         });
         const body = (await response.json().catch(() => ({}))) as {
@@ -294,12 +309,24 @@ export function ShareCenter({
         setLinksLoading(false);
       }
     },
-    [linkScope],
+    [],
   );
 
   useEffect(() => {
-    void loadLinks(linkScope);
-  }, [linkScope, loadLinks]);
+    void loadLinks(linkScope, view === "analytics");
+  }, [linkScope, loadLinks, view]);
+
+  useEffect(() => {
+    const linkId = modalLink?.id;
+    if (!linkId || view === "analytics") return;
+    void loadLinks(linkScope, true).then((rows) => {
+      setModalLink((current) =>
+        current?.id === linkId
+          ? rows.find((row) => row.id === linkId) ?? current
+          : current,
+      );
+    });
+  }, [linkScope, loadLinks, modalLink?.id, view]);
 
   useEffect(() => {
     const linkId = modalLink?.id;
@@ -384,7 +411,7 @@ export function ShareCenter({
         error?: string;
       };
       if (!response.ok) throw new Error(body.error || "Unable to create link");
-      const refreshed = await loadLinks(linkScope);
+      const refreshed = await loadLinks(linkScope, false);
       const created = refreshed.find((link) => link.code === body.link?.code);
       if (created) setModalLink(created);
     } catch (error) {
@@ -406,7 +433,7 @@ export function ShareCenter({
       setActionError(body.error || "Unable to update link");
       return;
     }
-    const refreshed = await loadLinks(linkScope);
+    const refreshed = await loadLinks(linkScope, true);
     setModalLink(refreshed.find((row) => row.id === link.id) ?? null);
   }
 
@@ -466,6 +493,48 @@ export function ShareCenter({
             style={{ background: tone.ink, color: tone.card }}
           >
             {t.editProfile}
+          </Link>
+        </div>
+      )}
+
+      {shareIdentity && (
+        <div
+          className="flex flex-wrap items-center justify-between gap-4 rounded-lg px-4 py-3.5"
+          style={{ background: tone.card, border: `1px solid ${tone.line}` }}
+        >
+          <div className="flex min-w-0 items-center gap-3">
+            <div
+              className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full"
+              style={{ background: tone.paperDeep, border: `1px solid ${tone.lineSoft}` }}
+            >
+              {shareIdentity.photoUrl ? (
+                <img
+                  src={shareIdentity.photoUrl}
+                  alt={shareIdentity.name}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <UserRoundCheck size={20} aria-hidden style={{ color: tone.ink30 }} />
+              )}
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10.5px] font-medium uppercase tracking-[0.12em]" style={{ color: tone.ink50 }}>
+                {t.sharingAs}
+              </p>
+              <p className="mt-0.5 truncate text-[14px] font-semibold" style={{ color: tone.ink }}>
+                {shareIdentity.name}
+              </p>
+              <p className="mt-0.5 text-[11.5px]" style={{ color: tone.ink50 }}>
+                {t.sharingAsBody}
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/profile/public"
+            className="inline-flex h-9 items-center rounded-md px-3 text-[12px] font-medium"
+            style={{ background: tone.paperDeep, color: tone.ink70 }}
+          >
+            {t.checkIdentity}
           </Link>
         </div>
       )}

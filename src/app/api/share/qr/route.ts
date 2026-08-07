@@ -4,7 +4,8 @@ import QRCode from "qrcode";
 import { db } from "@/db";
 import { shareLinks } from "@/db/schema";
 import { requireActiveAgentApi } from "@/lib/auth-guards";
-import { publicShareUrl, withShareSchemaRetry } from "@/lib/share-center";
+import { withShareSchemaRetry } from "@/lib/share-center";
+import { publicShareUrl } from "@/lib/share-url";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,7 @@ export async function GET(request: NextRequest) {
 
   const [link] = await withShareSchemaRetry(() =>
     db
-      .select({ code: shareLinks.code })
+      .select({ code: shareLinks.code, updatedAt: shareLinks.updatedAt })
       .from(shareLinks)
       .where(
         and(
@@ -34,7 +35,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Share link not found" }, { status: 404 });
   }
 
-  const svg = await QRCode.toString(publicShareUrl(link.code), {
+  const svg = await QRCode.toString(publicShareUrl(link.code, link.updatedAt), {
     type: "svg",
     width: 512,
     margin: 1,
