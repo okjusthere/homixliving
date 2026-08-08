@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
 import { Btn, Card, Icons } from "@/components/homix/primitives";
 import { PageHeader, CardHeader } from "@/components/homix/page-kit";
 import { fmtMoney, tone } from "@/components/homix/tokens";
@@ -10,67 +9,100 @@ import { AgingSection } from "@/components/homix/aging-section";
 import { getMonthKey } from "@/lib/reporting";
 import { sourceEmoji, sourceLabel } from "@/lib/sources";
 import { useLocale } from "@/lib/i18n-client";
-import type { Agent, Building } from "@/db/schema";
+import type { Building } from "@/db/schema";
 
 const M = {
   en: {
     eyebrow: "Reports",
-    title: "Reports",
-    description: "Monthly commission production by agent and building.",
+    title: "Monthly report",
+    companyTitle: "Company report",
+    personalTitle: "My monthly report",
+    companyDescription: "Company-wide production, estimated commission allocation, and actual agent disbursements.",
+    personalDescription: "Your recorded sales and rentals, estimated commission, and payments actually issued to you.",
     exportCsv: "Export CSV", yearToggle: "Full year", yearMode: "YTD",
     loading: "Loading…",
+    loadFailed: "The report could not be loaded. Please try again.",
     totalDeals: "Total deals",
+    participatingDeals: "My deals",
     rentalShort: "rental",
     saleShort: "sale",
     totalCommission: "Total commission",
+    attributableCommission: "My commission base",
     salesGrossNote: "incl. sales gross",
     companyPool: "Company pool",
-    agentPayouts: "Agent payouts",
-    topAgents: "Top agents",
+    estimatedTake: "Estimated agent take",
+    myEstimatedTake: "My estimated take",
+    actualPaid: "Actually paid",
+    topAgents: "Agent performance",
+    myProduction: "My production",
     colAgent: "Agent",
-    colRentalDeals: "Deals",
-    colTake: "Take",
-    noAgentPayouts: "No agent payouts this month.",
+    colDeals: "Deals",
+    colGross: "Commission base",
+    colTake: "Estimated take",
+    colPaid: "Paid",
+    noAgentPayouts: "No production or payments in this period.",
     split: "split",
     perBuilding: "Per building",
+    myBuildings: "My rental buildings",
     colBuilding: "Building",
     colCommission: "Commission",
     noBuildingProduction: "No building production this month.",
     bySource: "By source",
-    bySourceSubtitle: "Where this month’s rental deals came from",
+    bySourceSubtitle: "Where recorded sales and rentals came from",
+    deals: "deals",
     unknown: "Unknown",
   },
   zh: {
     eyebrow: "报表",
-    title: "报表",
-    description: "按经纪人和楼盘统计的月度佣金业绩。",
+    title: "月度报表",
+    companyTitle: "公司月度报表",
+    personalTitle: "我的月度报表",
+    companyDescription: "查看公司整体业绩、预计佣金分配及已经实际发放给经纪人的款项。",
+    personalDescription: "查看你参与的买卖与租赁、预计个人佣金及公司已经实际发放的款项。",
     exportCsv: "导出 CSV", yearToggle: "看全年", yearMode: "全年",
     loading: "加载中…",
+    loadFailed: "报表暂时无法加载，请稍后重试。",
     totalDeals: "交易总数",
+    participatingDeals: "我参与的交易",
     rentalShort: "租赁",
     saleShort: "买卖",
     totalCommission: "佣金合计",
+    attributableCommission: "我的佣金基数",
     salesGrossNote: "含买卖毛佣",
     companyPool: "公司分成",
-    agentPayouts: "经纪人分成",
-    topAgents: "业绩排行",
+    estimatedTake: "预计经纪人实得",
+    myEstimatedTake: "我的预计实得",
+    actualPaid: "实际已发放",
+    topAgents: "经纪人业绩",
+    myProduction: "我的业绩",
     colAgent: "经纪人",
-    colRentalDeals: "交易",
-    colTake: "分成",
-    noAgentPayouts: "本月暂无经纪人分成。",
+    colDeals: "交易",
+    colGross: "佣金基数",
+    colTake: "预计实得",
+    colPaid: "实际发放",
+    noAgentPayouts: "本周期暂无业绩或发放记录。",
     split: "分成",
     perBuilding: "按楼盘",
+    myBuildings: "我的租赁楼盘",
     colBuilding: "楼盘",
     colCommission: "佣金",
     noBuildingProduction: "本月暂无楼盘业绩。",
     bySource: "按来源",
-    bySourceSubtitle: "本月租赁交易的来源",
+    bySourceSubtitle: "已登记买卖与租赁的客户来源",
+    deals: "笔交易",
     unknown: "未知",
   },
 } as const;
 
+type ReportAgent = {
+  id: number;
+  name: string;
+  splitPct: number;
+};
+
 type ReportPayload = {
   month: string;
+  scope: "company" | "personal";
   summary: {
     totalDeals: number;
     rentalDeals: number;
@@ -80,41 +112,49 @@ type ReportPayload = {
     salesCommissionBase: number;
     companyPool: number;
     agentPayouts: number;
+    actualPaid: number;
     referrerPayouts: number;
   };
-  topAgents: Array<{ agent: Agent; deals: number; take: number }>;
+  topAgents: Array<{
+    agent: ReportAgent;
+    deals: number;
+    gross: number;
+    take: number;
+    actualPaid: number;
+  }>;
   perBuilding: Array<{ building: Building; deals: number; totalCommission: number }>;
   perSource: Array<{ source: string; deals: number; totalCommission: number }>;
 };
 
 export default function ReportsConsole() {
   const router = useRouter();
-  const t = M[useLocale()];
-  const { data: session, status } = useSession();
+  const locale = useLocale();
+  const t = M[locale];
   const [month, setMonth] = useState(getMonthKey());
   const [report, setReport] = useState<ReportPayload | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    if (status !== "authenticated") return;
-    if (!session.user.isAdmin) {
-      router.replace("/");
-      return;
-    }
     let cancelled = false;
     fetch(`/api/reports/monthly?month=${month}`)
       .then((r) => {
-        if (!r.ok) {
-          if (r.status === 403) router.replace("/");
-          throw new Error("Report fetch failed");
-        }
+        if (r.status === 401) router.replace("/login");
+        if (r.status === 403) router.replace("/pending");
+        if (!r.ok) throw new Error("Report fetch failed");
         return r.json();
       })
       .then((data) => {
-        if (!cancelled) setReport(data);
+        if (!cancelled) {
+          setReport(data);
+          setError("");
+        }
       })
       .catch(() => {
-        if (!cancelled) setReport(null);
+        if (!cancelled) {
+          setReport(null);
+          setError(M[locale].loadFailed);
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -122,17 +162,17 @@ export default function ReportsConsole() {
     return () => {
       cancelled = true;
     };
-  }, [month, router, session?.user.isAdmin, status]);
+  }, [locale, month, router]);
 
   const csv = useMemo(() => {
     if (!report) return "";
     const rows = [
-      ["Type", "Name", "Rental Deals", "Amount"],
-      ...report.topAgents.map((row) => ["Agent", row.agent.name, row.deals, row.take]),
-      ...report.perBuilding.map((row) => ["Building", row.building.name, row.deals, row.totalCommission]),
+      [t.colAgent, t.colDeals, t.colGross, t.colTake, t.colPaid],
+      ...report.topAgents.map((row) => [row.agent.name, row.deals, row.gross, row.take, row.actualPaid]),
+      ...report.perBuilding.map((row) => [row.building.name, row.deals, row.totalCommission, "", ""]),
     ];
     return rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
-  }, [report]);
+  }, [report, t.colAgent, t.colDeals, t.colGross, t.colPaid, t.colTake]);
 
   const exportCsv = () => {
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
@@ -148,8 +188,20 @@ export default function ReportsConsole() {
     <div className="space-y-7">
       <PageHeader
         eyebrow={t.eyebrow}
-        title={t.title}
-        description={t.description}
+        title={
+          report?.scope === "company"
+            ? t.companyTitle
+            : report?.scope === "personal"
+            ? t.personalTitle
+            : t.title
+        }
+        description={
+          report?.scope === "company"
+            ? t.companyDescription
+            : report?.scope === "personal"
+            ? t.personalDescription
+            : undefined
+        }
         actions={
           <>
             {/* Year mode: month value "YYYY" switches the API to a whole-year rollup */}
@@ -158,6 +210,7 @@ export default function ReportsConsole() {
                 value={month}
                 onChange={(e) => {
                   setLoading(true);
+                  setError("");
                   setMonth(e.target.value);
                 }}
                 type="month"
@@ -169,6 +222,7 @@ export default function ReportsConsole() {
               type="button"
               onClick={() => {
                 setLoading(true);
+                setError("");
                 setMonth((prev) =>
                   /^\d{4}$/.test(prev) ? getMonthKey() : prev.slice(0, 4)
                 );
@@ -189,30 +243,45 @@ export default function ReportsConsole() {
         }
       />
 
-      {loading || !report ? (
+      {error ? (
+        <Card className="p-6 text-[13px]" style={{ color: tone.rose, background: tone.roseSoft }}>
+          {error}
+        </Card>
+      ) : loading || !report ? (
         <p className="text-[13px]" style={{ color: tone.ink50 }}>
           {t.loading}
         </p>
       ) : (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
             {(
-              [
-                [
-                  t.totalDeals,
-                  String(report.summary.totalDeals),
-                  `${report.summary.rentalDeals ?? report.summary.totalDeals} ${t.rentalShort} · ${report.summary.salesDeals ?? 0} ${t.saleShort}`,
-                ],
-                [
-                  t.totalCommission,
-                  `$${fmtMoney(report.summary.totalCommission)}`,
-                  report.summary.salesGrossCommission
-                    ? `${t.salesGrossNote} $${fmtMoney(report.summary.salesGrossCommission)}`
-                    : "",
-                ],
-                [t.companyPool, `$${fmtMoney(report.summary.companyPool)}`, ""],
-                [t.agentPayouts, `$${fmtMoney(report.summary.agentPayouts)}`, ""],
-              ] as const
+              report.scope === "company"
+                ? [
+                    [
+                      t.totalDeals,
+                      String(report.summary.totalDeals),
+                      `${report.summary.rentalDeals} ${t.rentalShort} · ${report.summary.salesDeals} ${t.saleShort}`,
+                    ],
+                    [
+                      t.totalCommission,
+                      `$${fmtMoney(report.summary.totalCommission)}`,
+                      report.summary.salesGrossCommission
+                        ? `${t.salesGrossNote} $${fmtMoney(report.summary.salesGrossCommission)}`
+                        : "",
+                    ],
+                    [t.companyPool, `$${fmtMoney(report.summary.companyPool)}`, ""],
+                    [t.actualPaid, `$${fmtMoney(report.summary.actualPaid)}`, ""],
+                  ]
+                : [
+                    [
+                      t.participatingDeals,
+                      String(report.summary.totalDeals),
+                      `${report.summary.rentalDeals} ${t.rentalShort} · ${report.summary.salesDeals} ${t.saleShort}`,
+                    ],
+                    [t.attributableCommission, `$${fmtMoney(report.summary.totalCommission)}`, ""],
+                    [t.myEstimatedTake, `$${fmtMoney(report.summary.agentPayouts)}`, ""],
+                    [t.actualPaid, `$${fmtMoney(report.summary.actualPaid)}`, ""],
+                  ]
             ).map(([label, value, sub]) => (
               <Card key={label}>
                 <div className="p-5">
@@ -234,21 +303,23 @@ export default function ReportsConsole() {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card className="overflow-hidden">
-              <CardHeader title={t.topAgents} />
+              <CardHeader title={report.scope === "company" ? t.topAgents : t.myProduction} />
               {report.topAgents.length === 0 ? (
                 <div className="px-6 py-12 text-center text-[13px]" style={{ color: tone.ink50 }}>
                   {t.noAgentPayouts}
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <div className="min-w-[360px]">
-                    <div className="grid text-[11px] uppercase tracking-[0.1em] px-6 py-3" style={{ gridTemplateColumns: "2fr 1fr 1fr", color: tone.ink50, borderBottom: `1px solid ${tone.lineSoft}` }}>
+                  <div className="min-w-[680px]">
+                    <div className="grid text-[11px] uppercase tracking-[0.1em] px-6 py-3" style={{ gridTemplateColumns: "2fr .7fr 1.1fr 1.1fr 1.1fr", color: tone.ink50, borderBottom: `1px solid ${tone.lineSoft}` }}>
                       <div>{t.colAgent}</div>
-                      <div>{t.colRentalDeals}</div>
+                      <div>{t.colDeals}</div>
+                      <div className="text-right">{t.colGross}</div>
                       <div className="text-right">{t.colTake}</div>
+                      <div className="text-right">{t.colPaid}</div>
                     </div>
                     {report.topAgents.map((row, index) => (
-                      <div key={row.agent.id} className="grid px-6 py-4 items-center" style={{ gridTemplateColumns: "2fr 1fr 1fr", borderBottom: index < report.topAgents.length - 1 ? `1px solid ${tone.lineSoft}` : "none" }}>
+                      <div key={row.agent.id} className="grid px-6 py-4 items-center" style={{ gridTemplateColumns: "2fr .7fr 1.1fr 1.1fr 1.1fr", borderBottom: index < report.topAgents.length - 1 ? `1px solid ${tone.lineSoft}` : "none" }}>
                         <div>
                           <div className="text-[13px]" style={{ color: tone.ink }}>
                             {row.agent.name}
@@ -260,8 +331,14 @@ export default function ReportsConsole() {
                         <div className="font-serif" style={{ fontSize: 20, color: tone.ink }}>
                           {row.deals}
                         </div>
+                        <div className="text-right font-serif" style={{ fontSize: 18, color: tone.ink }}>
+                          ${fmtMoney(row.gross)}
+                        </div>
                         <div className="text-right font-serif" style={{ fontSize: 20, color: tone.green }}>
                           ${fmtMoney(row.take)}
+                        </div>
+                        <div className="text-right font-serif" style={{ fontSize: 18, color: tone.ink }}>
+                          ${fmtMoney(row.actualPaid)}
                         </div>
                       </div>
                     ))}
@@ -271,7 +348,7 @@ export default function ReportsConsole() {
             </Card>
 
             <Card className="overflow-hidden">
-              <CardHeader title={t.perBuilding} />
+              <CardHeader title={report.scope === "company" ? t.perBuilding : t.myBuildings} />
               {report.perBuilding.length === 0 ? (
                 <div className="px-6 py-12 text-center text-[13px]" style={{ color: tone.ink50 }}>
                   {t.noBuildingProduction}
@@ -281,7 +358,7 @@ export default function ReportsConsole() {
                   <div className="min-w-[360px]">
                     <div className="grid text-[11px] uppercase tracking-[0.1em] px-6 py-3" style={{ gridTemplateColumns: "2fr 1fr 1fr", color: tone.ink50, borderBottom: `1px solid ${tone.lineSoft}` }}>
                       <div>{t.colBuilding}</div>
-                      <div>{t.colRentalDeals}</div>
+                      <div>{t.colDeals}</div>
                       <div className="text-right">{t.colCommission}</div>
                     </div>
                     {report.perBuilding.map((row, index) => (
@@ -331,7 +408,7 @@ export default function ReportsConsole() {
                           {isUnknown ? "❓" : sourceEmoji(row.source)}
                         </span>
                         <span className="text-[13px] font-medium" style={{ color: tone.ink }}>
-                          {isUnknown ? t.unknown : sourceLabel(row.source)}
+                          {isUnknown ? t.unknown : sourceLabel(row.source, locale)}
                         </span>
                       </div>
                       <div
@@ -341,7 +418,7 @@ export default function ReportsConsole() {
                         {row.deals}
                       </div>
                       <div className="mt-1.5 text-[11.5px]" style={{ color: tone.ink50 }}>
-                        rental{row.deals === 1 ? "" : "s"} · {pct}%
+                        {row.deals} {t.deals} · {pct}%
                       </div>
                       <div
                         className="mt-3 h-1 rounded-full overflow-hidden"
@@ -367,7 +444,7 @@ export default function ReportsConsole() {
 
           <div style={{ height: 1, background: tone.line, margin: "8px 0" }} />
 
-          <AgingSection />
+          {report.scope === "company" ? <AgingSection /> : null}
         </>
       )}
     </div>

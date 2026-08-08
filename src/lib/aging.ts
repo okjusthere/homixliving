@@ -59,7 +59,19 @@ export function totalOutstanding(summary: AgingSummary) {
   );
 }
 
-export function bucketLabel(b: AgingBucket): string {
+export function bucketLabel(b: AgingBucket, locale: "en" | "zh" = "en"): string {
+  if (locale === "zh") {
+    switch (b) {
+      case "0-30":
+        return "当前（0–30 天）";
+      case "30-60":
+        return "30–60 天";
+      case "60-90":
+        return "60–90 天";
+      case "90+":
+        return "超过 90 天";
+    }
+  }
   switch (b) {
     case "0-30":
       return "Current (0–30 days)";

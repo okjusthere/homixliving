@@ -16,21 +16,31 @@ export type DealSource =
   | "website"
   | "other";
 
-export const SOURCE_OPTIONS: Array<{ value: DealSource; label: string; emoji: string }> = [
-  { value: "xiaohongshu", label: "小红书", emoji: "📕" },
-  { value: "tiktok", label: "抖音 / TikTok", emoji: "🎬" },
-  { value: "wechat_group", label: "微信群", emoji: "👥" },
-  { value: "wechat_content", label: "公众号 / 视频号", emoji: "📰" },
-  { value: "school_alumni", label: "学生 / 校友圈", emoji: "🎓" },
-  { value: "existing_client", label: "老客户介绍", emoji: "🤝" },
-  { value: "cobroker", label: "同行介绍", emoji: "💼" },
-  { value: "website", label: "网站表单", emoji: "🌐" },
-  { value: "other", label: "其他", emoji: "✨" },
+export const SOURCE_OPTIONS: Array<{
+  value: DealSource;
+  label: string;
+  labels: { en: string; zh: string };
+  emoji: string;
+}> = [
+  { value: "xiaohongshu", label: "小红书", labels: { en: "Xiaohongshu", zh: "小红书" }, emoji: "📕" },
+  { value: "tiktok", label: "抖音 / TikTok", labels: { en: "TikTok / Douyin", zh: "抖音 / TikTok" }, emoji: "🎬" },
+  { value: "wechat_group", label: "微信群", labels: { en: "WeChat group", zh: "微信群" }, emoji: "👥" },
+  {
+    value: "wechat_content",
+    label: "公众号 / 视频号",
+    labels: { en: "WeChat official account / Channels", zh: "公众号 / 视频号" },
+    emoji: "📰",
+  },
+  { value: "school_alumni", label: "学生 / 校友圈", labels: { en: "School / alumni network", zh: "学生 / 校友圈" }, emoji: "🎓" },
+  { value: "existing_client", label: "老客户介绍", labels: { en: "Existing client referral", zh: "老客户介绍" }, emoji: "🤝" },
+  { value: "cobroker", label: "同行介绍", labels: { en: "Co-broker referral", zh: "同行介绍" }, emoji: "💼" },
+  { value: "website", label: "网站表单", labels: { en: "Website form", zh: "网站表单" }, emoji: "🌐" },
+  { value: "other", label: "其他", labels: { en: "Other", zh: "其他" }, emoji: "✨" },
 ];
 
-export function sourceLabel(value: string | null | undefined): string {
+export function sourceLabel(value: string | null | undefined, locale: "en" | "zh" = "en"): string {
   const opt = SOURCE_OPTIONS.find((o) => o.value === value);
-  return opt ? opt.label : "—";
+  return opt ? opt.labels[locale] : "—";
 }
 
 export function sourceEmoji(value: string | null | undefined): string {

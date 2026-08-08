@@ -11,6 +11,52 @@ import {
   type AgingBucket,
   type AgingSummary,
 } from "@/lib/aging";
+import { useLocale } from "@/lib/i18n-client";
+
+const M = {
+  en: {
+    loading: "Loading aging…",
+    eyebrow: "Outstanding",
+    title: "Aging report",
+    across: (amount: string, count: number) => `${amount} across ${count} invoice${count === 1 ? "" : "s"}`,
+    overdue: "overdue",
+    invoiceCount: (count: number) => `${count} invoice${count === 1 ? "" : "s"}`,
+    allClear: "All clear",
+    allClearBody: "Every sent invoice has been marked paid.",
+    byBuilding: "By building",
+    building: "Building",
+    invoiceAbbr: "Inv",
+    total: "Total",
+    oldest: "Oldest",
+    needsAttention: "Needs attention",
+    invoice: "Invoice",
+    days: "Days",
+    amount: "Amount",
+    sent: "sent",
+    dayAbbr: "d",
+  },
+  zh: {
+    loading: "正在加载账龄…",
+    eyebrow: "待收款",
+    title: "账龄报告",
+    across: (amount: string, count: number) => `${amount}，共 ${count} 张发票`,
+    overdue: "已逾期",
+    invoiceCount: (count: number) => `${count} 张发票`,
+    allClear: "全部结清",
+    allClearBody: "所有已发送发票均已标记为已付款。",
+    byBuilding: "按楼盘汇总",
+    building: "楼盘",
+    invoiceAbbr: "发票",
+    total: "总额",
+    oldest: "最久",
+    needsAttention: "需要关注",
+    invoice: "发票",
+    days: "天数",
+    amount: "金额",
+    sent: "发送于",
+    dayAbbr: "天",
+  },
+} as const;
 
 type AgingPayload = {
   summary: AgingSummary;
@@ -38,6 +84,8 @@ type AgingPayload = {
 };
 
 export function AgingSection() {
+  const locale = useLocale();
+  const t = M[locale];
   const [data, setData] = useState<AgingPayload | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -53,7 +101,7 @@ export function AgingSection() {
   if (loading || !data) {
     return (
       <p className="text-[13px]" style={{ color: tone.ink50 }}>
-        Loading aging…
+        {t.loading}
       </p>
     );
   }
@@ -71,22 +119,21 @@ export function AgingSection() {
             className="text-[11px] uppercase tracking-[0.16em] mb-2"
             style={{ color: tone.ink50 }}
           >
-            Outstanding
+            {t.eyebrow}
           </div>
           <h2
             className="font-serif"
             style={{ fontSize: 34, lineHeight: 1, color: tone.ink, letterSpacing: "-0.02em" }}
           >
-            Aging report
+            {t.title}
           </h2>
           <p className="mt-2 text-[13.5px]" style={{ color: tone.ink70 }}>
-            ${fmtMoney(data.totalAmount)} across {data.totalCount} invoice
-            {data.totalCount === 1 ? "" : "s"}
+            {t.across(`$${fmtMoney(data.totalAmount)}`, data.totalCount)}
             {overdueAmount > 0 && (
               <>
                 {" · "}
                 <span style={{ color: tone.rose }}>
-                  ${fmtMoney(overdueAmount)} overdue
+                  ${fmtMoney(overdueAmount)} {t.overdue}
                 </span>
               </>
             )}
@@ -98,9 +145,13 @@ export function AgingSection() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {AGING_BUCKETS.map((bucket) => {
           const cell = data.summary[bucket];
-          const t = bucketTone(bucket);
+          const bucketToneValue = bucketTone(bucket);
           const color =
-            t === "failed" ? tone.rose : t === "draft" ? tone.amber : tone.ink;
+            bucketToneValue === "failed"
+              ? tone.rose
+              : bucketToneValue === "draft"
+                ? tone.amber
+                : tone.ink;
           return (
             <Card key={bucket}>
               <div className="p-5">
@@ -108,7 +159,7 @@ export function AgingSection() {
                   className="text-[11px] uppercase tracking-[0.12em]"
                   style={{ color: tone.ink50 }}
                 >
-                  {bucketLabel(bucket)}
+                  {bucketLabel(bucket, locale)}
                 </div>
                 <div
                   className="mt-2 font-serif"
@@ -117,7 +168,7 @@ export function AgingSection() {
                   ${fmtMoney(cell.total)}
                 </div>
                 <div className="mt-1.5 text-[11.5px]" style={{ color: tone.ink50 }}>
-                  {cell.count} invoice{cell.count === 1 ? "" : "s"}
+                  {t.invoiceCount(cell.count)}
                 </div>
               </div>
             </Card>
@@ -132,10 +183,10 @@ export function AgingSection() {
               className="font-serif mb-1.5"
               style={{ fontSize: 20, color: tone.ink, letterSpacing: "-0.01em" }}
             >
-              All clear
+              {t.allClear}
             </div>
             <p className="text-[13px]" style={{ color: tone.ink50 }}>
-              Every sent invoice has been marked paid.
+              {t.allClearBody}
             </p>
           </div>
         </Card>
@@ -148,7 +199,7 @@ export function AgingSection() {
               style={{ borderBottom: `1px solid ${tone.lineSoft}` }}
             >
               <div className="font-serif" style={{ fontSize: 18, color: tone.ink }}>
-                By building
+                {t.byBuilding}
               </div>
             </div>
             <div className="overflow-x-auto">
@@ -160,10 +211,10 @@ export function AgingSection() {
                   borderBottom: `1px solid ${tone.lineSoft}`,
                 }}
               >
-                <div>Building</div>
-                <div className="text-right">Inv</div>
-                <div className="text-right">Total</div>
-                <div className="text-right">Oldest</div>
+                <div>{t.building}</div>
+                <div className="text-right">{t.invoiceAbbr}</div>
+                <div className="text-right">{t.total}</div>
+                <div className="text-right">{t.oldest}</div>
               </div>
               {data.perBuilding.slice(0, 8).map((row, i) => (
                 <div
@@ -198,7 +249,7 @@ export function AgingSection() {
                     ${fmtMoney(row.total)}
                   </div>
                   <div className="text-right text-[12px]" style={{ color: tone.ink50 }}>
-                    {row.oldestDays} d
+                    {row.oldestDays} {t.dayAbbr}
                   </div>
                 </div>
               ))}
@@ -212,7 +263,7 @@ export function AgingSection() {
               style={{ borderBottom: `1px solid ${tone.lineSoft}` }}
             >
               <div className="font-serif" style={{ fontSize: 18, color: tone.ink }}>
-                Needs attention
+                {t.needsAttention}
               </div>
             </div>
             <div className="overflow-x-auto">
@@ -224,10 +275,10 @@ export function AgingSection() {
                   borderBottom: `1px solid ${tone.lineSoft}`,
                 }}
               >
-                <div>Invoice</div>
-                <div>Building</div>
-                <div>Days</div>
-                <div className="text-right">Amount</div>
+                <div>{t.invoice}</div>
+                <div>{t.building}</div>
+                <div>{t.days}</div>
+                <div className="text-right">{t.amount}</div>
               </div>
               {data.items.slice(0, 8).map((it, i) => (
                 <Link
@@ -263,13 +314,13 @@ export function AgingSection() {
                         className="text-[10.5px] mt-0.5 font-mono"
                         style={{ color: tone.ink50 }}
                       >
-                        sent {fmtDate(it.sentAt)}
+                        {t.sent} {fmtDate(it.sentAt)}
                       </div>
                     )}
                   </div>
                   <div>
                     {it.bucket && (
-                      <Pill tone={bucketTone(it.bucket)}>{it.daysOutstanding} d</Pill>
+                      <Pill tone={bucketTone(it.bucket)}>{it.daysOutstanding} {t.dayAbbr}</Pill>
                     )}
                   </div>
                   <div

@@ -5,10 +5,12 @@ import {
   BookOpenCheck,
   Building2,
   CalendarClock,
+  ChartNoAxesCombined,
   CheckCircle2,
   CreditCard,
   FileText,
   Home,
+  History,
   Mail,
   ReceiptText,
   Share2,
@@ -98,6 +100,8 @@ const M = {
     agentToolsDetail: "Learning and operating references",
     trainingLibrary: "Training library",
     resources: "Resources",
+    marketOverview: "Market overview",
+    expiredListings: "Expired listings",
     monthlyReport: "Monthly report",
     goodMorning: "Good morning",
     goodAfternoon: "Good afternoon",
@@ -172,6 +176,8 @@ const M = {
     agentToolsDetail: "学习与操作参考",
     trainingLibrary: "培训资料库",
     resources: "资料",
+    marketOverview: "市场概览",
+    expiredListings: "已过期房源",
     monthlyReport: "月度报表",
     goodMorning: "早上好",
     goodAfternoon: "下午好",
@@ -949,6 +955,28 @@ export default async function Dashboard() {
                 <span className="flex items-center gap-3 text-[13px]" style={{ color: tone.ink }}>
                   <FileText className="size-4 text-homix-accent" />
                   {t.resources}
+                </span>
+                <IconChev />
+              </Link>
+              <Link
+                href="/market"
+                className="flex items-center justify-between px-5 py-4 transition hover:bg-[#FAF7F0]"
+                style={{ borderBottom: `1px solid ${tone.lineSoft}` }}
+              >
+                <span className="flex items-center gap-3 text-[13px]" style={{ color: tone.ink }}>
+                  <ChartNoAxesCombined className="size-4 text-homix-green" />
+                  {t.marketOverview}
+                </span>
+                <IconChev />
+              </Link>
+              <Link
+                href="/expired-listings"
+                className="flex items-center justify-between px-5 py-4 transition hover:bg-[#FAF7F0]"
+                style={{ borderBottom: `1px solid ${tone.lineSoft}` }}
+              >
+                <span className="flex items-center gap-3 text-[13px]" style={{ color: tone.ink }}>
+                  <History className="size-4 text-homix-amber" />
+                  {t.expiredListings}
                 </span>
                 <IconChev />
               </Link>

@@ -7,12 +7,31 @@ import {
   getAgentTakeForDeal,
   getDealDate,
   getMonthKey,
+  getReportDateRange,
 } from "../reporting";
 
 async function main() {
   // getMonthKey formats YYYY-MM with zero padding
   assert.equal(getMonthKey(new Date(2026, 0, 15)), "2026-01");
   assert.equal(getMonthKey(new Date(2026, 11, 1)), "2026-12");
+
+  assert.deepEqual(getReportDateRange("2026-08"), {
+    start: "2026-08-01",
+    end: "2026-09-01",
+    isYear: false,
+  });
+  assert.deepEqual(getReportDateRange("2026-12"), {
+    start: "2026-12-01",
+    end: "2027-01-01",
+    isYear: false,
+  });
+  assert.deepEqual(getReportDateRange("2026"), {
+    start: "2026-01-01",
+    end: "2027-01-01",
+    isYear: true,
+  });
+  assert.equal(getReportDateRange("2026-13"), null);
+  assert.equal(getReportDateRange("not-a-period"), null);
 
   // getDealDate prefers dealDate, falls back to createdAt
   assert.equal(getDealDate({ dealDate: "2026-05-01", createdAt: "2026-06-09" }), "2026-05-01");

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { signOut, useSession } from "next-auth/react";
-import { ChevronDown, ShieldCheck } from "lucide-react";
+import { BriefcaseBusiness, ChevronDown, ShieldCheck } from "lucide-react";
 import { HomixMark } from "@/components/homix/brand-mark";
 import { tone } from "@/components/homix/tokens";
 import { useLocale } from "@/lib/i18n-client";
@@ -15,8 +15,6 @@ const navItems = [
   { href: "/", key: "overview", adminOnly: false },
   { href: "/sales", key: "sales", adminOnly: false },
   { href: "/rental", key: "rental", adminOnly: false },
-  { href: "/training", key: "training", adminOnly: false },
-  { href: "/resources", key: "resources", adminOnly: false },
   { href: "/onboarding", key: "onboarding", adminOnly: false },
   { href: "/buyercoach", key: "coach", adminOnly: false },
   { href: "/offer", key: "offer", adminOnly: false },
@@ -24,11 +22,18 @@ const navItems = [
   { href: "/profile/public", key: "profile", adminOnly: false },
   { href: "/agents", key: "agents", adminOnly: true },
   { href: "/teams", key: "teams", adminOnly: true },
-  { href: "/reports", key: "reports", adminOnly: true },
   { href: "/finance", key: "finance", adminOnly: true },
   { href: "/payouts", key: "payouts", adminOnly: true },
   { href: "/audit", key: "audit", adminOnly: true },
   { href: "/settings", key: "settings", adminOnly: true },
+] as const;
+
+const toolItems = [
+  { href: "/training", key: "training" },
+  { href: "/resources", key: "resources" },
+  { href: "/market", key: "market" },
+  { href: "/expired-listings", key: "expiredListings" },
+  { href: "/reports", key: "reports" },
 ] as const;
 
 const LABELS = {
@@ -37,12 +42,14 @@ const LABELS = {
     resources: "Resources", onboarding: "Onboarding", coach: "Coach", offer: "Offer", share: "Share",
     agents: "Agents", teams: "Teams", reports: "Reports", finance: "Finance", payouts: "Payouts", audit: "Audit", settings: "Settings",
     search: "Search", signedIn: "Signed in", signOut: "Sign out", admin: "Admin", profile: "Public profile", accountProfile: "My profile",
+    menu: "Menu", switchLanguage: "Switch language", userMenu: "User menu", tools: "Agent tools", market: "Market overview", expiredListings: "Expired listings",
   },
   zh: {
     overview: "概览", sales: "买卖", rental: "租赁", training: "培训",
-    resources: "资料", onboarding: "入职", coach: "AI 教练", offer: "报价", share: "分享",
+    resources: "资料", onboarding: "入职", coach: "AI 教练", offer: "报价", share: "分享中心",
     agents: "经纪人", teams: "团队", reports: "报表", finance: "财务", payouts: "发放", audit: "审计", settings: "设置",
     search: "搜索", signedIn: "已登录", signOut: "退出登录", admin: "管理员", profile: "个人主页", accountProfile: "我的档案",
+    menu: "菜单", switchLanguage: "切换语言", userMenu: "用户菜单", tools: "经纪人工具", market: "市场概览", expiredListings: "已过期房源",
   },
 } as const;
 
@@ -60,9 +67,12 @@ export function Nav() {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [toolsMenuOpen, setToolsMenuOpen] = useState(false);
+  const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
   const [adminMenuOpen, setAdminMenuOpen] = useState(false);
   const [mobileAdminOpen, setMobileAdminOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const toolsMenuRef = useRef<HTMLDivElement>(null);
   const adminMenuRef = useRef<HTMLDivElement>(null);
   const locale = useLocale();
   const t = LABELS[locale];
@@ -73,17 +83,20 @@ export function Nav() {
   };
 
   useEffect(() => {
-    if (!menuOpen && !adminMenuOpen) return;
+    if (!menuOpen && !toolsMenuOpen && !adminMenuOpen) return;
     const handler = (e: MouseEvent) => {
       const target = e.target as Node;
       if (menuOpen && !menuRef.current?.contains(target)) setMenuOpen(false);
+      if (toolsMenuOpen && !toolsMenuRef.current?.contains(target)) {
+        setToolsMenuOpen(false);
+      }
       if (adminMenuOpen && !adminMenuRef.current?.contains(target)) {
         setAdminMenuOpen(false);
       }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, [adminMenuOpen, menuOpen]);
+  }, [adminMenuOpen, menuOpen, toolsMenuOpen]);
 
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/";
@@ -106,6 +119,7 @@ export function Nav() {
   const isAdmin = session?.user?.isAdmin || false;
   const primaryItems = navItems.filter((item) => !item.adminOnly);
   const adminItems = navItems.filter((item) => item.adminOnly);
+  const toolsSectionActive = toolItems.some((item) => isActive(item.href));
   const adminSectionActive = adminItems.some((item) => isActive(item.href));
   const initials = getInitials(session?.user?.name, session?.user?.email);
 
@@ -121,7 +135,7 @@ export function Nav() {
             <button
               type="button"
               onClick={() => setMobileOpen((v) => !v)}
-              aria-label="Menu"
+              aria-label={t.menu}
               className="xl:hidden h-9 w-9 rounded-md flex items-center justify-center flex-none"
               style={{ border: `1px solid ${tone.line}`, color: tone.ink50 }}
             >
@@ -138,7 +152,81 @@ export function Nav() {
               <HomixMark />
             </Link>
             <div className="hidden xl:flex items-center gap-0.5">
-              {primaryItems.map((item) => {
+              {primaryItems.slice(0, 3).map((item) => {
+                const active = isActive(item.href);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    prefetch={false}
+                    className="px-2 h-9 shrink-0 rounded-md text-[13px] font-medium transition-colors flex items-center"
+                    style={{
+                      color: active ? tone.ink : tone.ink50,
+                      background: active ? tone.paperDeep : "transparent",
+                    }}
+                  >
+                    {t[item.key]}
+                  </Link>
+                );
+              })}
+              <div ref={toolsMenuRef} className="relative shrink-0">
+                <button
+                  type="button"
+                  aria-haspopup="menu"
+                  aria-expanded={toolsMenuOpen}
+                  onClick={() => {
+                    setToolsMenuOpen((open) => !open);
+                    setAdminMenuOpen(false);
+                    setMenuOpen(false);
+                  }}
+                  className="flex h-9 items-center gap-1.5 rounded-md px-2 text-[13px] font-medium transition-colors"
+                  style={{
+                    color: toolsSectionActive ? tone.ink : tone.ink50,
+                    background: toolsSectionActive ? tone.paperDeep : "transparent",
+                  }}
+                >
+                  <BriefcaseBusiness size={14} strokeWidth={1.8} aria-hidden />
+                  {t.tools}
+                  <ChevronDown
+                    size={14}
+                    aria-hidden
+                    className={`transition-transform ${toolsMenuOpen ? "rotate-180" : ""}`}
+                  />
+                </button>
+
+                {toolsMenuOpen && (
+                  <div
+                    role="menu"
+                    className="absolute left-0 top-11 z-50 grid w-72 grid-cols-2 gap-1 rounded-lg p-2 shadow-lg"
+                    style={{
+                      background: tone.card,
+                      border: `1px solid ${tone.line}`,
+                      boxShadow: "0 14px 32px -12px rgba(0,0,0,0.2)",
+                    }}
+                  >
+                    {toolItems.map((item) => {
+                      const active = isActive(item.href);
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          prefetch={false}
+                          role="menuitem"
+                          onClick={() => setToolsMenuOpen(false)}
+                          className="flex h-10 items-center rounded-md px-3 text-[13px] font-medium transition-colors"
+                          style={{
+                            color: active ? tone.ink : tone.ink70,
+                            background: active ? tone.paperDeep : "transparent",
+                          }}
+                        >
+                          {t[item.key]}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              {primaryItems.slice(3).map((item) => {
                 const active = isActive(item.href);
                 return (
                   <Link
@@ -163,6 +251,7 @@ export function Nav() {
                     aria-expanded={adminMenuOpen}
                     onClick={() => {
                       setAdminMenuOpen((open) => !open);
+                      setToolsMenuOpen(false);
                       setMenuOpen(false);
                     }}
                     className="flex h-9 items-center gap-1.5 rounded-md px-2 text-[13px] font-medium transition-colors"
@@ -225,7 +314,7 @@ export function Nav() {
               onClick={toggleLocale}
               className="h-9 px-3 rounded-md text-[13px] font-medium transition-colors hover:opacity-80"
               style={{ border: `1px solid ${tone.line}`, color: tone.ink50 }}
-              aria-label="Switch language"
+              aria-label={t.switchLanguage}
             >
               {locale === "zh" ? "EN" : "中文"}
             </button>
@@ -241,10 +330,11 @@ export function Nav() {
                 onClick={() => {
                   setMenuOpen((v) => !v);
                   setAdminMenuOpen(false);
+                  setToolsMenuOpen(false);
                 }}
                 className="w-9 h-9 rounded-full flex items-center justify-center font-medium hover:opacity-90 transition-opacity"
                 style={{ background: tone.accent, color: "#fff", fontSize: 13 }}
-                aria-label="User menu"
+                aria-label={t.userMenu}
               >
                 {initials}
               </button>
@@ -307,7 +397,7 @@ export function Nav() {
             className="xl:hidden pb-3 grid grid-cols-2 gap-1"
             style={{ borderTop: `1px solid ${tone.lineSoft}` }}
           >
-            {primaryItems.map((item) => {
+            {primaryItems.slice(0, 3).map((item) => {
               const active = isActive(item.href);
               return (
                 <Link
@@ -316,6 +406,78 @@ export function Nav() {
                   prefetch={false}
                   onClick={() => {
                     setMobileOpen(false);
+                    setMobileToolsOpen(false);
+                    setMobileAdminOpen(false);
+                  }}
+                  className="px-3 h-10 rounded-md text-[13.5px] font-medium flex items-center"
+                  style={{
+                    color: active ? tone.ink : tone.ink50,
+                    background: active ? tone.paperDeep : "transparent",
+                  }}
+                >
+                  {t[item.key]}
+                </Link>
+              );
+            })}
+            <div
+              className="col-span-2 mt-1 pt-1"
+              style={{ borderTop: `1px solid ${tone.lineSoft}` }}
+            >
+              <button
+                type="button"
+                aria-expanded={mobileToolsOpen}
+                onClick={() => setMobileToolsOpen((open) => !open)}
+                className="flex h-11 w-full items-center gap-2 rounded-md px-3 text-[13.5px] font-medium"
+                style={{
+                  color: toolsSectionActive ? tone.ink : tone.ink50,
+                  background: toolsSectionActive ? tone.paperDeep : "transparent",
+                }}
+              >
+                <BriefcaseBusiness size={16} strokeWidth={1.8} aria-hidden />
+                <span>{t.tools}</span>
+                <ChevronDown
+                  size={15}
+                  aria-hidden
+                  className={`ml-auto transition-transform ${mobileToolsOpen ? "rotate-180" : ""}`}
+                />
+              </button>
+              {mobileToolsOpen && (
+                <div className="mt-1 grid grid-cols-2 gap-1 pl-3">
+                  {toolItems.map((item) => {
+                    const active = isActive(item.href);
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        prefetch={false}
+                        onClick={() => {
+                          setMobileOpen(false);
+                          setMobileToolsOpen(false);
+                          setMobileAdminOpen(false);
+                        }}
+                        className="flex h-10 items-center rounded-md px-3 text-[13px] font-medium"
+                        style={{
+                          color: active ? tone.ink : tone.ink50,
+                          background: active ? tone.paperDeep : "transparent",
+                        }}
+                      >
+                        {t[item.key]}
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            {primaryItems.slice(3).map((item) => {
+              const active = isActive(item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  prefetch={false}
+                  onClick={() => {
+                    setMobileOpen(false);
+                    setMobileToolsOpen(false);
                     setMobileAdminOpen(false);
                   }}
                   className="px-3 h-10 rounded-md text-[13.5px] font-medium flex items-center"
