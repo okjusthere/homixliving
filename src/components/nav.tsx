@@ -4,7 +4,22 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { signOut, useSession } from "next-auth/react";
-import { BriefcaseBusiness, ChevronDown, ShieldCheck } from "lucide-react";
+import {
+  BarChart3,
+  Bot,
+  BriefcaseBusiness,
+  ChevronDown,
+  ClipboardCheck,
+  FilePenLine,
+  GraduationCap,
+  History,
+  Library,
+  LineChart,
+  Settings2,
+  ShieldCheck,
+  UsersRound,
+  WalletCards,
+} from "lucide-react";
 import { HomixMark } from "@/components/homix/brand-mark";
 import { tone } from "@/components/homix/tokens";
 import { useLocale } from "@/lib/i18n-client";
@@ -15,9 +30,6 @@ const navItems = [
   { href: "/", key: "overview", adminOnly: false },
   { href: "/sales", key: "sales", adminOnly: false },
   { href: "/rental", key: "rental", adminOnly: false },
-  { href: "/onboarding", key: "onboarding", adminOnly: false },
-  { href: "/buyercoach", key: "coach", adminOnly: false },
-  { href: "/offer", key: "offer", adminOnly: false },
   { href: "/share", key: "share", adminOnly: false },
   { href: "/profile/public", key: "profile", adminOnly: false },
   { href: "/agents", key: "agents", adminOnly: true },
@@ -28,28 +40,77 @@ const navItems = [
   { href: "/settings", key: "settings", adminOnly: true },
 ] as const;
 
-const toolItems = [
-  { href: "/training", key: "training" },
-  { href: "/resources", key: "resources" },
-  { href: "/market", key: "market" },
-  { href: "/expired-listings", key: "expiredListings" },
-  { href: "/reports", key: "reports" },
+const workspaceGroups = [
+  {
+    key: "transactionSupport",
+    items: [
+      { href: "/offer", key: "offer", icon: FilePenLine },
+      { href: "/market", key: "market", icon: LineChart },
+      { href: "/expired-listings", key: "expiredListings", icon: History },
+    ],
+  },
+  {
+    key: "learningGrowth",
+    items: [
+      { href: "/onboarding", key: "onboarding", icon: ClipboardCheck },
+      { href: "/training", key: "training", icon: GraduationCap },
+      { href: "/buyercoach", key: "coach", icon: Bot },
+    ],
+  },
+  {
+    key: "companyPerformance",
+    items: [
+      { href: "/resources", key: "resources", icon: Library },
+      { href: "/reports", key: "reports", icon: BarChart3 },
+    ],
+  },
+] as const;
+
+const adminGroups = [
+  {
+    key: "peopleManagement",
+    icon: UsersRound,
+    items: [
+      { href: "/agents", key: "agents" },
+      { href: "/teams", key: "teams" },
+    ],
+  },
+  {
+    key: "financeManagement",
+    icon: WalletCards,
+    items: [
+      { href: "/finance", key: "finance" },
+      { href: "/payouts", key: "payouts" },
+    ],
+  },
+  {
+    key: "systemManagement",
+    icon: Settings2,
+    items: [
+      { href: "/audit", key: "audit" },
+      { href: "/settings", key: "settings" },
+    ],
+  },
 ] as const;
 
 const LABELS = {
   en: {
     overview: "Overview", sales: "Sales", rental: "Rental", training: "Training",
-    resources: "Resources", onboarding: "Onboarding", coach: "Coach", offer: "Offer", share: "Share",
-    agents: "Agents", teams: "Teams", reports: "Reports", finance: "Finance", payouts: "Payouts", audit: "Audit", settings: "Settings",
+    resources: "Resource library", onboarding: "Onboarding guide", coach: "AI coach", offer: "Offers", share: "Share center",
+    agents: "Agents", teams: "Teams", reports: "Performance report", finance: "Finance", payouts: "Payouts", audit: "Audit", settings: "Settings",
     search: "Search", signedIn: "Signed in", signOut: "Sign out", admin: "Admin", profile: "Public profile", accountProfile: "My profile",
-    menu: "Menu", switchLanguage: "Switch language", userMenu: "User menu", tools: "Agent tools", market: "Market overview", expiredListings: "Expired listings",
+    menu: "Menu", switchLanguage: "Switch language", userMenu: "User menu", workspace: "Workspace", market: "Market overview", expiredListings: "Expired listings",
+    transactionSupport: "Transaction support", learningGrowth: "Learning & growth", companyPerformance: "Company & performance",
+    peopleManagement: "People", financeManagement: "Finance", systemManagement: "System",
   },
   zh: {
     overview: "概览", sales: "买卖", rental: "租赁", training: "培训",
-    resources: "资料", onboarding: "入职", coach: "AI 教练", offer: "报价", share: "分享中心",
-    agents: "经纪人", teams: "团队", reports: "报表", finance: "财务", payouts: "发放", audit: "审计", settings: "设置",
+    resources: "资料库", onboarding: "入职指南", coach: "AI 教练", offer: "报价", share: "分享中心",
+    agents: "经纪人", teams: "团队", reports: "业绩报表", finance: "财务", payouts: "发放", audit: "审计", settings: "设置",
     search: "搜索", signedIn: "已登录", signOut: "退出登录", admin: "管理员", profile: "个人主页", accountProfile: "我的档案",
-    menu: "菜单", switchLanguage: "切换语言", userMenu: "用户菜单", tools: "经纪人工具", market: "市场概览", expiredListings: "已过期房源",
+    menu: "菜单", switchLanguage: "切换语言", userMenu: "用户菜单", workspace: "工作台", market: "市场概览", expiredListings: "已过期房源",
+    transactionSupport: "交易支持", learningGrowth: "学习成长", companyPerformance: "公司与业绩",
+    peopleManagement: "人员管理", financeManagement: "财务管理", systemManagement: "系统管理",
   },
 } as const;
 
@@ -119,7 +180,9 @@ export function Nav() {
   const isAdmin = session?.user?.isAdmin || false;
   const primaryItems = navItems.filter((item) => !item.adminOnly);
   const adminItems = navItems.filter((item) => item.adminOnly);
-  const toolsSectionActive = toolItems.some((item) => isActive(item.href));
+  const toolsSectionActive = workspaceGroups.some((group) =>
+    group.items.some((item) => isActive(item.href)),
+  );
   const adminSectionActive = adminItems.some((item) => isActive(item.href));
   const initials = getInitials(session?.user?.name, session?.user?.email);
 
@@ -169,63 +232,6 @@ export function Nav() {
                   </Link>
                 );
               })}
-              <div ref={toolsMenuRef} className="relative shrink-0">
-                <button
-                  type="button"
-                  aria-haspopup="menu"
-                  aria-expanded={toolsMenuOpen}
-                  onClick={() => {
-                    setToolsMenuOpen((open) => !open);
-                    setAdminMenuOpen(false);
-                    setMenuOpen(false);
-                  }}
-                  className="flex h-9 items-center gap-1.5 rounded-md px-2 text-[13px] font-medium transition-colors"
-                  style={{
-                    color: toolsSectionActive ? tone.ink : tone.ink50,
-                    background: toolsSectionActive ? tone.paperDeep : "transparent",
-                  }}
-                >
-                  <BriefcaseBusiness size={14} strokeWidth={1.8} aria-hidden />
-                  {t.tools}
-                  <ChevronDown
-                    size={14}
-                    aria-hidden
-                    className={`transition-transform ${toolsMenuOpen ? "rotate-180" : ""}`}
-                  />
-                </button>
-
-                {toolsMenuOpen && (
-                  <div
-                    role="menu"
-                    className="absolute left-0 top-11 z-50 grid w-72 grid-cols-2 gap-1 rounded-lg p-2 shadow-lg"
-                    style={{
-                      background: tone.card,
-                      border: `1px solid ${tone.line}`,
-                      boxShadow: "0 14px 32px -12px rgba(0,0,0,0.2)",
-                    }}
-                  >
-                    {toolItems.map((item) => {
-                      const active = isActive(item.href);
-                      return (
-                        <Link
-                          key={item.href}
-                          href={item.href}
-                          prefetch={false}
-                          role="menuitem"
-                          onClick={() => setToolsMenuOpen(false)}
-                          className="flex h-10 items-center rounded-md px-3 text-[13px] font-medium transition-colors"
-                          style={{
-                            color: active ? tone.ink : tone.ink70,
-                            background: active ? tone.paperDeep : "transparent",
-                          }}
-                        >
-                          {t[item.key]}
-                        </Link>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
               {primaryItems.slice(3).map((item) => {
                 const active = isActive(item.href);
                 return (
@@ -243,6 +249,83 @@ export function Nav() {
                   </Link>
                 );
               })}
+              <div ref={toolsMenuRef} className="relative shrink-0">
+                <button
+                  type="button"
+                  aria-haspopup="menu"
+                  aria-expanded={toolsMenuOpen}
+                  onClick={() => {
+                    setToolsMenuOpen((open) => !open);
+                    setAdminMenuOpen(false);
+                    setMenuOpen(false);
+                  }}
+                  className="flex h-9 items-center gap-1.5 rounded-md px-2 text-[13px] font-medium transition-colors"
+                  style={{
+                    color: toolsSectionActive ? tone.ink : tone.ink50,
+                    background: toolsSectionActive ? tone.paperDeep : "transparent",
+                  }}
+                >
+                  <BriefcaseBusiness size={14} strokeWidth={1.8} aria-hidden />
+                  {t.workspace}
+                  <ChevronDown
+                    size={14}
+                    aria-hidden
+                    className={`transition-transform ${toolsMenuOpen ? "rotate-180" : ""}`}
+                  />
+                </button>
+
+                {toolsMenuOpen && (
+                  <div
+                    role="menu"
+                    className="absolute right-0 top-11 z-50 grid w-[620px] grid-cols-3 rounded-lg p-3 shadow-lg"
+                    style={{
+                      background: tone.card,
+                      border: `1px solid ${tone.line}`,
+                      boxShadow: "0 14px 32px -12px rgba(0,0,0,0.2)",
+                    }}
+                  >
+                    {workspaceGroups.map((group, groupIndex) => {
+                      return (
+                        <section
+                          key={group.key}
+                          className={`min-w-0 px-2 ${groupIndex > 0 ? "border-l" : ""}`}
+                          style={{ borderColor: tone.lineSoft }}
+                        >
+                          <p
+                            className="px-2 pb-2 pt-1 text-[10px] font-semibold uppercase tracking-[0.12em]"
+                            style={{ color: tone.ink50 }}
+                          >
+                            {t[group.key]}
+                          </p>
+                          <div className="space-y-1">
+                            {group.items.map((item) => {
+                              const active = isActive(item.href);
+                              const ItemIcon = item.icon;
+                              return (
+                                <Link
+                                  key={item.href}
+                                  href={item.href}
+                                  prefetch={false}
+                                  role="menuitem"
+                                  onClick={() => setToolsMenuOpen(false)}
+                                  className="flex h-11 items-center gap-2.5 rounded-md px-2.5 text-[13px] font-medium transition-colors hover:bg-[#F6F1E8]"
+                                  style={{
+                                    color: active ? tone.ink : tone.ink70,
+                                    background: active ? tone.paperDeep : "transparent",
+                                  }}
+                                >
+                                  <ItemIcon size={15} strokeWidth={1.7} aria-hidden />
+                                  <span>{t[item.key]}</span>
+                                </Link>
+                              );
+                            })}
+                          </div>
+                        </section>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
               {isAdmin && (
                 <div ref={adminMenuRef} className="relative shrink-0">
                   <button
@@ -274,32 +357,50 @@ export function Nav() {
                   {adminMenuOpen && (
                     <div
                       role="menu"
-                      className="absolute right-0 top-11 z-50 grid w-72 grid-cols-2 gap-1 rounded-lg p-2 shadow-lg"
+                      className="absolute right-0 top-11 z-50 grid w-[500px] grid-cols-3 rounded-lg p-3 shadow-lg"
                       style={{
                         background: tone.card,
                         border: `1px solid ${tone.line}`,
                         boxShadow: "0 14px 32px -12px rgba(0,0,0,0.2)",
                       }}
                     >
-                      {adminItems.map((item) => {
-                        const active = isActive(item.href);
+                      {adminGroups.map((group, groupIndex) => {
+                        const GroupIcon = group.icon;
                         return (
-                          <Link
-                            key={item.href}
-                            href={item.href}
-                            prefetch={false}
-                            role="menuitem"
-                            onClick={() => setAdminMenuOpen(false)}
-                            className="flex h-10 items-center rounded-md px-3 text-[13px] font-medium transition-colors"
-                            style={{
-                              color: active ? tone.ink : tone.ink70,
-                              background: active
-                                ? tone.paperDeep
-                                : "transparent",
-                            }}
+                          <section
+                            key={group.key}
+                            className={`min-w-0 px-2 ${groupIndex > 0 ? "border-l" : ""}`}
+                            style={{ borderColor: tone.lineSoft }}
                           >
-                            {t[item.key]}
-                          </Link>
+                            <p
+                              className="flex items-center gap-1.5 px-2 pb-2 pt-1 text-[10px] font-semibold uppercase tracking-[0.12em]"
+                              style={{ color: tone.ink50 }}
+                            >
+                              <GroupIcon size={13} strokeWidth={1.7} aria-hidden />
+                              {t[group.key]}
+                            </p>
+                            <div className="space-y-1">
+                              {group.items.map((item) => {
+                                const active = isActive(item.href);
+                                return (
+                                  <Link
+                                    key={item.href}
+                                    href={item.href}
+                                    prefetch={false}
+                                    role="menuitem"
+                                    onClick={() => setAdminMenuOpen(false)}
+                                    className="flex h-11 items-center rounded-md px-2.5 text-[13px] font-medium transition-colors hover:bg-[#F6F1E8]"
+                                    style={{
+                                      color: active ? tone.ink : tone.ink70,
+                                      background: active ? tone.paperDeep : "transparent",
+                                    }}
+                                  >
+                                    {t[item.key]}
+                                  </Link>
+                                );
+                              })}
+                            </div>
+                          </section>
                         );
                       })}
                     </div>
@@ -419,55 +520,6 @@ export function Nav() {
                 </Link>
               );
             })}
-            <div
-              className="col-span-2 mt-1 pt-1"
-              style={{ borderTop: `1px solid ${tone.lineSoft}` }}
-            >
-              <button
-                type="button"
-                aria-expanded={mobileToolsOpen}
-                onClick={() => setMobileToolsOpen((open) => !open)}
-                className="flex h-11 w-full items-center gap-2 rounded-md px-3 text-[13.5px] font-medium"
-                style={{
-                  color: toolsSectionActive ? tone.ink : tone.ink50,
-                  background: toolsSectionActive ? tone.paperDeep : "transparent",
-                }}
-              >
-                <BriefcaseBusiness size={16} strokeWidth={1.8} aria-hidden />
-                <span>{t.tools}</span>
-                <ChevronDown
-                  size={15}
-                  aria-hidden
-                  className={`ml-auto transition-transform ${mobileToolsOpen ? "rotate-180" : ""}`}
-                />
-              </button>
-              {mobileToolsOpen && (
-                <div className="mt-1 grid grid-cols-2 gap-1 pl-3">
-                  {toolItems.map((item) => {
-                    const active = isActive(item.href);
-                    return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        prefetch={false}
-                        onClick={() => {
-                          setMobileOpen(false);
-                          setMobileToolsOpen(false);
-                          setMobileAdminOpen(false);
-                        }}
-                        className="flex h-10 items-center rounded-md px-3 text-[13px] font-medium"
-                        style={{
-                          color: active ? tone.ink : tone.ink50,
-                          background: active ? tone.paperDeep : "transparent",
-                        }}
-                      >
-                        {t[item.key]}
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
             {primaryItems.slice(3).map((item) => {
               const active = isActive(item.href);
               return (
@@ -490,6 +542,71 @@ export function Nav() {
                 </Link>
               );
             })}
+            <div
+              className="col-span-2 mt-1 pt-1"
+              style={{ borderTop: `1px solid ${tone.lineSoft}` }}
+            >
+              <button
+                type="button"
+                aria-expanded={mobileToolsOpen}
+                onClick={() => setMobileToolsOpen((open) => !open)}
+                className="flex h-11 w-full items-center gap-2 rounded-md px-3 text-[13.5px] font-medium"
+                style={{
+                  color: toolsSectionActive ? tone.ink : tone.ink50,
+                  background: toolsSectionActive ? tone.paperDeep : "transparent",
+                }}
+              >
+                <BriefcaseBusiness size={16} strokeWidth={1.8} aria-hidden />
+                <span>{t.workspace}</span>
+                <ChevronDown
+                  size={15}
+                  aria-hidden
+                  className={`ml-auto transition-transform ${mobileToolsOpen ? "rotate-180" : ""}`}
+                />
+              </button>
+              {mobileToolsOpen && (
+                <div className="mt-1 space-y-3 px-3 pb-2">
+                  {workspaceGroups.map((group) => {
+                    return (
+                      <section key={group.key}>
+                        <p
+                          className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-[0.12em]"
+                          style={{ color: tone.ink50 }}
+                        >
+                          {t[group.key]}
+                        </p>
+                        <div className="grid grid-cols-2 gap-1">
+                          {group.items.map((item) => {
+                            const active = isActive(item.href);
+                            const ItemIcon = item.icon;
+                            return (
+                              <Link
+                                key={item.href}
+                                href={item.href}
+                                prefetch={false}
+                                onClick={() => {
+                                  setMobileOpen(false);
+                                  setMobileToolsOpen(false);
+                                  setMobileAdminOpen(false);
+                                }}
+                                className="flex h-10 items-center gap-2 rounded-md px-2 text-[12.5px] font-medium"
+                                style={{
+                                  color: active ? tone.ink : tone.ink50,
+                                  background: active ? tone.paperDeep : "transparent",
+                                }}
+                              >
+                                <ItemIcon size={14} strokeWidth={1.7} aria-hidden />
+                                <span className="truncate">{t[item.key]}</span>
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      </section>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
             {isAdmin && (
               <div
                 className="col-span-2 mt-1 pt-1"
@@ -516,28 +633,42 @@ export function Nav() {
                   />
                 </button>
                 {mobileAdminOpen && (
-                  <div className="mt-1 grid grid-cols-2 gap-1 pl-3">
-                    {adminItems.map((item) => {
-                      const active = isActive(item.href);
+                  <div className="mt-1 space-y-3 px-3 pb-2">
+                    {adminGroups.map((group) => {
+                      const GroupIcon = group.icon;
                       return (
-                        <Link
-                          key={item.href}
-                          href={item.href}
-                          prefetch={false}
-                          onClick={() => {
-                            setMobileOpen(false);
-                            setMobileAdminOpen(false);
-                          }}
-                          className="flex h-10 items-center rounded-md px-3 text-[13px] font-medium"
-                          style={{
-                            color: active ? tone.ink : tone.ink50,
-                            background: active
-                              ? tone.paperDeep
-                              : "transparent",
-                          }}
-                        >
-                          {t[item.key]}
-                        </Link>
+                        <section key={group.key}>
+                          <p
+                            className="mb-1 flex items-center gap-1.5 px-2 text-[10px] font-semibold uppercase tracking-[0.12em]"
+                            style={{ color: tone.ink50 }}
+                          >
+                            <GroupIcon size={13} strokeWidth={1.7} aria-hidden />
+                            {t[group.key]}
+                          </p>
+                          <div className="grid grid-cols-2 gap-1">
+                            {group.items.map((item) => {
+                              const active = isActive(item.href);
+                              return (
+                                <Link
+                                  key={item.href}
+                                  href={item.href}
+                                  prefetch={false}
+                                  onClick={() => {
+                                    setMobileOpen(false);
+                                    setMobileAdminOpen(false);
+                                  }}
+                                  className="flex h-10 items-center rounded-md px-2 text-[12.5px] font-medium"
+                                  style={{
+                                    color: active ? tone.ink : tone.ink50,
+                                    background: active ? tone.paperDeep : "transparent",
+                                  }}
+                                >
+                                  {t[item.key]}
+                                </Link>
+                              );
+                            })}
+                          </div>
+                        </section>
                       );
                     })}
                   </div>
