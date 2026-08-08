@@ -649,7 +649,7 @@ const en = {
       },
       stats: [
         { value: "1M+", label: "combined followers across affiliated accounts" },
-        { value: "EN / 中文", label: "bilingual content engine" },
+        { value: "EN / ZH", label: "bilingual content engine" },
         { value: "IP", label: "agent personal-brand building" },
       ],
       pillars: [
@@ -674,7 +674,7 @@ const en = {
       channels: [
         {
           key: "douyin",
-          name: "Douyin / 抖音",
+          name: "Douyin",
           handle: "@Homix 合美置地",
           body: "Douyin ID: 70077200788. Open the link or scan the QR code in Douyin.",
           url: "https://v.douyin.com/EPHD2ERjt3A/",
@@ -685,7 +685,7 @@ const en = {
         },
         {
           key: "red",
-          name: "RED / 小红书",
+          name: "Xiaohongshu (RED)",
           handle: "homix合美置地｜乐居",
           body: "Follow Homix for bilingual real estate video, local market stories, and agent IP content.",
           url: "https://xhslink.com/m/2vk0nSDkvyq",
@@ -707,7 +707,7 @@ const en = {
         },
         {
           key: "wechat-channels",
-          name: "WeChat Channels / 视频号",
+          name: "WeChat Channels",
           handle: "Homix 合美置地",
           body: "Scan the QR code in WeChat to follow the Homix video account.",
           image: "/onboarding/homix-wechat-channels-qr.jpg",
@@ -849,7 +849,7 @@ const en = {
             ],
           },
           {
-            title: "Social media setup",
+            title: "社交媒体设置",
             body: "Each platform gets a role, not just a login. We set up channels around trust, local expertise, listing visibility, and client follow-up.",
             items: [
               "Create or polish Google Business, Instagram, Facebook Business Page, LinkedIn, TikTok, and RED.",
@@ -879,7 +879,7 @@ const en = {
         ],
       },
       brokerageOperationsDetail: {
-        eyebrow: "Brokerage operations",
+        eyebrow: "经纪公司运营",
         title: "Forms, systems, and deal support in one operating hub.",
         lead: "Use this page to find the correct brokerage form, confirm what must be submitted to the office, and understand which operating systems Homix agents may use during onboarding and active transactions.",
         masterSheetLabel: "Open master forms sheet",
@@ -930,15 +930,15 @@ const en = {
             body: "Writing and script support for compliant client communication, listing copy, follow-up templates, and media-ready talking points.",
           },
           {
-            name: "Google Drive forms library",
+            name: "Google Drive 表格库",
             body: "The live source for Homix forms, blank templates, sample documents, and office submission checklists.",
           },
           {
-            name: "Transaction & e-signature tools",
+            name: "交易与电子签名工具",
             body: "Used for signatures, disclosures, file routing, and broker review when the deal requires formal document execution.",
           },
           {
-            name: "MLS / listing systems",
+            name: "MLS / 房源系统",
             body: "Used for listing data, status changes, required fields, and property information that must match the signed paperwork.",
           },
         ],
@@ -985,7 +985,7 @@ const en = {
         },
       ],
       selfBrandingDetail: {
-        eyebrow: "Self branding procedure",
+        eyebrow: "个人品牌流程",
         title: "A polished agent identity before the first client call.",
         lead: "Homix gives each agent a consistent brand foundation: print templates, digital signatures, social-ready flyers, a Homix domain presence, and optional custom media packages for agents who want a stronger personal channel.",
         stepsTitle: "Company-provided brand assets",
@@ -1111,7 +1111,7 @@ const en = {
           "Review and sign your Independent Contractor Agreement, which defines your commission split, tier, and how splits grow with production.",
           "Walk through the Homix policy manual and code of conduct — advertising rules, client handling, anti-discrimination and Fair Housing expectations.",
           "Complete tax and payroll setup: W-9, direct-deposit details, and emergency contact on file.",
-          "Meet your onboarding lead and pick your bilingual (EN/中文) mentor track.",
+          "Meet your onboarding lead and pick your bilingual English or Chinese mentor track.",
           "Receive your onboarding roadmap — this six-phase plan with target dates for each milestone.",
         ],
       },
@@ -1153,7 +1153,7 @@ const en = {
         items: [
           "Complete the Homix Foundations curriculum: pricing, buyer and seller consultations, contracts, and negotiation.",
           "Shadow your mentor on live appointments and a closing, and debrief each one together.",
-          "Run role-play scripts for buyer consultations and listing presentations in English and 中文.",
+          "Run role-play scripts for buyer consultations and listing presentations in English and Chinese.",
           "Build your 90-day business plan: lead sources, content cadence, and weekly activity targets.",
           "Practice compliance in client-facing scenarios — agency disclosure timing, Fair Housing language, listing attribution, and when to escalate for broker review.",
         ],
@@ -1161,7 +1161,7 @@ const en = {
         visuals: [
           {
             title: "Buyer Boot Camp",
-            subtitle: "买家精英实战营 · 6 weeks · 12 sessions",
+            subtitle: "6-week program · 12 sessions",
             image: "/training/buyer-bootcamp.jpg",
             alt: "Buyer Boot Camp training poster",
             width: 1280,
@@ -1169,7 +1169,7 @@ const en = {
           },
           {
             title: "The Listing Mastery Bootcamp",
-            subtitle: "6 周系统训练营 · 6 weeks · 12 sessions",
+            subtitle: "6-week program · 12 sessions",
             image: "/training/listing-bootcamp.jpg",
             alt: "The Listing Mastery Bootcamp training poster",
             width: 1080,
@@ -1445,7 +1445,7 @@ const en = {
           body: "Once the listing agreement is signed and the home is prepared, your property enters the market. Maximum exposure in the first days is critical — buyer attention peaks at launch, and a listing that sits generates price-reduction stigma.",
           items: [
             "Your listing goes live on OneKey MLS and syndicates automatically to StreetEasy, Zillow, Realtor.com, and dozens of partner portals.",
-            "Homix layers its own bilingual media on top: short-form video, neighborhood content, and publishing through affiliated 抖音, 小红书, and Instagram accounts with 1M+ combined followers — extending distribution beyond English-only portals. Actual reach varies by campaign and platform.",
+            "Homix layers its own bilingual media on top: short-form video, neighborhood content, and publishing through affiliated Douyin, Xiaohongshu, and Instagram accounts with 1M+ combined followers — extending distribution beyond English-only portals. Actual reach varies by campaign and platform.",
             "Open houses: Sunday 1–4 PM is the prime window in the New York metro. Prepare printed bilingual brochures, maximize natural light, control temperature, and — critically — have the seller leave so buyers speak freely.",
             "Private showings are scheduled via OneKey MLS ShowingTime; your advisor collects post-showing feedback and flags any patterns (price concerns, condition issues, strong interest) in real time.",
           ],
@@ -2033,7 +2033,7 @@ const zh: Dict = {
             ],
           },
           {
-            title: "Open House & For Sale sign",
+            title: "开放日与出售标牌",
             body: "公司提供 Open House 和 For Sale sign 的设计，可加入经纪人头像、联系方式、二维码、房源 flyer 区域和必要披露。",
             items: [
               "Open House sign 预留头像位置和 A4 flyer 展示区域。",

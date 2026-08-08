@@ -12,13 +12,13 @@ const COPY = {
     eyebrow: "Personal marketing",
     title: "Share center",
     description:
-      "Share live Homix listings and editorial content with your own contact card, then see what visitors engage with.",
+      "Browse Homix listings, market data, local guides, developments, and articles by section, then share them with your own contact card.",
   },
   zh: {
     eyebrow: "个人营销",
     title: "分享中心",
     description:
-      "选择 Homix 网站上的实时房源、区域、新盘和文章，生成带你联系方式的专属链接，并查看访客互动。",
+      "按栏目查找 Homix 房源、市场数据、区域指南、新盘和文章，生成带你联系方式的专属链接，并查看访客互动。",
   },
 } as const;
 

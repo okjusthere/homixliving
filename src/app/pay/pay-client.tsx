@@ -13,6 +13,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import type { CommerceProduct, CommerceProductKey } from "@/lib/commerce/catalog";
+import { useLocale } from "@/lib/i18n-client";
 
 export type PublicPayProduct = Omit<CommerceProduct, "currency"> & {
   currency: "usd";
@@ -38,6 +39,100 @@ const initialForm: FormState = {
   referralHasAgent: "",
   referralAgentName: "",
   message: "",
+};
+
+const M = {
+  en: {
+    canceled: "Checkout was canceled.",
+    notConfigured: "This payment option is not configured.",
+    checkoutFailed: "Checkout could not start.",
+    title: "Agent payments",
+    lead: "Memberships, desk fees, company email, and agent services.",
+    secureBilling: "Secure billing",
+    recurring: "Recurring",
+    autoRenewal: "Auto-renewal",
+    setup: "Setup required",
+    oneTime: "One-time",
+    selected: "Selected",
+    fullName: "Full name",
+    receiptEmail: "Receipt email",
+    companyEmail: "Company email",
+    phone: "Phone",
+    agentReferral: "Agent referral",
+    yes: "Yes",
+    no: "No",
+    referralName: "Referral name",
+    message: "Message",
+    opening: "Opening Stripe…",
+    checkout: "Checkout",
+    stripeNotice: "Payment details are collected securely by Stripe Checkout.",
+  },
+  zh: {
+    canceled: "付款已取消。",
+    notConfigured: "此付款项目尚未完成配置。",
+    checkoutFailed: "暂时无法发起付款，请稍后重试。",
+    title: "经纪人缴费",
+    lead: "会员费、办公费、公司邮箱与经纪人服务。",
+    secureBilling: "安全付款",
+    recurring: "订阅项目",
+    autoRenewal: "自动续费",
+    setup: "需要配置",
+    oneTime: "一次性项目",
+    selected: "已选择",
+    fullName: "姓名",
+    receiptEmail: "收据邮箱",
+    companyEmail: "公司邮箱",
+    phone: "电话",
+    agentReferral: "经纪人推荐",
+    yes: "是",
+    no: "否",
+    referralName: "推荐人姓名",
+    message: "备注",
+    opening: "正在打开 Stripe…",
+    checkout: "前往付款",
+    stripeNotice: "付款信息由 Stripe Checkout 安全收集。",
+  },
+} as const;
+
+const PRODUCT_COPY: Partial<Record<CommerceProductKey, {
+  name: string;
+  description: string;
+  recurrenceLabel?: string;
+  commissionLabel?: string;
+}>> = {
+  company_domain_email: {
+    name: "公司域名邮箱",
+    description: "用于经纪人品牌展示与 Homix 业务的公司域名邮箱。",
+    recurrenceLabel: "每月续费",
+  },
+  elite_desk_fee: {
+    name: "Elite 方案办公费",
+    description: "经纪人保留 100% 佣金的年度办公费。",
+    recurrenceLabel: "每年续费",
+    commissionLabel: "保留 100%",
+  },
+  growth_desk_fee: {
+    name: "Growth 方案办公费",
+    description: "经纪人保留 92% 佣金的年度办公费。",
+    recurrenceLabel: "每年续费",
+    commissionLabel: "保留 92%",
+  },
+  two_year_membership: {
+    name: "Homix Living 两年会员费",
+    description: "加入 Homix Living Inc. 的两年会员费。",
+  },
+  one_year_membership: {
+    name: "Homix Living 一年会员费",
+    description: "加入 Homix Living Inc. 的一年会员费。",
+  },
+  libor: {
+    name: "LIBOR",
+    description: "由公司代办的 LIBOR 账号服务。",
+  },
+  transfer_fee: {
+    name: "经纪人转入费",
+    description: "经纪人转入公司的办理费用。",
+  },
 };
 
 function productIcon(category: PublicPayProduct["category"]) {
@@ -77,24 +172,31 @@ export function PayClient({
   stripeConfigured: boolean;
   workspaceDomains: string[];
 }) {
+  const locale = useLocale();
+  const t = M[locale];
   const [selectedKey, setSelectedKey] = useState<CommerceProductKey>(
     "company_domain_email"
   );
   const [form, setForm] = useState<FormState>(initialForm);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(canceled ? "Checkout was canceled." : null);
+  const [error, setError] = useState<string | null>(canceled ? t.canceled : null);
+
+  const displayProducts = useMemo(
+    () => products.map((product) => locale === "zh" ? { ...product, ...PRODUCT_COPY[product.key] } : product),
+    [locale, products]
+  );
 
   const selectedProduct = useMemo(
-    () => products.find((product) => product.key === selectedKey) || products[0],
-    [products, selectedKey]
+    () => displayProducts.find((product) => product.key === selectedKey) || displayProducts[0],
+    [displayProducts, selectedKey]
   );
 
   const grouped = useMemo(
     () => ({
-      subscriptions: products.filter((product) => product.billingMode === "subscription"),
-      oneTime: products.filter((product) => product.billingMode === "payment"),
+      subscriptions: displayProducts.filter((product) => product.billingMode === "subscription"),
+      oneTime: displayProducts.filter((product) => product.billingMode === "payment"),
     }),
-    [products]
+    [displayProducts]
   );
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
@@ -106,7 +208,7 @@ export function PayClient({
     setError(null);
 
     if (!stripeConfigured || !selectedProduct.configured) {
-      setError(`${selectedProduct.priceEnvVar} is not configured.`);
+      setError(t.notConfigured);
       return;
     }
 
@@ -122,11 +224,11 @@ export function PayClient({
       });
       const data = (await response.json()) as { url?: string; error?: string };
       if (!response.ok || !data.url) {
-        throw new Error(data.error || "Checkout could not start.");
+        throw new Error(data.error || t.checkoutFailed);
       }
       window.location.href = data.url;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Checkout could not start.");
+      setError(locale === "en" && err instanceof Error ? err.message : t.checkoutFailed);
       setSubmitting(false);
     }
   }
@@ -155,10 +257,10 @@ export function PayClient({
               </span>
             </div>
             <h1 className="mt-5 max-w-2xl font-serif text-[42px] leading-[1.05] md:text-[54px]">
-              Agent payments
+              {t.title}
             </h1>
             <p className="mt-3 max-w-2xl text-[15px] leading-6 text-ink-70">
-              Memberships, desk fees, company email, and agent services.
+              {t.lead}
             </p>
           </div>
           <div className="grid grid-cols-3 gap-2 text-[12px] text-ink-70">
@@ -168,7 +270,7 @@ export function PayClient({
             </div>
             <div className="rounded-md border border-line bg-white px-3 py-2">
               <ShieldCheck className="mb-2 size-4 text-homix-green" />
-              Secure billing
+              {t.secureBilling}
             </div>
             <div className="rounded-md border border-line bg-white px-3 py-2">
               <Mail className="mb-2 size-4 text-homix-amber" />
@@ -182,9 +284,9 @@ export function PayClient({
             <div>
               <div className="mb-3 flex items-center justify-between">
                 <h2 className="text-[12px] font-medium uppercase tracking-[0.14em] text-ink-50">
-                  Recurring
+                  {t.recurring}
                 </h2>
-                <span className="text-[12px] text-ink-50">Auto-renewal</span>
+                <span className="text-[12px] text-ink-50">{t.autoRenewal}</span>
               </div>
               <div className="grid gap-3 md:grid-cols-3">
                 {grouped.subscriptions.map((product) => (
@@ -204,7 +306,7 @@ export function PayClient({
                       {product.configured ? (
                         <CheckCircle2 className="size-4 text-homix-green" />
                       ) : (
-                        <span className="text-[11px] text-homix-rose">Setup</span>
+                        <span className="text-[11px] text-homix-rose">{t.setup}</span>
                       )}
                     </div>
                     <div className="mt-4 min-h-[52px] font-serif text-[24px] leading-[1.08]">
@@ -233,7 +335,7 @@ export function PayClient({
 
             <div>
               <h2 className="mb-3 text-[12px] font-medium uppercase tracking-[0.14em] text-ink-50">
-                One-time
+                {t.oneTime}
               </h2>
               <div className="grid gap-3 md:grid-cols-2">
                 {grouped.oneTime.map((product) => (
@@ -266,7 +368,7 @@ export function PayClient({
             <div className="flex items-start justify-between gap-4 border-b border-line-soft pb-4">
               <div>
                 <div className="text-[12px] uppercase tracking-[0.14em] text-ink-50">
-                  Selected
+                  {t.selected}
                 </div>
                 <div className="mt-2 font-serif text-[28px] leading-[1.05]">
                   {selectedProduct.name}
@@ -283,7 +385,7 @@ export function PayClient({
             </div>
 
             <div className="mt-5 space-y-4">
-              <Field label="Full name">
+              <Field label={t.fullName}>
                 <input
                   className={inputClass()}
                   value={form.customerName}
@@ -292,7 +394,7 @@ export function PayClient({
                 />
               </Field>
 
-              <Field label="Receipt email">
+              <Field label={t.receiptEmail}>
                 <input
                   className={inputClass()}
                   value={form.customerEmail}
@@ -304,7 +406,7 @@ export function PayClient({
 
               {selectedProduct.requiresWorkspaceEmail && (
                 <>
-                  <Field label="Company email">
+                  <Field label={t.companyEmail}>
                     <input
                       className={inputClass()}
                       value={form.requestedWorkspaceEmail}
@@ -313,7 +415,7 @@ export function PayClient({
                       inputMode="email"
                     />
                   </Field>
-                  <Field label="Phone">
+                  <Field label={t.phone}>
                     <input
                       className={inputClass()}
                       value={form.phone}
@@ -327,7 +429,7 @@ export function PayClient({
 
               {selectedProduct.requiresReferral && (
                 <>
-                  <Field label="Agent referral">
+                  <Field label={t.agentReferral}>
                     <div className="grid grid-cols-2 gap-2">
                       {(["yes", "no"] as const).map((value) => (
                         <button
@@ -342,13 +444,13 @@ export function PayClient({
                               form.referralHasAgent === value ? "#EFEAE1" : "#FFFFFF",
                           }}
                         >
-                          {value === "yes" ? "Yes" : "No"}
+                          {value === "yes" ? t.yes : t.no}
                         </button>
                       ))}
                     </div>
                   </Field>
                   {form.referralHasAgent === "yes" && (
-                    <Field label="Referral name">
+                    <Field label={t.referralName}>
                       <input
                         className={inputClass()}
                         value={form.referralAgentName}
@@ -359,7 +461,7 @@ export function PayClient({
                 </>
               )}
 
-              <Field label="Message">
+              <Field label={t.message}>
                 <textarea
                   className="min-h-[92px] w-full resize-y rounded-md border border-line bg-white px-3 py-3 text-[14px] text-ink outline-none transition focus:border-ink-30 focus:ring-3 focus:ring-line-soft"
                   value={form.message}
@@ -383,11 +485,11 @@ export function PayClient({
               {submitting ? (
                 <>
                   <Loader2 className="size-4 animate-spin" />
-                  Opening Stripe
+                  {t.opening}
                 </>
               ) : (
                 <>
-                  Checkout
+                  {t.checkout}
                   <ArrowRight className="size-4" />
                 </>
               )}
@@ -395,7 +497,7 @@ export function PayClient({
 
             <div className="mt-4 flex items-start gap-2 text-[12px] leading-5 text-ink-50">
               <ShieldCheck className="mt-0.5 size-4 shrink-0 text-homix-green" />
-              <span>Payment details are collected by Stripe Checkout.</span>
+              <span>{t.stripeNotice}</span>
             </div>
           </aside>
         </main>

@@ -21,7 +21,19 @@ export function renewalWindow(daysOut: number | null): RenewalWindow | null {
   return null;
 }
 
-export function windowLabel(w: RenewalWindow): string {
+export function windowLabel(w: RenewalWindow, locale: "en" | "zh" = "en"): string {
+  if (locale === "zh") {
+    switch (w) {
+      case "overdue":
+        return "已过租期";
+      case "30":
+        return "30 天内";
+      case "60":
+        return "30–60 天";
+      case "90":
+        return "60–90 天";
+    }
+  }
   switch (w) {
     case "overdue":
       return "Past lease end";
@@ -58,7 +70,21 @@ export function isUpcoming(deal: Deal): boolean {
   return days <= 90;
 }
 
-export function renewalStatusLabel(status: string | null | undefined): string {
+export function renewalStatusLabel(status: string | null | undefined, locale: "en" | "zh" = "en"): string {
+  if (locale === "zh") {
+    switch (status) {
+      case "renewing":
+        return "续约中";
+      case "moving_out":
+        return "退租中";
+      case "renewed":
+        return "已续约";
+      case "lost":
+        return "已流失";
+      default:
+        return "待处理";
+    }
+  }
   switch (status) {
     case "renewing":
       return "Renewing";

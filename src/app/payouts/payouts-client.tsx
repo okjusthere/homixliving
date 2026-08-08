@@ -188,8 +188,7 @@ export function PayoutsClient({
     });
     setBusy(false);
     if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      setMsg(body.error || t.failed);
+      setMsg(t.failed);
       return;
     }
     setAmount("");

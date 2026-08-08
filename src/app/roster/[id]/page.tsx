@@ -6,6 +6,22 @@ import { fetchPublicProfileById } from "@/lib/homixweb";
 import { PageHeader } from "@/components/homix/page-kit";
 import { tone } from "@/components/homix/tokens";
 import { PublicProfileEditor } from "../../profile/public/editor";
+import { getLocale } from "@/lib/i18n";
+
+const M = {
+  en: {
+    back: "Back to website roster",
+    eyebrow: (id: string) => `Admin edit · ${id}`,
+    title: (name: string) => `${name}'s public profile`,
+    description: "Edit this advisor's www.homixny.com profile as an administrator, even when the advisor has no Portal account.",
+  },
+  zh: {
+    back: "返回官网名册",
+    eyebrow: (id: string) => `管理员编辑 · ${id}`,
+    title: (name: string) => `${name} 的对外主页`,
+    description: "以管理员身份编辑该经纪人在 www.homixny.com 上的资料，即使对方没有 Portal 账号也可编辑。",
+  },
+} as const;
 
 export const metadata: Metadata = { title: "Edit Advisor · Homix" };
 
@@ -19,6 +35,7 @@ export default async function RosterEditPage({
 }) {
   const session = await requireActiveAgent();
   if (!session.user.isAdmin) redirect("/profile");
+  const t = M[await getLocale()];
   const { id } = await params;
 
   const { profile, unreachable, notFound } = await fetchPublicProfileById(id);
@@ -27,12 +44,12 @@ export default async function RosterEditPage({
   return (
     <div className="space-y-6">
       <Link href="/agents?view=public" className="text-[12.5px]" style={{ color: tone.ink50 }}>
-        ← 返回官网名册
+        ← {t.back}
       </Link>
       <PageHeader
-        eyebrow={`管理员编辑 · ${id}`}
-        title={`${profile?.name || id} 的对外主页`}
-        description="以管理员身份编辑该经纪人在 www.homixny.com 上的资料——即使对方没有 portal 账号也可编辑。"
+        eyebrow={t.eyebrow(id)}
+        title={t.title(profile?.name || id)}
+        description={t.description}
       />
       <PublicProfileEditor
         linked={!!profile}

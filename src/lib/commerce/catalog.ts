@@ -136,3 +136,21 @@ export function formatProductAmount(amountCents: number): string {
     minimumFractionDigits: amountCents % 100 === 0 ? 0 : 2,
   });
 }
+
+const ZH_PRODUCT_NAMES: Partial<Record<CommerceProductKey, string>> = {
+  company_domain_email: "公司域名邮箱",
+  elite_desk_fee: "Elite 方案办公费",
+  growth_desk_fee: "Growth 方案办公费",
+  two_year_membership: "Homix Living 两年会员费",
+  one_year_membership: "Homix Living 一年会员费",
+  libor: "LIBOR",
+  transfer_fee: "经纪人转入费",
+};
+
+export function commerceProductName(
+  key: string,
+  fallback: string,
+  locale: "en" | "zh" = "en",
+) {
+  return locale === "zh" ? ZH_PRODUCT_NAMES[key as CommerceProductKey] || fallback : fallback;
+}

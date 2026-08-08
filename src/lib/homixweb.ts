@@ -33,6 +33,7 @@ export type ShareContentKind =
   | "neighborhood"
   | "community"
   | "development"
+  | "market"
   | "guide"
   | "news";
 
@@ -57,6 +58,30 @@ export type ShareCatalogResult = {
   unavailable?: boolean;
   counts: Partial<Record<ShareContentKind | "all", number>>;
 };
+
+export function curatedShareCatalogItem(
+  path: string,
+  locale: "en" | "zh",
+): ShareCatalogItem | null {
+  const normalized = (path.split(/[?#]/, 1)[0] || "/").replace(
+    /^\/(?:en|zh)(?=\/|$)/,
+    "",
+  );
+  if (normalized !== "/open-houses") return null;
+
+  const zh = locale === "zh";
+  return {
+    kind: "listing",
+    key: "open-houses",
+    path: "/open-houses",
+    title: zh ? "Homix 本周开放日" : "Homix Open Houses This Week",
+    subtitle: zh
+      ? "一键分享本公司近期开放日汇总，日期和时间随官网实时更新。"
+      : "Share upcoming public showings for Homix-represented homes in one live page.",
+    image: `${homixwebBase()}/hero-home.jpg`,
+    eyebrow: zh ? "开放日汇总" : "Open house schedule",
+  };
+}
 
 export async function fetchShareCatalog(input: {
   kind: ShareContentKind | "all";
@@ -105,6 +130,8 @@ export async function fetchShareCatalogItem(
   path: string,
   locale: "en" | "zh",
 ): Promise<ShareCatalogItem | null> {
+  const curated = curatedShareCatalogItem(path, locale);
+  if (curated) return curated;
   if (!isHomixwebConfigured()) return null;
   const params = new URLSearchParams({ path, locale });
   try {

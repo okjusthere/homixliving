@@ -8,6 +8,7 @@ import Link from "next/link";
 import {
   BarChart3,
   Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Copy,
@@ -54,9 +55,12 @@ const COPY = {
     neighborhood: "Neighborhoods",
     community: "Communities",
     development: "New developments",
+    market: "Market data",
     guide: "Guides & articles",
     news: "News",
-    overviewHint: "Featured content is shown here. Open a category to browse all.",
+    browseCategory: "Content category",
+    browseAll: "Browse all",
+    searchResults: "Search results",
     results: "items",
     create: "Create my link",
     openLink: "Open share link",
@@ -107,7 +111,11 @@ const COPY = {
     stop: "Disable link",
     enable: "Enable link",
     createdFor: "Shared by",
-    chinese: "中文",
+    disabled: "Disabled",
+    loadLinksError: "Unable to load share links.",
+    createError: "Unable to create the share link.",
+    updateError: "Unable to update the share link.",
+    chinese: "Chinese",
     english: "English",
   },
   zh: {
@@ -123,9 +131,12 @@ const COPY = {
     neighborhood: "区域指南",
     community: "封闭社区",
     development: "纽约新盘",
+    market: "市场数据",
     guide: "指南与文章",
     news: "地产新闻",
-    overviewHint: "这里展示精选内容；进入具体分类可浏览全部。",
+    browseCategory: "内容分类",
+    browseAll: "查看全部",
+    searchResults: "搜索结果",
     results: "项内容",
     create: "生成我的分享链接",
     openLink: "打开专属链接",
@@ -175,6 +186,10 @@ const COPY = {
     stop: "停用链接",
     enable: "重新启用",
     createdFor: "分享经纪人",
+    disabled: "已停用",
+    loadLinksError: "暂时无法读取分享链接。",
+    createError: "暂时无法生成分享链接。",
+    updateError: "暂时无法更新分享链接。",
     chinese: "中文",
     english: "English",
   },
@@ -186,14 +201,27 @@ const KINDS: CatalogKind[] = [
   "neighborhood",
   "community",
   "development",
+  "market",
   "guide",
   "news",
 ];
 
-function formatDuration(seconds: number): string {
-  if (seconds < 60) return `${seconds}s`;
+const OVERVIEW_KINDS: ShareContentKind[] = [
+  "neighborhood",
+  "community",
+  "development",
+  "market",
+  "guide",
+  "news",
+];
+
+function formatDuration(seconds: number, locale: "en" | "zh"): string {
+  if (seconds < 60) return locale === "zh" ? `${seconds} 秒` : `${seconds}s`;
   const minutes = Math.floor(seconds / 60);
   const remainder = seconds % 60;
+  if (locale === "zh") {
+    return remainder ? `${minutes} 分 ${remainder} 秒` : `${minutes} 分`;
+  }
   return remainder ? `${minutes}m ${remainder}s` : `${minutes}m`;
 }
 
@@ -202,6 +230,88 @@ function linkKey(
   locale: "en" | "zh",
 ) {
   return `${item.kind}:${item.key}:${locale}`;
+}
+
+function CatalogCard({
+  item,
+  label,
+  existing,
+  busy,
+  canShare,
+  createLabel,
+  openLabel,
+  onActivate,
+}: {
+  item: ShareCatalogItem;
+  label: string;
+  existing: ShareLinkSummary | undefined;
+  busy: boolean;
+  canShare: boolean;
+  createLabel: string;
+  openLabel: string;
+  onActivate: () => void;
+}) {
+  return (
+    <article
+      className="grid min-h-[132px] grid-cols-[112px_minmax(0,1fr)] overflow-hidden rounded-lg sm:flex sm:min-h-[330px] sm:flex-col"
+      style={{ background: tone.card, border: `1px solid ${tone.line}` }}
+    >
+      <div
+        className="relative min-h-[132px] overflow-hidden sm:aspect-[16/10] sm:min-h-0"
+        style={{ background: tone.paperDeep }}
+      >
+        {item.image ? (
+          <img
+            src={item.image}
+            alt={item.title}
+            loading="lazy"
+            className="h-full w-full object-cover transition-transform duration-300 hover:scale-[1.03]"
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center">
+            <Link2 size={24} strokeWidth={1.3} style={{ color: tone.ink30 }} />
+          </div>
+        )}
+        <span
+          className="absolute left-2 top-2 max-w-[calc(100%-16px)] truncate rounded-full px-2 py-1 text-[9px] font-medium uppercase sm:left-3 sm:top-3 sm:px-2.5 sm:text-[10px]"
+          style={{ background: `${tone.card}E8`, color: tone.ink70 }}
+        >
+          {item.eyebrow || label}
+        </span>
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col p-3 sm:p-4">
+        <h2
+          className="line-clamp-2 font-serif text-[16px] leading-snug sm:text-[18px]"
+          style={{ color: tone.ink }}
+        >
+          {item.title}
+        </h2>
+        <p
+          className="mt-1.5 line-clamp-2 text-[11.5px] leading-[1.45] sm:mt-2 sm:text-[12.5px] sm:leading-5"
+          style={{ color: tone.ink50 }}
+        >
+          {item.subtitle}
+        </p>
+        <button
+          type="button"
+          disabled={busy || !canShare}
+          onClick={onActivate}
+          className="mt-auto inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-md px-3 text-[11.5px] font-medium disabled:cursor-not-allowed disabled:opacity-45 sm:min-h-11 sm:px-4 sm:text-[13px]"
+          style={{
+            background: existing ? tone.paperDeep : tone.ink,
+            color: existing ? tone.ink : tone.card,
+          }}
+        >
+          {existing ? (
+            <ExternalLink size={14} aria-hidden />
+          ) : (
+            <Share2 size={14} aria-hidden />
+          )}
+          {busy ? "…" : existing ? openLabel : createLabel}
+        </button>
+      </div>
+    </article>
+  );
 }
 
 export function ShareCenter({
@@ -270,9 +380,7 @@ export function ShareCenter({
         const body = (await response.json().catch(() => ({}))) as
           | ShareCatalogResult
           | { error?: string };
-        if (!response.ok) {
-          throw new Error("error" in body ? body.error : t.unavailable);
-        }
+        if (!response.ok) throw new Error(t.unavailable);
         setCatalog(body as ShareCatalogResult);
       })
       .catch((error) => {
@@ -298,18 +406,18 @@ export function ShareCenter({
           links?: ShareLinkSummary[];
           error?: string;
         };
-        if (!response.ok) throw new Error(body.error || "Unable to load links");
+        if (!response.ok) throw new Error(t.loadLinksError);
         const rows = body.links ?? [];
         setLinks(rows);
         return rows;
       } catch (error) {
-        setActionError(error instanceof Error ? error.message : "Unable to load links");
+        setActionError(error instanceof Error ? error.message : t.loadLinksError);
         return [];
       } finally {
         setLinksLoading(false);
       }
     },
-    [],
+    [t.loadLinksError],
   );
 
   useEffect(() => {
@@ -349,7 +457,7 @@ export function ShareCenter({
           error?: string;
         };
         if (!response.ok) {
-          throw new Error(body.error || t.inquiryLoadError);
+          throw new Error(t.inquiryLoadError);
         }
         setInquiryRows(body.inquiries ?? []);
       })
@@ -377,6 +485,15 @@ export function ShareCenter({
           ]),
       ),
     [agentId, links],
+  );
+
+  const overviewGroups = useMemo(
+    () =>
+      OVERVIEW_KINDS.map((groupKind) => ({
+        kind: groupKind,
+        items: catalog?.items.filter((item) => item.kind === groupKind) ?? [],
+      })).filter((group) => group.items.length > 0),
+    [catalog?.items],
   );
 
   const totals = useMemo(
@@ -410,12 +527,12 @@ export function ShareCenter({
         link?: { code?: string };
         error?: string;
       };
-      if (!response.ok) throw new Error(body.error || "Unable to create link");
+      if (!response.ok) throw new Error(t.createError);
       const refreshed = await loadLinks(linkScope, false);
       const created = refreshed.find((link) => link.code === body.link?.code);
       if (created) setModalLink(created);
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : "Unable to create link");
+      setActionError(error instanceof Error ? error.message : t.createError);
     } finally {
       setWorkingPath("");
     }
@@ -428,9 +545,8 @@ export function ShareCenter({
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ id: link.id, isActive: !link.isActive }),
     });
-    const body = (await response.json().catch(() => ({}))) as { error?: string };
     if (!response.ok) {
-      setActionError(body.error || "Unable to update link");
+      setActionError(t.updateError);
       return;
     }
     const refreshed = await loadLinks(linkScope, true);
@@ -471,6 +587,26 @@ export function ShareCenter({
       !catalog.overview &&
       (catalog.totalIsEstimate ? catalog.hasMore : page < pages),
   );
+
+  const renderCatalogCards = (items: ShareCatalogItem[]) =>
+    items.map((item) => {
+      const existing = linksByContent.get(linkKey(item, contentLocale));
+      return (
+        <CatalogCard
+          key={`${item.kind}:${item.key}`}
+          item={item}
+          label={t[item.kind]}
+          existing={existing}
+          busy={workingPath === item.path}
+          canShare={canShare}
+          createLabel={t.create}
+          openLabel={t.openLink}
+          onActivate={() =>
+            existing ? setModalLink(existing) : void createLink(item)
+          }
+        />
+      );
+    });
 
   return (
     <div className="min-w-0 w-full space-y-7">
@@ -606,7 +742,7 @@ export function ShareCenter({
       {view === "library" ? (
         <>
           <div className="space-y-3">
-            <div className="flex min-w-0 flex-wrap items-center gap-3">
+            <div className="grid min-w-0 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
               <div
                 className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-md px-3 sm:max-w-md"
                 style={{ background: tone.card, border: `1px solid ${tone.line}` }}
@@ -620,29 +756,55 @@ export function ShareCenter({
                   className="min-w-0 flex-1 bg-transparent text-[13px] outline-none"
                 />
               </div>
-              <div
-                className="inline-flex rounded-lg p-1"
-                style={{ background: tone.paperDeep }}
-              >
-                {(["zh", "en"] as const).map((value) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setContentLocale(value)}
-                    className="h-9 rounded-md px-3 text-[12px] font-medium"
-                    style={{
-                      color: contentLocale === value ? tone.ink : tone.ink50,
-                      background:
-                        contentLocale === value ? tone.card : "transparent",
-                    }}
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 sm:flex sm:gap-3">
+                <label className="relative min-w-0 md:hidden">
+                  <span className="sr-only">{t.browseCategory}</span>
+                  <select
+                    value={kind}
+                    onChange={(event) => setKind(event.target.value as CatalogKind)}
+                    className="h-11 w-full appearance-none rounded-md bg-white pl-3 pr-9 text-[13px] font-medium outline-none"
+                    style={{ border: `1px solid ${tone.line}`, color: tone.ink }}
                   >
-                    {value === "zh" ? t.chinese : t.english}
-                  </button>
-                ))}
+                    {KINDS.map((value) => (
+                      <option key={value} value={value}>
+                        {t[value]}
+                        {catalog?.counts[value] != null
+                          ? ` (${catalog.counts[value]})`
+                          : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown
+                    size={15}
+                    aria-hidden
+                    className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2"
+                    style={{ color: tone.ink50 }}
+                  />
+                </label>
+                <div
+                  className="inline-flex rounded-lg p-1"
+                  style={{ background: tone.paperDeep }}
+                >
+                  {(["zh", "en"] as const).map((value) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setContentLocale(value)}
+                      className="h-9 rounded-md px-3 text-[12px] font-medium"
+                      style={{
+                        color: contentLocale === value ? tone.ink : tone.ink50,
+                        background:
+                          contentLocale === value ? tone.card : "transparent",
+                      }}
+                    >
+                      {value === "zh" ? t.chinese : t.english}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 
-            <div className="flex min-w-0 gap-1 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="hidden min-w-0 flex-wrap gap-1 md:flex">
               {KINDS.map((value) => (
                 <button
                   key={value}
@@ -668,7 +830,7 @@ export function ShareCenter({
             </div>
 
             {kind === "listing" && (
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="grid gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
                 <span
                   className="text-[11px] font-medium uppercase tracking-[0.1em]"
                   style={{ color: tone.ink50 }}
@@ -676,7 +838,7 @@ export function ShareCenter({
                   {t.listingSource}
                 </span>
                 <div
-                  className="inline-flex rounded-lg p-1"
+                  className="grid grid-cols-2 rounded-lg p-1 sm:inline-flex"
                   style={{ background: tone.paperDeep }}
                 >
                   {(["homix", "all"] as const).map((scope) => (
@@ -699,18 +861,12 @@ export function ShareCenter({
             )}
           </div>
 
-          {catalog?.overview && (
-            <p className="text-[12.5px]" style={{ color: tone.ink50 }}>
-              {t.overviewHint}
-            </p>
-          )}
-
           {catalogLoading ? (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
               {Array.from({ length: 6 }).map((_, index) => (
                 <div
                   key={index}
-                  className="h-[330px] animate-pulse rounded-lg"
+                  className="h-[132px] animate-pulse rounded-lg sm:h-[330px]"
                   style={{ background: tone.paperDeep }}
                 />
               ))}
@@ -729,84 +885,55 @@ export function ShareCenter({
             </Card>
           ) : (
             <>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {catalog.items.map((item) => {
-                  const existing = linksByContent.get(
-                    linkKey(item, contentLocale),
-                  );
-                  const busy = workingPath === item.path;
-                  return (
-                    <article
-                      key={`${item.kind}:${item.key}`}
-                      className="flex min-h-[330px] flex-col overflow-hidden rounded-lg"
-                      style={{ background: tone.card, border: `1px solid ${tone.line}` }}
-                    >
+              {catalog.overview && !debouncedQuery ? (
+                <div className="space-y-8 sm:space-y-10">
+                  {overviewGroups.map((group) => (
+                    <section key={group.kind} className="space-y-3">
                       <div
-                        className="relative aspect-[16/10] overflow-hidden"
-                        style={{ background: tone.paperDeep }}
+                        className="flex items-end justify-between gap-4 border-b pb-2.5"
+                        style={{ borderColor: tone.lineSoft }}
                       >
-                        {item.image ? (
-                          <img
-                            src={item.image}
-                            alt=""
-                            loading="lazy"
-                            className="h-full w-full object-cover transition-transform duration-300 hover:scale-[1.03]"
-                          />
-                        ) : (
-                          <div className="flex h-full items-center justify-center">
-                            <Link2 size={28} strokeWidth={1.3} style={{ color: tone.ink30 }} />
-                          </div>
-                        )}
-                        <span
-                          className="absolute left-3 top-3 rounded-full px-2.5 py-1 text-[10px] font-medium uppercase"
-                          style={{ background: `${tone.card}E8`, color: tone.ink70 }}
-                        >
-                          {item.eyebrow || t[item.kind]}
-                        </span>
-                      </div>
-                      <div className="flex flex-1 flex-col p-4">
-                        <h2
-                          className="line-clamp-2 font-serif text-[18px] leading-snug"
-                          style={{ color: tone.ink }}
-                        >
-                          {item.title}
-                        </h2>
-                        <p
-                          className="mt-2 line-clamp-2 text-[12.5px] leading-5"
-                          style={{ color: tone.ink50 }}
-                        >
-                          {item.subtitle}
-                        </p>
+                        <div>
+                          <h2
+                            className="font-serif text-[21px] leading-none sm:text-[24px]"
+                            style={{ color: tone.ink }}
+                          >
+                            {t[group.kind]}
+                          </h2>
+                          {catalog.counts[group.kind] != null && (
+                            <p className="mt-1.5 font-mono text-[10.5px]" style={{ color: tone.ink30 }}>
+                              {catalog.counts[group.kind]} {t.results}
+                            </p>
+                          )}
+                        </div>
                         <button
                           type="button"
-                          disabled={busy || !canShare}
-                          onClick={() =>
-                            existing
-                              ? setModalLink(existing)
-                              : void createLink(item)
-                          }
-                          className="mt-auto inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md px-4 pt-0 text-[13px] font-medium disabled:cursor-not-allowed disabled:opacity-45"
-                          style={{
-                            background: existing ? tone.paperDeep : tone.ink,
-                            color: existing ? tone.ink : tone.card,
-                          }}
+                          onClick={() => setKind(group.kind)}
+                          className="inline-flex h-9 shrink-0 items-center gap-1 text-[12px] font-medium"
+                          style={{ color: tone.accent }}
                         >
-                          {existing ? (
-                            <ExternalLink size={15} aria-hidden />
-                          ) : (
-                            <Share2 size={15} aria-hidden />
-                          )}
-                          {busy
-                            ? "…"
-                            : existing
-                              ? t.openLink
-                              : t.create}
+                          {t.browseAll}
+                          <ChevronRight size={14} aria-hidden />
                         </button>
                       </div>
-                    </article>
-                  );
-                })}
-              </div>
+                      <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
+                        {renderCatalogCards(group.items)}
+                      </div>
+                    </section>
+                  ))}
+                </div>
+              ) : (
+                <section className="space-y-3">
+                  {catalog.overview && debouncedQuery && (
+                    <h2 className="font-serif text-[22px]" style={{ color: tone.ink }}>
+                      {t.searchResults}
+                    </h2>
+                  )}
+                  <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
+                    {renderCatalogCards(catalog.items)}
+                  </div>
+                </section>
+              )}
 
               {!catalog.overview && (page > 1 || canGoNext) && (
                 <div className="flex items-center justify-center gap-3">
@@ -891,7 +1018,7 @@ export function ShareCenter({
                           className="shrink-0 rounded-full px-2 py-0.5 text-[10px]"
                           style={{ background: tone.roseSoft, color: tone.rose }}
                         >
-                          OFF
+                          {t.disabled}
                         </span>
                       )}
                     </div>
@@ -905,7 +1032,7 @@ export function ShareCenter({
                   {[
                     [t.views, link.visits],
                     [t.visitors, link.uniqueVisitors],
-                    [t.averageTime, formatDuration(link.averageActiveSeconds)],
+                    [t.averageTime, formatDuration(link.averageActiveSeconds, locale)],
                     [t.inquiries, link.inquiries],
                   ].map(([label, value]) => (
                     <div key={String(label)}>
@@ -1015,9 +1142,9 @@ export function ShareCenter({
               {[
                 [t.views, modalLink.visits],
                 [t.visitors, modalLink.uniqueVisitors],
-                [t.averageTime, formatDuration(modalLink.averageActiveSeconds)],
+                [t.averageTime, formatDuration(modalLink.averageActiveSeconds, locale)],
                 [t.scroll, `${modalLink.averageScrollDepth}%`],
-                [t.medianTime, formatDuration(modalLink.medianActiveSeconds)],
+                [t.medianTime, formatDuration(modalLink.medianActiveSeconds, locale)],
                 [
                   t.contacts,
                   modalLink.callClicks +

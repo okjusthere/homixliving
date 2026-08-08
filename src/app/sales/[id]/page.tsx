@@ -10,6 +10,7 @@ import { DealBreakdownBar } from "@/components/homix/deal-breakdown";
 import { fmtDate, fmtLongDate, fmtMoney, tone } from "@/components/homix/tokens";
 import { computeCommission } from "@/lib/commission";
 import { saleRepresentationLabel, saleStageLabel } from "@/lib/sales";
+import { dealStatusLabel } from "@/lib/domain-labels";
 import { useLocale } from "@/lib/i18n-client";
 import { DealDocuments } from "@/components/deal-documents";
 import type { Agent, SaleDeal } from "@/db/schema";
@@ -144,7 +145,8 @@ function statusTone(status: string) {
 }
 
 export default function SaleDetailPage() {
-  const t = M[useLocale()];
+  const locale = useLocale();
+  const t = M[locale];
   const params = useParams();
   const id = String(params.id);
   const [payload, setPayload] = useState<SalePayload | null>(null);
@@ -250,14 +252,14 @@ export default function SaleDetailPage() {
           <Link href="/sales" className="flex items-center gap-1.5 text-[12.5px]" style={{ color: tone.ink50 }}>
             <Icons.Back /> {t.backToSales}
           </Link>
-          <Pill tone={statusTone(saleDeal.status)}>{saleDeal.status}</Pill>
-          <Pill tone="neutral">{saleStageLabel(saleDeal.stage)}</Pill>
+          <Pill tone={statusTone(saleDeal.status)}>{dealStatusLabel(saleDeal.status, locale)}</Pill>
+          <Pill tone="neutral">{saleStageLabel(saleDeal.stage, locale)}</Pill>
           <span className="font-mono text-[12px]" style={{ color: tone.ink50 }}>
             #{saleDeal.id}
           </span>
         </div>
         <PageHeader
-          eyebrow={saleRepresentationLabel(saleDeal.representationType)}
+          eyebrow={saleRepresentationLabel(saleDeal.representationType, locale)}
           title={saleDeal.propertyAddress}
           description={location || undefined}
           actions={

@@ -27,8 +27,11 @@ function Check() {
 }
 
 export default async function SellerGuidePage() {
-  const { t } = await getT();
+  const { locale, t } = await getT();
   const g = t.onboarding.sellerGuide;
+  const ui = locale === "zh"
+    ? { back: "返回入职", title: "准备出售房产了吗？", lead: "由 Homix 经纪人提供免费的数据估价。", primary: "委托 Homix 出售", contact: "联系我们" }
+    : { back: "Onboarding", title: "Ready to list your home?", lead: "Get a free, data-backed valuation from a Homix advisor.", primary: "Sell with Homix", contact: "Contact us" };
 
   return (
     <>
@@ -41,7 +44,7 @@ export default async function SellerGuidePage() {
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
             <path d="M19 12H5M5 12l7 7M5 12l7-7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-          Onboarding
+          {ui.back}
         </Link>
         <div className="mt-8 max-w-3xl">
           <Eyebrow>{g.eyebrow}</Eyebrow>
@@ -86,13 +89,13 @@ export default async function SellerGuidePage() {
         <Container>
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="font-serif text-2xl text-ink">Ready to list your home?</p>
-              <p className="mt-2 text-base text-ink-50">Get a free, data-backed valuation from a Homix advisor.</p>
+              <p className="font-serif text-2xl text-ink">{ui.title}</p>
+              <p className="mt-2 text-base text-ink-50">{ui.lead}</p>
             </div>
             <div className="flex flex-wrap gap-3">
-              <Button href="https://www.homixny.com/sell">Sell with Homix</Button>
+              <Button href="https://www.homixny.com/sell">{ui.primary}</Button>
               <Button href="https://www.homixny.com/contact" variant="outline">
-                Contact us
+                {ui.contact}
               </Button>
             </div>
           </div>

@@ -6,6 +6,7 @@ import { Btn, Card } from "@/components/homix/primitives";
 import { CardHeader } from "@/components/homix/page-kit";
 import { tone } from "@/components/homix/tokens";
 import type { AdminAgentRow } from "@/lib/homixweb";
+import { useLocale } from "@/lib/i18n-client";
 
 const WEB = "https://www.homixny.com";
 
@@ -19,6 +20,97 @@ type MergeDraft = {
   duplicate: AdminAgentRow;
   keepProfileId: string;
 };
+
+const M = {
+  en: {
+    unreachable: "The public website is temporarily unavailable. Try again later. If this continues, verify HOMIXWEB_REVALIDATE_URL and AGENTS_REVALIDATE_SECRET.",
+    operationFailed: "Operation failed",
+    visibilitySaved: (name: string, visible: boolean) => `${name} is now ${visible ? "visible" : "hidden by an administrator"}.`,
+    reorderFailed: "Unable to save the new order.",
+    choosePortalAgent: "Select a Portal agent to link.",
+    linkFailed: "Unable to link the profile.",
+    linked: (profile: string, agent: string) => `${profile} is now linked to ${agent}.`,
+    chooseKeep: "Select the website profile to keep.",
+    portalAgentMissing: "The linked Portal agent is no longer on the active roster.",
+    mergeFailed: "Unable to replace the linked profile.",
+    merged: (keep: string, deleted: string, agent: string) => `Kept /${keep}, deleted duplicate /${deleted}, and linked the profile to ${agent}.`,
+    title: (count: number) => `Advisors (${count})`,
+    subtitle: "Manage website visibility, order, account links, and public profiles in one place.",
+    moveUp: "Move up",
+    moveDown: "Move down",
+    unnamed: "(unnamed)",
+    linkedTitle: "Linked to a Portal account and available for self-service editing",
+    linkedBadge: "Linked",
+    agentHiddenTitle: "Hidden by the advisor; click to make it visible again",
+    visibilityTitle: "Change website visibility",
+    visible: "Visible",
+    agentHidden: "Advisor hidden",
+    adminHidden: "Admin hidden",
+    linkAria: (name: string) => `Link ${name} to a Portal agent`,
+    selectPortalAgent: "Select Portal agent",
+    link: "Link",
+    replace: "Replace linked profile",
+    edit: "Edit",
+    loading: "Loading website roster…",
+    empty: "The roster is empty.",
+    websiteRoster: "Website roster",
+    replaceTitle: "Replace linked profile",
+    close: "Close",
+    chooseExisting: "Select the existing profile to keep",
+    selectUnlinked: "Select an unlinked profile",
+    keepWhich: "Profile to keep",
+    deleteWhich: "Duplicate profile to delete",
+    notSelected: "Not selected",
+    mergeBody: "The selected profile keeps its URL, order, visibility, and existing content. Empty fields may be filled from the duplicate, which is then permanently deleted.",
+    cancel: "Cancel",
+    replacing: "Replacing…",
+    confirmReplace: "Replace link and delete duplicate",
+  },
+  zh: {
+    unreachable: "暂时无法连接对外网站（www.homixny.com）。请稍后重试；如持续失败，请检查 HOMIXWEB_REVALIDATE_URL 与 AGENTS_REVALIDATE_SECRET。",
+    operationFailed: "操作失败",
+    visibilitySaved: (name: string, visible: boolean) => `${name} 已${visible ? "在官网显示" : "由管理员隐藏"}。`,
+    reorderFailed: "排序保存失败。",
+    choosePortalAgent: "请选择要关联的 Portal 经纪人。",
+    linkFailed: "关联失败。",
+    linked: (profile: string, agent: string) => `${profile} 已关联到 ${agent}。`,
+    chooseKeep: "请选择要保留的官网主页。",
+    portalAgentMissing: "关联的 Portal 经纪人已不在当前在职名册中。",
+    mergeFailed: "更换关联主页失败。",
+    merged: (keep: string, deleted: string, agent: string) => `已保留 /${keep}，删除重复主页 /${deleted}，并改绑到 ${agent}。`,
+    title: (count: number) => `经纪人（${count}）`,
+    subtitle: "在同一处管理官网显示状态、顺序、账号关联与公开资料。",
+    moveUp: "上移",
+    moveDown: "下移",
+    unnamed: "（未命名）",
+    linkedTitle: "已关联 Portal 账号，可自助编辑",
+    linkedBadge: "已关联",
+    agentHiddenTitle: "经纪人自行隐藏；点击可由管理员重新显示",
+    visibilityTitle: "切换官网显示状态",
+    visible: "公开",
+    agentHidden: "经纪人隐藏",
+    adminHidden: "管理员隐藏",
+    linkAria: (name: string) => `将 ${name} 关联到 Portal 经纪人`,
+    selectPortalAgent: "选择 Portal 经纪人",
+    link: "关联",
+    replace: "更换关联主页",
+    edit: "编辑",
+    loading: "正在读取官网名册…",
+    empty: "名册为空。",
+    websiteRoster: "官网名册",
+    replaceTitle: "更换关联主页",
+    close: "关闭",
+    chooseExisting: "选择要保留的既有主页",
+    selectUnlinked: "请选择未关联主页",
+    keepWhich: "保留哪个主页",
+    deleteWhich: "删除哪个重复主页",
+    notSelected: "尚未选择",
+    mergeBody: "系统会保留所选主页的链接、排序、显示状态和已有内容，仅用重复主页补齐空白资料；随后永久删除重复主页。",
+    cancel: "取消",
+    replacing: "正在更换…",
+    confirmReplace: "确认更换并删除重复主页",
+  },
+} as const;
 
 export function RosterConsole({
   initialAgents,
@@ -34,6 +126,8 @@ export function RosterConsole({
   onAgentsChange?: (agents: AdminAgentRow[]) => void;
 }) {
   const router = useRouter();
+  const locale = useLocale();
+  const t = M[locale];
   const [agents, setAgents] = useState<AdminAgentRow[]>(initialAgents);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -63,8 +157,7 @@ export function RosterConsole({
     return (
       <Card className="p-6">
         <p className="text-[13.5px]" style={{ color: tone.rose }}>
-          暂时无法连接对外网站(www.homixny.com)。稍后重试;若持续,检查
-          HOMIXWEB_REVALIDATE_URL / AGENTS_REVALIDATE_SECRET 是否已配置。
+          {t.unreachable}
         </p>
       </Card>
     );
@@ -94,13 +187,13 @@ export function RosterConsole({
     setMsg(null);
     const next: "visible" | "admin_hidden" =
       a.visibility_status === "visible" ? "admin_hidden" : "visible";
-    const { ok, out } = await post({
+    const { ok } = await post({
       action: "visibility",
       id: a.id,
       visibilityStatus: next,
     });
     setBusy(null);
-    if (!ok) return setMsg({ ok: false, text: out?.error || "操作失败" });
+    if (!ok) return setMsg({ ok: false, text: t.operationFailed });
     setAgents((prev) => {
       const updated = prev.map((x) =>
         x.id === a.id ? { ...x, visibility_status: next } : x,
@@ -108,7 +201,7 @@ export function RosterConsole({
       onAgentsChange?.(updated);
       return updated;
     });
-    setMsg({ ok: true, text: `${a.name} 已${next === "visible" ? "显示" : "由管理员隐藏"}` });
+    setMsg({ ok: true, text: t.visibilitySaved(a.name || a.slug, next === "visible") });
   }
 
   async function move(idx: number, dir: -1 | 1) {
@@ -121,12 +214,12 @@ export function RosterConsole({
     onAgentsChange?.(next);
     setBusy("reorder");
     setMsg(null);
-    const { ok, out } = await post({ action: "reorder", ids: next.map((x) => x.id) });
+    const { ok } = await post({ action: "reorder", ids: next.map((x) => x.id) });
     setBusy(null);
     if (!ok) {
       setAgents(prev); // revert on failure
       onAgentsChange?.(prev);
-      setMsg({ ok: false, text: out?.error || "排序失败" });
+      setMsg({ ok: false, text: t.reorderFailed });
     }
   }
 
@@ -136,20 +229,20 @@ export function RosterConsole({
       (candidate) => candidate.id === portalAgentId,
     );
     if (!portalAgent) {
-      setMsg({ ok: false, text: "请选择要关联的 Portal 经纪人。" });
+      setMsg({ ok: false, text: t.choosePortalAgent });
       return;
     }
 
     setBusy(`link:${a.id}`);
     setMsg(null);
-    const { ok, out } = await post({
+    const { ok } = await post({
       action: "link",
       id: a.id,
       portalAgentId,
     });
     setBusy(null);
     if (!ok) {
-      setMsg({ ok: false, text: out.error || "关联失败" });
+      setMsg({ ok: false, text: t.linkFailed });
       return;
     }
     setAgents((prev) => {
@@ -172,25 +265,25 @@ export function RosterConsole({
     });
     setMsg({
       ok: true,
-      text: `${a.name} 已关联到 ${portalAgent.name}。${out.notice || ""}`.trim(),
+      text: t.linked(a.name || a.slug, portalAgent.name),
     });
   }
 
   async function replaceLinkedProfile() {
     if (!mergeDraft || !keepProfile || mergeDraft.duplicate.portal_agent_id == null) {
-      setMsg({ ok: false, text: "请选择要保留的官网主页。" });
+      setMsg({ ok: false, text: t.chooseKeep });
       return;
     }
     const portalAgentId = mergeDraft.duplicate.portal_agent_id;
     const portalAgent = portalAgents.find((candidate) => candidate.id === portalAgentId);
     if (!portalAgent) {
-      setMsg({ ok: false, text: "关联的 Portal 经纪人已不在当前在职名册中。" });
+      setMsg({ ok: false, text: t.portalAgentMissing });
       return;
     }
 
     setBusy(`merge:${mergeDraft.duplicate.id}`);
     setMsg(null);
-    const { ok, out } = await post({
+    const { ok } = await post({
       action: "merge_link",
       portalAgentId,
       keepProfileId: keepProfile.id,
@@ -198,7 +291,7 @@ export function RosterConsole({
     });
     setBusy(null);
     if (!ok) {
-      setMsg({ ok: false, text: out.error || "更换关联主页失败" });
+      setMsg({ ok: false, text: t.mergeFailed });
       return;
     }
 
@@ -216,7 +309,7 @@ export function RosterConsole({
     setMergeDraft(null);
     setMsg({
       ok: true,
-      text: `已保留 /${keepProfile.slug}，删除重复主页 /${mergeDraft.duplicate.slug}，并改绑到 ${portalAgent.name}。${out.notice || ""}`.trim(),
+      text: t.merged(keepProfile.slug, mergeDraft.duplicate.slug, portalAgent.name),
     });
   }
 
@@ -231,8 +324,8 @@ export function RosterConsole({
       {/* Roster */}
       <Card className="flex flex-col">
         <CardHeader
-          title={`经纪人（${agents.length}）`}
-          subtitle="在同一处管理官网显示状态、顺序、账号关联与公开资料"
+          title={t.title(agents.length)}
+          subtitle={t.subtitle}
         />
         <div className="divide-y" style={{ borderColor: tone.line }}>
           {agents.map((a, idx) => (
@@ -245,7 +338,7 @@ export function RosterConsole({
                   disabled={idx === 0 || busy !== null}
                   className="text-[11px] leading-none disabled:opacity-30"
                   style={{ color: tone.ink50 }}
-                  aria-label="上移"
+                  aria-label={t.moveUp}
                 >
                   ▲
                 </button>
@@ -255,7 +348,7 @@ export function RosterConsole({
                   disabled={idx === agents.length - 1 || busy !== null}
                   className="mt-1 text-[11px] leading-none disabled:opacity-30"
                   style={{ color: tone.ink50 }}
-                  aria-label="下移"
+                  aria-label={t.moveDown}
                 >
                   ▼
                 </button>
@@ -265,15 +358,15 @@ export function RosterConsole({
               <div className="min-w-[180px] flex-1">
                 <div className="flex items-center gap-2">
                   <span className="font-medium text-[13.5px]" style={{ color: tone.ink }}>
-                    {a.name || "(未命名)"}
+                    {a.name || t.unnamed}
                   </span>
                   {a.portal_agent_id != null && (
                     <span
                       className="rounded px-1.5 py-0.5 text-[10.5px]"
                       style={{ background: "#EEF3E6", color: "#5C6B3A" }}
-                      title="已关联 portal 账号,可自助编辑"
+                      title={t.linkedTitle}
                     >
-                      已关联
+                      {t.linkedBadge}
                     </span>
                   )}
                 </div>
@@ -301,15 +394,15 @@ export function RosterConsole({
                 }
                 title={
                   a.visibility_status === "agent_hidden"
-                    ? "经纪人自行隐藏；点击可由管理员重新显示"
-                    : "点击切换官网显示状态"
+                    ? t.agentHiddenTitle
+                    : t.visibilityTitle
                 }
               >
                 {a.visibility_status === "visible"
-                  ? "● 公开"
+                  ? `● ${t.visible}`
                   : a.visibility_status === "agent_hidden"
-                    ? "○ 经纪人隐藏"
-                    : "○ 管理员隐藏"}
+                    ? `○ ${t.agentHidden}`
+                    : `○ ${t.adminHidden}`}
               </button>
 
               {/* Actions */}
@@ -317,7 +410,7 @@ export function RosterConsole({
                 {a.portal_agent_id == null && availablePortalAgents.length > 0 && (
                   <>
                     <select
-                      aria-label={`关联 ${a.name || a.slug} 到 Portal 经纪人`}
+                      aria-label={t.linkAria(a.name || a.slug)}
                       value={selectedLinks[a.id] || ""}
                       onChange={(event) =>
                         setSelectedLinks((prev) => ({
@@ -329,7 +422,7 @@ export function RosterConsole({
                       className="h-9 max-w-[230px] rounded border bg-white px-2 text-[12px] disabled:opacity-50"
                       style={{ borderColor: tone.line, color: tone.ink }}
                     >
-                      <option value="">选择 Portal 经纪人</option>
+                      <option value="">{t.selectPortalAgent}</option>
                       {availablePortalAgents.map((agent) => (
                         <option key={agent.id} value={agent.id}>
                           {agent.name} · {agent.email}
@@ -341,7 +434,7 @@ export function RosterConsole({
                       onClick={() => void linkProfile(a)}
                       disabled={busy !== null || !selectedLinks[a.id]}
                     >
-                      关联
+                      {t.link}
                     </Btn>
                   </>
                 )}
@@ -351,23 +444,23 @@ export function RosterConsole({
                     onClick={() => setMergeDraft({ duplicate: a, keepProfileId: "" })}
                     disabled={busy !== null}
                   >
-                    更换关联主页
+                    {t.replace}
                   </Btn>
                 )}
                 <Btn variant="outline" onClick={() => router.push(`/roster/${a.id}`)}>
-                  编辑
+                  {t.edit}
                 </Btn>
               </div>
             </div>
           ))}
           {loading && agents.length === 0 && (
             <div className="px-5 py-8 text-center text-[13px]" style={{ color: tone.ink50 }}>
-              正在读取官网名册…
+              {t.loading}
             </div>
           )}
           {!loading && agents.length === 0 && (
             <div className="px-5 py-8 text-center text-[13px]" style={{ color: tone.ink50 }}>
-              名册为空。
+              {t.empty}
             </div>
           )}
         </div>
@@ -397,19 +490,19 @@ export function RosterConsole({
             >
               <div>
                 <div className="text-[11px] uppercase tracking-[0.14em]" style={{ color: tone.ink50 }}>
-                  官网名册
+                  {t.websiteRoster}
                 </div>
                 <h2
                   id="replace-profile-title"
                   className="mt-1 font-serif text-[26px] leading-tight"
                   style={{ color: tone.ink }}
                 >
-                  更换关联主页
+                  {t.replaceTitle}
                 </h2>
               </div>
               <button
                 type="button"
-                aria-label="关闭"
+                aria-label={t.close}
                 onClick={() => setMergeDraft(null)}
                 disabled={busy !== null}
                 className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-lg disabled:opacity-50 sm:h-8 sm:w-8"
@@ -422,7 +515,7 @@ export function RosterConsole({
             <div className="flex-1 space-y-5 overflow-auto px-5 py-5 sm:px-7 sm:py-6">
               <label className="block">
                 <span className="text-[11px] uppercase tracking-[0.1em]" style={{ color: tone.ink50 }}>
-                  选择要保留的既有主页
+                  {t.chooseExisting}
                 </span>
                 <select
                   value={mergeDraft.keepProfileId}
@@ -435,7 +528,7 @@ export function RosterConsole({
                   className="mt-2 h-11 w-full rounded-lg border bg-white px-3 text-[13px] outline-none disabled:opacity-50"
                   style={{ borderColor: tone.line, color: tone.ink }}
                 >
-                  <option value="">请选择未关联主页</option>
+                  <option value="">{t.selectUnlinked}</option>
                   {unlinkedPublicProfiles.map((profile) => (
                     <option key={profile.id} value={profile.id}>
                       {profile.name || profile.slug} · /{profile.slug}
@@ -447,10 +540,10 @@ export function RosterConsole({
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="rounded-lg border px-4 py-3" style={{ borderColor: tone.line }}>
                   <div className="text-[10.5px] uppercase tracking-[0.1em]" style={{ color: tone.green }}>
-                    保留哪个主页
+                    {t.keepWhich}
                   </div>
                   <div className="mt-2 text-[13.5px] font-medium" style={{ color: tone.ink }}>
-                    {keepProfile?.name || "尚未选择"}
+                    {keepProfile?.name || t.notSelected}
                   </div>
                   <div className="mt-1 break-all font-mono text-[11.5px]" style={{ color: tone.ink50 }}>
                     {keepProfile ? `/${keepProfile.slug}` : "—"}
@@ -458,7 +551,7 @@ export function RosterConsole({
                 </div>
                 <div className="rounded-lg border px-4 py-3" style={{ borderColor: tone.roseSoft }}>
                   <div className="text-[10.5px] uppercase tracking-[0.1em]" style={{ color: tone.rose }}>
-                    删除哪个重复主页
+                    {t.deleteWhich}
                   </div>
                   <div className="mt-2 text-[13.5px] font-medium" style={{ color: tone.ink }}>
                     {mergeDraft.duplicate.name || mergeDraft.duplicate.slug}
@@ -470,7 +563,7 @@ export function RosterConsole({
               </div>
 
               <p className="text-[12.5px] leading-relaxed" style={{ color: tone.ink50 }}>
-                系统会保留所选主页的链接、排序、显示状态和已有内容，仅用重复主页补齐空白资料；随后删除重复主页。删除后不可恢复。
+                {t.mergeBody}
               </p>
             </div>
 
@@ -479,14 +572,14 @@ export function RosterConsole({
               style={{ borderTop: `1px solid ${tone.line}`, background: tone.paper }}
             >
               <Btn variant="outline" onClick={() => setMergeDraft(null)} disabled={busy !== null}>
-                取消
+                {t.cancel}
               </Btn>
               <Btn
                 variant="danger"
                 onClick={() => void replaceLinkedProfile()}
                 disabled={busy !== null || !keepProfile}
               >
-                {busy?.startsWith("merge:") ? "正在更换…" : "确认更换并删除重复主页"}
+                {busy?.startsWith("merge:") ? t.replacing : t.confirmReplace}
               </Btn>
             </div>
           </div>

@@ -6,6 +6,32 @@ import { signOut, useSession } from "next-auth/react";
 import { Btn } from "@/components/homix/primitives";
 import { HomixMark } from "@/components/homix/brand-mark";
 import { tone } from "@/components/homix/tokens";
+import { useLocale } from "@/lib/i18n-client";
+
+const M = {
+  en: {
+    inactiveTitle: "Account inactive",
+    pendingTitle: "Pending approval",
+    inactiveBody: "This account has been deactivated. Contact a Homix administrator if you believe this is a mistake.",
+    pendingBody: "Your account has been created. An admin needs to activate it before you can start working.",
+    inactiveHint: "Your historical deals and payment records remain retained by the company.",
+    pendingHint: "This page checks automatically. Once approved, you will enter Homix Agents without signing out.",
+    checking: "Checking approval…",
+    check: "Check approval",
+    signOut: "Sign out",
+  },
+  zh: {
+    inactiveTitle: "账号已停用",
+    pendingTitle: "等待管理员批准",
+    inactiveBody: "此账号已被停用。如有疑问，请联系 Homix 管理员。",
+    pendingBody: "账号已创建，管理员批准后即可开始使用。",
+    inactiveHint: "公司仍会保留你的历史成交与付款记录。",
+    pendingHint: "本页会自动检查状态；批准后无需退出登录，将直接进入 Homix Agents。",
+    checking: "正在检查…",
+    check: "检查批准状态",
+    signOut: "退出登录",
+  },
+} as const;
 
 export function PendingApprovalClient({
   initialIsApproved,
@@ -20,6 +46,7 @@ export function PendingApprovalClient({
   const checkedOnce = useRef(false);
   const checkInFlight = useRef(false);
   const effectiveStatus = session?.user?.accountStatus ?? accountStatus;
+  const t = M[useLocale()];
 
   const redirectIfApproved = useCallback(
     (effectiveSession: typeof session) => {
@@ -120,17 +147,17 @@ export function PendingApprovalClient({
               marginBottom: 12,
             }}
           >
-            {effectiveStatus === "inactive" ? "Account inactive" : "Pending approval"}
+            {effectiveStatus === "inactive" ? t.inactiveTitle : t.pendingTitle}
           </h1>
           <p className="text-[14px]" style={{ color: tone.ink70 }}>
             {effectiveStatus === "inactive"
-              ? "This account has been deactivated. Contact a Homix administrator if you believe this is a mistake."
-              : "Your account has been created. An admin needs to activate it before you can start working."}
+              ? t.inactiveBody
+              : t.pendingBody}
           </p>
           <p className="text-[12px] mt-4" style={{ color: tone.ink50 }}>
             {effectiveStatus === "inactive"
-              ? "Your historical deals and payment records remain retained by the company."
-              : "This page checks automatically. Once approved, you will enter Homix Agents without signing out."}
+              ? t.inactiveHint
+              : t.pendingHint}
           </p>
 
           <div className="mt-6 grid gap-2">
@@ -143,7 +170,7 @@ export function PendingApprovalClient({
                 onClick={() => void refreshApproval(true)}
                 disabled={checking}
               >
-                {checking ? "Checking approval..." : "Check approval"}
+                {checking ? t.checking : t.check}
               </Btn>
             )}
             <Btn
@@ -153,7 +180,7 @@ export function PendingApprovalClient({
               className="w-full justify-center"
               onClick={() => void signOut({ redirectTo: "/login" })}
             >
-              Sign out
+              {t.signOut}
             </Btn>
           </div>
         </div>

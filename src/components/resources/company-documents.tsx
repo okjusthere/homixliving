@@ -54,9 +54,9 @@ const M = {
     eyebrow: "公司资料",
     title: "公司 W-9",
     description: "Homix 各法律主体的正式税务表格，请按相关合同或付款主体选用。",
-    rentalDefault: "Rental 发票默认附件",
+    rentalDefault: "租赁发票默认附件",
     defaultDescription:
-      "Homix Living Inc. W-9；这是发送 Rental invoice 邮件时唯一自动附带的 W-9。",
+      "Homix Living Inc. W-9；这是发送租赁发票邮件时唯一自动附带的 W-9。",
     otherDescription: "合同或付款使用该法律主体时，请选用这份 W-9。",
     currentFile: "当前文件",
     bundledFile: "系统内置文件",
@@ -165,7 +165,7 @@ export function CompanyDocuments({
         documents?: CompanyW9DocumentMetadata[];
       };
       if (!response.ok || !body.documents) {
-        throw new Error(body.error || t.failed);
+        throw new Error(t.failed);
       }
 
       setDocuments(body.documents);
@@ -194,10 +194,7 @@ export function CompanyDocuments({
         `/api/resources/company-w9?id=${encodeURIComponent(document.id)}`,
         { method: "DELETE" },
       );
-      const body = (await response.json().catch(() => ({}))) as {
-        error?: string;
-      };
-      if (!response.ok) throw new Error(body.error || t.deleteFailed);
+      if (!response.ok) throw new Error(t.deleteFailed);
       setDocuments((current) =>
         current.filter((item) => item.id !== document.id),
       );

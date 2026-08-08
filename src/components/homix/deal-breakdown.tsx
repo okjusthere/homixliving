@@ -1,5 +1,8 @@
+"use client";
+
 import { fmtMoney, tone } from "@/components/homix/tokens";
 import type { CommissionBreakdown } from "@/lib/commission";
+import { useLocale } from "@/lib/i18n-client";
 
 type Segment = {
   label: string;
@@ -14,14 +17,15 @@ export function DealBreakdownBar({
   breakdown: CommissionBreakdown;
   showLegend?: boolean;
 }) {
+  const locale = useLocale();
   const segments: Segment[] = [
-    { label: "Referrer", value: breakdown.referrerCut, color: tone.amber },
+    { label: locale === "zh" ? "转介方" : "Referrer", value: breakdown.referrerCut, color: tone.amber },
     ...breakdown.agents.map((agent, index) => ({
-      label: agent.name || `Agent ${index + 1}`,
+      label: agent.name || (locale === "zh" ? `经纪人 ${index + 1}` : `Agent ${index + 1}`),
       value: agent.agentTake,
       color: agent.isPrimary ? tone.green : tone.accent,
     })),
-    { label: "Company", value: breakdown.companyPoolTotal, color: tone.ink50 },
+    { label: locale === "zh" ? "公司" : "Company", value: breakdown.companyPoolTotal, color: tone.ink50 },
   ].filter((segment) => segment.value > 0);
 
   const total = Math.max(1, breakdown.totalCommission);

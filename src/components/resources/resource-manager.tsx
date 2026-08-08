@@ -18,7 +18,7 @@ const M = {
     syncing: "Syncing…",
     syncDone: (msg: string) => `Library synced: ${msg}`,
     syncFailed: "Sync failed — please retry.",
-    confirmSync: "Import/refresh the 做单表格 library (60 forms + checklists)? Existing entries are updated in place.",
+    confirmSync: "Import or refresh the transaction forms library (60 forms and checklists)? Existing entries are updated in place.",
     saveFailed: "Could not save — admin only.",
     confirmDelete: (title: string) => `Delete "${title}"?`,
     title: "Title",

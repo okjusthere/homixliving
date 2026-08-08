@@ -7,6 +7,24 @@ import { requireActiveAgent } from "@/lib/auth-guards";
 import { fetchPublicProfile } from "@/lib/homixweb";
 import { PageHeader } from "@/components/homix/page-kit";
 import { PublicProfileEditor } from "./editor";
+import { getLocale } from "@/lib/i18n";
+
+const M = {
+  en: {
+    ownEyebrow: "Profile",
+    adminEyebrow: (id: number) => `Admin edit · #${id}`,
+    ownTitle: "My public profile",
+    adminTitle: (name: string) => `${name}'s public profile`,
+    description: "Changes here sync to www.homixny.com and appear exactly as visitors will see them.",
+  },
+  zh: {
+    ownEyebrow: "个人中心",
+    adminEyebrow: (id: number) => `管理员编辑 · #${id}`,
+    ownTitle: "我的对外主页",
+    adminTitle: (name: string) => `${name} 的对外主页`,
+    description: "这里编辑的内容会同步到对外网站 www.homixny.com，访客看到的就是这份资料。",
+  },
+} as const;
 
 export const metadata: Metadata = { title: "Public Profile · Homix" };
 
@@ -19,6 +37,7 @@ export default async function PublicProfilePage({
   searchParams: Promise<{ agentId?: string }>;
 }) {
   const session = await requireActiveAgent();
+  const t = M[await getLocale()];
   const sp = await searchParams;
 
   // Whose profile? Own by default; admins may target another via ?agentId=.
@@ -39,9 +58,9 @@ export default async function PublicProfilePage({
   return (
     <div className="space-y-7">
       <PageHeader
-        eyebrow={isOwn ? "个人中心" : `管理员编辑 · #${targetAgentId}`}
-        title={isOwn ? "我的对外主页" : `${agent.name} 的对外主页`}
-        description="这里编辑的内容会同步到对外网站 www.homixny.com——访客看到的就是这份资料。"
+        eyebrow={isOwn ? t.ownEyebrow : t.adminEyebrow(targetAgentId)}
+        title={isOwn ? t.ownTitle : t.adminTitle(agent.name)}
+        description={t.description}
       />
       <PublicProfileEditor
         linked={linked}

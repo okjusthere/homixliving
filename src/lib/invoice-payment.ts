@@ -99,3 +99,15 @@ export function invoicePaymentTone(status: InvoicePaymentStatus) {
   if (status === "draft") return "draft";
   return "neutral";
 }
+
+const PAYMENT_STATUS_LABELS: Record<InvoicePaymentStatus, { en: string; zh: string }> = {
+  none: { en: "No invoice", zh: "尚无发票" },
+  draft: { en: "Draft invoice", zh: "发票草稿" },
+  awaiting_payment: { en: "Awaiting payment", zh: "等待付款" },
+  paid: { en: "Paid", zh: "已付款" },
+  failed: { en: "Send failed", zh: "发送失败" },
+};
+
+export function invoicePaymentLabel(status: InvoicePaymentStatus, locale: "en" | "zh" = "en") {
+  return PAYMENT_STATUS_LABELS[status][locale];
+}

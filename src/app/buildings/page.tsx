@@ -51,7 +51,7 @@ const M = {
     labelName: "Name *",
     namePlaceholder: "e.g. The Octagon",
     labelRegion: "Region *",
-    regionPlaceholder: "e.g. NJ, BK, 中城",
+    regionPlaceholder: "e.g. NJ, BK, Midtown",
     labelManagement: "Management company",
     managementPlaceholder: "e.g. Greystar",
     labelContactEmail: "Contact email",

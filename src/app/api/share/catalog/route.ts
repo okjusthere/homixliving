@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireActiveAgentApi } from "@/lib/auth-guards";
-import { fetchShareCatalog } from "@/lib/homixweb";
+import { curatedShareCatalogItem, fetchShareCatalog } from "@/lib/homixweb";
 import { isShareKind, isShareLocale } from "@/lib/share-center";
 
 export const dynamic = "force-dynamic";
@@ -21,13 +21,18 @@ export async function GET(request: NextRequest) {
     request.nextUrl.searchParams.get("listingScope") === "all"
       ? "all"
       : "homix";
+  const query = request.nextUrl.searchParams.get("q") || "";
+  const page = Math.max(
+    1,
+    Number.parseInt(request.nextUrl.searchParams.get("page") || "1", 10) || 1,
+  );
 
   const result = await fetchShareCatalog({
     kind,
     locale,
     listingScope,
-    query: request.nextUrl.searchParams.get("q") || "",
-    page: Number.parseInt(request.nextUrl.searchParams.get("page") || "1", 10),
+    query,
+    page,
     pageSize: 12,
   });
   if (!result) {
@@ -36,7 +41,22 @@ export async function GET(request: NextRequest) {
       { status: 502 },
     );
   }
-  return NextResponse.json(result, {
+  const openHouseItem = curatedShareCatalogItem("/open-houses", locale);
+  const response =
+    kind === "listing" &&
+    listingScope === "homix" &&
+    page === 1 &&
+    !query.trim() &&
+    openHouseItem
+      ? {
+          ...result,
+          items: [
+            openHouseItem,
+            ...result.items.filter((item) => item.path !== openHouseItem.path),
+          ],
+        }
+      : result;
+  return NextResponse.json(response, {
     headers: { "Cache-Control": "private, no-store" },
   });
 }

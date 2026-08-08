@@ -714,7 +714,7 @@ export async function ensureSchema(sql: Sql) {
       code TEXT NOT NULL UNIQUE,
       agent_id INTEGER NOT NULL REFERENCES portal.agents(id) ON DELETE CASCADE,
       content_kind TEXT NOT NULL
-        CHECK (content_kind IN ('listing', 'neighborhood', 'community', 'development', 'guide', 'news')),
+        CHECK (content_kind IN ('listing', 'neighborhood', 'community', 'development', 'market', 'guide', 'news')),
       content_key TEXT NOT NULL,
       content_path TEXT NOT NULL,
       content_title TEXT NOT NULL,
@@ -727,6 +727,23 @@ export async function ensureSchema(sql: Sql) {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       UNIQUE (agent_id, content_kind, content_key, locale)
     )`);
+  await run(`
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conrelid = 'public.share_links'::regclass
+          AND conname = 'share_links_content_kind_check'
+          AND pg_get_constraintdef(oid) NOT LIKE '%market%'
+      ) THEN
+        ALTER TABLE public.share_links
+          DROP CONSTRAINT share_links_content_kind_check;
+        ALTER TABLE public.share_links
+          ADD CONSTRAINT share_links_content_kind_check
+          CHECK (content_kind IN ('listing', 'neighborhood', 'community', 'development', 'market', 'guide', 'news'));
+      END IF;
+    END $$`);
   await run(`
     CREATE INDEX IF NOT EXISTS idx_share_links_agent_created
       ON public.share_links(agent_id, created_at DESC)`);

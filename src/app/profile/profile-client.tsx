@@ -192,8 +192,7 @@ export function ProfileClient({
     });
     setAchBusy(false);
     if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      setAchMsg(body.error || t.saveFailed);
+      setAchMsg(t.saveFailed);
       return;
     }
     setRouting("");
@@ -215,8 +214,7 @@ export function ProfileClient({
     const res = await fetch("/api/profile/w9", { method: "POST", body: form });
     setW9Busy(false);
     if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      setW9Msg(body.error || t.w9Failed);
+      setW9Msg(t.w9Failed);
       return;
     }
     setW9Msg(t.w9Done);

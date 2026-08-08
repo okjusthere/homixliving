@@ -13,6 +13,8 @@ import { computeCommission } from "@/lib/commission";
 import {
   SALE_REPRESENTATION_OPTIONS,
   SALE_STAGE_OPTIONS,
+  saleRepresentationLabel,
+  saleStageLabel,
   type SaleRepresentation,
   type SaleStage,
 } from "@/lib/sales";
@@ -85,6 +87,8 @@ const M = {
     closingSet: "Closing set",
     grossCommissionLabel: "Gross Commission",
     netSplitBase: "Net split base",
+    share: "share",
+    split: "split",
     errAddressRequired: "Property address is required",
     errAgentSelected: "Every sale agent must be selected",
     errAgentsUnique: "Sale agents must be unique",
@@ -158,6 +162,8 @@ const M = {
     closingSet: "过户已定",
     grossCommissionLabel: "总佣金",
     netSplitBase: "净分成基数",
+    share: "成交占比",
+    split: "经纪人分成",
     errAddressRequired: "房产地址为必填项",
     errAgentSelected: "请为每位经纪人选择人选",
     errAgentsUnique: "交易经纪人不能重复",
@@ -206,7 +212,8 @@ function SelectShell({
 
 export default function NewSalePage() {
   const router = useRouter();
-  const t = M[useLocale()];
+  const locale = useLocale();
+  const t = M[locale];
   const { data: session } = useSession();
   const [agents, setAgents] = useState<Array<{ agent: Agent; teamName: string | null }>>([]);
   const [saving, setSaving] = useState(false);
@@ -426,7 +433,7 @@ export default function NewSalePage() {
                 <SelectShell value={representationType} onChange={(value) => setRepresentationType(value as SaleRepresentation)}>
                   {SALE_REPRESENTATION_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
-                      {option.label}
+                      {option.labels[locale]}
                     </option>
                   ))}
                 </SelectShell>
@@ -435,7 +442,7 @@ export default function NewSalePage() {
                 <SelectShell value={stage} onChange={(value) => setStage(value as SaleStage)}>
                   {SALE_STAGE_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
-                      {option.label}
+                      {option.labels[locale]}
                     </option>
                   ))}
                 </SelectShell>
@@ -680,8 +687,8 @@ export default function NewSalePage() {
                   {[city, state, zip].filter(Boolean).join(", ") || t.locationPending}
                 </div>
                 <div className="mt-5 flex flex-wrap gap-2">
-                  <Pill tone="accent">{SALE_REPRESENTATION_OPTIONS.find((option) => option.value === representationType)?.label}</Pill>
-                  <Pill tone="neutral">{SALE_STAGE_OPTIONS.find((option) => option.value === stage)?.label}</Pill>
+                  <Pill tone="accent">{saleRepresentationLabel(representationType, locale)}</Pill>
+                  <Pill tone="neutral">{saleStageLabel(stage, locale)}</Pill>
                   {closingDate && <Pill tone="draft">{t.closingSet}</Pill>}
                 </div>
 
@@ -708,7 +715,7 @@ export default function NewSalePage() {
                           {participant.agent!.name}
                         </div>
                         <div className="text-[11px]" style={{ color: tone.ink50 }}>
-                          {participant.sharePct}% share · {Number(participant.agent!.splitPct || 0)}% split
+                          {participant.sharePct}% {t.share} · {Number(participant.agent!.splitPct || 0)}% {t.split}
                         </div>
                       </div>
                     </div>

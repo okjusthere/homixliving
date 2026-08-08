@@ -28,6 +28,7 @@ export const SHARE_KINDS = [
   "neighborhood",
   "community",
   "development",
+  "market",
   "guide",
   "news",
 ] as const;
@@ -108,7 +109,7 @@ export async function withShareSchemaRetry<T>(
       typeof error === "object" && error !== null && "code" in error
         ? String((error as { code?: unknown }).code || "")
         : "";
-    if (code !== "42P01" && code !== "42703") throw error;
+    if (code !== "42P01" && code !== "42703" && code !== "23514") throw error;
     await ensureSchema(pgClient);
     return operation();
   }

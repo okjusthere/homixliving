@@ -16,6 +16,8 @@ import { PageHeader } from "@/components/homix/page-kit";
 import { SyncInvoicesButton } from "@/components/sync-invoices-button";
 import { FinanceExportButton } from "@/components/finance-export-button";
 import { getLocale } from "@/lib/i18n";
+import { commerceStatusLabel } from "@/lib/domain-labels";
+import { commerceProductName } from "@/lib/commerce/catalog";
 
 export const metadata: Metadata = { title: "Finance · Homix" };
 
@@ -145,7 +147,8 @@ export default async function FinancePage({
 }) {
   const session = await requireActiveAgent();
   if (!session.user.isAdmin) redirect("/");
-  const t = M[await getLocale()];
+  const locale = await getLocale();
+  const t = M[locale];
   const filters = await searchParams;
 
   const [orders, charges, roster] = await Promise.all([
@@ -155,6 +158,7 @@ export default async function FinancePage({
   ]);
 
   const agentByEmail = new Map(roster.map((a) => [String(a.email || "").toLowerCase(), a]));
+  const orderById = new Map(orders.map((order) => [order.id, order]));
   const nameFor = (email: string | null, fallback: string | null) => {
     const agent = agentByEmail.get(String(email || "").toLowerCase());
     return {
@@ -194,7 +198,11 @@ export default async function FinancePage({
         const { name } = nameFor(c.customerEmail, c.customerName);
         return { payerName: name, payerEmail: c.customerEmail || "" };
       })(),
-      product: c.productName || "—",
+      product: commerceProductName(
+        c.orderId ? orderById.get(c.orderId)?.productKey || "" : "",
+        c.productName || "—",
+        locale,
+      ),
       amountCents: c.amountCents,
       type:
         c.stripeSubscriptionId && firstCharge.get(c.stripeSubscriptionId)?.id !== c.id
@@ -217,7 +225,7 @@ export default async function FinancePage({
       date: orderDate(o),
       payerName: name,
       payerEmail: o.customerEmail || "",
-      product: o.productName,
+      product: commerceProductName(o.productKey, o.productName, locale),
       amountCents: o.amountCents,
       type: isSub ? "suborder" : "onetime",
       status: o.status,
@@ -426,7 +434,7 @@ export default async function FinancePage({
                 <option value="">{t.fAll}</option>
                 {statusOptions.map((sVal) => (
                   <option key={sVal} value={sVal}>
-                    {sVal}
+                    {commerceStatusLabel(sVal, locale)}
                   </option>
                 ))}
               </select>
@@ -536,7 +544,7 @@ export default async function FinancePage({
                       {typeLabel[r.type]}
                     </td>
                     <td className="px-5 py-3">
-                      <Pill tone={STATUS_TONE[r.status] ?? "neutral"}>{r.status}</Pill>
+                      <Pill tone={STATUS_TONE[r.status] ?? "neutral"}>{commerceStatusLabel(r.status, locale)}</Pill>
                     </td>
                   </tr>
                 ))}

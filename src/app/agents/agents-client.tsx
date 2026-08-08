@@ -105,6 +105,7 @@ const M = {
     cancel: "Cancel",
     saving: "Saving…",
     save: "Save",
+    syncWarning: "The Portal record was saved, but the public website did not finish syncing. Retry from the website roster.",
   },
   zh: {
     agentApproved: "经纪人已批准",
@@ -188,6 +189,7 @@ const M = {
     cancel: "取消",
     saving: "保存中…",
     save: "保存",
+    syncWarning: "Portal 档案已保存，但官网同步未完成；请稍后在官网名册中重试。",
   },
 } as const;
 
@@ -408,9 +410,9 @@ export default function AgentsConsole({ initialView }: { initialView: AdminView 
         body: JSON.stringify({ publicProfileId, referredByAgentId }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || t.couldNotApprove);
+      if (!res.ok) throw new Error(t.couldNotApprove);
       toast.success(t.agentApproved);
-      if (data.warning) toast.warning(data.warning);
+      if (data.warning) toast.warning(t.syncWarning);
       fetchAgents();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t.couldNotApprove);
@@ -495,12 +497,11 @@ export default function AgentsConsole({ initialView }: { initialView: AdminView 
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || `Save failed (HTTP ${res.status})`);
+        throw new Error(t.saveFailed);
       }
       const data = await res.json().catch(() => ({}));
       toast.success(editAgent.id ? t.agentSaved : t.agentCreated);
-      if (data.warning) toast.warning(data.warning);
+      if (data.warning) toast.warning(t.syncWarning);
       closeDialog();
       fetchAgents();
     } catch (err) {

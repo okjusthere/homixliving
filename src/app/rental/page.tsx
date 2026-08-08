@@ -13,7 +13,8 @@ import {
 } from "@/components/homix/page-kit";
 import { fmtDate, fmtMoney, tone } from "@/components/homix/tokens";
 import { sourceEmoji, sourceLabel } from "@/lib/sources";
-import { invoicePaymentTone, type InvoicePaymentSummary } from "@/lib/invoice-payment";
+import { invoicePaymentLabel, invoicePaymentTone, type InvoicePaymentSummary } from "@/lib/invoice-payment";
+import { dealStatusLabel } from "@/lib/domain-labels";
 import { useLocale } from "@/lib/i18n-client";
 import type { Agent, Building, Deal } from "@/db/schema";
 
@@ -121,7 +122,8 @@ function paymentDetail(summary: InvoicePaymentSummary, t: (typeof M)[keyof typeo
 }
 
 export default function DealsPage() {
-  const t = M[useLocale()];
+  const locale = useLocale();
+  const t = M[locale];
   const [deals, setDeals] = useState<DealRow[]>([]);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<"all" | "active" | "cancelled" | "completed">("all");
@@ -187,7 +189,7 @@ export default function DealsPage() {
           >
             <span>{row.deal.tenantName}</span>
             {row.deal.source && (
-              <span title={sourceLabel(row.deal.source)}>
+              <span title={sourceLabel(row.deal.source, locale)}>
                 · {sourceEmoji(row.deal.source)}
               </span>
             )}
@@ -246,7 +248,7 @@ export default function DealsPage() {
       render: (row) => (
         <div>
           <Pill tone={invoicePaymentTone(row.invoiceSummary.status)}>
-            {row.invoiceSummary.label}
+            {invoicePaymentLabel(row.invoiceSummary.status, locale)}
           </Pill>
           <div className="mt-1 text-[11.5px]" style={{ color: tone.ink50 }}>
             {paymentDetail(row.invoiceSummary, t)}
@@ -259,7 +261,7 @@ export default function DealsPage() {
       label: t.colStatus,
       width: "0.8fr",
       align: "right",
-      render: (row) => <Pill tone={statusTone(row.deal.status)}>{row.deal.status}</Pill>,
+      render: (row) => <Pill tone={statusTone(row.deal.status)}>{dealStatusLabel(row.deal.status, locale)}</Pill>,
     },
   ];
 

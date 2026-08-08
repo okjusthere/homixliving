@@ -90,7 +90,7 @@ const M = {
     agentDealShare: "deal share",
     splitSuffix: "split",
     source: "Source",
-    sourceSubtitle: "客源来自哪里？— 帮我们分析渠道转化",
+    sourceSubtitle: "Where did this lead originate? This helps us understand channel performance.",
     notes: "Notes",
     rentalSummary: "Rental Summary",
     selectBuildingPlaceholder: "Select building",
@@ -255,7 +255,8 @@ function initials(name: string) {
 export function RentalDealFormPage({ mode = "new", dealId }: RentalDealFormPageProps) {
   const router = useRouter();
   const { data: session } = useSession();
-  const t = M[useLocale()];
+  const locale = useLocale();
+  const t = M[locale];
   const isEdit = mode === "edit";
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [agents, setAgents] = useState<Array<{ agent: Agent; teamName: string | null }>>([]);
@@ -960,7 +961,7 @@ export function RentalDealFormPage({ mode = "new", dealId }: RentalDealFormPageP
                     }}
                   >
                     <span style={{ fontSize: 16 }}>{opt.emoji}</span>
-                    <span className={active ? "font-medium" : ""}>{opt.label}</span>
+                    <span className={active ? "font-medium" : ""}>{opt.labels[locale]}</span>
                   </button>
                 );
               })}

@@ -5,6 +5,50 @@ import { toast } from "sonner";
 import { Btn, Icons } from "./primitives";
 import { tone } from "./tokens";
 import type { Building, Invoice } from "@/db/schema";
+import { useLocale } from "@/lib/i18n-client";
+
+const M = {
+  en: {
+    recipientRequired: "Please enter a recipient email",
+    sent: "Invoice sent",
+    failed: "Failed to send",
+    compose: "Compose email",
+    send: (number: string) => `Send ${number}`,
+    close: "Close",
+    from: "From",
+    to: "To",
+    cc: "Cc",
+    replyTo: "Reply-To",
+    subject: "Subject",
+    preview: "Preview",
+    onePage: "Letter · 1 page",
+    specialRequirement: "Special requirement:",
+    tracked: "Sent via Resend · tracked",
+    cancel: "Cancel",
+    sending: "Sending…",
+    sendInvoice: "Send Invoice",
+  },
+  zh: {
+    recipientRequired: "请输入收件人邮箱",
+    sent: "发票已发送",
+    failed: "发送失败",
+    compose: "撰写邮件",
+    send: (number: string) => `发送 ${number}`,
+    close: "关闭",
+    from: "发件人",
+    to: "收件人",
+    cc: "抄送",
+    replyTo: "回复至",
+    subject: "主题",
+    preview: "预览",
+    onePage: "Letter 纸 · 1 页",
+    specialRequirement: "特别要求：",
+    tracked: "通过 Resend 发送并追踪",
+    cancel: "取消",
+    sending: "发送中…",
+    sendInvoice: "发送发票",
+  },
+} as const;
 
 type Settings = Record<string, string>;
 
@@ -21,6 +65,8 @@ export function SendDialog({
   onClose: () => void;
   onSent: () => void;
 }) {
+  const locale = useLocale();
+  const t = M[locale];
   const [emailTo, setEmailTo] = useState(building.contactEmail || "");
   const [emailCc, setEmailCc] = useState(settings.cc_email || "homix@homixny.com");
   const [emailReplyTo, setEmailReplyTo] = useState(invoice.agentEmail || "");
@@ -32,7 +78,7 @@ export function SendDialog({
 
   const handleSend = async () => {
     if (!emailTo.trim()) {
-      toast.error("Please enter a recipient email");
+      toast.error(t.recipientRequired);
       return;
     }
     setSending(true);
@@ -68,10 +114,10 @@ export function SendDialog({
         throw new Error(data.error || `Send failed (HTTP ${res.status})`);
       }
 
-      toast.success("Invoice sent");
+      toast.success(t.sent);
       onSent();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to send";
+      const msg = locale === "en" && err instanceof Error ? err.message : t.failed;
       toast.error(msg);
     } finally {
       setSending(false);
@@ -103,7 +149,7 @@ export function SendDialog({
               className="text-[11px] uppercase tracking-[0.14em]"
               style={{ color: tone.ink50 }}
             >
-              Compose email
+              {t.compose}
             </div>
             <div
               className="font-serif"
@@ -114,14 +160,14 @@ export function SendDialog({
                 marginTop: 2,
               }}
             >
-              Send {invoice.invoiceNumber}
+              {t.send(invoice.invoiceNumber)}
             </div>
           </div>
           <button
             onClick={onClose}
             className="w-8 h-8 rounded-full flex items-center justify-center"
             style={{ background: tone.paperDeep, color: tone.ink70 }}
-            aria-label="Close"
+            aria-label={t.close}
           >
             ×
           </button>
@@ -132,7 +178,7 @@ export function SendDialog({
           {/* Email composer */}
           <div className="rounded-lg overflow-hidden" style={{ border: `1px solid ${tone.line}` }}>
             <FieldRow
-              label="From"
+              label={t.from}
               locked
               value={
                 <span style={{ color: tone.ink70 }}>
@@ -141,7 +187,7 @@ export function SendDialog({
               }
             />
             <FieldRow
-              label="To"
+              label={t.to}
               value={
                 <input
                   value={emailTo}
@@ -153,7 +199,7 @@ export function SendDialog({
               }
             />
             <FieldRow
-              label="Cc"
+              label={t.cc}
               value={
                 <input
                   value={emailCc}
@@ -164,7 +210,7 @@ export function SendDialog({
               }
             />
             <FieldRow
-              label="Reply-To"
+              label={t.replyTo}
               value={
                 <input
                   value={emailReplyTo}
@@ -177,7 +223,7 @@ export function SendDialog({
             />
             <FieldRow
               last
-              label="Subject"
+              label={t.subject}
               value={
                 <input
                   value={emailSubject}
@@ -233,11 +279,11 @@ export function SendDialog({
                 {invoice.fileName}.pdf
               </div>
               <div className="text-[11px] font-mono" style={{ color: tone.ink50 }}>
-                Letter · 1 page
+                {t.onePage}
               </div>
             </div>
             <span className="text-[12px]" style={{ color: tone.accent }}>
-              Preview
+              {t.preview}
             </span>
           </button>
 
@@ -246,7 +292,7 @@ export function SendDialog({
               className="rounded-lg p-4 text-[12.5px]"
               style={{ background: tone.roseSoft, color: tone.rose }}
             >
-              <strong>Special requirement: </strong>
+              <strong>{t.specialRequirement} </strong>
               {building.specialNotes}
             </div>
           )}
@@ -258,11 +304,11 @@ export function SendDialog({
           style={{ borderTop: `1px solid ${tone.line}`, background: tone.paper }}
         >
           <div className="text-[11.5px]" style={{ color: tone.ink50 }}>
-            Sent via Resend · tracked
+            {t.tracked}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Btn variant="outline" onClick={onClose}>
-              Cancel
+              {t.cancel}
             </Btn>
             <Btn
               variant="primary"
@@ -270,7 +316,7 @@ export function SendDialog({
               onClick={handleSend}
               disabled={sending || !emailTo.trim()}
             >
-              {sending ? "Sending…" : "Send Invoice"}
+              {sending ? t.sending : t.sendInvoice}
             </Btn>
           </div>
         </div>

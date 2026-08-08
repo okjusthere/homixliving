@@ -13,10 +13,12 @@ import type { CommissionBreakdown } from "@/lib/commission";
 import { sourceEmoji, sourceLabel } from "@/lib/sources";
 import { companySplitPct, normalizeSplitPct, splitLabel } from "@/lib/splits";
 import {
+  invoicePaymentLabel,
   invoicePaymentTone,
   summarizeInvoicePayment,
   type InvoicePaymentSummary,
 } from "@/lib/invoice-payment";
+import { dealStatusLabel } from "@/lib/domain-labels";
 import { useLocale } from "@/lib/i18n-client";
 import { DealDocuments } from "@/components/deal-documents";
 
@@ -189,7 +191,8 @@ function paymentDetail(summary: InvoicePaymentSummary, t: (typeof M)[keyof typeo
 export default function DealDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const t = M[useLocale()];
+  const locale = useLocale();
+  const t = M[locale];
   const id = String(params.id);
   const [payload, setPayload] = useState<DealPayload | null>(null);
   const [breakdown, setBreakdown] = useState<CommissionBreakdown | null>(null);
@@ -297,7 +300,7 @@ export default function DealDetailPage() {
           description={`${t.unit} ${deal.unit} · ${building.name}`}
           actions={
             <>
-              <Pill tone={statusTone(deal.status)}>{deal.status}</Pill>
+              <Pill tone={statusTone(deal.status)}>{dealStatusLabel(deal.status, locale)}</Pill>
               <Btn variant="outline" icon={<Icons.Edit />} onClick={() => router.push(`/rental/${id}/edit`)}>
                 {t.edit}
               </Btn>
@@ -362,7 +365,7 @@ export default function DealDetailPage() {
                     deal.source ? (
                       <span className="inline-flex items-center gap-1.5">
                         <span>{sourceEmoji(deal.source)}</span>
-                        <span>{sourceLabel(deal.source)}</span>
+                        <span>{sourceLabel(deal.source, locale)}</span>
                       </span>
                     ) : (
                       "—"
@@ -420,7 +423,7 @@ export default function DealDetailPage() {
                 title={t.paymentStatus}
                 action={
                   <Pill tone={invoicePaymentTone(invoiceSummary.status)}>
-                    {invoiceSummary.label}
+                    {invoicePaymentLabel(invoiceSummary.status, locale)}
                   </Pill>
                 }
               />
@@ -573,7 +576,7 @@ export default function DealDetailPage() {
                         </div>
                         <div className="text-right">
                           <Pill tone={invoicePaymentTone(summary.status)}>
-                            {summary.label}
+                            {invoicePaymentLabel(summary.status, locale)}
                           </Pill>
                           <div className="mt-1 font-serif" style={{ fontSize: 18, color: tone.ink }}>
                             ${fmtMoney(Number(invoice.totalAmount || 0))}

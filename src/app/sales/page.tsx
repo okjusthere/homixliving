@@ -13,6 +13,7 @@ import {
 } from "@/components/homix/page-kit";
 import { fmtDate, fmtMoney, tone } from "@/components/homix/tokens";
 import { saleRepresentationLabel, saleStageLabel } from "@/lib/sales";
+import { dealStatusLabel } from "@/lib/domain-labels";
 import type { Agent, SaleDeal } from "@/db/schema";
 import { useLocale } from "@/lib/i18n-client";
 
@@ -82,7 +83,8 @@ function statusTone(status: string) {
 }
 
 export default function SalesPage() {
-  const t = M[useLocale()];
+  const locale = useLocale();
+  const t = M[locale];
   const [sales, setSales] = useState<SaleRow[]>([]);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<"all" | "active" | "cancelled" | "completed">("all");
@@ -165,10 +167,10 @@ export default function SalesPage() {
       render: (row) => (
         <div>
           <div className="text-[12.5px]" style={{ color: tone.ink70 }}>
-            {saleRepresentationLabel(row.saleDeal.representationType)}
+            {saleRepresentationLabel(row.saleDeal.representationType, locale)}
           </div>
           <div className="mt-1">
-            <Pill tone="neutral">{saleStageLabel(row.saleDeal.stage)}</Pill>
+            <Pill tone="neutral">{saleStageLabel(row.saleDeal.stage, locale)}</Pill>
           </div>
         </div>
       ),
@@ -228,7 +230,7 @@ export default function SalesPage() {
       label: t.colStatus,
       width: "0.8fr",
       align: "right",
-      render: (row) => <Pill tone={statusTone(row.saleDeal.status)}>{row.saleDeal.status}</Pill>,
+      render: (row) => <Pill tone={statusTone(row.saleDeal.status)}>{dealStatusLabel(row.saleDeal.status, locale)}</Pill>,
     },
   ];
 

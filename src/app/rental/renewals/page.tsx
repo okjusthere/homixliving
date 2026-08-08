@@ -44,6 +44,7 @@ const M = {
     colAction: "Action",
     dAgo: "d ago",
     d: "d",
+    perMonth: "/ mo",
     reset: "reset",
     statusUpdated: "Status updated",
     updateFailed: "Update failed",
@@ -70,6 +71,7 @@ const M = {
     colAction: "操作",
     dAgo: "天前",
     d: "天",
+    perMonth: "/ 月",
     reset: "重置",
     statusUpdated: "状态已更新",
     updateFailed: "更新失败",
@@ -101,7 +103,8 @@ type RenewalRow = {
 };
 
 export default function RenewalsPage() {
-  const t = M[useLocale()];
+  const locale = useLocale();
+  const t = M[locale];
   const STATUS_OPTIONS: Array<{ value: string; label: string }> = [
     { value: "pending", label: t.statusPending },
     { value: "renewing", label: t.statusRenewing },
@@ -197,7 +200,7 @@ export default function RenewalsPage() {
           <div className="mt-0.5 text-[11.5px]" style={{ color: tone.ink50 }}>
             {row.deal.tenantName}
             {row.deal.rentAmount
-              ? ` · $${fmtMoney(Number(row.deal.rentAmount))} / mo`
+              ? ` · $${fmtMoney(Number(row.deal.rentAmount))} ${t.perMonth}`
               : ""}
           </div>
         </div>
@@ -248,7 +251,7 @@ export default function RenewalsPage() {
         <div className="flex items-center justify-end gap-2">
           {row.deal.renewalStatus && row.deal.renewalStatus !== "pending" ? (
             <Pill tone={renewalStatusTone(row.deal.renewalStatus)}>
-              {renewalStatusLabel(row.deal.renewalStatus)}
+              {renewalStatusLabel(row.deal.renewalStatus, locale)}
             </Pill>
           ) : (
             <select
@@ -303,7 +306,7 @@ export default function RenewalsPage() {
           onChange={setActiveWindow}
           options={(["all", ...RENEWAL_WINDOWS] as const).map((w) => ({
             id: w,
-            label: w === "all" ? t.all : windowLabel(w),
+            label: w === "all" ? t.all : windowLabel(w, locale),
             count: counts[w],
           }))}
         />

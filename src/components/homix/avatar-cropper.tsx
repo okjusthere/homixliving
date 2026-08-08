@@ -7,6 +7,32 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from "react";
+import { useLocale } from "@/lib/i18n-client";
+
+const M = {
+  en: {
+    portrait: "Portrait 4:5",
+    square: "Square 1:1",
+    dropPrefix: "Drop a photo here, or",
+    choose: "choose a file",
+    takePhoto: "take a photo",
+    photoHint: "On mobile, you can take a photo. A clean, solid background works best.",
+    zoom: "Zoom",
+    dragHint: "Drag the photo to reposition it.",
+    fileHint: "JPG or PNG, up to 8 MB.",
+  },
+  zh: {
+    portrait: "竖版 4:5",
+    square: "方形 1:1",
+    dropPrefix: "拖照片到这里，或",
+    choose: "选择文件",
+    takePhoto: "拍照",
+    photoHint: "手机可直接拍照；干净纯色背景的证件照效果最好。",
+    zoom: "缩放",
+    dragHint: "拖动照片可调整位置。",
+    fileHint: "JPG 或 PNG，最大 8 MB。",
+  },
+} as const;
 
 /**
  * Dependency-free headshot cropper (ported from the marketing site). The agent
@@ -36,6 +62,7 @@ export function AvatarCropper({
   /** Fired true once a cropped photo has been written to the hidden input. */
   onPick?: (hasPhoto: boolean) => void;
 }) {
+  const t = M[useLocale()];
   const fileInputRef = useRef<HTMLInputElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
@@ -237,7 +264,7 @@ export function AvatarCropper({
                   ratio === r ? "bg-ink text-paper" : "text-ink-50 hover:text-ink"
                 }`}
               >
-                {r === "portrait" ? "竖版 4:5" : "方形 1:1"}
+                {r === "portrait" ? t.portrait : t.square}
               </button>
             ))}
           </div>
@@ -259,9 +286,9 @@ export function AvatarCropper({
             }`}
           >
             <p className="text-sm text-ink">
-              拖照片到这里，或{" "}
+              {t.dropPrefix}{" "}
               <label className="cursor-pointer text-bronze underline-offset-4 hover:underline">
-                选择文件
+                {t.choose}
                 <input
                   type="file"
                   accept="image/*"
@@ -274,7 +301,7 @@ export function AvatarCropper({
               </label>{" "}
               <span className="text-ink-50">·</span>{" "}
               <label className="cursor-pointer text-bronze underline-offset-4 hover:underline sm:hidden">
-                拍照
+                {t.takePhoto}
                 <input
                   type="file"
                   accept="image/*"
@@ -288,13 +315,13 @@ export function AvatarCropper({
               </label>
             </p>
             <p className="mt-1 text-xs text-ink-50">
-              手机可点「拍照」· 干净纯色背景的证件照效果最好
+              {t.photoHint}
             </p>
           </div>
 
           {editing && (
             <label className="flex items-center gap-3 text-xs text-ink-50">
-              <span className="w-9 shrink-0">缩放</span>
+              <span className="w-9 shrink-0">{t.zoom}</span>
               <input
                 type="range"
                 min={1}
@@ -303,12 +330,12 @@ export function AvatarCropper({
                 value={zoom}
                 onChange={(e) => onZoom(Number(e.target.value))}
                 className="h-1 flex-1 cursor-pointer appearance-none rounded-full bg-line accent-bronze"
-                aria-label="Zoom"
+                aria-label={t.zoom}
               />
             </label>
           )}
           <p className="text-xs text-ink-50">
-            {editing ? "拖动照片可调整位置。" : "JPG / PNG，最大 8MB。"}
+            {editing ? t.dragHint : t.fileHint}
           </p>
         </div>
       </div>

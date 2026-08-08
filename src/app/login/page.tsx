@@ -8,6 +8,46 @@ import { HomixMark } from "@/components/homix/brand-mark";
 import { tone } from "@/components/homix/tokens";
 import { Copy, Smartphone } from "lucide-react";
 import { toast } from "sonner";
+import { useLocale } from "@/lib/i18n-client";
+
+const M = {
+  en: {
+    signIn: "Sign in",
+    title: "Welcome back.",
+    lead: "Use your Google account to access Homix Agents.",
+    browserTitle: (name: string) => `You are using ${name}'s in-app browser.`,
+    browserLead: "Google sign-in may not finish here.",
+    copy: "Copy login link",
+    copied: "Login link copied",
+    copyFailed: "Could not copy the login link",
+    signInFailed: "Could not sign in with Google",
+    accessDenied: "Access denied. Your account may be pending activation.",
+    genericError: "Sign-in failed. Please try again.",
+    continueGoogle: "Continue with Google",
+    redirecting: "Redirecting…",
+    loading: "Loading sign-in options…",
+    notConfigured: "Google sign-in is not configured.",
+    guideAlt: "WeChat menu showing how to open this login page in the default browser",
+  },
+  zh: {
+    signIn: "登录",
+    title: "欢迎回来。",
+    lead: "使用 Google 账号登录 Homix Agents。",
+    browserTitle: (name: string) => `你正在使用 ${name} 内置浏览器。`,
+    browserLead: "Google 登录可能无法在此完成。",
+    copy: "复制登录链接",
+    copied: "登录链接已复制",
+    copyFailed: "无法复制登录链接",
+    signInFailed: "无法使用 Google 登录",
+    accessDenied: "无法访问，你的账号可能仍在等待管理员批准。",
+    genericError: "登录失败，请重试。",
+    continueGoogle: "使用 Google 继续",
+    redirecting: "正在跳转…",
+    loading: "正在加载登录方式…",
+    notConfigured: "Google 登录尚未配置。",
+    guideAlt: "微信中使用默认浏览器打开登录页的操作示意图",
+  },
+} as const;
 
 export default function LoginPage() {
   return (
@@ -48,6 +88,7 @@ type Providers = Record<
 type InAppBrowserWarning = {
   name: string;
   instruction: string;
+  instructionZh: string;
   guideImageSrc?: string;
 };
 
@@ -56,6 +97,7 @@ function detectInAppBrowser(userAgent: string): InAppBrowserWarning | null {
     return {
       name: "WeChat",
       instruction: "Tap the top-right “...” menu, then choose “Open in default browser”.",
+      instructionZh: "请点右上角的三个点“...”，然后选择“用默认浏览器打开”。",
       guideImageSrc: "/auth/wechat-open-default-browser.jpg",
     };
   }
@@ -64,6 +106,7 @@ function detectInAppBrowser(userAgent: string): InAppBrowserWarning | null {
     return {
       name: "Instagram",
       instruction: "Use the menu to open this page in Safari or Chrome.",
+      instructionZh: "请从菜单中选择使用 Safari 或 Chrome 打开此页面。",
     };
   }
 
@@ -71,6 +114,7 @@ function detectInAppBrowser(userAgent: string): InAppBrowserWarning | null {
     return {
       name: "Facebook",
       instruction: "Use the menu to open this page in Safari or Chrome.",
+      instructionZh: "请从菜单中选择使用 Safari 或 Chrome 打开此页面。",
     };
   }
 
@@ -78,6 +122,7 @@ function detectInAppBrowser(userAgent: string): InAppBrowserWarning | null {
     return {
       name: "LINE",
       instruction: "Use the menu to open this page in Safari or Chrome.",
+      instructionZh: "请从菜单中选择使用 Safari 或 Chrome 打开此页面。",
     };
   }
 
@@ -85,6 +130,7 @@ function detectInAppBrowser(userAgent: string): InAppBrowserWarning | null {
     return {
       name: "TikTok",
       instruction: "Use the menu to open this page in Safari or Chrome.",
+      instructionZh: "请从菜单中选择使用 Safari 或 Chrome 打开此页面。",
     };
   }
 
@@ -92,6 +138,8 @@ function detectInAppBrowser(userAgent: string): InAppBrowserWarning | null {
 }
 
 function LoginInner() {
+  const locale = useLocale();
+  const t = M[locale];
   const params = useSearchParams();
   const error = params.get("error");
   const [submittingGoogle, setSubmittingGoogle] = useState(false);
@@ -125,7 +173,7 @@ function LoginInner() {
     try {
       await signIn("google", { redirect: true, redirectTo: "/" });
     } catch {
-      toast.error("Could not sign in with Google");
+      toast.error(t.signInFailed);
       setSubmittingGoogle(false);
     }
   };
@@ -133,9 +181,9 @@ function LoginInner() {
   const copyLoginLink = async () => {
     try {
       await navigator.clipboard.writeText(window.location.href);
-      toast.success("Login link copied");
+      toast.success(t.copied);
     } catch {
-      toast.error("Could not copy the login link");
+      toast.error(t.copyFailed);
     }
   };
 
@@ -154,7 +202,7 @@ function LoginInner() {
             className="text-[11px] uppercase tracking-[0.16em] mb-2"
             style={{ color: tone.ink50 }}
           >
-            Sign in
+            {t.signIn}
           </div>
           <h1
             className="font-serif"
@@ -166,10 +214,10 @@ function LoginInner() {
               marginBottom: 8,
             }}
           >
-            Welcome back.
+            {t.title}
           </h1>
           <p className="text-[13.5px]" style={{ color: tone.ink70 }}>
-            Use your Google account to access the Homix agent portal.
+            {t.lead}
           </p>
 
           {inAppBrowser && (
@@ -185,13 +233,11 @@ function LoginInner() {
                 <Smartphone className="mt-0.5 size-4 shrink-0" aria-hidden />
                 <div className="min-w-0">
                   <p className="text-[13px] font-medium">
-                    You are using {inAppBrowser.name}&apos;s in-app browser.
+                    {t.browserTitle(inAppBrowser.name)}
                   </p>
                   <p className="mt-1 text-[12.5px] leading-5">
-                    Google sign-in may not finish here. {inAppBrowser.instruction}
-                  </p>
-                  <p className="mt-1 text-[12.5px] leading-5">
-                    正在使用 App 内置浏览器时，Google 登录可能无法完成。请点右上角的三个点“...”，然后选择“用默认浏览器打开”。
+                    {t.browserLead}{" "}
+                    {locale === "zh" ? inAppBrowser.instructionZh : inAppBrowser.instruction}
                   </p>
                   {inAppBrowser.guideImageSrc && (
                     <a
@@ -203,7 +249,7 @@ function LoginInner() {
                     >
                       <Image
                         src={inAppBrowser.guideImageSrc}
-                        alt="WeChat menu showing how to open this login page in the default browser"
+                        alt={t.guideAlt}
                         width={1179}
                         height={2556}
                         className="max-h-[360px] w-full object-contain"
@@ -222,7 +268,7 @@ function LoginInner() {
                     }}
                   >
                     <Copy className="size-3.5" aria-hidden />
-                    Copy login link
+                    {t.copy}
                   </button>
                 </div>
               </div>
@@ -239,8 +285,8 @@ function LoginInner() {
               }}
             >
               {error === "AccessDenied"
-                ? "Access denied. Your account may be pending activation."
-                : "Sign-in failed. Please try again."}
+                ? t.accessDenied
+                : t.genericError}
             </div>
           )}
 
@@ -262,8 +308,8 @@ function LoginInner() {
                 <GoogleLogo />
                 <span>
                   {submittingGoogle
-                    ? "Redirecting..."
-                    : "Continue with Google"}
+                    ? t.redirecting
+                    : t.continueGoogle}
                 </span>
               </button>
             </div>
@@ -271,13 +317,13 @@ function LoginInner() {
 
           {!providers && (
             <div className="mt-6 text-[12px] text-center" style={{ color: tone.ink50 }}>
-              Loading sign-in options...
+              {t.loading}
             </div>
           )}
 
           {providers && !hasGoogle && (
             <div className="mt-6 text-[12px] text-center" style={{ color: tone.ink50 }}>
-              Google sign-in is not configured.
+              {t.notConfigured}
             </div>
           )}
         </div>
