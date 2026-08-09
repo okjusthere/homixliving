@@ -144,9 +144,14 @@ export default function MarketClient() {
     void loadMarket(DEFAULT_FILTERS);
   }, [loadMarket]);
 
-  const maxTrendCount = useMemo(
-    () => Math.max(1, ...(data?.trend.flatMap((row) => [row.newListings, row.closedListings]) || [1])),
+  const trendRows = useMemo(
+    () => [...(data?.trend || [])].sort((a, b) => b.month.localeCompare(a.month)),
     [data],
+  );
+
+  const maxTrendCount = useMemo(
+    () => Math.max(1, ...trendRows.flatMap((row) => [row.newListings, row.closedListings])),
+    [trendRows],
   );
 
   const metrics = data
@@ -248,11 +253,11 @@ export default function MarketClient() {
 
           <Card className="overflow-hidden">
             <CardHeader title={t.trend} subtitle={t.trendDetail} />
-            {data.trend.length === 0 ? (
+            {trendRows.length === 0 ? (
               <div className="px-5 py-12 text-center text-[13px]" style={{ color: tone.ink50 }}>{t.noTrend}</div>
             ) : (
               <div className="divide-y" style={{ borderColor: tone.lineSoft }}>
-                {data.trend.map((row) => (
+                {trendRows.map((row) => (
                   <div key={row.month} className="grid gap-3 px-4 py-4 sm:grid-cols-[90px_minmax(0,1fr)_150px] sm:items-center sm:px-5">
                     <div className="font-mono text-[12px]" style={{ color: tone.ink70 }}>{row.month}</div>
                     <div className="space-y-2">
