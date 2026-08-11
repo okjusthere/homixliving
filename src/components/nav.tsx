@@ -10,7 +10,6 @@ import {
   BriefcaseBusiness,
   ChevronDown,
   ClipboardCheck,
-  FilePenLine,
   GraduationCap,
   History,
   Library,
@@ -30,6 +29,7 @@ const navItems = [
   { href: "/", key: "overview", adminOnly: false },
   { href: "/sales", key: "sales", adminOnly: false },
   { href: "/rental", key: "rental", adminOnly: false },
+  { href: "/offer", key: "offer", adminOnly: false },
   { href: "/share", key: "share", adminOnly: false },
   { href: "/profile/public", key: "profile", adminOnly: false },
   { href: "/agents", key: "agents", adminOnly: true },
@@ -44,7 +44,6 @@ const workspaceGroups = [
   {
     key: "transactionSupport",
     items: [
-      { href: "/offer", key: "offer", icon: FilePenLine },
       { href: "/market", key: "market", icon: LineChart },
       { href: "/expired-listings", key: "expiredListings", icon: History },
     ],
