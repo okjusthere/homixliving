@@ -52,8 +52,12 @@ export const authConfig: NextAuthConfig = {
       const PUBLIC_PATHS = [
         "/login",
         "/pending",
+        "/join",
         "/pay",
         "/api/auth",
+        // Pending users authenticate inside these handlers. They must be able
+        // to complete profile, agreement, and payment before activation.
+        "/api/onboarding",
         "/api/checkout",
         "/api/stripe/webhook",
         "/api/cron",

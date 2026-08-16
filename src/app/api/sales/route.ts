@@ -7,6 +7,11 @@ import { saleDealsVisibleToSql } from "@/lib/visibility";
 import { logAudit } from "@/lib/audit";
 import { dateOrNull } from "@/lib/db-time";
 import { MAX_MONEY_AMOUNT } from "@/lib/commission";
+import {
+  buildCompensationEstimate,
+  normalizeCompensationSource,
+  persistCompensationSnapshot,
+} from "@/lib/compensation-service";
 
 type SaleAgentPayload = {
   agentId: number;
@@ -106,6 +111,18 @@ async function cleanSalePayload(
     return { error: "Every sale agent must be active", status: 400 };
   }
 
+  const referralAmount = parseNumber(body.referralAmount) ?? 0;
+  const clientRebate = parseNumber(body.clientRebate) ?? 0;
+  if (referralAmount < 0 || referralAmount > grossCommission) {
+    return { error: "Referral amount must be between 0 and gross commission" };
+  }
+  if (clientRebate < 0 || clientRebate > grossCommission) {
+    return { error: "Client rebate must be between 0 and gross commission" };
+  }
+  const compensationSource = referralAmount > 0
+    ? "outside"
+    : normalizeCompensationSource(body.compensationSource, "sale");
+
   return {
     data: {
       representationType,
@@ -124,7 +141,7 @@ async function cleanSalePayload(
       closingDate: dateOrNull(body.closingDate),
       purchasePrice: parseNumber(body.purchasePrice),
       grossCommission,
-      referralAmount: parseNumber(body.referralAmount),
+      referralAmount,
       brokerageFee: parseNumber(body.brokerageFee),
       listingAgentName: stringOrNull(body.listingAgentName),
       listingAgentEmail: stringOrNull(body.listingAgentEmail),
@@ -138,6 +155,8 @@ async function cleanSalePayload(
       lenderName: stringOrNull(body.lenderName),
       escrowHolder: stringOrNull(body.escrowHolder),
       source: stringOrNull(body.source),
+      compensationSource,
+      clientRebate,
       notes: stringOrNull(body.notes),
       updatedAt: new Date().toISOString(),
     },
@@ -221,6 +240,16 @@ export async function POST(req: NextRequest) {
     }
 
     const now = new Date().toISOString();
+    const effectiveDate = result.data.closingDate || result.data.contractDate || now.slice(0, 10);
+    const compensation = await buildCompensationEstimate({
+      dealType: "sale",
+      effectiveDate,
+      grossCommission: result.data.grossCommission,
+      source: result.data.compensationSource,
+      outsideReferralAmount: result.data.referralAmount,
+      rebateAmount: result.data.clientRebate,
+      participants: result.agents.map((agent) => ({ agentId: agent.agentId, sharePct: agent.sharePct })),
+    });
     const created = await db.transaction(async (tx) => {
       const [deal] = await tx
         .insert(saleDeals)
@@ -239,6 +268,12 @@ export async function POST(req: NextRequest) {
           createdAt: now,
         });
       }
+      await persistCompensationSnapshot(tx, {
+        dealType: "sale",
+        dealId: deal.id,
+        effectiveDate,
+        result: compensation,
+      });
       return deal;
     });
     await logAudit(
@@ -249,7 +284,7 @@ export async function POST(req: NextRequest) {
       `新建买卖成交 #${created.id} · ${created.propertyAddress}`,
       result.data
     );
-    return NextResponse.json(created, { status: 201 });
+    return NextResponse.json({ ...created, compensation }, { status: 201 });
   } catch {
     return NextResponse.json({ error: "Sale creation failed" }, { status: 500 });
   }

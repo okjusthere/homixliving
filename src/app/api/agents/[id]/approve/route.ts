@@ -14,6 +14,8 @@ import {
   setAdminPublicVisibility,
   type PublicProfile,
 } from "@/lib/homixweb";
+import { normalizeAgentPlan, PLAN_SPLIT_PCT } from "@/lib/agent-plans";
+import { isOnboardingV2Enforced, onboardingPaymentProduct } from "@/lib/onboarding";
 
 export async function POST(
   req: NextRequest,
@@ -37,6 +39,21 @@ export async function POST(
     .limit(1);
   if (!existing) {
     return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+  }
+  if (existing.accountStatus === "pending" && isOnboardingV2Enforced()) {
+    const paymentRequired = onboardingPaymentProduct(
+      normalizeAgentPlan(existing.plan),
+      existing.affiliationTermMonths,
+    );
+    if (!existing.onboardingCompletedAt) {
+      return NextResponse.json({ error: "The agent has not completed their onboarding profile." }, { status: 409 });
+    }
+    if (existing.agreementStatus !== "completed") {
+      return NextResponse.json({ error: "The affiliation agreement has not been signed." }, { status: 409 });
+    }
+    if (paymentRequired && existing.paymentStatus !== "paid") {
+      return NextResponse.json({ error: "The required affiliation fee has not been paid." }, { status: 409 });
+    }
   }
 
   // Roster details are captured here because approval is the one moment an
@@ -76,12 +93,21 @@ export async function POST(
     if (!team) return NextResponse.json({ error: "Team not found" }, { status: 404 });
   }
 
-  const splitPct = body.splitPct === undefined || body.splitPct === null || body.splitPct === ""
-    ? undefined
-    : Math.round(Number(body.splitPct));
-  if (splitPct !== undefined && (!Number.isFinite(splitPct) || splitPct < 0 || splitPct > 100)) {
-    return NextResponse.json({ error: "Split must be between 0 and 100" }, { status: 400 });
+  const effectiveTeamId = teamId !== undefined ? teamId : existing.teamId;
+  const isTeamLeader = await db
+    .select({ id: teams.id })
+    .from(teams)
+    .where(eq(teams.leaderAgentId, parsedId))
+    .limit(1)
+    .then((rows) => rows.length > 0);
+  const effectivePlan = isTeamLeader ? "team_leader" : normalizeAgentPlan(existing.plan);
+  if (effectivePlan === "team_member" && !effectiveTeamId) {
+    return NextResponse.json(
+      { error: "Team Member onboarding must select a team before approval." },
+      { status: 400 },
+    );
   }
+  const now = new Date().toISOString();
 
   let selectedProfile: PublicProfile | null = null;
   if (publicProfileId) {
@@ -129,8 +155,17 @@ export async function POST(
       // roster detail set earlier.
       ...(referredByAgentId !== undefined ? { referredByAgentId } : {}),
       ...(teamId !== undefined ? { teamId } : {}),
-      ...(splitPct !== undefined ? { splitPct } : {}),
-      updatedAt: new Date().toISOString(),
+      plan: effectivePlan,
+      splitPct: PLAN_SPLIT_PCT[effectivePlan],
+      planEffectiveFrom: existing.accountStatus === "pending"
+        ? now.slice(0, 10)
+        : existing.planEffectiveFrom || now.slice(0, 10),
+      anniversaryStart: existing.accountStatus === "pending"
+        ? existing.affiliationPaidAt || now.slice(0, 10)
+        : existing.anniversaryStart || existing.joinedAt || now.slice(0, 10),
+      onboardingCompletedAt: existing.onboardingCompletedAt || now,
+      onboardingStage: "complete",
+      updatedAt: now,
     })
     .where(eq(agents.id, parsedId))
     .returning();

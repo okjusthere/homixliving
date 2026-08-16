@@ -1,10 +1,17 @@
 import { NextResponse } from "next/server";
+import { auth } from "@/auth";
 import { db } from "@/db";
-import { commerceOrders } from "@/db/schema";
+import { agents, commerceOrders } from "@/db/schema";
 import { validateCheckoutPayload } from "@/lib/commerce/checkout";
 import { formatProductAmount, getProductStripePriceId } from "@/lib/commerce/catalog";
 import { getStripe, stripeId } from "@/lib/stripe";
-import { eq } from "drizzle-orm";
+import { and, desc, eq, gte, inArray } from "drizzle-orm";
+import { isOnboardingESignConfigured } from "@/lib/esign";
+import {
+  onboardingPaymentProduct,
+  SOLO_PRO_UPGRADE_CREDIT_DAYS,
+  soloProUpgradeCreditCents,
+} from "@/lib/onboarding";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,6 +28,14 @@ function getBaseUrl(request: Request): string {
 }
 
 export async function POST(request: Request) {
+  const session = await auth();
+  if (!session?.user?.agentId) {
+    return NextResponse.json({ error: "Sign in to Homix Agents before paying." }, { status: 401 });
+  }
+  const [agent] = await db.select().from(agents).where(eq(agents.id, session.user.agentId)).limit(1);
+  if (!agent || agent.accountStatus === "inactive") {
+    return NextResponse.json({ error: "Agent account is unavailable." }, { status: 403 });
+  }
   let body: unknown;
   try {
     body = await request.json();
@@ -28,12 +43,42 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
   }
 
-  const result = validateCheckoutPayload(body);
+  const sponsor = agent.referredByAgentId
+    ? await db.select({ name: agents.name }).from(agents).where(eq(agents.id, agent.referredByAgentId)).limit(1)
+    : [];
+  const result = validateCheckoutPayload({
+    ...(body && typeof body === "object" ? body : {}),
+    customerName: agent.legalName || agent.name,
+    customerEmail: agent.email,
+    referralHasAgent: agent.referredByAgentId ? "yes" : "no",
+    referralAgentName: sponsor[0]?.name || undefined,
+  });
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: 400 });
   }
 
   const { product, payload } = result;
+  const onboardingProduct = onboardingPaymentProduct(agent.plan, agent.affiliationTermMonths);
+  const isPlanPayment = [
+    "one_year_membership",
+    "two_year_membership",
+    "elite_desk_fee",
+    "growth_desk_fee",
+  ].includes(product.key);
+  if (agent.accountStatus === "pending" && isPlanPayment && product.key !== onboardingProduct) {
+    return NextResponse.json(
+      { error: "This payment does not match the selected compensation plan." },
+      { status: 409 },
+    );
+  }
+  if (
+    agent.accountStatus === "pending" &&
+    isPlanPayment &&
+    isOnboardingESignConfigured() &&
+    agent.agreementStatus !== "completed"
+  ) {
+    return NextResponse.json({ error: "Sign the affiliation agreement before paying." }, { status: 409 });
+  }
   const priceId = getProductStripePriceId(product);
   if (!priceId) {
     return NextResponse.json(
@@ -56,6 +101,7 @@ export async function POST(request: Request) {
   const [order] = await db
     .insert(commerceOrders)
     .values({
+      agentId: agent.id,
       productKey: product.key,
       productName: product.name,
       billingMode: product.billingMode,
@@ -82,9 +128,50 @@ export async function POST(request: Request) {
 
   try {
     const baseUrl = getBaseUrl(request);
+    let upgradeCreditCents = 0;
+    if (product.key === "elite_desk_fee") {
+      const threshold = new Date(Date.now() - SOLO_PRO_UPGRADE_CREDIT_DAYS * 86_400_000).toISOString();
+      const [priorBasePayment] = await db
+        .select({
+          productKey: commerceOrders.productKey,
+          amountCents: commerceOrders.amountCents,
+          paidAt: commerceOrders.paidAt,
+        })
+        .from(commerceOrders)
+        .where(and(
+          eq(commerceOrders.agentId, agent.id),
+          inArray(commerceOrders.productKey, ["one_year_membership", "two_year_membership"]),
+          inArray(commerceOrders.status, ["paid", "active"]),
+          gte(commerceOrders.paidAt, threshold),
+        ))
+        .orderBy(desc(commerceOrders.paidAt))
+        .limit(1);
+      if (priorBasePayment) {
+        upgradeCreditCents = soloProUpgradeCreditCents({
+          currentPlan: agent.plan,
+          priorProductKey: priorBasePayment.productKey,
+          priorAmountCents: priorBasePayment.amountCents,
+          priorPaidAt: priorBasePayment.paidAt,
+        });
+      }
+    }
+    const upgradeCoupon = upgradeCreditCents > 0
+      ? await stripe.coupons.create(
+          {
+            amount_off: upgradeCreditCents,
+            currency: product.currency,
+            duration: "once",
+            name: "90-day Solo Pro upgrade credit",
+            metadata: { agentId: String(agent.id), orderId: String(order.id) },
+          },
+          { idempotencyKey: `solo-pro-upgrade-credit-order-${order.id}` },
+        )
+      : null;
     const metadata = {
       orderId: String(order.id),
       productKey: product.key,
+      agentId: String(agent.id),
+      upgradeCreditCents: String(upgradeCreditCents),
     };
 
     const session = await stripe.checkout.sessions.create({
@@ -107,7 +194,8 @@ export async function POST(request: Request) {
               description: `${product.name} - ${formatProductAmount(product.amountCents)}`,
             }
           : undefined,
-      allow_promotion_codes: true,
+      discounts: upgradeCoupon ? [{ coupon: upgradeCoupon.id }] : undefined,
+      allow_promotion_codes: upgradeCoupon ? undefined : true,
       billing_address_collection: "auto",
       automatic_tax: { enabled: process.env.STRIPE_AUTOMATIC_TAX === "1" },
       success_url: `${baseUrl}/pay/success?session_id={CHECKOUT_SESSION_ID}`,

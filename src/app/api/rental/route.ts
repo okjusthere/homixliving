@@ -9,6 +9,11 @@ import { summarizeInvoicePayment } from "@/lib/invoice-payment";
 import { logAudit } from "@/lib/audit";
 import { dateOrNull } from "@/lib/db-time";
 import { MAX_MONEY_AMOUNT } from "@/lib/commission";
+import {
+  buildCompensationEstimate,
+  normalizeCompensationSource,
+  persistCompensationSnapshot,
+} from "@/lib/compensation-service";
 
 type DealAgentPayload = {
   agentId: number;
@@ -106,6 +111,14 @@ async function cleanDealPayload(
     return { error: "Referrer type must be percent or flat" };
   }
 
+  const compensationSource = referrerType
+    ? "outside"
+    : normalizeCompensationSource(body.compensationSource, "rental");
+  const clientRebate = parseNumber(body.clientRebate) ?? 0;
+  if (clientRebate < 0 || clientRebate > totalCommission) {
+    return { error: "Client rebate must be between 0 and total commission" };
+  }
+
   return {
     data: {
       buildingId,
@@ -128,6 +141,8 @@ async function cleanDealPayload(
       status,
       dealDate: dateOrNull(body.dealDate) || new Date().toISOString().slice(0, 10),
       source: stringOrNull(body.source),
+      compensationSource,
+      clientRebate,
       notes: stringOrNull(body.notes),
       updatedAt: new Date().toISOString(),
     },
@@ -224,6 +239,19 @@ export async function POST(req: NextRequest) {
     }
 
     const now = new Date().toISOString();
+    const effectiveDate = result.data.dealDate || now.slice(0, 10);
+    const outsideReferralAmount = result.data.referrerType === "percent"
+      ? result.data.totalCommission * (Number(result.data.referrerAmount || 0) / 100)
+      : Number(result.data.referrerAmount || 0);
+    const compensation = await buildCompensationEstimate({
+      dealType: "rental",
+      effectiveDate,
+      grossCommission: result.data.totalCommission,
+      source: result.data.compensationSource,
+      outsideReferralAmount,
+      rebateAmount: result.data.clientRebate,
+      participants: result.agents.map((agent) => ({ agentId: agent.agentId, sharePct: agent.sharePct })),
+    });
     const created = await db.transaction(async (tx) => {
       const [deal] = await tx
         .insert(deals)
@@ -242,6 +270,12 @@ export async function POST(req: NextRequest) {
           createdAt: now,
         });
       }
+      await persistCompensationSnapshot(tx, {
+        dealType: "rental",
+        dealId: deal.id,
+        effectiveDate,
+        result: compensation,
+      });
       return deal;
     });
     await logAudit(
@@ -252,7 +286,7 @@ export async function POST(req: NextRequest) {
       `新建租赁成交 #${created.id} · ${created.unit} · 租客 ${created.tenantName}`,
       result.data
     );
-    return NextResponse.json(created, { status: 201 });
+    return NextResponse.json({ ...created, compensation }, { status: 201 });
   } catch {
     return NextResponse.json({ error: "Deal creation failed" }, { status: 500 });
   }

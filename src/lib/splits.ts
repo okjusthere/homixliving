@@ -1,4 +1,4 @@
-export const DEFAULT_AGENT_SPLIT_PCT = 80;
+export const DEFAULT_AGENT_SPLIT_PCT = 85;
 
 export function normalizeSplitPct(value: number | null | undefined) {
   const parsed = Number(value);

@@ -7,9 +7,8 @@ import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import { Btn, Card, EditorialInput, Icons, LabeledField, Pill } from "@/components/homix/primitives";
 import { PageHeader, CardHeader } from "@/components/homix/page-kit";
-import { DealBreakdownBar } from "@/components/homix/deal-breakdown";
+import { CompensationV31Preview } from "@/components/homix/compensation-v31-preview";
 import { fmtMoney, tone } from "@/components/homix/tokens";
-import { computeCommission } from "@/lib/commission";
 import {
   SALE_REPRESENTATION_OPTIONS,
   SALE_STAGE_OPTIONS,
@@ -64,6 +63,13 @@ const M = {
     grossCommission: "Gross commission",
     referralAmount: "Referral amount",
     brokerageFee: "Brokerage/admin fee",
+    economicsSource: "Compensation source",
+    economicsSourceHint: "Select the deal fact. Your plan, cap, team split, fees, and sponsor are applied automatically.",
+    clientRebate: "Client rebate",
+    selfGenerated: "Self-generated",
+    teamGenerated: "Team-generated",
+    homixSalesLead: "Homix Sales lead · 25%",
+    outsideReferral: "Outside referral",
     outsideContacts: "Outside Contacts",
     listingAgent: "Listing agent",
     listingAgentEmail: "Listing agent email",
@@ -139,6 +145,13 @@ const M = {
     grossCommission: "总佣金",
     referralAmount: "转介费金额",
     brokerageFee: "经纪/管理费",
+    economicsSource: "分佣客源类型",
+    economicsSourceHint: "只选择交易事实；方案、封顶、团队分成、费用和 Sponsor 均由系统自动套用。",
+    clientRebate: "客户返佣",
+    selfGenerated: "自行开发",
+    teamGenerated: "团队提供",
+    homixSalesLead: "Homix 买卖客源 · 25%",
+    outsideReferral: "外部转介",
     outsideContacts: "外部联系人",
     listingAgent: "挂牌经纪人",
     listingAgentEmail: "挂牌经纪人邮箱",
@@ -234,7 +247,8 @@ export default function NewSalePage() {
   const [purchasePrice, setPurchasePrice] = useState("");
   const [grossCommission, setGrossCommission] = useState("");
   const [referralAmount, setReferralAmount] = useState("");
-  const [brokerageFee, setBrokerageFee] = useState("");
+  const [compensationSource, setCompensationSource] = useState<"self" | "team" | "homix_sales" | "outside">("self");
+  const [clientRebate, setClientRebate] = useState("");
   const [listingAgentName, setListingAgentName] = useState("");
   const [listingAgentEmail, setListingAgentEmail] = useState("");
   const [listingBrokerage, setListingBrokerage] = useState("");
@@ -280,24 +294,7 @@ export default function NewSalePage() {
 
   const shareTotal = selectedParticipants.reduce((sum, participant) => sum + Number(participant.sharePct || 0), 0);
   const referral = Number(referralAmount || 0);
-  const brokerage = Number(brokerageFee || 0);
-  const commissionBase = Math.max(0, Number(grossCommission || 0) - referral - brokerage);
-  const breakdown = useMemo(
-    () =>
-      computeCommission({
-        totalCommission: commissionBase,
-        agents: selectedParticipants
-          .filter((participant) => participant.agent)
-          .map((participant) => ({
-            agentId: participant.agent!.id,
-            name: participant.agent!.name,
-            sharePct: Number(participant.sharePct || 0),
-            splitPct: Number(participant.agent!.splitPct || 0),
-            isPrimary: participant.isPrimary,
-          })),
-      }),
-    [commissionBase, selectedParticipants]
-  );
+  const commissionBase = Math.max(0, Number(grossCommission || 0) - referral);
 
   const updateParticipant = (
     index: number,
@@ -368,7 +365,8 @@ export default function NewSalePage() {
           purchasePrice: purchasePrice ? Number(purchasePrice) : null,
           grossCommission: Number(grossCommission || 0),
           referralAmount: referralAmount ? Number(referralAmount) : null,
-          brokerageFee: brokerageFee ? Number(brokerageFee) : null,
+          compensationSource: referralAmount ? "outside" : compensationSource,
+          clientRebate: clientRebate ? Number(clientRebate) : 0,
           listingAgentName,
           listingAgentEmail,
           listingBrokerage,
@@ -583,8 +581,22 @@ export default function NewSalePage() {
               <LabeledField label={t.referralAmount}>
                 <EditorialInput value={referralAmount} onChange={setReferralAmount} type="number" prefix="$" mono />
               </LabeledField>
-              <LabeledField label={t.brokerageFee}>
-                <EditorialInput value={brokerageFee} onChange={setBrokerageFee} type="number" prefix="$" mono />
+              <LabeledField label={t.economicsSource}>
+                <select
+                  value={referralAmount ? "outside" : compensationSource}
+                  onChange={(event) => setCompensationSource(event.target.value as typeof compensationSource)}
+                  disabled={Boolean(referralAmount)}
+                  className="h-11 w-full rounded-lg px-3 text-[13.5px] outline-none disabled:opacity-60 sm:h-10"
+                  style={{ background: tone.card, border: `1px solid ${tone.line}`, color: tone.ink }}
+                >
+                  <option value="self">{t.selfGenerated}</option>
+                  <option value="team">{t.teamGenerated}</option>
+                  <option value="homix_sales">{t.homixSalesLead}</option>
+                  <option value="outside">{t.outsideReferral}</option>
+                </select>
+              </LabeledField>
+              <LabeledField label={t.clientRebate}>
+                <EditorialInput value={clientRebate} onChange={setClientRebate} type="number" prefix="$" mono />
               </LabeledField>
             </div>
           </Card>
@@ -723,7 +735,19 @@ export default function NewSalePage() {
                 </div>
 
                 <div className="mt-8">
-                  <DealBreakdownBar breakdown={breakdown} />
+                  <CompensationV31Preview
+                    dealType="sale"
+                    effectiveDate={closingDate || contractDate}
+                    grossCommission={Number(grossCommission || 0)}
+                    source={referralAmount ? "outside" : compensationSource}
+                    outsideReferralAmount={Number(referralAmount || 0)}
+                    rebateAmount={Number(clientRebate || 0)}
+                    participants={selectedParticipants.map((participant) => ({
+                      agentId: participant.agentId,
+                      name: participant.agent?.name || "",
+                      sharePct: Number(participant.sharePct || 0),
+                    }))}
+                  />
                 </div>
               </div>
             </Card>

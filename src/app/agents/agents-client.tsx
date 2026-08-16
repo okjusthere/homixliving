@@ -217,7 +217,7 @@ const emptyAgent: Partial<Agent> = {
   accountStatus: "active",
   joinedAt: "",
   notes: "",
-  plan: "standard",
+  plan: "solo",
   practice: null,
 };
 
@@ -667,7 +667,6 @@ export default function AgentsConsole({ initialView }: { initialView: AdminView 
                     size="sm"
                     icon={<Icons.Check />}
                     onClick={() => handleApprove(agent.id)}
-                    disabled={publicRosterLoading}
                   >
                     {t.approve}
                   </Btn>
@@ -932,16 +931,11 @@ export default function AgentsConsole({ initialView }: { initialView: AdminView 
                 {editAgent.id && <LabeledField label={t.labelLicenseExpires}>
                   <EditorialInput value={editAgent.licenseExpiresAt || ""} onChange={(v) => updateField("licenseExpiresAt", v)} type="date" mono />
                 </LabeledField>}
-                {editAgent.id && <LabeledField label={t.labelKeep}>
-                  <EditorialInput value={editAgent.splitPct ?? DEFAULT_AGENT_SPLIT_PCT} onChange={(v) => updateField("splitPct", Number(v))} type="number" mono />
-                </LabeledField>}
                 {editAgent.id && <LabeledField label={t.labelPlan}>
                   <select
                     value={normalizeAgentPlan(editAgent.plan)}
                     onChange={(e) => {
                       const plan = e.target.value as (typeof AGENT_PLANS)[number];
-                      // Switching plan pre-fills that plan's standard split, but
-                      // the field stays editable — negotiated exceptions exist.
                       setEditAgent((cur) =>
                         cur ? { ...cur, plan, splitPct: PLAN_SPLIT_PCT[plan] } : cur,
                       );

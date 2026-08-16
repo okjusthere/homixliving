@@ -7,7 +7,7 @@ import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import { Btn, Card, EditorialInput, Icons, LabeledField, Pill } from "@/components/homix/primitives";
 import { PageHeader, CardHeader } from "@/components/homix/page-kit";
-import { DealBreakdownBar } from "@/components/homix/deal-breakdown";
+import { CompensationV31Preview } from "@/components/homix/compensation-v31-preview";
 import { fmtMoney, tone } from "@/components/homix/tokens";
 import { computeCommission } from "@/lib/commission";
 import { SOURCE_OPTIONS, type DealSource } from "@/lib/sources";
@@ -91,6 +91,13 @@ const M = {
     splitSuffix: "split",
     source: "Source",
     sourceSubtitle: "Where did this lead originate? This helps us understand channel performance.",
+    economicsSource: "Compensation source",
+    economicsSourceHint: "Select the deal fact. Your plan, cap, team split, fees, and sponsor are applied automatically.",
+    clientRebate: "Client rebate",
+    selfGenerated: "Self-generated",
+    teamGenerated: "Team-generated",
+    homixRentalLead: "Homix Rental lead · 15%",
+    outsideReferral: "Outside referral",
     notes: "Notes",
     rentalSummary: "Rental Summary",
     selectBuildingPlaceholder: "Select building",
@@ -193,6 +200,13 @@ const M = {
     splitSuffix: "分成",
     source: "来源",
     sourceSubtitle: "客源来自哪里？— 帮我们分析渠道转化",
+    economicsSource: "分佣客源类型",
+    economicsSourceHint: "只选择交易事实；方案、封顶、团队分成、费用和 Sponsor 均由系统自动套用。",
+    clientRebate: "客户返佣",
+    selfGenerated: "自行开发",
+    teamGenerated: "团队提供",
+    homixRentalLead: "Homix 租赁客源 · 15%",
+    outsideReferral: "外部转介",
     notes: "备注",
     rentalSummary: "租赁摘要",
     selectBuildingPlaceholder: "选择楼盘",
@@ -335,6 +349,8 @@ export function RentalDealFormPage({ mode = "new", dealId }: RentalDealFormPageP
   const [totalCommission, setTotalCommission] = useState("");
   const [notes, setNotes] = useState("");
   const [source, setSource] = useState<DealSource | "">("");
+  const [compensationSource, setCompensationSource] = useState<"self" | "team" | "homix_rental" | "outside">("self");
+  const [clientRebate, setClientRebate] = useState("");
 
   useEffect(() => {
     setLoading(true);
@@ -369,6 +385,12 @@ export function RentalDealFormPage({ mode = "new", dealId }: RentalDealFormPageP
         setReferrerPaymentInfo(deal.referrerPaymentInfo || "");
         setNotes(deal.notes || "");
         setSource(SOURCE_OPTIONS.some((opt) => opt.value === deal.source) ? (deal.source as DealSource) : "");
+        setCompensationSource(
+          ["self", "team", "homix_rental", "outside"].includes(deal.compensationSource)
+            ? (deal.compensationSource as "self" | "team" | "homix_rental" | "outside")
+            : "self",
+        );
+        setClientRebate(deal.clientRebate ? String(deal.clientRebate) : "");
         setDealParticipants(
           rentalPayload.agents.length > 0
             ? rentalPayload.agents.map((participant) => ({
@@ -535,6 +557,8 @@ export function RentalDealFormPage({ mode = "new", dealId }: RentalDealFormPageP
           referrerAmount: hasReferrer ? Number(referrerAmount || 0) : null,
           referrerPaymentInfo: hasReferrer ? referrerPaymentInfo.trim() || null : null,
           source: source || null,
+          compensationSource: hasReferrer ? "outside" : compensationSource,
+          clientRebate: clientRebate ? Number(clientRebate) : 0,
           notes,
         }),
       });
@@ -872,72 +896,42 @@ export function RentalDealFormPage({ mode = "new", dealId }: RentalDealFormPageP
               <LabeledField label={t.totalCommissionLabel}>
                 <EditorialInput value={totalCommission} onChange={setTotalCommission} type="number" prefix="$" mono />
               </LabeledField>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="rounded-lg p-4" style={{ background: tone.paper }}>
-                  <div className="text-[10px] uppercase tracking-[0.1em]" style={{ color: tone.ink50 }}>
-                    {t.referrer}
-                  </div>
-                  <div className="mt-1 font-serif" style={{ fontSize: 26, color: tone.amber }}>
-                    ${fmtMoney(breakdown.referrerCut)}
-                  </div>
-                </div>
-                <div className="rounded-lg p-4" style={{ background: tone.greenSoft }}>
-                  <div className="text-[10px] uppercase tracking-[0.1em]" style={{ color: tone.green }}>
-                    {t.agentKeeps}
-                  </div>
-                  <div className="mt-1 font-serif" style={{ fontSize: 26, color: tone.green }}>
-                    ${fmtMoney(breakdown.agentTakeTotal)}
-                  </div>
-                </div>
-                <div className="rounded-lg p-4" style={{ background: tone.paper }}>
-                  <div className="text-[10px] uppercase tracking-[0.1em]" style={{ color: tone.ink50 }}>
-                    {t.homixKeeps}
-                  </div>
-                  <div className="mt-1 font-serif" style={{ fontSize: 26, color: tone.ink }}>
-                    ${fmtMoney(breakdown.companyPoolTotal)}
-                  </div>
-                </div>
-              </div>
-              {breakdown.agents.length > 0 && (
-                <div className="space-y-2">
-                  {breakdown.agents.map((agentBreakdown) => (
-                    <div
-                      key={agentBreakdown.agentId}
-                      className="rounded-lg p-4"
-                      style={{ background: tone.card, border: `1px solid ${tone.line}` }}
-                    >
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                        <div className="min-w-0">
-                          <div className="font-serif" style={{ fontSize: 20, color: tone.ink }}>
-                            {agentBreakdown.name || t.agent}
-                          </div>
-                          <div className="text-[12px] mt-1" style={{ color: tone.ink50 }}>
-                            {agentBreakdown.sharePct}% {t.agentDealShare} · {splitLabel(agentBreakdown.splitPct)} {t.splitSuffix}
-                          </div>
-                        </div>
-                        <div className="grid w-full grid-cols-2 gap-3 sm:w-auto sm:text-right">
-                          <div>
-                            <div className="text-[10px] uppercase tracking-[0.1em]" style={{ color: tone.green }}>
-                              {t.agent}
-                            </div>
-                            <div className="font-mono text-[13px]" style={{ color: tone.green }}>
-                              ${fmtMoney(agentBreakdown.agentTake)}
-                            </div>
-                          </div>
-                          <div>
-                            <div className="text-[10px] uppercase tracking-[0.1em]" style={{ color: tone.ink50 }}>
-                              {t.homix}
-                            </div>
-                            <div className="font-mono text-[13px]" style={{ color: tone.ink }}>
-                              ${fmtMoney(agentBreakdown.companyPool)}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <CompensationV31Preview
+                dealType="rental"
+                effectiveDate={moveInDate}
+                grossCommission={Number(totalCommission || 0)}
+                source={hasReferrer ? "outside" : compensationSource}
+                outsideReferralAmount={breakdown.referrerCut}
+                rebateAmount={Number(clientRebate || 0)}
+                participants={selectedParticipants.map((participant) => ({
+                  agentId: participant.agentId,
+                  name: participant.agent?.name || "",
+                  sharePct: Number(participant.sharePct || 0),
+                }))}
+              />
+            </div>
+          </Card>
+
+          <Card>
+            <CardHeader title={t.economicsSource} subtitle={t.economicsSourceHint} />
+            <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 sm:p-6">
+              <LabeledField label={t.economicsSource}>
+                <select
+                  value={hasReferrer ? "outside" : compensationSource}
+                  onChange={(event) => setCompensationSource(event.target.value as typeof compensationSource)}
+                  disabled={hasReferrer}
+                  className="h-11 w-full rounded-lg px-3 text-[13.5px] outline-none disabled:opacity-60 sm:h-10"
+                  style={{ background: tone.card, border: `1px solid ${tone.line}`, color: tone.ink }}
+                >
+                  <option value="self">{t.selfGenerated}</option>
+                  <option value="team">{t.teamGenerated}</option>
+                  <option value="homix_rental">{t.homixRentalLead}</option>
+                  <option value="outside">{t.outsideReferral}</option>
+                </select>
+              </LabeledField>
+              <LabeledField label={t.clientRebate}>
+                <EditorialInput value={clientRebate} onChange={setClientRebate} type="number" prefix="$" mono />
+              </LabeledField>
             </div>
           </Card>
 
@@ -1005,9 +999,6 @@ export function RentalDealFormPage({ mode = "new", dealId }: RentalDealFormPageP
                       </div>
                     </div>
                   ))}
-                </div>
-                <div className="mt-8">
-                  <DealBreakdownBar breakdown={breakdown} />
                 </div>
                 <div className="mt-8 rounded-lg p-4" style={{ background: tone.paper }}>
                   <div className="text-[11px] uppercase tracking-[0.12em]" style={{ color: tone.ink50 }}>

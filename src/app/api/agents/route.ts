@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { agentPaymentProfiles, agents, dealAgents, deals, teams } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { requireActiveAgentApi, requireAdminApi } from "@/lib/auth-guards";
-import { isAgentPlan, isAgentPractice } from "@/lib/agent-plans";
+import { isAgentPractice, normalizeAgentPlan, PLAN_SPLIT_PCT } from "@/lib/agent-plans";
 import {
   activeDeal,
   commissionAgentsForDeal,
@@ -47,10 +47,8 @@ function invalidLicenseExpiry(body: Record<string, unknown>): boolean {
 }
 
 function cleanAdminAgentPayload(body: Record<string, unknown>) {
-  const splitPctRaw = numberOrNull(body.splitPct);
-  // The column is an integer percent; round rather than 500 on "82.5".
-  const splitPct = splitPctRaw === null ? null : Math.round(splitPctRaw);
   const teamId = numberOrNull(body.teamId);
+  const plan = normalizeAgentPlan(body.plan);
   return {
     name: String(body.name || "").trim(),
     email: normalizeEmail(body.email),
@@ -58,7 +56,7 @@ function cleanAdminAgentPayload(body: Record<string, unknown>) {
     licenseNumber: stringOrNull(body.licenseNumber),
     licenseExpiresAt: stringOrNull(body.licenseExpiresAt),
     licensedCompany: stringOrNull(body.licensedCompany),
-    splitPct: splitPct ?? DEFAULT_AGENT_SPLIT_PCT,
+    splitPct: PLAN_SPLIT_PCT[plan] ?? DEFAULT_AGENT_SPLIT_PCT,
     teamId,
     accountStatus: normalizeAgentAccountStatus(body.accountStatus, "active"),
     joinedAt: dateOrNull(body.joinedAt),
@@ -66,7 +64,11 @@ function cleanAdminAgentPayload(body: Record<string, unknown>) {
     legalName: stringOrNull(body.legalName),
     // Commission plan and practice area. Invalid values fall back rather than
     // 500 — the UI only ever sends the known set.
-    plan: isAgentPlan(body.plan) ? body.plan : "standard",
+    plan,
+    planEffectiveFrom: dateOrNull(body.planEffectiveFrom),
+    anniversaryStart: dateOrNull(body.anniversaryStart),
+    affiliationTermMonths: numberOrNull(body.affiliationTermMonths),
+    affiliationPaidAt: dateOrNull(body.affiliationPaidAt),
     practice: isAgentPractice(body.practice) ? body.practice : null,
     // Which existing agent recruited this one. Admin-entered only; the caller
     // sends an agent id, and self-referral is rejected below.
@@ -214,6 +216,9 @@ export async function POST(req: NextRequest) {
       const team = await db.select().from(teams).where(eq(teams.id, data.teamId)).then((rows) => rows[0]);
       if (!team) return NextResponse.json({ error: "Team not found" }, { status: 404 });
     }
+    if (data.plan === "team_member" && !data.teamId) {
+      return NextResponse.json({ error: "Team Member plan requires a team" }, { status: 400 });
+    }
 
     const [created] = await db
       .insert(agents)
@@ -302,7 +307,10 @@ export async function PUT(req: NextRequest) {
     if (invalidLicenseExpiry(body)) {
       return NextResponse.json({ error: "licenseExpiresAt must be YYYY-MM-DD" }, { status: 400 });
     }
-    const cleaned = cleanAdminAgentPayload({ ...body, email: existing.email });
+    const cleaned = cleanAdminAgentPayload({ ...existing, ...body, email: existing.email });
+    if (isAdmin && body.plan !== undefined && cleaned.plan !== normalizeAgentPlan(existing.plan)) {
+      cleaned.planEffectiveFrom = dateOrNull(body.planEffectiveFrom) || new Date().toISOString().slice(0, 10);
+    }
     const data = isAdmin
       ? {
           name: cleaned.name,
@@ -319,15 +327,23 @@ export async function PUT(req: NextRequest) {
           legalName: cleaned.legalName,
           referredByAgentId: cleaned.referredByAgentId,
           plan: cleaned.plan,
+          planEffectiveFrom: cleaned.planEffectiveFrom || existing.planEffectiveFrom,
+          anniversaryStart: cleaned.anniversaryStart || existing.anniversaryStart,
+          affiliationTermMonths: cleaned.affiliationTermMonths ?? existing.affiliationTermMonths,
+          affiliationPaidAt: cleaned.affiliationPaidAt ?? existing.affiliationPaidAt,
           practice: cleaned.practice,
           updatedAt: cleaned.updatedAt,
         }
       : {
-          name: String(body.name || existing.name).trim(),
-          phone: stringOrNull(body.phone),
-          licenseNumber: stringOrNull(body.licenseNumber),
+          name: String(body.name ?? existing.name).trim(),
+          phone: body.phone === undefined ? existing.phone : stringOrNull(body.phone),
+          licenseNumber: body.licenseNumber === undefined
+            ? existing.licenseNumber
+            : stringOrNull(body.licenseNumber),
           // Their license, their renewal date — self-editable like the number.
-          licenseExpiresAt: stringOrNull(body.licenseExpiresAt),
+          licenseExpiresAt: body.licenseExpiresAt === undefined
+            ? existing.licenseExpiresAt
+            : stringOrNull(body.licenseExpiresAt),
           updatedAt: new Date().toISOString(),
         };
 
@@ -359,6 +375,9 @@ export async function PUT(req: NextRequest) {
     if ("teamId" in data && data.teamId) {
       const team = await db.select().from(teams).where(eq(teams.id, data.teamId)).then((rows) => rows[0]);
       if (!team) return NextResponse.json({ error: "Team not found" }, { status: 404 });
+    }
+    if ("plan" in data && data.plan === "team_member" && !("teamId" in data && data.teamId)) {
+      return NextResponse.json({ error: "Team Member plan requires a team" }, { status: 400 });
     }
 
     if (

@@ -101,7 +101,38 @@ export const teams = portal.table("teams", {
   notes: text("notes"),
 });
 
+export const teamCompensationConfigs = portal.table(
+  "team_compensation_configs",
+  {
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    teamId: integer("team_id")
+      .notNull()
+      .references(() => teams.id, { onDelete: "cascade" }),
+    version: integer("version").notNull(),
+    effectiveFrom: dateCol("effective_from").notNull(),
+    defaultTeamSplitPct: integer("default_team_split_pct").notNull().default(10),
+    teamLeadSplitPct: integer("team_lead_split_pct").notNull().default(10),
+    teamCapCents: integer("team_cap_cents"),
+    createdByEmail: text("created_by_email"),
+    createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => [
+    uniqueIndex("uq_team_comp_config_version").on(table.teamId, table.version),
+    index("idx_team_comp_config_effective").on(table.teamId, table.effectiveFrom),
+  ],
+);
+
 export type AgentAccountStatus = "pending" | "active" | "inactive";
+export type OnboardingStage = "profile" | "agreement" | "payment" | "review" | "complete";
+export type OnboardingAgreementStatus =
+  | "not_started"
+  | "sent"
+  | "completed"
+  | "declined"
+  | "voided"
+  | "expired"
+  | "failed";
+export type OnboardingPaymentStatus = "pending" | "paid" | "not_required";
 
 export const agents = portal.table("agents", {
   id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
@@ -123,8 +154,29 @@ export const agents = portal.table("agents", {
   notes: text("notes"),
   /** Name on the licence / tax forms, when it differs from the display name. */
   legalName: text("legal_name"),
-  /** Commission plan — see lib/agent-plans.ts (standard 80 / growth 92 / elite 100). */
-  plan: text("plan").$type<AgentPlan>().notNull().default("standard"),
+  /** v3.1 compensation track. Legacy values are normalized by lib/agent-plans.ts. */
+  plan: text("plan").$type<AgentPlan>().notNull().default("solo"),
+  planEffectiveFrom: dateCol("plan_effective_from"),
+  anniversaryStart: dateCol("anniversary_start"),
+  affiliationTermMonths: integer("affiliation_term_months"),
+  affiliationPaidAt: dateCol("affiliation_paid_at"),
+  onboardingCompletedAt: timestamptz("onboarding_completed_at"),
+  onboardingStage: text("onboarding_stage")
+    .$type<OnboardingStage>()
+    .notNull()
+    .default("profile"),
+  onboardingSource: text("onboarding_source").notNull().default("direct"),
+  onboardingInviteId: integer("onboarding_invite_id"),
+  agreementStatus: text("agreement_status")
+    .$type<OnboardingAgreementStatus>()
+    .notNull()
+    .default("not_started"),
+  esignTransactionId: text("esign_transaction_id"),
+  esignEnvelopeId: text("esign_envelope_id"),
+  paymentStatus: text("payment_status")
+    .$type<OnboardingPaymentStatus>()
+    .notNull()
+    .default("pending"),
   /** rental | sales | both. Null when not yet specified. */
   practice: text("practice").$type<AgentPractice>(),
   /** Which existing agent recruited this one — set by an admin, never inferred. */
@@ -135,6 +187,38 @@ export const agents = portal.table("agents", {
   createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
   updatedAt: timestamptz("updated_at").$defaultFn(() => new Date().toISOString()),
 });
+
+// Recruiting campaign links freeze the facts that should never be inferred
+// from a free-text form: source brokerage, team, sponsor, and compensation
+// track. Only a SHA-256 token hash is stored; the plaintext token exists only
+// in the generated invitation URL.
+export const onboardingInvitations = portal.table(
+  "onboarding_invitations",
+  {
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    tokenHash: text("token_hash").notNull().unique(),
+    email: text("email"),
+    source: text("source").notNull().default("direct"),
+    teamId: integer("team_id").references(() => teams.id, { onDelete: "set null" }),
+    sponsorAgentId: integer("sponsor_agent_id").references(() => agents.id, {
+      onDelete: "set null",
+    }),
+    plan: text("plan").$type<AgentPlan>().notNull().default("solo"),
+    affiliationTermMonths: integer("affiliation_term_months").notNull().default(12),
+    expiresAt: timestamptz("expires_at").notNull(),
+    maxUses: integer("max_uses").notNull().default(1),
+    useCount: integer("use_count").notNull().default(0),
+    createdByAgentId: integer("created_by_agent_id").references(() => agents.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
+    revokedAt: timestamptz("revoked_at"),
+  },
+  (table) => [
+    index("idx_onboarding_invites_team").on(table.teamId),
+    index("idx_onboarding_invites_expires").on(table.expiresAt),
+  ],
+);
 
 export const rentalDeals = portal.table("rental_deals", {
   id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
@@ -164,6 +248,8 @@ export const rentalDeals = portal.table("rental_deals", {
   status: text("status").notNull().default("active"),
   dealDate: dateCol("deal_date"),
   source: text("source"), // 客源来源 — see DealSource in src/lib/sources.ts
+  compensationSource: text("compensation_source").notNull().default("self"),
+  clientRebate: money("client_rebate").notNull().default(0),
   notes: text("notes"),
   // Renewal tracking — for upcoming lease-end follow-ups
   renewalStatus: text("renewal_status"), // null | 'pending' | 'renewing' | 'moving_out' | 'renewed' | 'lost'
@@ -227,6 +313,8 @@ export const saleDeals = portal.table("sale_deals", {
   lenderName: text("lender_name"),
   escrowHolder: text("escrow_holder"),
   source: text("source"),
+  compensationSource: text("compensation_source").notNull().default("self"),
+  clientRebate: money("client_rebate").notNull().default(0),
   notes: text("notes"),
   // 登单人 — the signed-in account that entered this deal.
   createdByEmail: text("created_by_email"),
@@ -248,6 +336,73 @@ export const saleDealAgents = portal.table(
     createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
   },
   (table) => [primaryKey({ columns: [table.saleDealId, table.agentId] })]
+);
+
+export const dealCompensationSnapshots = portal.table(
+  "deal_compensation_snapshots",
+  {
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    dealType: text("deal_type").notNull(),
+    dealId: integer("deal_id").notNull(),
+    version: integer("version").notNull().default(1),
+    status: text("status").notNull().default("estimated"),
+    effectiveDate: dateCol("effective_date").notNull(),
+    grossCommission: money("gross_commission").notNull(),
+    sourceType: text("source_type").notNull().default("self"),
+    sourceFee: money("source_fee").notNull().default(0),
+    outsideReferral: money("outside_referral").notNull().default(0),
+    commissionBase: money("commission_base").notNull(),
+    companyDollar: money("company_dollar").notNull().default(0),
+    teamAllocation: money("team_allocation").notNull().default(0),
+    transactionFee: money("transaction_fee").notNull().default(0),
+    rebateAmount: money("rebate_amount").notNull().default(0),
+    sponsorAmount: money("sponsor_amount").notNull().default(0),
+    agentNetTotal: money("agent_net_total").notNull().default(0),
+    homixRetained: money("homix_retained").notNull().default(0),
+    policyVersion: text("policy_version").notNull().default("3.1"),
+    configuration: jsonb("configuration").$type<Record<string, unknown>>(),
+    finalizedAt: timestamptz("finalized_at"),
+    finalizedByEmail: text("finalized_by_email"),
+    supersededAt: timestamptz("superseded_at"),
+    createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => [
+    uniqueIndex("uq_deal_comp_snapshot_version").on(table.dealType, table.dealId, table.version),
+    index("idx_deal_comp_snapshot_current").on(table.dealType, table.dealId, table.supersededAt),
+  ],
+);
+
+export const dealCompensationAllocations = portal.table(
+  "deal_compensation_allocations",
+  {
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    snapshotId: integer("snapshot_id")
+      .notNull()
+      .references(() => dealCompensationSnapshots.id, { onDelete: "cascade" }),
+    agentId: integer("agent_id")
+      .notNull()
+      .references(() => agents.id, { onDelete: "restrict" }),
+    sharePct: fractionalPct("share_pct").notNull(),
+    plan: text("plan").notNull(),
+    teamId: integer("team_id").references(() => teams.id, { onDelete: "set null" }),
+    teamConfigId: integer("team_config_id").references(() => teamCompensationConfigs.id, { onDelete: "set null" }),
+    teamLeaderAgentId: integer("team_leader_agent_id").references((): AnyPgColumn => agents.id, { onDelete: "set null" }),
+    sponsorAgentId: integer("sponsor_agent_id").references((): AnyPgColumn => agents.id, { onDelete: "set null" }),
+    grossShare: money("gross_share").notNull(),
+    companyDollar: money("company_dollar").notNull().default(0),
+    companyCapCredit: money("company_cap_credit").notNull().default(0),
+    teamLeaderAllocation: money("team_leader_allocation").notNull().default(0),
+    teamCapCredit: money("team_cap_credit").notNull().default(0),
+    transactionFee: money("transaction_fee").notNull().default(0),
+    rebateAmount: money("rebate_amount").notNull().default(0),
+    sponsorAmount: money("sponsor_amount").notNull().default(0),
+    agentNet: money("agent_net").notNull().default(0),
+    createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => [
+    uniqueIndex("uq_deal_comp_allocation_agent").on(table.snapshotId, table.agentId),
+    index("idx_deal_comp_allocation_agent").on(table.agentId, table.snapshotId),
+  ],
 );
 
 // ============================================================
@@ -345,6 +500,7 @@ export const checklistItems = portal.table("checklist_items", {
 
 export const commerceOrders = portal.table("commerce_orders", {
   id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  agentId: integer("agent_id").references(() => agents.id, { onDelete: "set null" }),
   productKey: text("product_key").notNull(),
   productName: text("product_name").notNull(),
   billingMode: text("billing_mode").notNull(), // payment | subscription
@@ -394,6 +550,27 @@ export const commerceCharges = portal.table("commerce_charges", {
   periodStart: timestamptz("period_start"),
   periodEnd: timestamptz("period_end"),
   paidAt: timestamptz("paid_at"),
+  createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
+});
+
+// Sponsor reward generated by an affiliation/plan payment. Deal-based sponsor
+// rewards remain frozen in deal_compensation_allocations; this ledger covers
+// Stripe plan-fee payments and is idempotent by checkout/invoice source key.
+export const sponsorPlanRewards = portal.table("sponsor_plan_rewards", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  sourceKey: text("source_key").notNull().unique(),
+  orderId: integer("commerce_order_id").references(() => commerceOrders.id, {
+    onDelete: "set null",
+  }),
+  sponsorAgentId: integer("sponsor_agent_id")
+    .notNull()
+    .references(() => agents.id, { onDelete: "restrict" }),
+  referredAgentId: integer("referred_agent_id")
+    .notNull()
+    .references(() => agents.id, { onDelete: "restrict" }),
+  amountCents: integer("amount_cents").notNull(),
+  status: text("status").notNull().default("accrued"),
+  earnedAt: timestamptz("earned_at").notNull(),
   createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
 });
 
@@ -637,6 +814,8 @@ export type Invoice = typeof invoices.$inferSelect;
 export type NewInvoice = typeof invoices.$inferInsert;
 export type Team = typeof teams.$inferSelect;
 export type NewTeam = typeof teams.$inferInsert;
+export type TeamCompensationConfig = typeof teamCompensationConfigs.$inferSelect;
+export type OnboardingInvitation = typeof onboardingInvitations.$inferSelect;
 export type Agent = typeof agents.$inferSelect;
 export type NewAgent = typeof agents.$inferInsert;
 export type RentalDeal = typeof rentalDeals.$inferSelect;
@@ -651,6 +830,8 @@ export type SaleDeal = typeof saleDeals.$inferSelect;
 export type NewSaleDeal = typeof saleDeals.$inferInsert;
 export type SaleDealAgent = typeof saleDealAgents.$inferSelect;
 export type NewSaleDealAgent = typeof saleDealAgents.$inferInsert;
+export type DealCompensationSnapshot = typeof dealCompensationSnapshots.$inferSelect;
+export type DealCompensationAllocation = typeof dealCompensationAllocations.$inferSelect;
 export type InvoiceSendLog = typeof invoiceSendLog.$inferSelect;
 export type NewInvoiceSendLog = typeof invoiceSendLog.$inferInsert;
 export type TrainingVideo = typeof trainingVideos.$inferSelect;
@@ -662,6 +843,7 @@ export type NewResource = typeof resources.$inferInsert;
 export type ChecklistItem = typeof checklistItems.$inferSelect;
 export type NewChecklistItem = typeof checklistItems.$inferInsert;
 export type CommerceOrder = typeof commerceOrders.$inferSelect;
+export type SponsorPlanReward = typeof sponsorPlanRewards.$inferSelect;
 export type CommerceCharge = typeof commerceCharges.$inferSelect;
 export type AgentPaymentProfile = typeof agentPaymentProfiles.$inferSelect;
 export type AgentPayout = typeof agentPayouts.$inferSelect;

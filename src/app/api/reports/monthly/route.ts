@@ -1,14 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, eq, gte, inArray, lt, ne, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, isNull, lt, ne, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   agentPayouts,
   agents,
   buildings,
   dealAgents,
+  dealCompensationAllocations,
+  dealCompensationSnapshots,
   deals,
   saleDealAgents,
   saleDeals,
+  sponsorPlanRewards,
 } from "@/db/schema";
 import { computeCommission, roundCents } from "@/lib/commission";
 import {
@@ -94,8 +97,14 @@ export async function GET(req: NextRequest) {
     lt(agentPayouts.paidAt, range.end),
   ];
   if (!isAdmin) payoutConditions.push(eq(agentPayouts.agentId, currentAgentId!));
+  const sponsorPlanConditions = [
+    ne(sponsorPlanRewards.status, "void"),
+    gte(sponsorPlanRewards.earnedAt, range.start),
+    lt(sponsorPlanRewards.earnedAt, range.end),
+  ];
+  if (!isAdmin) sponsorPlanConditions.push(eq(sponsorPlanRewards.sponsorAgentId, currentAgentId!));
 
-  const [dealRows, saleRows, payoutRows] = await Promise.all([
+  const [dealRows, saleRows, payoutRows, sponsorPlanRows] = await Promise.all([
     rentalQuery,
     saleQuery,
     db
@@ -105,6 +114,14 @@ export async function GET(req: NextRequest) {
       })
       .from(agentPayouts)
       .where(and(...payoutConditions)),
+    db
+      .select({
+        id: sponsorPlanRewards.id,
+        sponsorAgentId: sponsorPlanRewards.sponsorAgentId,
+        amountCents: sponsorPlanRewards.amountCents,
+      })
+      .from(sponsorPlanRewards)
+      .where(and(...sponsorPlanConditions)),
   ]);
 
   const rentalIds = dealRows.map((deal) => deal.id);
@@ -117,11 +134,66 @@ export async function GET(req: NextRequest) {
       ? db.select().from(saleDealAgents).where(inArray(saleDealAgents.saleDealId, saleIds))
       : Promise.resolve([]),
   ]);
+  const snapshotWhere = or(
+    rentalIds.length > 0
+      ? and(eq(dealCompensationSnapshots.dealType, "rental"), inArray(dealCompensationSnapshots.dealId, rentalIds))
+      : undefined,
+    saleIds.length > 0
+      ? and(eq(dealCompensationSnapshots.dealType, "sale"), inArray(dealCompensationSnapshots.dealId, saleIds))
+      : undefined,
+  );
+  const snapshotRows = snapshotWhere
+    ? await db
+        .select()
+        .from(dealCompensationSnapshots)
+        .where(and(snapshotWhere, isNull(dealCompensationSnapshots.supersededAt)))
+    : [];
+  const allocationRows = snapshotRows.length > 0
+    ? await db
+        .select()
+        .from(dealCompensationAllocations)
+        .where(inArray(dealCompensationAllocations.snapshotId, snapshotRows.map((row) => row.id)))
+    : [];
+  const recipientRows = !isAdmin && currentAgentId != null
+    ? await db
+        .select({
+          dealType: dealCompensationSnapshots.dealType,
+          dealId: dealCompensationSnapshots.dealId,
+          teamLeaderAgentId: dealCompensationAllocations.teamLeaderAgentId,
+          teamLeaderAllocation: dealCompensationAllocations.teamLeaderAllocation,
+          sponsorAgentId: dealCompensationAllocations.sponsorAgentId,
+          sponsorAmount: dealCompensationAllocations.sponsorAmount,
+        })
+        .from(dealCompensationAllocations)
+        .innerJoin(
+          dealCompensationSnapshots,
+          eq(dealCompensationAllocations.snapshotId, dealCompensationSnapshots.id),
+        )
+        .where(and(
+          or(
+            eq(dealCompensationAllocations.teamLeaderAgentId, currentAgentId),
+            eq(dealCompensationAllocations.sponsorAgentId, currentAgentId),
+          ),
+          gte(dealCompensationSnapshots.effectiveDate, range.start),
+          lt(dealCompensationSnapshots.effectiveDate, range.end),
+          ne(dealCompensationSnapshots.status, "void"),
+          isNull(dealCompensationSnapshots.supersededAt),
+        ))
+    : [];
+  const snapshotByDeal = new Map(snapshotRows.map((row) => [`${row.dealType}:${row.dealId}`, row]));
+  const allocationsBySnapshot = new Map<number, typeof allocationRows>();
+  for (const row of allocationRows) {
+    const existing = allocationsBySnapshot.get(row.snapshotId) || [];
+    existing.push(row);
+    allocationsBySnapshot.set(row.snapshotId, existing);
+  }
 
   const agentIds = Array.from(new Set([
     ...dealAgentRows.map((row) => row.agentId),
     ...saleAgentRows.map((row) => row.agentId),
     ...payoutRows.map((row) => row.agentId),
+    ...sponsorPlanRows.map((row) => row.sponsorAgentId),
+    ...allocationRows.flatMap((row) => [row.teamLeaderAgentId, row.sponsorAgentId].filter((id): id is number => id != null)),
     ...(currentAgentId == null ? [] : [currentAgentId]),
   ]));
   const buildingIds = Array.from(new Set(dealRows.map((deal) => deal.buildingId)));
@@ -169,8 +241,42 @@ export async function GET(req: NextRequest) {
   let companyPool = 0;
   let estimatedAgentTake = 0;
   let referrerPayouts = 0;
+  let sponsorRewards = 0;
 
   for (const deal of dealRows) {
+    const snapshot = snapshotByDeal.get(`rental:${deal.id}`);
+    if (snapshot) {
+      const allocations = allocationsBySnapshot.get(snapshot.id) || [];
+      const scoped = isAdmin ? allocations : allocations.filter((row) => row.agentId === currentAgentId);
+      const scopedGross = scoped.reduce((sum, row) => sum + Number(row.grossShare || 0), 0);
+      totalCommission += isAdmin ? Number(snapshot.grossCommission) : scopedGross;
+      estimatedAgentTake += scoped.reduce((sum, row) => sum + Number(row.agentNet || 0), 0);
+      if (isAdmin) {
+        companyPool += Number(snapshot.homixRetained || 0);
+        referrerPayouts += Number(snapshot.outsideReferral || 0);
+      }
+      for (const row of scoped) {
+        const stat = getAgentStat(row.agentId);
+        stat.deals.add(`r${deal.id}`);
+        stat.gross += Number(row.grossShare || 0);
+        stat.take += Number(row.agentNet || 0);
+      }
+      const building = buildingById.get(deal.buildingId);
+      if (building && (isAdmin || scopedGross > 0)) {
+        const existing = buildingStats.get(building.id) || { building, deals: 0, totalCommission: 0 };
+        existing.deals += 1;
+        existing.totalCommission += isAdmin ? Number(snapshot.grossCommission) : scopedGross;
+        buildingStats.set(building.id, existing);
+      }
+      if (isAdmin || scopedGross > 0) {
+        const source = deal.source || "unknown";
+        const existing = sourceStats.get(source) || { source, deals: 0, totalCommission: 0 };
+        existing.deals += 1;
+        existing.totalCommission += isAdmin ? Number(snapshot.grossCommission) : scopedGross;
+        sourceStats.set(source, existing);
+      }
+      continue;
+    }
     const participants = commissionAgentsForDeal({
       dealId: deal.id,
       dealAgents: dealAgentRows,
@@ -225,6 +331,34 @@ export async function GET(req: NextRequest) {
   }
 
   for (const sale of saleRows) {
+    const snapshot = snapshotByDeal.get(`sale:${sale.id}`);
+    if (snapshot) {
+      const allocations = allocationsBySnapshot.get(snapshot.id) || [];
+      const scoped = isAdmin ? allocations : allocations.filter((row) => row.agentId === currentAgentId);
+      const scopedGross = scoped.reduce((sum, row) => sum + Number(row.grossShare || 0), 0);
+      totalCommission += isAdmin ? Number(snapshot.grossCommission) : scopedGross;
+      salesGrossCommission += isAdmin ? Number(snapshot.grossCommission) : scopedGross;
+      salesCommissionBase += isAdmin ? Number(snapshot.commissionBase) : scopedGross;
+      estimatedAgentTake += scoped.reduce((sum, row) => sum + Number(row.agentNet || 0), 0);
+      if (isAdmin) {
+        companyPool += Number(snapshot.homixRetained || 0);
+        referrerPayouts += Number(snapshot.outsideReferral || 0);
+      }
+      for (const row of scoped) {
+        const stat = getAgentStat(row.agentId);
+        stat.deals.add(`s${sale.id}`);
+        stat.gross += Number(row.grossShare || 0);
+        stat.take += Number(row.agentNet || 0);
+      }
+      if (isAdmin || scopedGross > 0) {
+        const source = sale.source || "unknown";
+        const existing = sourceStats.get(source) || { source, deals: 0, totalCommission: 0 };
+        existing.deals += 1;
+        existing.totalCommission += isAdmin ? Number(snapshot.grossCommission) : scopedGross;
+        sourceStats.set(source, existing);
+      }
+      continue;
+    }
     const grossCommission = Number(sale.grossCommission || 0);
     const base = Math.max(
       0,
@@ -273,6 +407,48 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  if (isAdmin) {
+    for (const row of allocationRows) {
+      const teamAmount = Number(row.teamLeaderAllocation || 0);
+      if (row.teamLeaderAgentId && teamAmount > 0) {
+        const stat = getAgentStat(row.teamLeaderAgentId);
+        stat.deals.add(`team:${row.snapshotId}`);
+        stat.take += teamAmount;
+        estimatedAgentTake += teamAmount;
+      }
+      const sponsorAmount = Number(row.sponsorAmount || 0);
+      if (row.sponsorAgentId && sponsorAmount > 0) {
+        const stat = getAgentStat(row.sponsorAgentId);
+        stat.deals.add(`sponsor:${row.snapshotId}`);
+        stat.take += sponsorAmount;
+        estimatedAgentTake += sponsorAmount;
+        sponsorRewards += sponsorAmount;
+      }
+    }
+  } else if (currentAgentId != null) {
+    for (const row of recipientRows) {
+      const amount =
+        (row.teamLeaderAgentId === currentAgentId ? Number(row.teamLeaderAllocation || 0) : 0) +
+        (row.sponsorAgentId === currentAgentId ? Number(row.sponsorAmount || 0) : 0);
+      if (amount <= 0) continue;
+      const stat = getAgentStat(currentAgentId);
+      stat.deals.add(`${row.dealType}:${row.dealId}:recipient`);
+      stat.take += amount;
+      estimatedAgentTake += amount;
+      sponsorRewards += amount;
+    }
+  }
+
+  for (const row of sponsorPlanRows) {
+    const amount = Number(row.amountCents || 0) / 100;
+    if (amount <= 0) continue;
+    const stat = getAgentStat(row.sponsorAgentId);
+    stat.deals.add(`plan:${row.id}`);
+    stat.take += amount;
+    estimatedAgentTake += amount;
+    sponsorRewards += amount;
+  }
+
   let actualPaid = 0;
   for (const payout of payoutRows) {
     const amount = Number(payout.amountCents || 0) / 100;
@@ -305,6 +481,7 @@ export async function GET(req: NextRequest) {
       agentPayouts: roundCents(estimatedAgentTake),
       actualPaid: roundCents(actualPaid),
       referrerPayouts: roundCents(referrerPayouts),
+      sponsorRewards: roundCents(sponsorRewards),
     },
     topAgents: Array.from(agentStats.values())
       .map((row) => ({

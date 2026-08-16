@@ -13,7 +13,8 @@ building management), and tracks everything an admin needs to run the brokerage:
 - **Training & resources portal** — Cloudflare Stream video library + shared resource links
 - **Notifications** — in-app bell + optional email fan-out (approvals, renewals, deal events)
 - **Audit log** — append-only trail on every money/roster mutation, browsable at `/audit`
-- **Commerce** — public `/pay` page for desk fees & memberships via Stripe Checkout, with Google Workspace mailbox provisioning for company-email orders
+- **Commerce** — authenticated `/pay` center for plan fees, memberships and services via Stripe Checkout, with every order bound to an agent and Google Workspace provisioning for company-email orders
+- **Onboarding** — invitation links lock team, sponsor and plan; eSign and annual-fee completion are tracked before activation
 - **Global search** — ⌘K palette over deals, invoices, buildings, agents
 - Bilingual UI (中文 / English) via a cookie-based locale toggle
 
@@ -129,7 +130,7 @@ Apply the checked-in CORS policy after authenticating Wrangler:
 npx wrangler r2 bucket cors set homix-deal-documents --file infra/r2-cors.json
 ```
 
-**Stripe (public `/pay` checkout + webhook)**
+**Stripe (authenticated `/pay` checkout + webhook)**
 
 ```bash
 STRIPE_SECRET_KEY=sk_test_or_live_...
@@ -145,6 +146,28 @@ STRIPE_PRICE_TRANSFER_FEE=price_...
 STRIPE_AUTOMATIC_TAX=1                     # optional
 STRIPE_CUSTOMER_PORTAL_CONFIGURATION=...   # optional
 ```
+
+All authenticated Portal purchases are bound to `agentId`; email is retained as
+a receipt/contact field rather than the accounting identity. Onboarding checkout
+is available only after the agreement is signed, and its product is selected from
+the agent's locked compensation plan. A Solo/Holding agent upgrading to Solo Pro
+within 90 days receives the prior `$288` or `$500` affiliation payment as a
+one-time Stripe discount; the annual subscription then renews at the normal rate.
+
+**Agent onboarding eSign**
+
+```bash
+ESIGN_API_URL=https://your-esign-service.example.com
+ESIGN_APPLICATION_KEY=...       # dedicated Portal credential; never expose client-side
+ESIGN_ONBOARDING_TEMPLATE_ID=...
+ONBOARDING_V2_ENFORCED=0         # switch to 1 only after the rollout smoke test
+```
+
+The onboarding template must be published, require no approval step, and contain
+exactly one agent signer role. Portal creates an HR transaction and envelope,
+fills the agent/legal/team/plan fields, sends the envelope, and polls its status.
+Do not reuse an administrator-wide eSign credential: grant only
+`templates:read`, `transactions:write`, and `envelopes:read/write/send`.
 
 **Google Workspace provisioning** (company-email orders). Two server-side auth
 modes; OAuth with an admin refresh token is the recommended fallback when org
@@ -204,3 +227,18 @@ Postgres service, including typecheck, lint, schema seed, tests, and build.
   ```
 
   For lifecycle migrations, follow [docs/DATABASE.md](docs/DATABASE.md).
+
+### Compensation and onboarding v3.1 rollout
+
+Keep this order so existing agents continue to work while the new workflow is
+being configured:
+
+1. Deploy the schema/code with `ONBOARDING_V2_ENFORCED=0`, then run the checked-in migration or the idempotent schema endpoint.
+2. Publish the eSign onboarding template and create a dedicated Portal application key with the minimum permissions listed above.
+3. Configure the three `ESIGN_*` variables and confirm the Stripe annual-plan prices and webhook are active.
+4. Run one invited-agent smoke test through profile, agreement, payment, webhook, admin review, and activation.
+5. Set `ONBOARDING_V2_ENFORCED=1`. From this point, admin approval fails closed until required agreement and payment steps are complete.
+
+Do not enable the flag before step 4. The flag deliberately separates deployment
+from enforcement so a missing eSign template or Stripe price cannot strand all
+pending agents.

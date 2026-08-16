@@ -22,6 +22,7 @@ export type CommerceProduct = {
   commissionLabel?: string;
   requiresWorkspaceEmail?: boolean;
   requiresReferral?: boolean;
+  availableForSale?: boolean;
 };
 
 export const commerceProducts: CommerceProduct[] = [
@@ -39,15 +40,15 @@ export const commerceProducts: CommerceProduct[] = [
   },
   {
     key: "elite_desk_fee",
-    name: "Elite Plan Desk Fee",
-    description: "Annual desk fee for agents keeping 100% of commission.",
+    name: "Solo Pro Annual Plan Fee",
+    description: "Annual Solo Pro plan fee with 100% commission and per-transaction fees.",
     amountCents: 365000,
     currency: "usd",
     billingMode: "subscription",
     priceEnvVar: "STRIPE_PRICE_ELITE_DESK_FEE_YEARLY",
     category: "desk_fee",
     recurrenceLabel: "Annual renewal",
-    commissionLabel: "Keep 100%",
+    commissionLabel: "100% commission · transaction fee applies",
     requiresReferral: true,
   },
   {
@@ -62,26 +63,29 @@ export const commerceProducts: CommerceProduct[] = [
     recurrenceLabel: "Annual renewal",
     commissionLabel: "Keep 92%",
     requiresReferral: true,
+    availableForSale: false,
   },
   {
     key: "two_year_membership",
-    name: "Two-Year Homix Living Membership Fee",
-    description: "Two-year membership fee for joining Homix Living Inc.",
+    name: "Two-Year Homix Affiliation Fee",
+    description: "Two-year affiliation term for Solo and Team Member plans.",
     amountCents: 50000,
     currency: "usd",
     billingMode: "payment",
     priceEnvVar: "STRIPE_PRICE_TWO_YEAR_MEMBERSHIP",
     category: "membership",
+    requiresReferral: true,
   },
   {
     key: "one_year_membership",
-    name: "One-Year Homix Living Membership Fee",
-    description: "One-year membership fee for joining Homix Living Inc.",
+    name: "One-Year Homix Affiliation Fee",
+    description: "One-year affiliation term for Solo and Team Member plans.",
     amountCents: 28800,
     currency: "usd",
     billingMode: "payment",
     priceEnvVar: "STRIPE_PRICE_ONE_YEAR_MEMBERSHIP",
     category: "membership",
+    requiresReferral: true,
   },
   {
     key: "libor",
@@ -119,7 +123,7 @@ export function getProductStripePriceId(product: CommerceProduct): string | null
 }
 
 export function getConfiguredCommerceProducts(): CommerceProductWithPrice[] {
-  return commerceProducts.map((product) => {
+  return commerceProducts.filter((product) => product.availableForSale !== false).map((product) => {
     const stripePriceId = getProductStripePriceId(product);
     return {
       ...product,
@@ -139,10 +143,10 @@ export function formatProductAmount(amountCents: number): string {
 
 const ZH_PRODUCT_NAMES: Partial<Record<CommerceProductKey, string>> = {
   company_domain_email: "公司域名邮箱",
-  elite_desk_fee: "Elite 方案办公费",
-  growth_desk_fee: "Growth 方案办公费",
-  two_year_membership: "Homix Living 两年会员费",
-  one_year_membership: "Homix Living 一年会员费",
+  elite_desk_fee: "Solo Pro 年费",
+  growth_desk_fee: "Legacy Growth 年费（已停止新售）",
+  two_year_membership: "Homix 两年 affiliation 费用",
+  one_year_membership: "Homix 一年 affiliation 费用",
   libor: "LIBOR",
   transfer_fee: "经纪人转入费",
 };

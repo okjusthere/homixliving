@@ -7,6 +7,11 @@ import { canEditDeal, canViewDeal } from "@/lib/visibility";
 import { summarizeInvoicePayment } from "@/lib/invoice-payment";
 import { logAudit } from "@/lib/audit";
 import { dateOrNull } from "@/lib/db-time";
+import {
+  buildCompensationEstimate,
+  normalizeCompensationSource,
+  persistCompensationSnapshot,
+} from "@/lib/compensation-service";
 
 type DealAgentPayload = {
   agentId: number;
@@ -94,6 +99,10 @@ async function validateDealUpdate({
     return { error: "Referrer type must be percent or flat" };
   }
 
+  const clientRebate = parseNumber(body.clientRebate) ?? existing.clientRebate;
+  const compensationSource = referrerType
+    ? "outside"
+    : normalizeCompensationSource(body.compensationSource || existing.compensationSource, "rental");
   return {
     data: {
       buildingId,
@@ -116,6 +125,8 @@ async function validateDealUpdate({
       status,
       dealDate: dateOrNull(body.dealDate) || existing.dealDate,
       source: stringOrNull(body.source),
+      compensationSource,
+      clientRebate,
       notes: stringOrNull(body.notes),
       updatedAt: new Date().toISOString(),
     },
@@ -206,6 +217,19 @@ export async function PUT(
       return NextResponse.json({ error: result.error }, { status: result.status || 400 });
     }
 
+    const effectiveDate = result.data.dealDate || new Date().toISOString().slice(0, 10);
+    const outsideReferralAmount = result.data.referrerType === "percent"
+      ? result.data.totalCommission * (Number(result.data.referrerAmount || 0) / 100)
+      : Number(result.data.referrerAmount || 0);
+    const compensation = await buildCompensationEstimate({
+      dealType: "rental",
+      effectiveDate,
+      grossCommission: result.data.totalCommission,
+      source: result.data.compensationSource,
+      outsideReferralAmount,
+      rebateAmount: result.data.clientRebate,
+      participants: result.agents.map((agent) => ({ agentId: agent.agentId, sharePct: agent.sharePct })),
+    });
     await db.transaction(async (tx) => {
       await tx.update(deals).set(result.data).where(eq(deals.id, parsedId));
       await tx.delete(dealAgents).where(eq(dealAgents.dealId, parsedId));
@@ -218,6 +242,12 @@ export async function PUT(
           createdAt: new Date().toISOString(),
         });
       }
+      await persistCompensationSnapshot(tx, {
+        dealType: "rental",
+        dealId: parsedId,
+        effectiveDate,
+        result: compensation,
+      });
     });
 
     await logAudit(

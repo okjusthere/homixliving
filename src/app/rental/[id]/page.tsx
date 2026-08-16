@@ -12,6 +12,7 @@ import type { Agent, Building, Deal, Invoice } from "@/db/schema";
 import type { CommissionBreakdown } from "@/lib/commission";
 import { sourceEmoji, sourceLabel } from "@/lib/sources";
 import { companySplitPct, normalizeSplitPct, splitLabel } from "@/lib/splits";
+import { CompensationV31Card } from "@/components/homix/compensation-v31-card";
 import {
   invoicePaymentLabel,
   invoicePaymentTone,
@@ -465,6 +466,10 @@ export default function DealDetailPage() {
               </div>
             </Card>
 
+            <CompensationV31Card
+              dealType="rental"
+              dealId={payload.deal.id}
+              fallback={(
             <Card>
               <CardHeader title={t.commissionBreakdown} />
               <div className="p-6">
@@ -530,6 +535,8 @@ export default function DealDetailPage() {
                 )}
               </div>
             </Card>
+              )}
+            />
 
             <Card>
               <CardHeader

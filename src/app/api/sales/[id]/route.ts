@@ -6,6 +6,11 @@ import { requireActiveAgentApi } from "@/lib/auth-guards";
 import { canEditSaleDeal, canViewSaleDeal } from "@/lib/visibility";
 import { logAudit } from "@/lib/audit";
 import { dateOrNull } from "@/lib/db-time";
+import {
+  buildCompensationEstimate,
+  normalizeCompensationSource,
+  persistCompensationSnapshot,
+} from "@/lib/compensation-service";
 
 type SaleAgentPayload = {
   agentId: number;
@@ -109,6 +114,12 @@ async function validateSaleUpdate({
     return { error: "Every sale agent must be active", status: 400 };
   }
 
+  const referralAmount = parseNumber(body.referralAmount) ?? existing.referralAmount ?? 0;
+  const clientRebate = parseNumber(body.clientRebate) ?? existing.clientRebate;
+  const compensationSource = referralAmount > 0
+    ? "outside"
+    : normalizeCompensationSource(body.compensationSource || existing.compensationSource, "sale");
+
   return {
     data: {
       representationType,
@@ -127,7 +138,7 @@ async function validateSaleUpdate({
       closingDate: dateOrNull(body.closingDate),
       purchasePrice: parseNumber(body.purchasePrice),
       grossCommission,
-      referralAmount: parseNumber(body.referralAmount),
+      referralAmount,
       brokerageFee: parseNumber(body.brokerageFee),
       listingAgentName: stringOrNull(body.listingAgentName),
       listingAgentEmail: stringOrNull(body.listingAgentEmail),
@@ -141,6 +152,8 @@ async function validateSaleUpdate({
       lenderName: stringOrNull(body.lenderName),
       escrowHolder: stringOrNull(body.escrowHolder),
       source: stringOrNull(body.source),
+      compensationSource,
+      clientRebate,
       notes: stringOrNull(body.notes),
       updatedAt: new Date().toISOString(),
     },
@@ -216,6 +229,16 @@ export async function PUT(
       return NextResponse.json({ error: result.error }, { status: result.status || 400 });
     }
 
+    const effectiveDate = result.data.closingDate || result.data.contractDate || new Date().toISOString().slice(0, 10);
+    const compensation = await buildCompensationEstimate({
+      dealType: "sale",
+      effectiveDate,
+      grossCommission: result.data.grossCommission,
+      source: result.data.compensationSource,
+      outsideReferralAmount: result.data.referralAmount,
+      rebateAmount: result.data.clientRebate,
+      participants: result.agents.map((agent) => ({ agentId: agent.agentId, sharePct: agent.sharePct })),
+    });
     await db.transaction(async (tx) => {
       await tx.update(saleDeals).set(result.data).where(eq(saleDeals.id, parsedId));
       await tx.delete(saleDealAgents).where(eq(saleDealAgents.saleDealId, parsedId));
@@ -228,6 +251,12 @@ export async function PUT(
           createdAt: new Date().toISOString(),
         });
       }
+      await persistCompensationSnapshot(tx, {
+        dealType: "sale",
+        dealId: parsedId,
+        effectiveDate,
+        result: compensation,
+      });
     });
 
     await logAudit(
