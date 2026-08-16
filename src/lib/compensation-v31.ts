@@ -131,7 +131,7 @@ export function computeCompensationV31(input: CompensationInput): CompensationRe
       : cents(Math.min(uncappedCompanyDollar, remainingCompanyCap));
     const agentSide = cents(grossShares[index] - companyDollar);
     const isTeamMember = participant.plan === "team_member" && participant.teamId != null;
-    const rawTeamAllocation = isTeamMember ? cents(agentSide * pct(participant.teamSplitPct || 10)) : 0;
+    const rawTeamAllocation = isTeamMember ? cents(agentSide * pct(participant.teamSplitPct ?? 10)) : 0;
     const remainingTeamCap = participant.teamCapAmount == null
       ? null
       : cents(Math.max(0, participant.teamCapAmount - (participant.teamCapUsed || 0)));

@@ -1,11 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { dealAgents, invoices } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import {
+  dealAgents,
+  dealCompensationSnapshots,
+  invoices,
+} from "@/db/schema";
+import { and, eq, isNull } from "drizzle-orm";
 import { requireAdminApi } from "@/lib/auth-guards";
 import { notify } from "@/lib/notify";
 import { logAudit } from "@/lib/audit";
 import { MAX_MONEY_AMOUNT } from "@/lib/commission";
+import {
+  recordCompensationReceipt,
+  removeCompensationReceipt,
+} from "@/lib/compensation-ledger";
 
 export async function POST(
   req: NextRequest,
@@ -47,15 +55,37 @@ export async function POST(
     paidAmount = amount;
   }
 
-  await db
-    .update(invoices)
-    .set({
-      status: "paid",
-      paidAt,
-      paidAmount,
-      updatedAt: new Date().toISOString(),
-    })
-    .where(eq(invoices.id, Number(id)));
+  await db.transaction(async (tx) => {
+    await tx
+      .update(invoices)
+      .set({
+        status: "paid",
+        paidAt,
+        paidAmount,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(invoices.id, Number(id)));
+    if (!invoice.dealId) return;
+    const [snapshot] = await tx
+      .select()
+      .from(dealCompensationSnapshots)
+      .where(and(
+        eq(dealCompensationSnapshots.dealType, "rental"),
+        eq(dealCompensationSnapshots.dealId, invoice.dealId),
+        eq(dealCompensationSnapshots.status, "finalized"),
+        isNull(dealCompensationSnapshots.supersededAt),
+      ))
+      .limit(1);
+    if (!snapshot) return;
+    await recordCompensationReceipt(tx, {
+      snapshotId: snapshot.id,
+      amountCents: Math.round(Number(paidAmount) * 100),
+      receivedAt: paidAt,
+      method: "rental_invoice",
+      reference: invoice.invoiceNumber,
+      createdByEmail: authResult.session.user.email || null,
+    });
+  });
 
   await logAudit(
     authResult.session,
@@ -100,15 +130,37 @@ export async function DELETE(
   const { id } = await params;
   const invoice = await db.select().from(invoices).where(eq(invoices.id, Number(id))).then((rows) => rows[0]);
   if (!invoice) return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
-  await db
-    .update(invoices)
-    .set({
-      status: "sent",
-      paidAt: null,
-      paidAmount: null,
-      updatedAt: new Date().toISOString(),
-    })
-    .where(eq(invoices.id, Number(id)));
+  const reverted = await db.transaction(async (tx) => {
+    if (invoice.dealId) {
+      const [snapshot] = await tx
+        .select()
+        .from(dealCompensationSnapshots)
+        .where(and(
+          eq(dealCompensationSnapshots.dealType, "rental"),
+          eq(dealCompensationSnapshots.dealId, invoice.dealId),
+          eq(dealCompensationSnapshots.status, "finalized"),
+          isNull(dealCompensationSnapshots.supersededAt),
+        ))
+        .limit(1);
+      if (snapshot && !(await removeCompensationReceipt(tx, snapshot.id))) return false;
+    }
+    await tx
+      .update(invoices)
+      .set({
+        status: "sent",
+        paidAt: null,
+        paidAmount: null,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(invoices.id, Number(id)));
+    return true;
+  });
+  if (!reverted) {
+    return NextResponse.json(
+      { error: "Cannot unmark this receipt after commission has been paid out." },
+      { status: 409 },
+    );
+  }
   await logAudit(
     authResult.session,
     "unmark_paid",

@@ -6,6 +6,9 @@ import {
   dealCompensationAllocations,
   dealCompensationSnapshots,
   deals,
+  compensationObligations,
+  compensationReceipts,
+  invoices,
   saleDealAgents,
   saleDeals,
 } from "@/db/schema";
@@ -13,6 +16,10 @@ import { requireActiveAgentApi, requireAdminApi } from "@/lib/auth-guards";
 import { canViewDeal, canViewSaleDeal } from "@/lib/visibility";
 import { buildCompensationEstimate, persistCompensationSnapshot } from "@/lib/compensation-service";
 import { logAudit } from "@/lib/audit";
+import {
+  createCompensationObligations,
+  recordCompensationReceipt,
+} from "@/lib/compensation-ledger";
 
 function parseId(value: string) {
   const id = Number(value);
@@ -34,7 +41,11 @@ async function currentSnapshot(dealType: "rental" | "sale", dealId: number) {
     .select()
     .from(dealCompensationAllocations)
     .where(eq(dealCompensationAllocations.snapshotId, snapshot.id));
-  return { snapshot, allocations };
+  const [obligations, receiptRows] = await Promise.all([
+    db.select().from(compensationObligations).where(eq(compensationObligations.snapshotId, snapshot.id)),
+    db.select().from(compensationReceipts).where(eq(compensationReceipts.snapshotId, snapshot.id)).limit(1),
+  ]);
+  return { snapshot, allocations, obligations, receipt: receiptRows[0] || null };
 }
 
 export async function GET(
@@ -72,7 +83,27 @@ export async function POST(
 
   const existing = await currentSnapshot(type, dealId);
   if (existing?.snapshot.status === "finalized") {
-    return NextResponse.json(existing);
+    await db.transaction(async (tx) => {
+      await createCompensationObligations(tx, existing.snapshot.id);
+      if (type === "rental" && !existing.receipt) {
+        const [paidInvoice] = await tx
+          .select()
+          .from(invoices)
+          .where(and(eq(invoices.dealId, dealId), eq(invoices.status, "paid")))
+          .limit(1);
+        if (paidInvoice?.paidAt) {
+          await recordCompensationReceipt(tx, {
+            snapshotId: existing.snapshot.id,
+            amountCents: Math.round(Number(paidInvoice.paidAmount || paidInvoice.totalAmount) * 100),
+            receivedAt: paidInvoice.paidAt,
+            method: "rental_invoice",
+            reference: paidInvoice.invoiceNumber,
+            createdByEmail: authResult.session.user.email || null,
+          });
+        }
+      }
+    });
+    return NextResponse.json(await currentSnapshot(type, dealId));
   }
 
   let effectiveDate: string;
@@ -121,6 +152,24 @@ export async function POST(
       })
       .where(eq(dealCompensationSnapshots.id, snapshot.id))
       .returning();
+    await createCompensationObligations(tx, row.id);
+    if (type === "rental") {
+      const [paidInvoice] = await tx
+        .select()
+        .from(invoices)
+        .where(and(eq(invoices.dealId, dealId), eq(invoices.status, "paid")))
+        .limit(1);
+      if (paidInvoice?.paidAt) {
+        await recordCompensationReceipt(tx, {
+          snapshotId: row.id,
+          amountCents: Math.round(Number(paidInvoice.paidAmount || paidInvoice.totalAmount) * 100),
+          receivedAt: paidInvoice.paidAt,
+          method: "rental_invoice",
+          reference: paidInvoice.invoiceNumber,
+          createdByEmail: authResult.session.user.email || null,
+        });
+      }
+    }
     return row;
   });
   await logAudit(
@@ -131,5 +180,10 @@ export async function POST(
     `冻结 ${type === "rental" ? "租赁" : "买卖"}成交 #${dealId} 的 v3.1 分佣`,
     result,
   );
-  return NextResponse.json({ snapshot: finalized, allocations: result.allocations });
+  return NextResponse.json(await currentSnapshot(type, dealId) || {
+    snapshot: finalized,
+    allocations: result.allocations,
+    obligations: [],
+    receipt: null,
+  });
 }

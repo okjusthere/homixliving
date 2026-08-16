@@ -242,6 +242,7 @@ export async function GET(req: NextRequest) {
   let estimatedAgentTake = 0;
   let referrerPayouts = 0;
   let sponsorRewards = 0;
+  let teamLeaderRewards = 0;
 
   for (const deal of dealRows) {
     const snapshot = snapshotByDeal.get(`rental:${deal.id}`);
@@ -412,14 +413,15 @@ export async function GET(req: NextRequest) {
       const teamAmount = Number(row.teamLeaderAllocation || 0);
       if (row.teamLeaderAgentId && teamAmount > 0) {
         const stat = getAgentStat(row.teamLeaderAgentId);
-        stat.deals.add(`team:${row.snapshotId}`);
+        stat.deals.add(`recipient:${row.snapshotId}`);
         stat.take += teamAmount;
         estimatedAgentTake += teamAmount;
+        teamLeaderRewards += teamAmount;
       }
       const sponsorAmount = Number(row.sponsorAmount || 0);
       if (row.sponsorAgentId && sponsorAmount > 0) {
         const stat = getAgentStat(row.sponsorAgentId);
-        stat.deals.add(`sponsor:${row.snapshotId}`);
+        stat.deals.add(`recipient:${row.snapshotId}`);
         stat.take += sponsorAmount;
         estimatedAgentTake += sponsorAmount;
         sponsorRewards += sponsorAmount;
@@ -427,15 +429,20 @@ export async function GET(req: NextRequest) {
     }
   } else if (currentAgentId != null) {
     for (const row of recipientRows) {
-      const amount =
-        (row.teamLeaderAgentId === currentAgentId ? Number(row.teamLeaderAllocation || 0) : 0) +
-        (row.sponsorAgentId === currentAgentId ? Number(row.sponsorAmount || 0) : 0);
+      const teamAmount = row.teamLeaderAgentId === currentAgentId
+        ? Number(row.teamLeaderAllocation || 0)
+        : 0;
+      const sponsorAmount = row.sponsorAgentId === currentAgentId
+        ? Number(row.sponsorAmount || 0)
+        : 0;
+      const amount = teamAmount + sponsorAmount;
       if (amount <= 0) continue;
       const stat = getAgentStat(currentAgentId);
       stat.deals.add(`${row.dealType}:${row.dealId}:recipient`);
       stat.take += amount;
       estimatedAgentTake += amount;
-      sponsorRewards += amount;
+      teamLeaderRewards += teamAmount;
+      sponsorRewards += sponsorAmount;
     }
   }
 
@@ -482,6 +489,7 @@ export async function GET(req: NextRequest) {
       actualPaid: roundCents(actualPaid),
       referrerPayouts: roundCents(referrerPayouts),
       sponsorRewards: roundCents(sponsorRewards),
+      teamLeaderRewards: roundCents(teamLeaderRewards),
     },
     topAgents: Array.from(agentStats.values())
       .map((row) => ({

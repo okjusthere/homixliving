@@ -6,6 +6,7 @@ import {
   agents,
   commerceCharges,
   commerceOrders,
+  compensationObligations,
   type CommerceCharge,
   type CommerceOrder,
 } from "@/db/schema";
@@ -59,6 +60,14 @@ const M = {
     unmatched: "(not on roster)",
     empty: "No records match the current filters.",
     resultCount: (n: number) => `${n} records`,
+    commissionTitle: "Commission obligations",
+    commissionLead:
+      "Finalized deal allocations stay pending until the company receives funds, then become payable through the payout ledger.",
+    awaitingReceipt: "Awaiting company receipt",
+    payableNow: "Payable now",
+    teamSplitDue: "Team split due",
+    sponsorRewardDue: "Sponsor reward due",
+    openPayouts: "Open commission payouts",
   },
   zh: {
     eyebrow: "财务",
@@ -96,6 +105,13 @@ const M = {
     unmatched: "（不在花名册）",
     empty: "当前筛选条件下没有记录。",
     resultCount: (n: number) => `${n} 条记录`,
+    commissionTitle: "佣金应付",
+    commissionLead: "成交分配确认后先等待公司收款；确认到账后才进入可发放台账。",
+    awaitingReceipt: "等待公司收款",
+    payableNow: "当前可发放",
+    teamSplitDue: "团队分成待付",
+    sponsorRewardDue: "推荐奖励待付",
+    openPayouts: "进入佣金发放",
   },
 } as const;
 
@@ -151,10 +167,18 @@ export default async function FinancePage({
   const t = M[locale];
   const filters = await searchParams;
 
-  const [orders, charges, roster] = await Promise.all([
+  const [orders, charges, roster, obligationRows] = await Promise.all([
     db.select().from(commerceOrders).orderBy(desc(commerceOrders.id)),
     db.select().from(commerceCharges).orderBy(desc(commerceCharges.id)),
     db.select({ id: agents.id, name: agents.name, email: agents.email }).from(agents),
+    db
+      .select({
+        kind: compensationObligations.kind,
+        amountCents: compensationObligations.amountCents,
+        paidCents: compensationObligations.paidCents,
+        status: compensationObligations.status,
+      })
+      .from(compensationObligations),
   ]);
 
   const agentByEmail = new Map(roster.map((a) => [String(a.email || "").toLowerCase(), a]));
@@ -290,6 +314,28 @@ export default async function FinancePage({
     { label: t.failedCharges, value: String(failedCount) },
   ];
 
+  const outstandingCents = (row: (typeof obligationRows)[number]) =>
+    Math.max(0, row.amountCents - row.paidCents);
+  const awaitingReceiptCents = obligationRows
+    .filter((row) => row.status === "pending_receipt")
+    .reduce((sum, row) => sum + outstandingCents(row), 0);
+  const payableRows = obligationRows.filter(
+    (row) => row.status === "payable" || row.status === "partially_paid",
+  );
+  const payableCents = payableRows.reduce((sum, row) => sum + outstandingCents(row), 0);
+  const teamSplitCents = payableRows
+    .filter((row) => row.kind === "team_split")
+    .reduce((sum, row) => sum + outstandingCents(row), 0);
+  const sponsorRewardCents = payableRows
+    .filter((row) => row.kind === "sponsor_reward")
+    .reduce((sum, row) => sum + outstandingCents(row), 0);
+  const commissionStats = [
+    { label: t.awaitingReceipt, value: awaitingReceiptCents },
+    { label: t.payableNow, value: payableCents },
+    { label: t.teamSplitDue, value: teamSplitCents },
+    { label: t.sponsorRewardDue, value: sponsorRewardCents },
+  ];
+
   const inputStyle = {
     border: `1px solid ${tone.lineSoft}`,
     background: tone.paperDeep,
@@ -312,6 +358,38 @@ export default async function FinancePage({
           </Card>
         ))}
       </div>
+
+      <section>
+        <div className="flex flex-wrap items-end justify-between gap-3 mb-4">
+          <div>
+            <h2 className="font-serif mb-1" style={{ fontSize: 20, color: tone.ink }}>
+              {t.commissionTitle}
+            </h2>
+            <p className="text-[13px]" style={{ color: tone.ink50 }}>
+              {t.commissionLead}
+            </p>
+          </div>
+          <a
+            href="/payouts"
+            className="rounded-md px-3.5 py-2 text-[13px] font-medium"
+            style={{ background: tone.ink, color: tone.paper }}
+          >
+            {t.openPayouts}
+          </a>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {commissionStats.map((stat) => (
+            <Card key={stat.label} className="p-5">
+              <div className="text-[12px]" style={{ color: tone.ink50 }}>
+                {stat.label}
+              </div>
+              <div className="font-serif mt-1 tabular-nums" style={{ fontSize: 24, color: tone.ink }}>
+                ${fmtMoney(stat.value / 100)}
+              </div>
+            </Card>
+          ))}
+        </div>
+      </section>
 
       <section>
         <h2 className="font-serif mb-1" style={{ fontSize: 20, color: tone.ink }}>

@@ -413,6 +413,74 @@ export const dealCompensationAllocations = portal.table(
   ],
 );
 
+export type CompensationObligationKind = "agent_net" | "team_split" | "sponsor_reward";
+export type CompensationObligationStatus =
+  | "pending_receipt"
+  | "payable"
+  | "partially_paid"
+  | "paid"
+  | "void";
+
+// One finalized allocation can create three independent liabilities. Keeping
+// Team Split and Sponsor Reward separate is intentional even when both are
+// payable to the same team leader.
+export const compensationObligations = portal.table(
+  "compensation_obligations",
+  {
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    snapshotId: integer("snapshot_id")
+      .notNull()
+      .references(() => dealCompensationSnapshots.id, { onDelete: "cascade" }),
+    allocationId: integer("allocation_id")
+      .notNull()
+      .references(() => dealCompensationAllocations.id, { onDelete: "cascade" }),
+    recipientAgentId: integer("recipient_agent_id")
+      .notNull()
+      .references(() => agents.id, { onDelete: "restrict" }),
+    sourceAgentId: integer("source_agent_id")
+      .notNull()
+      .references(() => agents.id, { onDelete: "restrict" }),
+    kind: text("kind").$type<CompensationObligationKind>().notNull(),
+    amountCents: integer("amount_cents").notNull(),
+    paidCents: integer("paid_cents").notNull().default(0),
+    status: text("status")
+      .$type<CompensationObligationStatus>()
+      .notNull()
+      .default("pending_receipt"),
+    availableAt: timestamptz("available_at"),
+    createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
+    updatedAt: timestamptz("updated_at").$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => [
+    uniqueIndex("uq_comp_obligation_source").on(
+      table.allocationId,
+      table.kind,
+      table.recipientAgentId,
+    ),
+    index("idx_comp_obligation_recipient_status").on(table.recipientAgentId, table.status),
+    index("idx_comp_obligation_snapshot").on(table.snapshotId),
+  ],
+);
+
+// Receipt means Homix actually has the commission funds. Finalizing the math
+// alone must never make an agent payable.
+export const compensationReceipts = portal.table(
+  "compensation_receipts",
+  {
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    snapshotId: integer("snapshot_id")
+      .notNull()
+      .references(() => dealCompensationSnapshots.id, { onDelete: "restrict" }),
+    amountCents: integer("amount_cents").notNull(),
+    receivedAt: timestamptz("received_at").notNull(),
+    method: text("method").notNull().default("other"),
+    reference: text("reference"),
+    createdByEmail: text("created_by_email"),
+    createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => [uniqueIndex("uq_comp_receipt_snapshot").on(table.snapshotId)],
+);
+
 // ============================================================
 // Invoice send log — audit trail of every send attempt (success or failure).
 // Critical for "did this invoice actually go out?" + dispute reconstruction.
@@ -629,6 +697,27 @@ export const agentPayouts = portal.table("agent_payouts", {
   updatedAt: timestamptz("updated_at").$defaultFn(() => new Date().toISOString()),
 });
 
+// A bank/check payout may settle several obligations. These applications are
+// the auditable bridge from a QuickBooks payment to the frozen deal math.
+export const payoutApplications = portal.table(
+  "payout_applications",
+  {
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    payoutId: integer("payout_id")
+      .notNull()
+      .references(() => agentPayouts.id, { onDelete: "cascade" }),
+    obligationId: integer("obligation_id")
+      .notNull()
+      .references(() => compensationObligations.id, { onDelete: "restrict" }),
+    amountCents: integer("amount_cents").notNull(),
+    createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => [
+    uniqueIndex("uq_payout_application").on(table.payoutId, table.obligationId),
+    index("idx_payout_application_obligation").on(table.obligationId),
+  ],
+);
+
 export const stripeEvents = portal.table("stripe_events", {
   id: text("id").primaryKey(),
   type: text("type").notNull(),
@@ -775,6 +864,21 @@ export const notifications = portal.table("notifications", {
   dedupeKey: text("dedupe_key").unique(),
   readAt: timestamptz("read_at"),
   createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
+});
+
+export type AnonymousSuggestionStatus = "new" | "reviewing" | "planned" | "closed";
+
+// The submission route authenticates eligibility but deliberately stores no
+// agent id, email, IP address, user agent, or audit-log entry.
+export const anonymousSuggestions = portal.table("anonymous_suggestions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  category: text("category").notNull(),
+  message: text("message").notNull(),
+  locale: text("locale").notNull().default("zh"),
+  status: text("status").$type<AnonymousSuggestionStatus>().notNull().default("new"),
+  adminNote: text("admin_note"),
+  createdAt: timestamptz("created_at").notNull().defaultNow(),
+  updatedAt: timestamptz("updated_at").notNull().defaultNow(),
 });
 
 // ============================================================

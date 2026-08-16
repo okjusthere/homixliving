@@ -5,6 +5,7 @@ import { agentPayouts, agents } from "@/db/schema";
 import { requireActiveAgentApi, requireAdminApi } from "@/lib/auth-guards";
 import { logAudit } from "@/lib/audit";
 import { notify } from "@/lib/notify";
+import { applyPayoutToObligations } from "@/lib/compensation-ledger";
 
 const METHODS = new Set(["ach", "check", "quickbooks", "zelle", "other"]);
 
@@ -58,20 +59,28 @@ export async function POST(req: NextRequest) {
 
   const dealType = String(body.dealType || "").trim();
   const dealId = Number(body.dealId);
-  const [row] = await db
-    .insert(agentPayouts)
-    .values({
-      agentId,
+  const { row, application } = await db.transaction(async (tx) => {
+    const [created] = await tx
+      .insert(agentPayouts)
+      .values({
+        agentId,
+        amountCents,
+        method,
+        reference: String(body.reference || "").trim().slice(0, 120) || null,
+        memo: String(body.memo || "").trim().slice(0, 500) || null,
+        dealType: ["rental", "sale"].includes(dealType) ? dealType : null,
+        dealId: Number.isInteger(dealId) && dealId > 0 ? dealId : null,
+        paidAt,
+        createdByEmail: auth.session.user.email ?? null,
+      })
+      .returning();
+    const applied = await applyPayoutToObligations(tx, {
+      payoutId: created.id,
+      recipientAgentId: agentId,
       amountCents,
-      method,
-      reference: String(body.reference || "").trim().slice(0, 120) || null,
-      memo: String(body.memo || "").trim().slice(0, 500) || null,
-      dealType: ["rental", "sale"].includes(dealType) ? dealType : null,
-      dealId: Number.isInteger(dealId) && dealId > 0 ? dealId : null,
-      paidAt,
-      createdByEmail: auth.session.user.email ?? null,
-    })
-    .returning();
+    });
+    return { row: created, application: applied };
+  });
 
   await logAudit(
     auth.session,
@@ -79,6 +88,7 @@ export async function POST(req: NextRequest) {
     "agent_payout",
     row.id,
     `登记佣金发放：${agent.name} $${(amountCents / 100).toFixed(2)}（${method}）`,
+    application,
   );
   try {
     await notify({
@@ -93,5 +103,5 @@ export async function POST(req: NextRequest) {
     console.error("payout notification failed", error);
   }
 
-  return NextResponse.json(row);
+  return NextResponse.json({ ...row, application });
 }

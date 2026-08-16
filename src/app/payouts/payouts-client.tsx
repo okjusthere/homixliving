@@ -30,6 +30,18 @@ type RevealedPayment = {
   accountNumber: string | null;
 };
 
+type PayableObligation = {
+  id: number;
+  recipientAgentId: number;
+  sourceAgentId: number;
+  kind: "agent_net" | "team_split" | "sponsor_reward";
+  amountCents: number;
+  paidCents: number;
+  status: "pending_receipt" | "payable" | "partially_paid" | "paid" | "void";
+  dealType: string;
+  dealId: number;
+};
+
 const M = {
   en: {
     recordTitle: "Record a payout",
@@ -81,6 +93,13 @@ const M = {
     totalsLead: (y: string) => `Per-agent totals for ${y} — the year-end 1099-NEC figures.`,
     exportCsv: "Export CSV",
     filteredTotal: "Filtered total",
+    payableNow: "Payable now",
+    awaitingReceipt: "Awaiting company receipt",
+    agentNet: "Agent net",
+    teamSplit: "Team split",
+    sponsorReward: "Sponsor reward",
+    autoApply: "The payout is applied to the oldest payable items first. Team split and sponsor reward remain separate ledger lines.",
+    unmatchedWarning: "Any amount above the payable balance remains an unallocated legacy payout.",
   },
   zh: {
     recordTitle: "登记发放",
@@ -130,6 +149,13 @@ const M = {
     totalsLead: (y: string) => `${y} 年各经纪人合计——即年末 1099-NEC 数字。`,
     exportCsv: "导出 CSV",
     filteredTotal: "筛选合计",
+    payableNow: "当前可发放",
+    awaitingReceipt: "等待公司收款",
+    agentNet: "经纪人实得",
+    teamSplit: "团队分成",
+    sponsorReward: "推荐奖励",
+    autoApply: "登记后自动抵扣最早的待付项目；团队分成与推荐奖励始终保留为两条独立明细。",
+    unmatchedWarning: "超过当前应付余额的部分会保留为未匹配的历史发放。",
   },
 } as const;
 
@@ -139,10 +165,12 @@ export function PayoutsClient({
   agents,
   payouts,
   profiles,
+  obligations,
 }: {
   agents: Agent[];
   payouts: AgentPayout[];
   profiles: PaymentReadiness[];
+  obligations: PayableObligation[];
 }) {
   const router = useRouter();
   const locale = useLocale();
@@ -169,6 +197,21 @@ export function PayoutsClient({
   const [memo, setMemo] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const selectedObligations = useMemo(
+    () => obligations.filter((row) => row.recipientAgentId === Number(formAgent)),
+    [formAgent, obligations],
+  );
+  const selectedPayableCents = selectedObligations
+    .filter((row) => row.status === "payable" || row.status === "partially_paid")
+    .reduce((sum, row) => sum + row.amountCents - row.paidCents, 0);
+  const selectedPendingCents = selectedObligations
+    .filter((row) => row.status === "pending_receipt")
+    .reduce((sum, row) => sum + row.amountCents - row.paidCents, 0);
+  const obligationLabel = {
+    agent_net: t.agentNet,
+    team_split: t.teamSplit,
+    sponsor_reward: t.sponsorReward,
+  } as const;
 
   async function submit() {
     const cents = Math.round(parseFloat(amount) * 100);
@@ -302,7 +345,14 @@ export function PayoutsClient({
             <div className="grid gap-3 sm:grid-cols-2">
               <select
                 value={formAgent}
-                onChange={(e) => setFormAgent(e.target.value)}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setFormAgent(next);
+                  const total = obligations
+                    .filter((row) => row.recipientAgentId === Number(next) && (row.status === "payable" || row.status === "partially_paid"))
+                    .reduce((sum, row) => sum + row.amountCents - row.paidCents, 0);
+                  setAmount(total > 0 ? (total / 100).toFixed(2) : "");
+                }}
                 className="h-10 rounded-lg px-3 text-[13.5px]"
                 style={selectStyle}
               >
@@ -330,6 +380,31 @@ export function PayoutsClient({
               <EditorialInput value={reference} onChange={setReference} placeholder={t.reference} mono />
               <EditorialInput value={memo} onChange={setMemo} placeholder={t.memo} />
             </div>
+            {formAgent && (
+              <div
+                className="rounded-lg p-3 text-[12.5px]"
+                style={{ background: tone.paperDeep, border: `1px solid ${tone.lineSoft}` }}
+              >
+                <div className="flex flex-wrap gap-x-5 gap-y-1" style={{ color: tone.ink }}>
+                  <span>{t.payableNow}: <strong className="font-mono">${fmtMoney(selectedPayableCents / 100)}</strong></span>
+                  <span>{t.awaitingReceipt}: <strong className="font-mono">${fmtMoney(selectedPendingCents / 100)}</strong></span>
+                </div>
+                {selectedObligations.length > 0 && (
+                  <div className="mt-2 space-y-1" style={{ color: tone.ink50 }}>
+                    {selectedObligations.map((row) => (
+                      <div key={row.id} className="flex items-center justify-between gap-3">
+                        <span>{obligationLabel[row.kind]} · {row.dealType === "rental" ? "Rental" : "Sales"} #{row.dealId}</span>
+                        <span className="font-mono">${fmtMoney((row.amountCents - row.paidCents) / 100)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <p className="mt-2" style={{ color: tone.ink50 }}>{t.autoApply}</p>
+                {parseFloat(amount || "0") * 100 > selectedPayableCents && (
+                  <p className="mt-1" style={{ color: tone.amber }}>{t.unmatchedWarning}</p>
+                )}
+              </div>
+            )}
             <div className="flex items-center gap-3">
               <Btn
                 variant="primary"

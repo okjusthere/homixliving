@@ -122,8 +122,8 @@ export async function buildCompensationEstimate(input: {
       teamLeaderAgentId: leaderAgentId,
       sponsorAgentId: agent.referredByAgentId,
       teamSplitPct: input.source === "team"
-        ? teamConfig?.teamLeadSplitPct || 10
-        : teamConfig?.defaultTeamSplitPct || 10,
+        ? teamConfig?.teamLeadSplitPct ?? 10
+        : teamConfig?.defaultTeamSplitPct ?? 10,
       teamCapAmount: teamConfig?.teamCapCents == null ? null : teamConfig.teamCapCents / 100,
       teamCapUsed,
     };

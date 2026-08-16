@@ -37,6 +37,7 @@ const navItems = [
   { href: "/finance", key: "finance", adminOnly: true },
   { href: "/payouts", key: "payouts", adminOnly: true },
   { href: "/audit", key: "audit", adminOnly: true },
+  { href: "/feedback/admin", key: "feedbackInbox", adminOnly: true },
   { href: "/settings", key: "settings", adminOnly: true },
 ] as const;
 
@@ -87,6 +88,7 @@ const adminGroups = [
     icon: Settings2,
     items: [
       { href: "/audit", key: "audit" },
+      { href: "/feedback/admin", key: "feedbackInbox" },
       { href: "/settings", key: "settings" },
     ],
   },
@@ -96,20 +98,20 @@ const LABELS = {
   en: {
     overview: "Overview", sales: "Sales", rental: "Rental", training: "Training",
     resources: "Resource library", onboarding: "Onboarding guide", coach: "AI coach", offer: "Offers", share: "Share center",
-    agents: "Agents", teams: "Teams", reports: "Performance report", finance: "Finance", payouts: "Payouts", audit: "Audit", settings: "Settings",
+    agents: "Agents", teams: "Teams", reports: "Performance report", finance: "Finance", payouts: "Payouts", audit: "Audit", feedbackInbox: "Feedback inbox", settings: "Settings",
     search: "Search", signedIn: "Signed in", signOut: "Sign out", admin: "Admin", profile: "Public profile", accountProfile: "My profile",
     menu: "Menu", switchLanguage: "Switch language", userMenu: "User menu", workspace: "Workspace", market: "Market overview", expiredListings: "Expired listings",
     transactionSupport: "Transaction support", learningGrowth: "Learning & growth", companyPerformance: "Company & performance",
-    peopleManagement: "People", financeManagement: "Finance", systemManagement: "System",
+    peopleManagement: "People", financeManagement: "Finance", systemManagement: "System", teamCompensation: "Team compensation", anonymousFeedback: "Anonymous feedback",
   },
   zh: {
     overview: "概览", sales: "买卖", rental: "租赁", training: "培训",
     resources: "资料库", onboarding: "入职指南", coach: "AI 教练", offer: "报价", share: "分享中心",
-    agents: "经纪人", teams: "团队", reports: "业绩报表", finance: "财务", payouts: "发放", audit: "审计", settings: "设置",
+    agents: "经纪人", teams: "团队", reports: "业绩报表", finance: "财务", payouts: "发放", audit: "审计", feedbackInbox: "建议收件箱", settings: "设置",
     search: "搜索", signedIn: "已登录", signOut: "退出登录", admin: "管理员", profile: "个人主页", accountProfile: "我的档案",
     menu: "菜单", switchLanguage: "切换语言", userMenu: "用户菜单", workspace: "工作台", market: "市场概览", expiredListings: "已过期房源",
     transactionSupport: "交易支持", learningGrowth: "学习成长", companyPerformance: "公司与业绩",
-    peopleManagement: "人员管理", financeManagement: "财务管理", systemManagement: "系统管理",
+    peopleManagement: "人员管理", financeManagement: "财务管理", systemManagement: "系统管理", teamCompensation: "团队分佣", anonymousFeedback: "匿名建议",
   },
 } as const;
 
@@ -468,15 +470,35 @@ export function Nav() {
                     )}
                   </div>
                   {(session?.user?.accountStatus === "active" || session?.user?.isAdmin) && (
-                    <Link
-                      href="/profile"
-                      prefetch={false}
-                      onClick={() => setMenuOpen(false)}
-                      className="block px-4 py-3 text-[13px] hover:bg-[#FAF7F0] transition-colors"
-                      style={{ color: tone.ink70, borderBottom: `1px solid ${tone.lineSoft}` }}
-                    >
-                      {t.accountProfile}
-                    </Link>
+                    <>
+                      <Link
+                        href="/profile"
+                        prefetch={false}
+                        onClick={() => setMenuOpen(false)}
+                        className="block px-4 py-3 text-[13px] hover:bg-[#FAF7F0] transition-colors"
+                        style={{ color: tone.ink70, borderBottom: `1px solid ${tone.lineSoft}` }}
+                      >
+                        {t.accountProfile}
+                      </Link>
+                      <Link
+                        href="/team-compensation"
+                        prefetch={false}
+                        onClick={() => setMenuOpen(false)}
+                        className="block px-4 py-3 text-[13px] hover:bg-[#FAF7F0] transition-colors"
+                        style={{ color: tone.ink70, borderBottom: `1px solid ${tone.lineSoft}` }}
+                      >
+                        {t.teamCompensation}
+                      </Link>
+                      <Link
+                        href="/feedback"
+                        prefetch={false}
+                        onClick={() => setMenuOpen(false)}
+                        className="block px-4 py-3 text-[13px] hover:bg-[#FAF7F0] transition-colors"
+                        style={{ color: tone.ink70, borderBottom: `1px solid ${tone.lineSoft}` }}
+                      >
+                        {t.anonymousFeedback}
+                      </Link>
+                    </>
                   )}
                   <button
                     type="button"

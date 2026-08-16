@@ -1,8 +1,14 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { asc, desc, eq } from "drizzle-orm";
+import { asc, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { agentPaymentProfiles, agentPayouts, agents } from "@/db/schema";
+import {
+  agentPaymentProfiles,
+  agentPayouts,
+  agents,
+  compensationObligations,
+  dealCompensationSnapshots,
+} from "@/db/schema";
 import { requireActiveAgent } from "@/lib/auth-guards";
 import { PageHeader } from "@/components/homix/page-kit";
 import { getLocale } from "@/lib/i18n";
@@ -30,10 +36,29 @@ export default async function PayoutsPage() {
   if (!session.user.isAdmin) redirect("/");
   const t = M[await getLocale()];
 
-  const [agentRows, payoutRows, profileRows] = await Promise.all([
+  const [agentRows, payoutRows, profileRows, obligationRows] = await Promise.all([
     db.select().from(agents).where(eq(agents.accountStatus, "active")).orderBy(asc(agents.name)),
     db.select().from(agentPayouts).orderBy(desc(agentPayouts.paidAt), desc(agentPayouts.id)),
     db.select().from(agentPaymentProfiles),
+    db
+      .select({
+        id: compensationObligations.id,
+        recipientAgentId: compensationObligations.recipientAgentId,
+        sourceAgentId: compensationObligations.sourceAgentId,
+        kind: compensationObligations.kind,
+        amountCents: compensationObligations.amountCents,
+        paidCents: compensationObligations.paidCents,
+        status: compensationObligations.status,
+        dealType: dealCompensationSnapshots.dealType,
+        dealId: dealCompensationSnapshots.dealId,
+      })
+      .from(compensationObligations)
+      .innerJoin(
+        dealCompensationSnapshots,
+        eq(dealCompensationSnapshots.id, compensationObligations.snapshotId),
+      )
+      .where(inArray(compensationObligations.status, ["pending_receipt", "payable", "partially_paid"]))
+      .orderBy(asc(compensationObligations.availableAt), asc(compensationObligations.id)),
   ]);
 
   // Readiness needs on-file yes/no + last-4 only; full bank digits stay
@@ -50,7 +75,12 @@ export default async function PayoutsPage() {
   return (
     <div className="space-y-7">
       <PageHeader eyebrow={t.eyebrow} title={t.title} description={t.description} />
-      <PayoutsClient agents={agentRows} payouts={payoutRows} profiles={readiness} />
+      <PayoutsClient
+        agents={agentRows}
+        payouts={payoutRows}
+        profiles={readiness}
+        obligations={obligationRows}
+      />
     </div>
   );
 }

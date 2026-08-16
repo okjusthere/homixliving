@@ -26,6 +26,11 @@ const M = {
     finalizing: "Finalizing…",
     finalizedToast: "Compensation frozen",
     finalizeFailed: "Unable to finalize compensation",
+    received: "Company received funds",
+    awaitingReceipt: "Awaiting company receipt",
+    markReceived: "Mark company received",
+    unmarkReceived: "Undo receipt",
+    receiptFailed: "Unable to update receipt status",
   },
   zh: {
     title: "分佣结算 · v3.1",
@@ -42,10 +47,20 @@ const M = {
     finalizing: "正在冻结…",
     finalizedToast: "分佣已冻结",
     finalizeFailed: "暂时无法冻结分佣",
+    received: "公司已收款",
+    awaitingReceipt: "等待公司收款",
+    markReceived: "确认公司已收款",
+    unmarkReceived: "取消收款",
+    receiptFailed: "暂时无法更新收款状态",
   },
 } as const;
 
-type Payload = { snapshot: DealCompensationSnapshot; allocations: DealCompensationAllocation[] };
+type Payload = {
+  snapshot: DealCompensationSnapshot;
+  allocations: DealCompensationAllocation[];
+  obligations?: Array<{ id: number; kind: string; amountCents: number; paidCents: number; status: string }>;
+  receipt?: { id: number; receivedAt: string; amountCents: number } | null;
+};
 
 export function CompensationV31Card({
   dealType,
@@ -87,6 +102,20 @@ export function CompensationV31Card({
     }
   };
 
+  const updateReceipt = async (received: boolean) => {
+    try {
+      const response = await fetch(`/api/compensation/${dealType}/${dealId}/receipt`, {
+        method: received ? "POST" : "DELETE",
+        headers: received ? { "Content-Type": "application/json" } : undefined,
+        body: received ? JSON.stringify({ amountCents: Math.round(Number(payload.snapshot.grossCommission) * 100) }) : undefined,
+      });
+      if (!response.ok) throw new Error();
+      load();
+    } catch {
+      toast.error(t.receiptFailed);
+    }
+  };
+
   const row = (label: string, amount: number) => (
     <div className="flex items-center justify-between gap-4 border-b py-3 last:border-0" style={{ borderColor: tone.lineSoft }}>
       <span className="text-[12.5px]" style={{ color: tone.ink50 }}>{label}</span>
@@ -108,6 +137,22 @@ export function CompensationV31Card({
         {row(t.fee, payload.snapshot.transactionFee)}
         {row(t.sponsor, payload.snapshot.sponsorAmount)}
         {row(t.net, payload.snapshot.agentNetTotal)}
+        {payload.snapshot.status === "finalized" && (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg px-3 py-2" style={{ background: tone.paperDeep }}>
+            <span className="text-[12.5px]" style={{ color: payload.receipt ? tone.green : tone.ink50 }}>
+              {payload.receipt ? t.received : t.awaitingReceipt}
+            </span>
+            {session?.user?.isAdmin && (
+              <Btn
+                size="sm"
+                variant={payload.receipt ? "outline" : "primary"}
+                onClick={() => void updateReceipt(!payload.receipt)}
+              >
+                {payload.receipt ? t.unmarkReceived : t.markReceived}
+              </Btn>
+            )}
+          </div>
+        )}
         {session?.user?.isAdmin && payload.snapshot.status !== "finalized" && (
           <Btn variant="primary" className="mt-5 w-full justify-center" onClick={() => void finalize()} disabled={finalizing}>
             {finalizing ? t.finalizing : t.finalize}
