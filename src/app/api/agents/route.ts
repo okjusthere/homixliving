@@ -308,6 +308,25 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "licenseExpiresAt must be YYYY-MM-DD" }, { status: 400 });
     }
     const cleaned = cleanAdminAgentPayload({ ...existing, ...body, email: existing.email });
+    if (isAdmin && existing.accountStatus === "pending" && existing.agreementStatus !== "not_started") {
+      const signedFactsChanged =
+        cleaned.name !== existing.name ||
+        cleaned.legalName !== existing.legalName ||
+        cleaned.phone !== existing.phone ||
+        cleaned.licenseNumber !== existing.licenseNumber ||
+        cleaned.licensedCompany !== existing.licensedCompany ||
+        cleaned.practice !== existing.practice ||
+        cleaned.teamId !== existing.teamId ||
+        cleaned.referredByAgentId !== existing.referredByAgentId ||
+        cleaned.plan !== normalizeAgentPlan(existing.plan) ||
+        cleaned.affiliationTermMonths !== existing.affiliationTermMonths;
+      if (signedFactsChanged) {
+        return NextResponse.json(
+          { error: "Signed onboarding facts cannot change after the affiliation agreement is sent." },
+          { status: 409 },
+        );
+      }
+    }
     if (isAdmin && body.plan !== undefined && cleaned.plan !== normalizeAgentPlan(existing.plan)) {
       cleaned.planEffectiveFrom = dateOrNull(body.planEffectiveFrom) || new Date().toISOString().slice(0, 10);
     }

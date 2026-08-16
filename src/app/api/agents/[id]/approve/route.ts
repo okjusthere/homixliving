@@ -56,6 +56,8 @@ export async function POST(
     }
   }
 
+  const agreementFactsFrozen = existing.accountStatus === "pending" && existing.agreementStatus !== "not_started";
+
   // Roster details are captured here because approval is the one moment an
   // admin is already looking at this person. Collected later they tend never
   // to be filled in at all. All three are optional — approval still works
@@ -79,6 +81,12 @@ export async function POST(
     if (!referrer) {
       return NextResponse.json({ error: "Referring agent not found" }, { status: 404 });
     }
+    if (agreementFactsFrozen && referredByAgentId !== existing.referredByAgentId) {
+      return NextResponse.json(
+        { error: "Sponsor cannot change after the affiliation agreement is sent." },
+        { status: 409 },
+      );
+    }
   }
 
   const teamId =
@@ -91,6 +99,12 @@ export async function POST(
     }
     const [team] = await db.select({ id: teams.id }).from(teams).where(eq(teams.id, teamId)).limit(1);
     if (!team) return NextResponse.json({ error: "Team not found" }, { status: 404 });
+    if (agreementFactsFrozen && teamId !== existing.teamId) {
+      return NextResponse.json(
+        { error: "Team cannot change after the affiliation agreement is sent." },
+        { status: 409 },
+      );
+    }
   }
 
   const effectiveTeamId = teamId !== undefined ? teamId : existing.teamId;
