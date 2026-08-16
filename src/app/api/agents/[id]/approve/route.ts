@@ -16,6 +16,8 @@ import {
 } from "@/lib/homixweb";
 import { normalizeAgentPlan, PLAN_SPLIT_PCT } from "@/lib/agent-plans";
 import { isOnboardingV2Enforced, onboardingPaymentProduct } from "@/lib/onboarding";
+import { isOnboardingESignConfigured } from "@/lib/esign";
+import { syncOnboardingAgreement } from "@/lib/onboarding-agreement";
 
 export async function POST(
   req: NextRequest,
@@ -32,7 +34,7 @@ export async function POST(
   const body = await req.json().catch(() => ({}));
   const publicProfileId =
     typeof body.publicProfileId === "string" ? body.publicProfileId.trim() : "";
-  const [existing] = await db
+  let [existing] = await db
     .select()
     .from(agents)
     .where(eq(agents.id, parsedId))
@@ -41,6 +43,17 @@ export async function POST(
     return NextResponse.json({ error: "Agent not found" }, { status: 404 });
   }
   if (existing.accountStatus === "pending" && isOnboardingV2Enforced()) {
+    if (existing.esignEnvelopeId && isOnboardingESignConfigured()) {
+      try {
+        existing = await syncOnboardingAgreement(existing);
+      } catch (error) {
+        console.error("Unable to verify onboarding agreement before approval", error);
+        return NextResponse.json(
+          { error: "Unable to verify the latest eSign status. Please retry." },
+          { status: 502 },
+        );
+      }
+    }
     const paymentRequired = onboardingPaymentProduct(
       normalizeAgentPlan(existing.plan),
       existing.affiliationTermMonths,

@@ -9,6 +9,10 @@ import {
   createInviteToken,
   hashInviteToken,
 } from "@/lib/onboarding-invites";
+import {
+  defaultInvitationLocks,
+  type InvitationKind,
+} from "@/lib/onboarding-routing";
 
 const INVITE_PLANS = new Set<AgentPlan>(["solo", "solo_pro", "team_member", "holding"]);
 
@@ -30,9 +34,6 @@ async function invitationAuthority() {
     .select({ id: teams.id })
     .from(teams)
     .where(eq(teams.leaderAgentId, agentId));
-  if (!auth.session.user.isAdmin && ledTeams.length === 0) {
-    return { ok: false as const, error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
-  }
   return { ok: true as const, session: auth.session, agentId, ledTeamIds: ledTeams.map((team) => team.id) };
 }
 
@@ -65,11 +66,29 @@ export async function POST(request: NextRequest) {
   if (!authority.ok) return authority.error;
   const body = await request.json().catch(() => ({}));
   const requestedTeamId = body.teamId ? Number(body.teamId) : null;
+  if (requestedTeamId !== null && (!Number.isInteger(requestedTeamId) || requestedTeamId <= 0)) {
+    return NextResponse.json({ error: "Invalid team" }, { status: 400 });
+  }
+  const requestedKind = String(body.kind || "");
+  const kind: InvitationKind = requestedKind === "personal_referral" ||
+    requestedKind === "team_recruiting" || requestedKind === "admin"
+    ? requestedKind
+    : requestedTeamId ? "team_recruiting" : authority.session.user.isAdmin ? "admin" : "personal_referral";
+  if (kind === "admin" && !authority.session.user.isAdmin) {
+    return NextResponse.json({ error: "Only admins may create admin invitations." }, { status: 403 });
+  }
+  if (kind === "team_recruiting" && !requestedTeamId) {
+    return NextResponse.json({ error: "Team recruiting invitations require a team." }, { status: 400 });
+  }
   if (
+    kind === "team_recruiting" &&
     !authority.session.user.isAdmin &&
-    (!requestedTeamId || !authority.ledTeamIds.includes(requestedTeamId))
+    !authority.ledTeamIds.includes(requestedTeamId!)
   ) {
     return NextResponse.json({ error: "Team leaders may only invite to their own team." }, { status: 403 });
+  }
+  if (kind === "personal_referral" && requestedTeamId) {
+    return NextResponse.json({ error: "Personal referral links cannot assign a team." }, { status: 400 });
   }
   let selectedTeamLeaderId: number | null = null;
   if (requestedTeamId) {
@@ -82,14 +101,23 @@ export async function POST(request: NextRequest) {
     selectedTeamLeaderId = team.leaderAgentId;
   }
 
+  if (body.plan !== undefined && !INVITE_PLANS.has(String(body.plan) as AgentPlan)) {
+    return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
+  }
   const requestedPlan = normalizeAgentPlan(body.plan);
-  const plan = requestedTeamId ? "team_member" : requestedPlan;
+  const plan = kind === "team_recruiting" ? "team_member" : requestedPlan;
   if (!INVITE_PLANS.has(plan)) {
     return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
   }
-  const sponsorAgentId = authority.session.user.isAdmin
-    ? body.sponsorAgentId ? Number(body.sponsorAgentId) : selectedTeamLeaderId
-    : authority.agentId;
+  const requestedSponsorId = body.sponsorAgentId ? Number(body.sponsorAgentId) : null;
+  if (requestedSponsorId !== null && (!Number.isInteger(requestedSponsorId) || requestedSponsorId <= 0)) {
+    return NextResponse.json({ error: "Invalid sponsor" }, { status: 400 });
+  }
+  const sponsorAgentId = kind === "personal_referral"
+    ? authority.agentId
+    : authority.session.user.isAdmin
+      ? requestedSponsorId || selectedTeamLeaderId
+      : authority.agentId;
   if (sponsorAgentId) {
     const [sponsor] = await db.select({ id: agents.id }).from(agents).where(eq(agents.id, sponsorAgentId)).limit(1);
     if (!sponsor) return NextResponse.json({ error: "Sponsor not found" }, { status: 404 });
@@ -99,15 +127,30 @@ export async function POST(request: NextRequest) {
     : null;
   const maxUses = email ? 1 : Math.min(500, Math.max(1, Number(body.maxUses) || 100));
   const days = Math.min(90, Math.max(1, Number(body.expiresInDays) || 30));
+  const defaults = defaultInvitationLocks(kind, { teamId: requestedTeamId, sponsorAgentId });
+  const requestedLocks = body.locks && typeof body.locks === "object" ? body.locks : null;
+  const locks = kind === "admin" && requestedLocks
+    ? {
+        plan: requestedLocks.plan === undefined ? defaults.plan : Boolean(requestedLocks.plan),
+        team: requestedLocks.team === undefined ? defaults.team : Boolean(requestedLocks.team),
+        sponsor: requestedLocks.sponsor === undefined ? defaults.sponsor : Boolean(requestedLocks.sponsor),
+        term: requestedLocks.term === undefined ? defaults.term : Boolean(requestedLocks.term),
+      }
+    : defaults;
   const token = createInviteToken();
   const [invite] = await db.insert(onboardingInvitations).values({
     tokenHash: hashInviteToken(token),
     email,
+    kind,
     source: cleanOnboardingSource(body.source),
-    teamId: requestedTeamId,
+    teamId: kind === "personal_referral" ? null : requestedTeamId,
     sponsorAgentId,
     plan,
     affiliationTermMonths: Number(body.affiliationTermMonths) === 24 ? 24 : 12,
+    lockPlan: locks.plan,
+    lockTeam: locks.team,
+    lockSponsor: locks.sponsor,
+    lockTerm: locks.term,
     expiresAt: new Date(Date.now() + days * 86_400_000).toISOString(),
     maxUses,
     createdByAgentId: authority.agentId,

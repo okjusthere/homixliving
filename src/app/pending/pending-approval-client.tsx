@@ -44,7 +44,7 @@ const M = {
     rental: "Rental",
     sales: "Sales",
     both: "Rental and sales",
-    invitedRoute: (source: string) => `Recruiting invitation · ${source.toUpperCase()} · team and sponsor locked`,
+    invitedRoute: (source: string) => `Invitation applied · ${source.toUpperCase()} · locked details cannot be changed`,
     agreementTitle: "Affiliation agreement",
     agreementHint: "Your submitted facts are inserted into the agreement. Review and sign before payment.",
     sendAgreement: "Send agreement to my email",
@@ -90,7 +90,7 @@ const M = {
     rental: "租赁",
     sales: "买卖",
     both: "租赁与买卖",
-    invitedRoute: (source: string) => `招聘邀请 · ${source.toUpperCase()} · 团队和介绍人已锁定`,
+    invitedRoute: (source: string) => `已应用邀请 · ${source.toUpperCase()} · 被锁定的资料不可修改`,
     agreementTitle: "挂靠协议",
     agreementHint: "系统会把已提交的信息带入协议；请先阅读签署，再支付费用。",
     sendAgreement: "发送协议到我的邮箱",
@@ -125,7 +125,12 @@ export function PendingApprovalClient({
   const [licenseNumber, setLicenseNumber] = useState("");
   const [licensedCompany, setLicensedCompany] = useState("");
   const [practice, setPractice] = useState("both");
-  const [routingLocked, setRoutingLocked] = useState(false);
+  const [routingLocks, setRoutingLocks] = useState({
+    plan: false,
+    team: false,
+    sponsor: false,
+    term: false,
+  });
   const [onboardingSource, setOnboardingSource] = useState("direct");
   const [agreementStatus, setAgreementStatus] = useState("not_started");
   const [paymentStatus, setPaymentStatus] = useState("pending");
@@ -156,7 +161,12 @@ export function PendingApprovalClient({
         setLicenseNumber(data.profile?.licenseNumber || "");
         setLicensedCompany(data.profile?.licensedCompany || "");
         setPractice(data.profile?.practice || "both");
-        setRoutingLocked(Boolean(data.routing?.locked));
+        setRoutingLocks({
+          plan: Boolean(data.routing?.locks?.plan),
+          team: Boolean(data.routing?.locks?.team),
+          sponsor: Boolean(data.routing?.locks?.sponsor),
+          term: Boolean(data.routing?.locks?.term),
+        });
         setOnboardingSource(data.routing?.source || "direct");
         if (data.routing?.locked) {
           setPlan(data.routing.plan || "solo");
@@ -360,7 +370,7 @@ export function PendingApprovalClient({
             <div className="mt-6 rounded-xl p-4 text-left sm:p-5" style={{ background: tone.paper, border: `1px solid ${tone.line}` }}>
               <h2 className="font-serif text-[22px]" style={{ color: tone.ink }}>{t.setupTitle}</h2>
               <p className="mt-1 text-[12px]" style={{ color: tone.ink50 }}>{t.setupHint}</p>
-              {routingLocked && (
+              {(routingLocks.plan || routingLocks.team || routingLocks.sponsor || routingLocks.term) && (
                 <p className="mt-3 rounded-lg px-3 py-2 text-[12px]" style={{ background: tone.paperDeep, color: tone.green }}>
                   {t.invitedRoute(onboardingSource)}
                 </p>
@@ -395,7 +405,7 @@ export function PendingApprovalClient({
                   </label>
                   <label className="grid gap-1 text-[12px]" style={{ color: tone.ink70 }}>
                     {t.track}
-                    <select value={plan} onChange={(event) => setPlan(event.target.value)} disabled={routingLocked || agreementStatus !== "not_started"} className="h-11 rounded-lg bg-white px-3 text-[13px] disabled:opacity-60" style={{ border: `1px solid ${tone.line}`, color: tone.ink }}>
+                    <select value={plan} onChange={(event) => setPlan(event.target.value)} disabled={routingLocks.plan || agreementStatus !== "not_started"} className="h-11 rounded-lg bg-white px-3 text-[13px] disabled:opacity-60" style={{ border: `1px solid ${tone.line}`, color: tone.ink }}>
                       <option value="solo">{t.solo}</option>
                       <option value="solo_pro">{t.soloPro}</option>
                       <option value="team_member">{t.teamMember}</option>
@@ -405,7 +415,7 @@ export function PendingApprovalClient({
                   {plan === "team_member" ? (
                     <label className="grid gap-1 text-[12px]" style={{ color: tone.ink70 }}>
                       {t.team}
-                      <select value={teamId} onChange={(event) => setTeamId(event.target.value)} disabled={routingLocked || agreementStatus !== "not_started"} className="h-11 rounded-lg bg-white px-3 text-[13px] disabled:opacity-60" style={{ border: `1px solid ${tone.line}`, color: tone.ink }}>
+                      <select value={teamId} onChange={(event) => setTeamId(event.target.value)} disabled={routingLocks.team || agreementStatus !== "not_started"} className="h-11 rounded-lg bg-white px-3 text-[13px] disabled:opacity-60" style={{ border: `1px solid ${tone.line}`, color: tone.ink }}>
                         <option value="">{t.selectTeam}</option>
                         {teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
                       </select>
@@ -413,7 +423,7 @@ export function PendingApprovalClient({
                   ) : (
                     <label className="grid gap-1 text-[12px]" style={{ color: tone.ink70 }}>
                       {t.term}
-                      <select value={plan === "solo_pro" ? "12" : termMonths} onChange={(event) => setTermMonths(event.target.value)} disabled={plan === "solo_pro" || routingLocked || agreementStatus !== "not_started"} className="h-11 rounded-lg bg-white px-3 text-[13px] disabled:opacity-60" style={{ border: `1px solid ${tone.line}`, color: tone.ink }}>
+                      <select value={plan === "solo_pro" ? "12" : termMonths} onChange={(event) => setTermMonths(event.target.value)} disabled={plan === "solo_pro" || routingLocks.term || agreementStatus !== "not_started"} className="h-11 rounded-lg bg-white px-3 text-[13px] disabled:opacity-60" style={{ border: `1px solid ${tone.line}`, color: tone.ink }}>
                         <option value="12">{plan === "solo_pro" ? "$3,650 · 1 year" : t.oneYear}</option>
                         {plan !== "solo_pro" && <option value="24">{t.twoYears}</option>}
                       </select>
@@ -421,7 +431,7 @@ export function PendingApprovalClient({
                   )}
                   <label className="grid gap-1 text-[12px] sm:col-span-2" style={{ color: tone.ink70 }}>
                     {t.sponsor}
-                    <select value={sponsorId} onChange={(event) => setSponsorId(event.target.value)} disabled={routingLocked || agreementStatus !== "not_started"} className="h-11 rounded-lg bg-white px-3 text-[13px] disabled:opacity-60" style={{ border: `1px solid ${tone.line}`, color: tone.ink }}>
+                    <select value={sponsorId} onChange={(event) => setSponsorId(event.target.value)} disabled={routingLocks.sponsor || agreementStatus !== "not_started"} className="h-11 rounded-lg bg-white px-3 text-[13px] disabled:opacity-60" style={{ border: `1px solid ${tone.line}`, color: tone.ink }}>
                       <option value="">{t.noSponsor}</option>
                       {sponsors.map((sponsor) => <option key={sponsor.id} value={sponsor.id}>{sponsor.name}</option>)}
                     </select>

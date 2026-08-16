@@ -157,9 +157,11 @@ one-time Stripe discount; the annual subscription then renews at the normal rate
 **Agent onboarding eSign**
 
 ```bash
-ESIGN_API_URL=https://your-esign-service.example.com
-ESIGN_APPLICATION_KEY=...       # dedicated Portal credential; never expose client-side
+ESIGN_API_URL=https://esign.kevv.ai
+ESIGN_APPLICATION_KEY=...       # dedicated HR-only Portal credential; never expose client-side
 ESIGN_ONBOARDING_TEMPLATE_ID=...
+ESIGN_ONBOARDING_COUNTERSIGNER_NAME=...   # required only when the template has a countersigner role
+ESIGN_ONBOARDING_COUNTERSIGNER_EMAIL=...
 ONBOARDING_V2_ENFORCED=0         # switch to 1 only after the rollout smoke test
 ```
 
@@ -235,7 +237,7 @@ being configured:
 
 1. Deploy the schema/code with `ONBOARDING_V2_ENFORCED=0`, then run the checked-in migration or the idempotent schema endpoint.
 2. Publish the eSign onboarding template and create a dedicated Portal application key with the minimum permissions listed above.
-3. Configure the three `ESIGN_*` variables and confirm the Stripe annual-plan prices and webhook are active.
+3. Issue a dedicated eSign `HR` application credential with `templates:read`, `transactions:read`, `transactions:write`, `envelopes:read`, `envelopes:write`, `envelopes:send`, and `evidence:read`; configure the `ESIGN_*` variables and confirm the Stripe annual-plan prices and webhook are active.
 4. Run one invited-agent smoke test through profile, agreement, payment, webhook, admin review, and activation.
 5. Set `ONBOARDING_V2_ENFORCED=1`. From this point, admin approval fails closed until required agreement and payment steps are complete.
 

@@ -133,6 +133,7 @@ export type OnboardingAgreementStatus =
   | "expired"
   | "failed";
 export type OnboardingPaymentStatus = "pending" | "paid" | "not_required";
+export type OnboardingInvitationKind = "personal_referral" | "team_recruiting" | "admin";
 
 export const agents = portal.table("agents", {
   id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
@@ -173,6 +174,9 @@ export const agents = portal.table("agents", {
     .default("not_started"),
   esignTransactionId: text("esign_transaction_id"),
   esignEnvelopeId: text("esign_envelope_id"),
+  esignTemplateVersionId: text("esign_template_version_id"),
+  esignEvidencePackageId: text("esign_evidence_package_id"),
+  agreementCompletedAt: timestamptz("agreement_completed_at"),
   paymentStatus: text("payment_status")
     .$type<OnboardingPaymentStatus>()
     .notNull()
@@ -188,16 +192,16 @@ export const agents = portal.table("agents", {
   updatedAt: timestamptz("updated_at").$defaultFn(() => new Date().toISOString()),
 });
 
-// Recruiting campaign links freeze the facts that should never be inferred
-// from a free-text form: source brokerage, team, sponsor, and compensation
-// track. Only a SHA-256 token hash is stored; the plaintext token exists only
-// in the generated invitation URL.
+// Invitation links freeze only their authoritative facts. A personal referral
+// locks the sponsor, while a team campaign also locks the team and plan. Only
+// a SHA-256 token hash is stored; plaintext exists only in the generated URL.
 export const onboardingInvitations = portal.table(
   "onboarding_invitations",
   {
     id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
     tokenHash: text("token_hash").notNull().unique(),
     email: text("email"),
+    kind: text("kind").$type<OnboardingInvitationKind>().notNull().default("admin"),
     source: text("source").notNull().default("direct"),
     teamId: integer("team_id").references(() => teams.id, { onDelete: "set null" }),
     sponsorAgentId: integer("sponsor_agent_id").references(() => agents.id, {
@@ -205,6 +209,10 @@ export const onboardingInvitations = portal.table(
     }),
     plan: text("plan").$type<AgentPlan>().notNull().default("solo"),
     affiliationTermMonths: integer("affiliation_term_months").notNull().default(12),
+    lockPlan: boolean("lock_plan").notNull().default(true),
+    lockTeam: boolean("lock_team").notNull().default(true),
+    lockSponsor: boolean("lock_sponsor").notNull().default(true),
+    lockTerm: boolean("lock_term").notNull().default(true),
     expiresAt: timestamptz("expires_at").notNull(),
     maxUses: integer("max_uses").notNull().default(1),
     useCount: integer("use_count").notNull().default(0),

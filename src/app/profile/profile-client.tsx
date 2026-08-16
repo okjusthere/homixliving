@@ -64,6 +64,13 @@ const M = {
     w9Failed: "Upload failed — please retry.",
     payoutsTitle: "My payouts",
     payoutsLead: "Commission disbursements the office has recorded for you.",
+    referralTitle: "My referral link",
+    referralLead: "Share this link with an agent you introduce to Homix. It records you as the sponsor without forcing the person into your team.",
+    referralCreate: "Create referral link",
+    referralCreating: "Creating…",
+    referralCopy: "Copy link",
+    referralCopied: "Link copied.",
+    referralFailed: "Could not create the link.",
     colDate: "Date",
     colAmount: "Amount",
     colMethod: "Method",
@@ -113,6 +120,13 @@ const M = {
     w9Failed: "上传失败，请重试。",
     payoutsTitle: "我的收款记录",
     payoutsLead: "公司为你登记的每一笔佣金发放。",
+    referralTitle: "我的推荐链接",
+    referralLead: "把此链接发给你介绍加入 Homix 的经纪人。系统只会记录你为介绍人，不会强制对方加入你的团队。",
+    referralCreate: "生成推荐链接",
+    referralCreating: "正在生成…",
+    referralCopy: "复制链接",
+    referralCopied: "链接已复制。",
+    referralFailed: "无法生成链接。",
     colDate: "日期",
     colAmount: "金额",
     colMethod: "方式",
@@ -219,6 +233,36 @@ export function ProfileClient({
     }
     setW9Msg(t.w9Done);
     router.refresh();
+  }
+
+  // --- recruiting attribution ---
+  const [referralBusy, setReferralBusy] = useState(false);
+  const [referralUrl, setReferralUrl] = useState("");
+  const [referralMsg, setReferralMsg] = useState<string | null>(null);
+
+  async function createReferralLink() {
+    setReferralBusy(true);
+    setReferralMsg(null);
+    try {
+      const response = await fetch("/api/onboarding/invitations", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ kind: "personal_referral", source: "direct", maxUses: 100 }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.url) throw new Error();
+      setReferralUrl(data.url);
+    } catch {
+      setReferralMsg(t.referralFailed);
+    } finally {
+      setReferralBusy(false);
+    }
+  }
+
+  async function copyReferralLink() {
+    if (!referralUrl) return;
+    await navigator.clipboard.writeText(referralUrl);
+    setReferralMsg(t.referralCopied);
   }
 
   // --- payouts ---
@@ -378,6 +422,34 @@ export function ProfileClient({
           {w9Msg && (
             <p className="text-[12.5px]" style={{ color: tone.ink70 }}>
               {w9Msg}
+            </p>
+          )}
+        </div>
+      </Card>
+
+      <Card className="flex flex-col">
+        <CardHeader title={t.referralTitle} />
+        <div className="space-y-3 p-5">
+          <p className="text-[12.5px]" style={{ color: tone.ink50 }}>
+            {t.referralLead}
+          </p>
+          {referralUrl ? (
+            <div className="space-y-3">
+              <div className="break-all rounded-md px-3 py-2 font-mono text-[12px]" style={inputStyle}>
+                {referralUrl}
+              </div>
+              <Btn variant="primary" size="sm" onClick={() => void copyReferralLink()}>
+                {t.referralCopy}
+              </Btn>
+            </div>
+          ) : (
+            <Btn variant="primary" size="sm" onClick={() => void createReferralLink()} disabled={referralBusy}>
+              {referralBusy ? t.referralCreating : t.referralCreate}
+            </Btn>
+          )}
+          {referralMsg && (
+            <p className="text-[12.5px]" style={{ color: tone.ink70 }}>
+              {referralMsg}
             </p>
           )}
         </div>

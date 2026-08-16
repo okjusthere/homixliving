@@ -20,6 +20,8 @@ export type ESignTemplate = {
 export type ESignEnvelope = {
   id: string;
   transactionId?: string;
+  templateVersionId: string;
+  evidencePackageId?: string;
   status:
     | "DRAFT"
     | "PREPARED"
@@ -36,6 +38,22 @@ export type ESignEnvelope = {
   completedAt?: string;
 };
 
+export type ESignEvidence = {
+  id: string;
+  verificationStatus: string;
+};
+
+export type ESignTransaction = {
+  id: string;
+  externalReference?: string;
+};
+
+export type ESignRecipientInput = {
+  roleId: string;
+  name: string;
+  email: string;
+};
+
 type ApiResult<T> = { data: T };
 
 function config() {
@@ -43,7 +61,16 @@ function config() {
     baseUrl: process.env.ESIGN_API_URL?.trim().replace(/\/+$/, "") || "",
     applicationKey: process.env.ESIGN_APPLICATION_KEY?.trim() || "",
     templateId: process.env.ESIGN_ONBOARDING_TEMPLATE_ID?.trim() || "",
+    countersignerName: process.env.ESIGN_ONBOARDING_COUNTERSIGNER_NAME?.trim() || "",
+    countersignerEmail: process.env.ESIGN_ONBOARDING_COUNTERSIGNER_EMAIL?.trim() || "",
   };
+}
+
+class ESignApiError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = "ESignApiError";
+  }
 }
 
 export function isOnboardingESignConfigured() {
@@ -53,6 +80,13 @@ export function isOnboardingESignConfigured() {
 
 export function onboardingESignTemplateId() {
   return config().templateId;
+}
+
+export function onboardingESignCountersigner() {
+  const value = config();
+  return value.countersignerName && value.countersignerEmail
+    ? { name: value.countersignerName, email: value.countersignerEmail }
+    : null;
 }
 
 async function esignRequest<T>(path: string, init?: RequestInit): Promise<T> {
@@ -74,7 +108,7 @@ async function esignRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const body = await response.json().catch(() => null) as ApiResult<T> | { error?: { message?: string } } | null;
   if (!response.ok || !body || !("data" in body)) {
     const message = body && "error" in body ? body.error?.message : null;
-    throw new Error(message || `eSign request failed (${response.status}).`);
+    throw new ESignApiError(message || `eSign request failed (${response.status}).`, response.status);
   }
   return body.data;
 }
@@ -85,6 +119,14 @@ export function getESignTemplate(templateId: string) {
 
 export function getESignEnvelope(envelopeId: string) {
   return esignRequest<ESignEnvelope>(`/v1/envelopes/${encodeURIComponent(envelopeId)}`);
+}
+
+export function getESignEvidence(envelopeId: string) {
+  return esignRequest<ESignEvidence>(`/v1/envelopes/${encodeURIComponent(envelopeId)}/evidence`);
+}
+
+export function listESignTransactions() {
+  return esignRequest<ESignTransaction[]>("/v1/transactions");
 }
 
 export function createESignTransaction(input: {
@@ -102,13 +144,31 @@ export function createESignTransaction(input: {
   });
 }
 
+export async function findOrCreateESignTransaction(input: {
+  name: string;
+  externalReference: string;
+}) {
+  const existing = (await listESignTransactions()).find(
+    (transaction) => transaction.externalReference === input.externalReference,
+  );
+  if (existing) return existing;
+  try {
+    return await createESignTransaction(input);
+  } catch (error) {
+    if (!(error instanceof ESignApiError) || error.status !== 409) throw error;
+    const raced = (await listESignTransactions()).find(
+      (transaction) => transaction.externalReference === input.externalReference,
+    );
+    if (!raced) throw error;
+    return raced;
+  }
+}
+
 export function createESignEnvelope(input: {
   transactionId: string;
   templateId: string;
   agentId: number;
-  name: string;
-  email: string;
-  roleId: string;
+  recipients: ESignRecipientInput[];
   mergeData: Record<string, string | number | boolean>;
 }) {
   const expiresAt = new Date(Date.now() + 14 * 86_400_000).toISOString();
@@ -122,7 +182,7 @@ export function createESignEnvelope(input: {
       subject: "Homix agent affiliation agreement",
       message: "Please review and sign your Homix affiliation agreement.",
       expiresAt,
-      recipients: [{ roleId: input.roleId, name: input.name, email: input.email }],
+      recipients: input.recipients,
       mergeData: input.mergeData,
     }),
   });

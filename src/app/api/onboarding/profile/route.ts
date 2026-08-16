@@ -10,6 +10,10 @@ import {
   findUsableInvitation,
   ONBOARDING_INVITE_COOKIE,
 } from "@/lib/onboarding-invites";
+import {
+  applyInvitationRouting,
+  invitationLocks,
+} from "@/lib/onboarding-routing";
 
 const ONBOARDING_PLANS = new Set<AgentPlan>(["solo", "solo_pro", "team_member", "holding"]);
 
@@ -48,6 +52,7 @@ export async function GET() {
   const agent = await currentAgent();
   if (!agent) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const invitation = await currentInvitation(agent);
+  const locks = invitationLocks(invitation);
   const [teamRows, sponsorRows] = await Promise.all([
     db.select({ id: teams.id, name: teams.name }).from(teams).orderBy(teams.name),
     db
@@ -73,13 +78,22 @@ export async function GET() {
       practice: agent.practice,
     },
     routing: invitation ? {
-      locked: true,
+      locked: locks.plan || locks.team || locks.sponsor || locks.term,
+      locks,
+      kind: invitation.kind,
       source: invitation.source,
-      plan: invitation.plan,
-      teamId: invitation.teamId,
-      referredByAgentId: invitation.sponsorAgentId,
-      affiliationTermMonths: invitation.affiliationTermMonths,
-    } : { locked: false, source: agent.onboardingSource },
+      plan: locks.plan ? invitation.plan : agent.plan,
+      teamId: locks.team ? invitation.teamId : agent.teamId,
+      referredByAgentId: locks.sponsor ? invitation.sponsorAgentId : agent.referredByAgentId,
+      affiliationTermMonths: locks.term
+        ? invitation.affiliationTermMonths
+        : agent.affiliationTermMonths,
+    } : {
+      locked: false,
+      locks,
+      kind: null,
+      source: agent.onboardingSource,
+    },
     teams: teamRows,
     sponsors: sponsorRows.filter((row) => row.id !== agent.id),
   });
@@ -88,8 +102,8 @@ export async function GET() {
 export async function PUT(req: NextRequest) {
   const agent = await currentAgent();
   if (!agent) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (agent.accountStatus === "inactive") {
-    return NextResponse.json({ error: "Inactive account" }, { status: 403 });
+  if (agent.accountStatus !== "pending") {
+    return NextResponse.json({ error: "Onboarding is only available to pending accounts." }, { status: 403 });
   }
   if (agent.agreementStatus !== "not_started") {
     return NextResponse.json(
@@ -102,11 +116,40 @@ export async function PUT(req: NextRequest) {
   if (invitation?.email && invitation.email.toLowerCase() !== agent.email.toLowerCase()) {
     return NextResponse.json({ error: "This invitation belongs to another email." }, { status: 403 });
   }
-  const plan = (invitation?.plan || String(body.plan || "solo")) as AgentPlan;
-  if (!ONBOARDING_PLANS.has(plan)) {
+  const requestedPlan = String(body.plan || "solo") as AgentPlan;
+  if (!ONBOARDING_PLANS.has(requestedPlan)) {
     return NextResponse.json({ error: "Invalid compensation track" }, { status: 400 });
   }
-  const teamId = invitation?.teamId ?? (body.teamId ? Number(body.teamId) : null);
+  const requestedTeamId = body.teamId ? Number(body.teamId) : null;
+  const requestedSponsorId = body.referredByAgentId ? Number(body.referredByAgentId) : null;
+  if (requestedTeamId !== null && (!Number.isInteger(requestedTeamId) || requestedTeamId <= 0)) {
+    return NextResponse.json({ error: "Invalid team" }, { status: 400 });
+  }
+  if (requestedSponsorId !== null && (!Number.isInteger(requestedSponsorId) || requestedSponsorId <= 0)) {
+    return NextResponse.json({ error: "Invalid sponsor" }, { status: 400 });
+  }
+  const requestedTerm = requestedPlan === "solo_pro"
+    ? 12
+    : Number(body.affiliationTermMonths) === 24 ? 24 : 12;
+  const routing = applyInvitationRouting(
+    {
+      plan: requestedPlan,
+      teamId: requestedTeamId,
+      sponsorAgentId: requestedSponsorId,
+      affiliationTermMonths: requestedTerm,
+    },
+    invitation ? {
+      plan: invitation.plan,
+      teamId: invitation.teamId,
+      sponsorAgentId: invitation.sponsorAgentId,
+      affiliationTermMonths: invitation.affiliationTermMonths,
+      lockPlan: invitation.lockPlan,
+      lockTeam: invitation.lockTeam,
+      lockSponsor: invitation.lockSponsor,
+      lockTerm: invitation.lockTerm,
+    } : null,
+  );
+  const { plan, teamId, sponsorAgentId: referredByAgentId, affiliationTermMonths } = routing;
   if (plan === "team_member" && !Number.isInteger(teamId)) {
     return NextResponse.json({ error: "Team members must select a team" }, { status: 400 });
   }
@@ -114,9 +157,6 @@ export async function PUT(req: NextRequest) {
     const [team] = await db.select({ id: teams.id }).from(teams).where(eq(teams.id, teamId)).limit(1);
     if (!team) return NextResponse.json({ error: "Team not found" }, { status: 404 });
   }
-  const referredByAgentId = invitation?.sponsorAgentId ?? (
-    body.referredByAgentId ? Number(body.referredByAgentId) : null
-  );
   if (referredByAgentId === agent.id) {
     return NextResponse.json({ error: "An agent cannot sponsor themselves" }, { status: 400 });
   }
@@ -128,9 +168,6 @@ export async function PUT(req: NextRequest) {
       .limit(1);
     if (!sponsor) return NextResponse.json({ error: "Sponsor not found" }, { status: 404 });
   }
-  const affiliationTermMonths = invitation?.affiliationTermMonths || (plan === "solo_pro"
-    ? 12
-    : Number(body.affiliationTermMonths) === 24 ? 24 : 12);
   const legalName = cleanText(body.legalName) || agent.legalName || agent.name;
   const phone = cleanText(body.phone, 40) || agent.phone;
   const licenseNumber = cleanText(body.licenseNumber, 80) || agent.licenseNumber;
