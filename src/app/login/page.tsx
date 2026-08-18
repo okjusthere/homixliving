@@ -24,6 +24,11 @@ const M = {
     accessDenied: "Access denied. Your account may be pending activation.",
     genericError: "Sign-in failed. Please try again.",
     continueGoogle: "Continue with Google",
+    verifySignIn: "Verify email",
+    verifyTitle: "Choose your new Google account.",
+    verifyLead:
+      "Sign in with the new address you requested. Your existing Homix profile will be reconnected after Google verifies it.",
+    verifyGoogle: "Choose new Google account",
     redirecting: "Redirecting…",
     loading: "Loading sign-in options…",
     notConfigured: "Google sign-in is not configured.",
@@ -42,6 +47,10 @@ const M = {
     accessDenied: "无法访问，你的账号可能仍在等待管理员批准。",
     genericError: "登录失败，请重试。",
     continueGoogle: "使用 Google 继续",
+    verifySignIn: "验证邮箱",
+    verifyTitle: "选择新的 Google 账号。",
+    verifyLead: "请使用刚申请的新邮箱登录，Google 验证成功后会自动关联回原有 Homix 档案。",
+    verifyGoogle: "选择新的 Google 账号",
     redirecting: "正在跳转…",
     loading: "正在加载登录方式…",
     notConfigured: "Google 登录尚未配置。",
@@ -142,6 +151,7 @@ function LoginInner() {
   const t = M[locale];
   const params = useSearchParams();
   const error = params.get("error");
+  const switchAccount = params.get("switchAccount") === "1";
   const [submittingGoogle, setSubmittingGoogle] = useState(false);
   const [providers, setProviders] = useState<Providers>(null);
   const [inAppBrowser, setInAppBrowser] = useState<InAppBrowserWarning | null>(null);
@@ -171,7 +181,11 @@ function LoginInner() {
   const handleGoogleSubmit = async () => {
     setSubmittingGoogle(true);
     try {
-      await signIn("google", { redirect: true, redirectTo: "/" });
+      await signIn(
+        "google",
+        { redirect: true, redirectTo: switchAccount ? "/profile" : "/" },
+        switchAccount ? { prompt: "select_account" } : undefined,
+      );
     } catch {
       toast.error(t.signInFailed);
       setSubmittingGoogle(false);
@@ -202,7 +216,7 @@ function LoginInner() {
             className="text-[11px] uppercase tracking-[0.16em] mb-2"
             style={{ color: tone.ink50 }}
           >
-            {t.signIn}
+            {switchAccount ? t.verifySignIn : t.signIn}
           </div>
           <h1
             className="font-serif"
@@ -214,10 +228,10 @@ function LoginInner() {
               marginBottom: 8,
             }}
           >
-            {t.title}
+            {switchAccount ? t.verifyTitle : t.title}
           </h1>
           <p className="text-[13.5px]" style={{ color: tone.ink70 }}>
-            {t.lead}
+            {switchAccount ? t.verifyLead : t.lead}
           </p>
 
           {inAppBrowser && (
@@ -309,7 +323,9 @@ function LoginInner() {
                 <span>
                   {submittingGoogle
                     ? t.redirecting
-                    : t.continueGoogle}
+                    : switchAccount
+                      ? t.verifyGoogle
+                      : t.continueGoogle}
                 </span>
               </button>
             </div>

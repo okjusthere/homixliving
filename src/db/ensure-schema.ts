@@ -317,6 +317,17 @@ export async function ensureSchema(sql: Sql) {
       ADD COLUMN IF NOT EXISTS legal_name TEXT,
       ADD COLUMN IF NOT EXISTS referred_by_agent_id INTEGER`);
 
+  // Login-email changes are staged until Google verifies the new address.
+  await run(`
+    ALTER TABLE portal.agents
+      ADD COLUMN IF NOT EXISTS pending_email TEXT,
+      ADD COLUMN IF NOT EXISTS email_change_requested_at TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS email_change_token_hash TEXT`);
+  await run(`
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_agents_pending_email_lower
+      ON portal.agents(lower(pending_email))
+      WHERE pending_email IS NOT NULL`);
+
   // Commission plan + practice area. Plans mirror the desk-fee products in
   // lib/commerce/catalog.ts; practice is rental | sales | both.
   await run(`

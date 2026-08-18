@@ -139,6 +139,9 @@ export const agents = portal.table("agents", {
   id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
+  pendingEmail: text("pending_email"),
+  emailChangeRequestedAt: timestamptz("email_change_requested_at"),
+  emailChangeTokenHash: text("email_change_token_hash"),
   phone: text("phone"),
   licenseNumber: text("license_number"),
   // NY licenses expire every 2 years — the reminder cron watches this date.
@@ -197,7 +200,11 @@ export const agents = portal.table("agents", {
   ),
   createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
   updatedAt: timestamptz("updated_at").$defaultFn(() => new Date().toISOString()),
-});
+}, (table) => [
+  uniqueIndex("uq_agents_pending_email_lower")
+    .on(sql`lower(${table.pendingEmail})`)
+    .where(sql`${table.pendingEmail} IS NOT NULL`),
+]);
 
 // Invitation links freeze only their authoritative facts. A personal referral
 // locks the sponsor, while a team campaign also locks the team and plan. Only
