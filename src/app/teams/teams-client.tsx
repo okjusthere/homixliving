@@ -6,6 +6,11 @@ import { Btn, Card, EditorialInput, Icons, LabeledField, Pill } from "@/componen
 import { PageHeader } from "@/components/homix/page-kit";
 import { fmtMoney, tone } from "@/components/homix/tokens";
 import { useLocale } from "@/lib/i18n-client";
+import {
+  TEAM_CAP_CENTS_PRESETS,
+  TEAM_SOURCED_SPLIT_PRESETS,
+  TEAM_SPLIT_PRESETS,
+} from "@/lib/team-compensation-policy";
 import type { Agent, Team, TeamCompensationConfig } from "@/db/schema";
 
 const M = {
@@ -309,9 +314,9 @@ export default function TeamsConsole() {
                         e.stopPropagation();
                         setEditTeam({
                           ...row.team,
-                          defaultTeamSplitPct: row.compensationConfig?.defaultTeamSplitPct || 10,
-                          teamLeadSplitPct: row.compensationConfig?.teamLeadSplitPct || 10,
-                          teamCapCents: row.compensationConfig?.teamCapCents || null,
+                          defaultTeamSplitPct: row.compensationConfig?.defaultTeamSplitPct ?? 10,
+                          teamLeadSplitPct: row.compensationConfig?.teamLeadSplitPct ?? 10,
+                          teamCapCents: row.compensationConfig?.teamCapCents ?? null,
                           effectiveFrom: new Date().toISOString().slice(0, 10),
                         });
                       }}
@@ -397,19 +402,19 @@ export default function TeamsConsole() {
               {editTeam.id && (
                 <div className="grid gap-4 sm:grid-cols-2">
                   <LabeledField label={t.defaultSplit}>
-                    <select value={editTeam.defaultTeamSplitPct || 10} onChange={(e) => updateField("defaultTeamSplitPct", Number(e.target.value))} className="h-11 w-full rounded-lg px-3 text-[13.5px] sm:h-10" style={{ background: tone.card, border: `1px solid ${tone.line}`, color: tone.ink }}>
-                      {[10, 15, 20].map((value) => <option key={value} value={value}>{value}%</option>)}
+                    <select value={editTeam.defaultTeamSplitPct ?? 10} onChange={(e) => updateField("defaultTeamSplitPct", Number(e.target.value))} className="h-11 w-full rounded-lg px-3 text-[13.5px] sm:h-10" style={{ background: tone.card, border: `1px solid ${tone.line}`, color: tone.ink }}>
+                      {TEAM_SPLIT_PRESETS.map((value) => <option key={value} value={value}>{value}%</option>)}
                     </select>
                   </LabeledField>
                   <LabeledField label={t.leadSplit}>
-                    <select value={editTeam.teamLeadSplitPct || 10} onChange={(e) => updateField("teamLeadSplitPct", Number(e.target.value))} className="h-11 w-full rounded-lg px-3 text-[13.5px] sm:h-10" style={{ background: tone.card, border: `1px solid ${tone.line}`, color: tone.ink }}>
-                      {[10, 15, 20, 25, 30].map((value) => <option key={value} value={value}>{value}%</option>)}
+                    <select value={editTeam.teamLeadSplitPct ?? 10} onChange={(e) => updateField("teamLeadSplitPct", Number(e.target.value))} className="h-11 w-full rounded-lg px-3 text-[13.5px] sm:h-10" style={{ background: tone.card, border: `1px solid ${tone.line}`, color: tone.ink }}>
+                      {TEAM_SOURCED_SPLIT_PRESETS.map((value) => <option key={value} value={value}>{value}%</option>)}
                     </select>
                   </LabeledField>
                   <LabeledField label={t.teamCap}>
                     <select value={editTeam.teamCapCents ?? ""} onChange={(e) => updateField("teamCapCents", e.target.value ? Number(e.target.value) : null)} className="h-11 w-full rounded-lg px-3 text-[13.5px] sm:h-10" style={{ background: tone.card, border: `1px solid ${tone.line}`, color: tone.ink }}>
                       <option value="">{t.noCap}</option>
-                      {[10000, 15000, 20000, 25000].map((value) => <option key={value} value={value * 100}>${value.toLocaleString()}</option>)}
+                      {TEAM_CAP_CENTS_PRESETS.map((value) => <option key={value} value={value}>${(value / 100).toLocaleString()}</option>)}
                     </select>
                   </LabeledField>
                   <LabeledField label={t.effectiveFrom}>

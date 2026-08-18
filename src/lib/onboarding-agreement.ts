@@ -37,12 +37,16 @@ export async function syncOnboardingAgreement(agent: typeof agents.$inferSelect)
   const completedAt = status === "completed"
     ? envelope.completedAt || agent.agreementCompletedAt || new Date().toISOString()
     : agent.agreementCompletedAt;
+  const teamTermsAcceptedAt = status === "completed" && agent.teamTermsConfigId
+    ? completedAt
+    : agent.teamTermsAcceptedAt;
   if (
     status === agent.agreementStatus &&
     onboardingStage === agent.onboardingStage &&
     envelope.templateVersionId === agent.esignTemplateVersionId &&
     evidencePackageId === agent.esignEvidencePackageId &&
-    completedAt === agent.agreementCompletedAt
+    completedAt === agent.agreementCompletedAt &&
+    teamTermsAcceptedAt === agent.teamTermsAcceptedAt
   ) {
     return agent;
   }
@@ -52,6 +56,7 @@ export async function syncOnboardingAgreement(agent: typeof agents.$inferSelect)
     esignTemplateVersionId: envelope.templateVersionId,
     esignEvidencePackageId: evidencePackageId || null,
     agreementCompletedAt: completedAt || null,
+    teamTermsAcceptedAt: teamTermsAcceptedAt || null,
     updatedAt: new Date().toISOString(),
   }).where(eq(agents.id, agent.id)).returning();
   return updated || agent;

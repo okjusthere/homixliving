@@ -64,6 +64,15 @@ export async function POST(
     if (existing.agreementStatus !== "completed") {
       return NextResponse.json({ error: "The affiliation agreement has not been signed." }, { status: 409 });
     }
+    if (
+      normalizeAgentPlan(existing.plan) === "team_member" &&
+      (!existing.teamTermsConfigId || !existing.teamTermsAcceptedAt)
+    ) {
+      return NextResponse.json(
+        { error: "The agent has not accepted the selected team compensation terms." },
+        { status: 409 },
+      );
+    }
     if (paymentRequired && existing.paymentStatus !== "paid") {
       return NextResponse.json({ error: "The required affiliation fee has not been paid." }, { status: 409 });
     }
@@ -135,6 +144,9 @@ export async function POST(
     );
   }
   const now = new Date().toISOString();
+  const anniversaryStart = existing.accountStatus === "pending"
+    ? existing.affiliationPaidAt || now.slice(0, 10)
+    : existing.anniversaryStart || existing.joinedAt || now.slice(0, 10);
 
   let selectedProfile: PublicProfile | null = null;
   if (publicProfileId) {
@@ -187,9 +199,16 @@ export async function POST(
       planEffectiveFrom: existing.accountStatus === "pending"
         ? now.slice(0, 10)
         : existing.planEffectiveFrom || now.slice(0, 10),
-      anniversaryStart: existing.accountStatus === "pending"
-        ? existing.affiliationPaidAt || now.slice(0, 10)
-        : existing.anniversaryStart || existing.joinedAt || now.slice(0, 10),
+      anniversaryStart,
+      teamTermsEffectiveFrom: effectivePlan === "team_member"
+        ? anniversaryStart
+        : null,
+      teamTermsConfigId: effectivePlan === "team_member"
+        ? existing.teamTermsConfigId
+        : null,
+      teamTermsAcceptedAt: effectivePlan === "team_member"
+        ? existing.teamTermsAcceptedAt
+        : null,
       onboardingCompletedAt: existing.onboardingCompletedAt || now,
       onboardingStage: "complete",
       updatedAt: now,

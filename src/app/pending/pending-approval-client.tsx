@@ -54,6 +54,12 @@ const M = {
     payAnnualFee: "Pay affiliation fee",
     paymentReceived: "Payment received",
     finalReview: "Agreement and payment are complete. Homix will finish license and account activation.",
+    teamTermsTitle: "Team terms included in your agreement",
+    standardTeamSplit: "Standard team split",
+    sourcedTeamSplit: "Team-sourced split",
+    annualTeamCap: "Annual member team cap",
+    noTeamCap: "No cap",
+    teamTermsRenewal: "These terms stay fixed for your current anniversary cycle. Later team changes begin at your next anniversary unless you sign an amendment.",
   },
   zh: {
     inactiveTitle: "账号已停用",
@@ -100,8 +106,27 @@ const M = {
     payAnnualFee: "支付挂靠费用",
     paymentReceived: "费用已支付",
     finalReview: "协议和付款均已完成，Homix 将完成执照及账号激活。",
+    teamTermsTitle: "协议中的团队分佣条款",
+    standardTeamSplit: "一般团队分成",
+    sourcedTeamSplit: "TL 提供客源分成",
+    annualTeamCap: "成员年度团队封顶",
+    noTeamCap: "不封顶",
+    teamTermsRenewal: "本条款在当前周年周期内保持不变；后续团队方案从下一周年开始，除非你另行签署变更协议。",
   },
 } as const;
+
+type TeamTerms = {
+  id: number;
+  defaultTeamSplitPct: number;
+  teamLeadSplitPct: number;
+  teamCapCents: number | null;
+};
+
+type TeamOption = {
+  id: number;
+  name: string;
+  compensationConfig: TeamTerms | null;
+};
 
 export function PendingApprovalClient({
   initialIsApproved,
@@ -137,7 +162,8 @@ export function PendingApprovalClient({
   const [paymentProduct, setPaymentProduct] = useState<string | null>(null);
   const [esignConfigured, setEsignConfigured] = useState(false);
   const [agreementLoading, setAgreementLoading] = useState(false);
-  const [teams, setTeams] = useState<Array<{ id: number; name: string }>>([]);
+  const [teams, setTeams] = useState<TeamOption[]>([]);
+  const [frozenTeamTerms, setFrozenTeamTerms] = useState<TeamTerms | null>(null);
   const [sponsors, setSponsors] = useState<Array<{ id: number; name: string }>>([]);
   const checkedOnce = useRef(false);
   const checkInFlight = useRef(false);
@@ -161,6 +187,7 @@ export function PendingApprovalClient({
         setLicenseNumber(data.profile?.licenseNumber || "");
         setLicensedCompany(data.profile?.licensedCompany || "");
         setPractice(data.profile?.practice || "both");
+        setFrozenTeamTerms(data.profile?.teamTerms || null);
         setRoutingLocks({
           plan: Boolean(data.routing?.locks?.plan),
           team: Boolean(data.routing?.locks?.team),
@@ -325,6 +352,10 @@ export function PendingApprovalClient({
     };
   }, [effectiveStatus, refreshApproval, session?.user?.email, status]);
 
+  const selectedTeamTerms = agreementStatus !== "not_started" && frozenTeamTerms
+    ? frozenTeamTerms
+    : teams.find((team) => String(team.id) === teamId)?.compensationConfig || null;
+
   return (
     <div className="min-h-screen flex items-center justify-center px-6">
       <div className="w-full max-w-2xl">
@@ -428,6 +459,41 @@ export function PendingApprovalClient({
                         {plan !== "solo_pro" && <option value="24">{t.twoYears}</option>}
                       </select>
                     </label>
+                  )}
+                  {plan === "team_member" && selectedTeamTerms && (
+                    <div
+                      className="rounded-lg p-4 sm:col-span-2"
+                      style={{ background: tone.paperDeep, border: `1px solid ${tone.line}` }}
+                    >
+                      <div className="text-[12px] font-medium" style={{ color: tone.ink }}>
+                        {t.teamTermsTitle}
+                      </div>
+                      <dl className="mt-3 grid grid-cols-1 gap-3 text-[12px] sm:grid-cols-3">
+                        <div>
+                          <dt style={{ color: tone.ink50 }}>{t.standardTeamSplit}</dt>
+                          <dd className="mt-1 font-mono text-[15px]" style={{ color: tone.ink }}>
+                            {selectedTeamTerms.defaultTeamSplitPct}%
+                          </dd>
+                        </div>
+                        <div>
+                          <dt style={{ color: tone.ink50 }}>{t.sourcedTeamSplit}</dt>
+                          <dd className="mt-1 font-mono text-[15px]" style={{ color: tone.ink }}>
+                            {selectedTeamTerms.teamLeadSplitPct}%
+                          </dd>
+                        </div>
+                        <div>
+                          <dt style={{ color: tone.ink50 }}>{t.annualTeamCap}</dt>
+                          <dd className="mt-1 font-mono text-[15px]" style={{ color: tone.ink }}>
+                            {selectedTeamTerms.teamCapCents == null
+                              ? t.noTeamCap
+                              : `$${(selectedTeamTerms.teamCapCents / 100).toLocaleString()}`}
+                          </dd>
+                        </div>
+                      </dl>
+                      <p className="mt-3 text-[11px] leading-5" style={{ color: tone.ink50 }}>
+                        {t.teamTermsRenewal}
+                      </p>
+                    </div>
                   )}
                   <label className="grid gap-1 text-[12px] sm:col-span-2" style={{ color: tone.ink70 }}>
                     {t.sponsor}

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { agents, teams } from "@/db/schema";
+import { agents, teamCompensationConfigs, teams } from "@/db/schema";
 import {
   createESignEnvelope,
   findOrCreateESignTransaction,
@@ -120,6 +120,19 @@ export async function POST() {
     const [sponsor] = agent.referredByAgentId
       ? await db.select({ name: agents.name }).from(agents).where(eq(agents.id, agent.referredByAgentId)).limit(1)
       : [];
+    const [teamTerms] = agent.teamTermsConfigId
+      ? await db
+          .select()
+          .from(teamCompensationConfigs)
+          .where(eq(teamCompensationConfigs.id, agent.teamTermsConfigId))
+          .limit(1)
+      : [];
+    if (agent.plan === "team_member" && (!teamTerms || teamTerms.teamId !== agent.teamId)) {
+      return NextResponse.json(
+        { error: "Team compensation terms must be selected before preparing the agreement." },
+        { status: 409 },
+      );
+    }
     const transaction = await findOrCreateESignTransaction({
       name: `${agent.legalName || agent.name} onboarding`,
       externalReference: `homix-agent-${agent.id}`,
@@ -151,6 +164,10 @@ export async function POST() {
         compensation_plan: agent.plan,
         split_pct: agent.splitPct,
         team_name: team?.name || "",
+        team_split_pct: teamTerms?.defaultTeamSplitPct ?? "",
+        team_sourced_split_pct: teamTerms?.teamLeadSplitPct ?? "",
+        team_cap_usd: teamTerms?.teamCapCents == null ? "No cap" : teamTerms.teamCapCents / 100,
+        team_terms_effective_from: agent.teamTermsEffectiveFrom || "",
         sponsor_name: sponsor?.name || "",
         affiliation_term_months: agent.affiliationTermMonths || 12,
       },

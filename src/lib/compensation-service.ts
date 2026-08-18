@@ -13,6 +13,7 @@ import {
   type CompensationSource,
 } from "@/lib/compensation-v31";
 import { normalizeAgentPlan } from "@/lib/agent-plans";
+import { teamTermsSelection } from "@/lib/team-terms";
 
 type ParticipantFact = { agentId: number; sharePct: number };
 type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -31,16 +32,6 @@ export function normalizeCompensationSource(value: unknown, dealType: "rental" |
   if (source === "homix_rental" && dealType !== "rental") return "self";
   if (source === "homix_sales" && dealType !== "sale") return "self";
   return source;
-}
-
-function anniversaryWindow(startValue: string | null, effectiveDate: string) {
-  const start = /^\d{4}-\d{2}-\d{2}$/.test(startValue || "") ? startValue! : effectiveDate;
-  const [, month, day] = start.split("-").map(Number);
-  const year = Number(effectiveDate.slice(0, 4));
-  let windowStart = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-  if (windowStart > effectiveDate) windowStart = `${year - 1}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-  const nextYear = Number(windowStart.slice(0, 4)) + 1;
-  return { start: windowStart, end: `${nextYear}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}` };
 }
 
 export async function buildCompensationEstimate(input: {
@@ -62,7 +53,14 @@ export async function buildCompensationEstimate(input: {
     const agent = agentRows[index];
     if (!agent) throw new Error(`Agent ${participant.agentId} not found`);
     const plan = normalizeAgentPlan(agent.plan);
-    const window = anniversaryWindow(agent.anniversaryStart || agent.joinedAt, input.effectiveDate);
+    const terms = teamTermsSelection({
+      effectiveDate: input.effectiveDate,
+      anniversaryStart: agent.anniversaryStart,
+      joinedAt: agent.joinedAt,
+      frozenConfigId: agent.teamTermsConfigId,
+      frozenEffectiveFrom: agent.teamTermsEffectiveFrom,
+    });
+    const { window } = terms;
     const [companyUsage] = await db
       .select({ amount: sql<number>`coalesce(sum(${dealCompensationAllocations.companyCapCredit}), 0)` })
       .from(dealCompensationAllocations)
@@ -81,16 +79,29 @@ export async function buildCompensationEstimate(input: {
     let leaderAgentId: number | null = null;
     let teamCapUsed = 0;
     if (agent.teamId) {
-      teamConfig = await db
-        .select()
-        .from(teamCompensationConfigs)
-        .where(and(
-          eq(teamCompensationConfigs.teamId, agent.teamId),
-          lte(teamCompensationConfigs.effectiveFrom, input.effectiveDate),
-        ))
-        .orderBy(desc(teamCompensationConfigs.effectiveFrom), desc(teamCompensationConfigs.version))
-        .limit(1)
-        .then((rows) => rows[0] || null);
+      if (terms.frozenConfigId) {
+        teamConfig = await db
+          .select()
+          .from(teamCompensationConfigs)
+          .where(and(
+            eq(teamCompensationConfigs.id, terms.frozenConfigId),
+            eq(teamCompensationConfigs.teamId, agent.teamId),
+          ))
+          .limit(1)
+          .then((rows) => rows[0] || null);
+      }
+      if (!teamConfig) {
+        teamConfig = await db
+          .select()
+          .from(teamCompensationConfigs)
+          .where(and(
+            eq(teamCompensationConfigs.teamId, agent.teamId),
+            lte(teamCompensationConfigs.effectiveFrom, terms.configCutoff),
+          ))
+          .orderBy(desc(teamCompensationConfigs.effectiveFrom), desc(teamCompensationConfigs.version))
+          .limit(1)
+          .then((rows) => rows[0] || null);
+      }
       const team = await db.select().from(teams).where(eq(teams.id, agent.teamId)).then((rows) => rows[0]);
       leaderAgentId = team?.leaderAgentId || null;
       if (teamConfig?.teamCapCents) {

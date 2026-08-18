@@ -159,6 +159,13 @@ export const agents = portal.table("agents", {
   plan: text("plan").$type<AgentPlan>().notNull().default("solo"),
   planEffectiveFrom: dateCol("plan_effective_from"),
   anniversaryStart: dateCol("anniversary_start"),
+  /** Team terms frozen into the member's onboarding agreement for this cycle. */
+  teamTermsConfigId: integer("team_terms_config_id").references(
+    () => teamCompensationConfigs.id,
+    { onDelete: "set null" },
+  ),
+  teamTermsEffectiveFrom: dateCol("team_terms_effective_from"),
+  teamTermsAcceptedAt: timestamptz("team_terms_accepted_at"),
   affiliationTermMonths: integer("affiliation_term_months"),
   affiliationPaidAt: dateCol("affiliation_paid_at"),
   onboardingCompletedAt: timestamptz("onboarding_completed_at"),

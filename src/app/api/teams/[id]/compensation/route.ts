@@ -4,6 +4,11 @@ import { db } from "@/db";
 import { teamCompensationConfigs, teams } from "@/db/schema";
 import { requireActiveAgentApi } from "@/lib/auth-guards";
 import { logAudit } from "@/lib/audit";
+import {
+  isTeamCapPreset,
+  isTeamSourcedSplitPreset,
+  isTeamSplitPreset,
+} from "@/lib/team-compensation-policy";
 
 async function authority(teamId: number) {
   const auth = await requireActiveAgentApi();
@@ -61,11 +66,17 @@ export async function POST(
   const body = await req.json().catch(() => ({}));
   const defaultTeamSplitPct = Number(body.defaultTeamSplitPct);
   const teamLeadSplitPct = Number(body.teamLeadSplitPct);
-  if (!Number.isInteger(defaultTeamSplitPct) || defaultTeamSplitPct < 0 || defaultTeamSplitPct > 30) {
-    return NextResponse.json({ error: "Default team split must be a whole percentage from 0 to 30." }, { status: 400 });
+  const teamCapCents = body.teamCapCents == null || body.teamCapCents === ""
+    ? null
+    : Number(body.teamCapCents);
+  if (!isTeamSplitPreset(defaultTeamSplitPct)) {
+    return NextResponse.json({ error: "Default team split must be 10%, 15%, or 20%." }, { status: 400 });
   }
-  if (!Number.isInteger(teamLeadSplitPct) || teamLeadSplitPct < 0 || teamLeadSplitPct > 40) {
-    return NextResponse.json({ error: "Team-sourced split must be a whole percentage from 0 to 40." }, { status: 400 });
+  if (!isTeamSourcedSplitPreset(teamLeadSplitPct)) {
+    return NextResponse.json({ error: "Team-sourced split must be 10%, 15%, 20%, 25%, or 30%." }, { status: 400 });
+  }
+  if (!isTeamCapPreset(teamCapCents)) {
+    return NextResponse.json({ error: "Team cap must be no cap, $10K, $15K, $20K, or $25K." }, { status: 400 });
   }
   const today = new Date().toISOString().slice(0, 10);
   const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
@@ -92,7 +103,7 @@ export async function POST(
         effectiveFrom,
         defaultTeamSplitPct,
         teamLeadSplitPct,
-        teamCapCents: latest?.teamCapCents ?? null,
+        teamCapCents,
         createdByEmail: access.auth.session.user.email || null,
       })
       .returning();
@@ -102,8 +113,8 @@ export async function POST(
     "update",
     "team_compensation",
     teamId,
-    `${access.team.name} 团队分佣自 ${effectiveFrom} 生效：${defaultTeamSplitPct}% / 客源 ${teamLeadSplitPct}%`,
-    { configId: created.id, defaultTeamSplitPct, teamLeadSplitPct, effectiveFrom },
+    `${access.team.name} 团队方案自 ${effectiveFrom} 发布：${defaultTeamSplitPct}% / 客源 ${teamLeadSplitPct}% / Cap ${teamCapCents == null ? "无" : `$${teamCapCents / 100}`}`,
+    { configId: created.id, defaultTeamSplitPct, teamLeadSplitPct, teamCapCents, effectiveFrom },
   );
   return NextResponse.json(created, { status: 201 });
 }

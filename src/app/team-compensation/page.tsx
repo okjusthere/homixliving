@@ -13,12 +13,12 @@ const M = {
   en: {
     eyebrow: "Team leadership",
     title: "Team compensation",
-    description: "Set future team economics without changing Homix company rules or historical deals.",
+    description: "Publish terms for new agents and the next member anniversary without changing Homix company rules or current-cycle deals.",
   },
   zh: {
     eyebrow: "团队管理",
     title: "团队分佣",
-    description: "设置未来生效的团队分成，不影响 Homix 公司规则和历史成交。",
+    description: "为新成员及现有成员下一周年发布团队方案，不影响 Homix 公司规则和当前周期成交。",
   },
 } as const;
 

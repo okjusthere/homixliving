@@ -12,6 +12,11 @@ import {
 } from "@/lib/reporting";
 import { requireActiveAgentApi, requireAdminApi } from "@/lib/auth-guards";
 import { logAudit } from "@/lib/audit";
+import {
+  isTeamCapPreset,
+  isTeamSourcedSplitPreset,
+  isTeamSplitPreset,
+} from "@/lib/team-compensation-policy";
 
 function parseId(value: unknown) {
   const parsed = parseInt(String(value), 10);
@@ -168,16 +173,16 @@ export async function PUT(req: NextRequest) {
     const name = String(body.name || "").trim();
     if (!name) return NextResponse.json({ error: "Name is required" }, { status: 400 });
     const leaderAgentId = body.leaderAgentId ? parseId(body.leaderAgentId) : null;
-    const defaultTeamSplitPct = Number(body.defaultTeamSplitPct || 10);
-    const teamLeadSplitPct = Number(body.teamLeadSplitPct || defaultTeamSplitPct);
+    const defaultTeamSplitPct = Number(body.defaultTeamSplitPct ?? 10);
+    const teamLeadSplitPct = Number(body.teamLeadSplitPct ?? defaultTeamSplitPct);
     const teamCapCents = body.teamCapCents == null || body.teamCapCents === "" ? null : Number(body.teamCapCents);
-    if (![10, 15, 20].includes(defaultTeamSplitPct)) {
-      return NextResponse.json({ error: "Invalid default team split preset" }, { status: 400 });
+    if (!isTeamSplitPreset(defaultTeamSplitPct)) {
+      return NextResponse.json({ error: "Default team split must be 10%, 15%, or 20%" }, { status: 400 });
     }
-    if (![10, 15, 20, 25, 30].includes(teamLeadSplitPct)) {
-      return NextResponse.json({ error: "Invalid team lead split preset" }, { status: 400 });
+    if (!isTeamSourcedSplitPreset(teamLeadSplitPct)) {
+      return NextResponse.json({ error: "Team-sourced split must be 10%, 15%, 20%, 25%, or 30%" }, { status: 400 });
     }
-    if (teamCapCents !== null && ![1_000_000, 1_500_000, 2_000_000, 2_500_000].includes(teamCapCents)) {
+    if (!isTeamCapPreset(teamCapCents)) {
       return NextResponse.json({ error: "Invalid team cap preset" }, { status: 400 });
     }
     const today = new Date().toISOString().slice(0, 10);

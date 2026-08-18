@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { and, eq, sql } from "drizzle-orm";
+import { and, desc, eq, lte, sql } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { agents, onboardingInvitations, teams } from "@/db/schema";
+import { agents, onboardingInvitations, teamCompensationConfigs, teams } from "@/db/schema";
 import { PLAN_SPLIT_PCT, type AgentPlan } from "@/lib/agent-plans";
 import { adminAgentIds, notify } from "@/lib/notify";
 import {
@@ -53,14 +53,34 @@ export async function GET() {
   if (!agent) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const invitation = await currentInvitation(agent);
   const locks = invitationLocks(invitation);
-  const [teamRows, sponsorRows] = await Promise.all([
+  const today = new Date().toISOString().slice(0, 10);
+  const [teamRows, sponsorRows, configRows] = await Promise.all([
     db.select({ id: teams.id, name: teams.name }).from(teams).orderBy(teams.name),
     db
       .select({ id: agents.id, name: agents.name })
       .from(agents)
       .where(eq(agents.accountStatus, "active"))
       .orderBy(agents.name),
+    db
+      .select({
+        id: teamCompensationConfigs.id,
+        teamId: teamCompensationConfigs.teamId,
+        effectiveFrom: teamCompensationConfigs.effectiveFrom,
+        defaultTeamSplitPct: teamCompensationConfigs.defaultTeamSplitPct,
+        teamLeadSplitPct: teamCompensationConfigs.teamLeadSplitPct,
+        teamCapCents: teamCompensationConfigs.teamCapCents,
+      })
+      .from(teamCompensationConfigs)
+      .where(lte(teamCompensationConfigs.effectiveFrom, today))
+      .orderBy(desc(teamCompensationConfigs.effectiveFrom), desc(teamCompensationConfigs.version)),
   ]);
+  const currentConfigByTeam = new Map<number, (typeof configRows)[number]>();
+  for (const config of configRows) {
+    if (!currentConfigByTeam.has(config.teamId)) currentConfigByTeam.set(config.teamId, config);
+  }
+  const frozenTerms = agent.teamTermsConfigId
+    ? configRows.find((config) => config.id === agent.teamTermsConfigId) || null
+    : null;
   return NextResponse.json({
     profile: {
       plan: agent.plan,
@@ -76,6 +96,7 @@ export async function GET() {
       licenseNumber: agent.licenseNumber,
       licensedCompany: agent.licensedCompany,
       practice: agent.practice,
+      teamTerms: frozenTerms,
     },
     routing: invitation ? {
       locked: locks.plan || locks.team || locks.sponsor || locks.term,
@@ -94,7 +115,7 @@ export async function GET() {
       kind: null,
       source: agent.onboardingSource,
     },
-    teams: teamRows,
+    teams: teamRows.map((team) => ({ ...team, compensationConfig: currentConfigByTeam.get(team.id) || null })),
     sponsors: sponsorRows.filter((row) => row.id !== agent.id),
   });
 }
@@ -176,6 +197,22 @@ export async function PUT(req: NextRequest) {
     ? body.practice
     : agent.practice;
   const now = new Date().toISOString();
+  const teamTermsEffectiveFrom = now.slice(0, 10);
+  const teamTermsConfig = plan === "team_member" && teamId
+    ? await db
+        .select()
+        .from(teamCompensationConfigs)
+        .where(and(
+          eq(teamCompensationConfigs.teamId, teamId),
+          lte(teamCompensationConfigs.effectiveFrom, teamTermsEffectiveFrom),
+        ))
+        .orderBy(desc(teamCompensationConfigs.effectiveFrom), desc(teamCompensationConfigs.version))
+        .limit(1)
+        .then((rows) => rows[0] || null)
+    : null;
+  if (plan === "team_member" && !teamTermsConfig) {
+    return NextResponse.json({ error: "The selected team has no active compensation terms." }, { status: 409 });
+  }
   const updated = await db.transaction(async (tx) => {
     if (invitation && !agent.onboardingInviteId) {
       const [consumed] = await tx
@@ -203,6 +240,9 @@ export async function PUT(req: NextRequest) {
         affiliationTermMonths,
         planEffectiveFrom: agent.planEffectiveFrom || now.slice(0, 10),
         anniversaryStart: agent.anniversaryStart || agent.joinedAt || now.slice(0, 10),
+        teamTermsConfigId: teamTermsConfig?.id || null,
+        teamTermsEffectiveFrom: teamTermsConfig ? teamTermsEffectiveFrom : null,
+        teamTermsAcceptedAt: null,
         onboardingCompletedAt: now,
         onboardingStage: "agreement",
         onboardingSource: invitation?.source || agent.onboardingSource || "direct",
