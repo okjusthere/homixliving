@@ -602,6 +602,11 @@ export const commerceOrders = portal.table("commerce_orders", {
   stripeCustomerId: text("stripe_customer_id"),
   stripeSubscriptionId: text("stripe_subscription_id"),
   stripePaymentIntentId: text("stripe_payment_intent_id"),
+  paymentChannel: text("payment_channel").notNull().default("stripe"),
+  offlineMethod: text("offline_method"),
+  offlineReference: text("offline_reference"),
+  verifiedByEmail: text("verified_by_email"),
+  externalPaymentKey: text("external_payment_key").unique(),
   checkoutUrl: text("checkout_url"),
   customerName: text("customer_name"),
   customerEmail: text("customer_email"),
@@ -659,8 +664,10 @@ export const sponsorPlanRewards = portal.table("sponsor_plan_rewards", {
     .notNull()
     .references(() => agents.id, { onDelete: "restrict" }),
   amountCents: integer("amount_cents").notNull(),
+  paidCents: integer("paid_cents").notNull().default(0),
   status: text("status").notNull().default("accrued"),
   earnedAt: timestamptz("earned_at").notNull(),
+  availableAt: timestamptz("available_at"),
   createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
 });
 
@@ -707,6 +714,7 @@ export const agentPayouts = portal.table("agent_payouts", {
   dealId: integer("deal_id"),
   paidAt: dateCol("paid_at").notNull(), // date the money actually moved
   createdByEmail: text("created_by_email"),
+  idempotencyKey: text("idempotency_key").unique(),
   createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
   updatedAt: timestamptz("updated_at").$defaultFn(() => new Date().toISOString()),
 });
@@ -721,14 +729,20 @@ export const payoutApplications = portal.table(
       .notNull()
       .references(() => agentPayouts.id, { onDelete: "cascade" }),
     obligationId: integer("obligation_id")
-      .notNull()
       .references(() => compensationObligations.id, { onDelete: "restrict" }),
+    sponsorPlanRewardId: integer("sponsor_plan_reward_id")
+      .references(() => sponsorPlanRewards.id, { onDelete: "restrict" }),
     amountCents: integer("amount_cents").notNull(),
     createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
   },
   (table) => [
     uniqueIndex("uq_payout_application").on(table.payoutId, table.obligationId),
+    uniqueIndex("uq_payout_application_plan_reward").on(
+      table.payoutId,
+      table.sponsorPlanRewardId,
+    ),
     index("idx_payout_application_obligation").on(table.obligationId),
+    index("idx_payout_application_plan_reward").on(table.sponsorPlanRewardId),
   ],
 );
 

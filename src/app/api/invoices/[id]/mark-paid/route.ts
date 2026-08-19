@@ -11,9 +11,11 @@ import { notify } from "@/lib/notify";
 import { logAudit } from "@/lib/audit";
 import { MAX_MONEY_AMOUNT } from "@/lib/commission";
 import {
+  IncompleteCompensationReceiptError,
   recordCompensationReceipt,
   removeCompensationReceipt,
 } from "@/lib/compensation-ledger";
+import { lockCompensationDeal } from "@/lib/advisory-locks";
 
 export async function POST(
   req: NextRequest,
@@ -54,38 +56,58 @@ export async function POST(
     }
     paidAmount = amount;
   }
+  if (paidAmount + 0.005 < Number(invoice.totalAmount)) {
+    return NextResponse.json(
+      {
+        error: "Partial payments can be recorded separately, but this invoice cannot be marked paid until the full invoice total is received.",
+        requiredAmount: Number(invoice.totalAmount),
+      },
+      { status: 409 },
+    );
+  }
 
-  await db.transaction(async (tx) => {
-    await tx
-      .update(invoices)
-      .set({
-        status: "paid",
-        paidAt,
-        paidAmount,
-        updatedAt: new Date().toISOString(),
-      })
-      .where(eq(invoices.id, Number(id)));
-    if (!invoice.dealId) return;
-    const [snapshot] = await tx
-      .select()
-      .from(dealCompensationSnapshots)
-      .where(and(
-        eq(dealCompensationSnapshots.dealType, "rental"),
-        eq(dealCompensationSnapshots.dealId, invoice.dealId),
-        eq(dealCompensationSnapshots.status, "finalized"),
-        isNull(dealCompensationSnapshots.supersededAt),
-      ))
-      .limit(1);
-    if (!snapshot) return;
-    await recordCompensationReceipt(tx, {
-      snapshotId: snapshot.id,
-      amountCents: Math.round(Number(paidAmount) * 100),
-      receivedAt: paidAt,
-      method: "rental_invoice",
-      reference: invoice.invoiceNumber,
-      createdByEmail: authResult.session.user.email || null,
+  try {
+    await db.transaction(async (tx) => {
+      if (invoice.dealId) await lockCompensationDeal(tx, "rental", invoice.dealId);
+      await tx
+        .update(invoices)
+        .set({
+          status: "paid",
+          paidAt,
+          paidAmount,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(invoices.id, Number(id)));
+      if (!invoice.dealId) return;
+      const [snapshot] = await tx
+        .select()
+        .from(dealCompensationSnapshots)
+        .where(and(
+          eq(dealCompensationSnapshots.dealType, "rental"),
+          eq(dealCompensationSnapshots.dealId, invoice.dealId),
+          eq(dealCompensationSnapshots.status, "finalized"),
+          isNull(dealCompensationSnapshots.supersededAt),
+        ))
+        .limit(1);
+      if (!snapshot) return;
+      await recordCompensationReceipt(tx, {
+        snapshotId: snapshot.id,
+        amountCents: Math.round(Number(paidAmount) * 100),
+        receivedAt: paidAt,
+        method: "rental_invoice",
+        reference: invoice.invoiceNumber,
+        createdByEmail: authResult.session.user.email || null,
+      });
     });
-  });
+  } catch (error) {
+    if (error instanceof IncompleteCompensationReceiptError) {
+      return NextResponse.json(
+        { error: error.message, requiredAmount: error.requiredCents / 100 },
+        { status: 409 },
+      );
+    }
+    throw error;
+  }
 
   await logAudit(
     authResult.session,
@@ -131,6 +153,7 @@ export async function DELETE(
   const invoice = await db.select().from(invoices).where(eq(invoices.id, Number(id))).then((rows) => rows[0]);
   if (!invoice) return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
   const reverted = await db.transaction(async (tx) => {
+    if (invoice.dealId) await lockCompensationDeal(tx, "rental", invoice.dealId);
     if (invoice.dealId) {
       const [snapshot] = await tx
         .select()

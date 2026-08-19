@@ -8,6 +8,7 @@ import { getConfiguredCommerceProducts, formatProductAmount } from "@/lib/commer
 import { getWorkspaceAllowedDomains } from "@/lib/google-workspace";
 import { getStripeSecretKey } from "@/lib/stripe";
 import { PayClient, type PublicPayProduct } from "./pay-client";
+import { canPurchasePlanProduct } from "@/lib/plan-payments";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +32,9 @@ export default async function PayPage({
   if (!agent || agent.accountStatus === "inactive") redirect("/pending");
   const params = await searchParams;
   const canceled = params.canceled === "1";
-  const products: PublicPayProduct[] = getConfiguredCommerceProducts().map((product) => ({
+  const products: PublicPayProduct[] = getConfiguredCommerceProducts()
+    .filter((product) => canPurchasePlanProduct(agent, product.key).ok)
+    .map((product) => ({
     key: product.key,
     name: product.name,
     description: product.description,
@@ -46,7 +49,7 @@ export default async function PayPage({
     requiresReferral: product.requiresReferral,
     configured: product.configured,
     priceLabel: formatProductAmount(product.amountCents),
-  }));
+    }));
 
   return (
     <PayClient

@@ -195,9 +195,15 @@ export async function PUT(req: NextRequest) {
         { status: 400 },
       );
     }
+    const [currentTeam] = await db.select().from(teams).where(eq(teams.id, id)).limit(1);
+    if (!currentTeam) return NextResponse.json({ error: "Team not found" }, { status: 404 });
+    if (currentTeam.leaderAgentId !== leaderAgentId && effectiveFrom > today) {
+      return NextResponse.json(
+        { error: "Leader changes take effect immediately; only compensation terms may be scheduled." },
+        { status: 409 },
+      );
+    }
     const [updated] = await db.transaction(async (tx) => {
-      const [existingTeam] = await tx.select().from(teams).where(eq(teams.id, id)).limit(1);
-      if (!existingTeam) return [];
       const [team] = await tx.update(teams).set({
         name,
         leaderAgentId,
@@ -218,12 +224,12 @@ export async function PUT(req: NextRequest) {
         teamCapCents,
         createdByEmail: authResult.session.user.email || null,
       });
-      if (existingTeam.leaderAgentId && existingTeam.leaderAgentId !== leaderAgentId) {
+      if (currentTeam.leaderAgentId && currentTeam.leaderAgentId !== leaderAgentId) {
         const [otherLeadership] = await tx
           .select({ id: teams.id })
           .from(teams)
           .where(and(
-            eq(teams.leaderAgentId, existingTeam.leaderAgentId),
+            eq(teams.leaderAgentId, currentTeam.leaderAgentId),
             ne(teams.id, id),
           ))
           .limit(1);
@@ -231,15 +237,15 @@ export async function PUT(req: NextRequest) {
           await tx.update(agents).set({
             plan: "solo_pro",
             splitPct: 100,
-            planEffectiveFrom: effectiveFrom,
-          }).where(eq(agents.id, existingTeam.leaderAgentId));
+            planEffectiveFrom: today,
+          }).where(eq(agents.id, currentTeam.leaderAgentId));
         }
       }
       if (leaderAgentId) {
         await tx.update(agents).set({
           plan: "team_leader",
           splitPct: 100,
-          planEffectiveFrom: effectiveFrom,
+          planEffectiveFrom: today,
         }).where(eq(agents.id, leaderAgentId));
       }
       return [team];
@@ -260,9 +266,15 @@ export async function DELETE(req: NextRequest) {
     const { id } = await req.json();
     const parsedId = parseId(id);
     if (!parsedId) return NextResponse.json({ error: "Valid team id is required" }, { status: 400 });
-    await db.transaction(async (tx) => {
+    const deleted = await db.transaction(async (tx) => {
       const [team] = await tx.select().from(teams).where(eq(teams.id, parsedId)).limit(1);
-      await tx.update(agents).set({ teamId: null }).where(eq(agents.teamId, parsedId));
+      if (!team) return "missing" as const;
+      const [member] = await tx
+        .select({ id: agents.id })
+        .from(agents)
+        .where(eq(agents.teamId, parsedId))
+        .limit(1);
+      if (member) return "has_members" as const;
       await tx.delete(teams).where(eq(teams.id, parsedId));
       if (team?.leaderAgentId) {
         await tx.update(agents).set({
@@ -271,8 +283,16 @@ export async function DELETE(req: NextRequest) {
           planEffectiveFrom: new Date().toISOString().slice(0, 10),
         }).where(eq(agents.id, team.leaderAgentId));
       }
+      return "deleted" as const;
     });
-    await logAudit(authResult.session, "delete", "team", parsedId, `删除团队 #${parsedId}（成员已移出）`);
+    if (deleted === "missing") return NextResponse.json({ error: "Team not found" }, { status: 404 });
+    if (deleted === "has_members") {
+      return NextResponse.json(
+        { error: "Move every team member to another plan or team before deleting this team." },
+        { status: 409 },
+      );
+    }
+    await logAudit(authResult.session, "delete", "team", parsedId, `删除空团队 #${parsedId}`);
     return NextResponse.json({ success: true });
   } catch {
     return NextResponse.json({ error: "Team delete failed" }, { status: 500 });

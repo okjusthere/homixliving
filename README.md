@@ -154,6 +154,13 @@ the agent's locked compensation plan. A Solo/Holding agent upgrading to Solo Pro
 within 90 days receives the prior `$288` or `$500` affiliation payment as a
 one-time Stripe discount; the annual subscription then renews at the normal rate.
 
+Stripe is the default onboarding payment path. When the office has actually
+received cash, check, ACH, Zelle, or wire payment, an administrator may use the
+pending-agent console to verify an offline payment. The amount must equal the
+signed plan fee and the record captures method, receipt date, reference, and
+verifying administrator. Both channels use the same order settlement, onboarding
+gate, and 10% sponsor-reward ledger; there is no unaudited "skip payment" switch.
+
 **Agent onboarding eSign**
 
 ```bash
@@ -206,10 +213,10 @@ CLOUDFLARE_API_TOKEN=...     # only for scripts/import-cloudflare-videos.ts
 
 ## Tests
 
-`npm test` runs 11 plain-`tsx` assertion suites (no test framework):
-commission, visibility, agent lifecycle, email-sender, invoice-payment,
-commerce-checkout, aging, reporting, renewals, training views, and document storage — all under
-`src/lib/__tests__/`. CI (`.github/workflows/ci.yml`) runs against a throwaway
+`npm test` runs the plain-`tsx` assertion suites under `src/lib/__tests__/`,
+including compensation, plan payments, onboarding, visibility, commerce,
+reporting, renewals, training, and document storage. CI
+(`.github/workflows/ci.yml`) runs against a throwaway
 Postgres service, including typecheck, lint, schema seed, tests, and build.
 
 ## Deploy (Vercel)
@@ -239,7 +246,8 @@ being configured:
 2. Publish the eSign onboarding template and create a dedicated Portal application key with the minimum permissions listed above.
 3. Issue a dedicated eSign `HR` application credential with `templates:read`, `transactions:read`, `transactions:write`, `envelopes:read`, `envelopes:write`, `envelopes:send`, and `evidence:read`; configure the `ESIGN_*` variables and confirm the Stripe annual-plan prices and webhook are active.
 4. Run one invited-agent smoke test through profile, agreement, payment, webhook, admin review, and activation.
-5. Set `ONBOARDING_V2_ENFORCED=1`. From this point, admin approval fails closed until required agreement and payment steps are complete.
+5. Run a second smoke test using the administrator-verified offline-payment path and confirm the order, sponsor reward, finance total, and approval gate all match the Stripe path.
+6. Set `ONBOARDING_V2_ENFORCED=1`. From this point, admin approval fails closed until required agreement and payment steps are complete.
 
 Do not enable the flag before step 4. The flag deliberately separates deployment
 from enforcement so a missing eSign template or Stripe price cannot strand all

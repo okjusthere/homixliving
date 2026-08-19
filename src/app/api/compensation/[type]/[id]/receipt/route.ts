@@ -4,10 +4,12 @@ import { db } from "@/db";
 import { dealCompensationSnapshots } from "@/db/schema";
 import { requireAdminApi } from "@/lib/auth-guards";
 import {
+  IncompleteCompensationReceiptError,
   recordCompensationReceipt,
   removeCompensationReceipt,
 } from "@/lib/compensation-ledger";
 import { logAudit } from "@/lib/audit";
+import { lockCompensationDeal } from "@/lib/advisory-locks";
 
 async function currentSnapshot(type: string, id: string) {
   const dealId = Number(id);
@@ -43,17 +45,38 @@ export async function POST(
   if (!Number.isInteger(amountCents) || amountCents <= 0) {
     return NextResponse.json({ error: "Receipt amount must be positive." }, { status: 400 });
   }
+  const requiredCents = Math.round(Number(snapshot.grossCommission) * 100);
+  if (amountCents < requiredCents) {
+    return NextResponse.json(
+      {
+        error: "Record the partial payment on the invoice, but only the full commission receipt can unlock agent payouts.",
+        requiredCents,
+      },
+      { status: 409 },
+    );
+  }
   const receivedAt = typeof body.receivedAt === "string" && !Number.isNaN(Date.parse(body.receivedAt))
     ? new Date(body.receivedAt).toISOString()
     : new Date().toISOString();
-  const receipt = await db.transaction((tx) => recordCompensationReceipt(tx, {
-    snapshotId: snapshot.id,
-    amountCents,
-    receivedAt,
-    method: String(body.method || "other").slice(0, 40),
-    reference: String(body.reference || "").trim().slice(0, 120) || null,
-    createdByEmail: auth.session.user.email || null,
-  }));
+  let receipt;
+  try {
+    receipt = await db.transaction(async (tx) => {
+      await lockCompensationDeal(tx, type as "rental" | "sale", Number(id));
+      return recordCompensationReceipt(tx, {
+        snapshotId: snapshot.id,
+        amountCents,
+        receivedAt,
+        method: String(body.method || "other").slice(0, 40),
+        reference: String(body.reference || "").trim().slice(0, 120) || null,
+        createdByEmail: auth.session.user.email || null,
+      });
+    });
+  } catch (error) {
+    if (error instanceof IncompleteCompensationReceiptError) {
+      return NextResponse.json({ error: error.message, requiredCents: error.requiredCents }, { status: 409 });
+    }
+    throw error;
+  }
   await logAudit(
     auth.session,
     "mark_received",

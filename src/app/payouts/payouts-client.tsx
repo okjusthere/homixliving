@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Btn, Card, EditorialInput } from "@/components/homix/primitives";
 import { CardHeader } from "@/components/homix/page-kit";
@@ -196,6 +196,9 @@ export function PayoutsClient({
   const [reference, setReference] = useState("");
   const [memo, setMemo] = useState("");
   const [busy, setBusy] = useState(false);
+  const submittingRef = useRef(false);
+  const payoutKeyRef = useRef<string | null>(null);
+  const payoutSignatureRef = useRef<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const selectedObligations = useMemo(
     () => obligations.filter((row) => row.recipientAgentId === Number(formAgent)),
@@ -214,26 +217,44 @@ export function PayoutsClient({
   } as const;
 
   async function submit() {
+    if (submittingRef.current) return;
     const cents = Math.round(parseFloat(amount) * 100);
+    submittingRef.current = true;
     setBusy(true);
     setMsg(null);
-    const res = await fetch("/api/payouts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        agentId: Number(formAgent),
-        amountCents: cents,
-        paidAt,
-        method,
-        reference,
-        memo,
-      }),
-    });
-    setBusy(false);
+    const signature = JSON.stringify({ formAgent, cents, paidAt, method, reference, memo });
+    if (payoutSignatureRef.current !== signature) {
+      payoutKeyRef.current = crypto.randomUUID();
+      payoutSignatureRef.current = signature;
+    }
+    let res: Response;
+    try {
+      res = await fetch("/api/payouts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          agentId: Number(formAgent),
+          amountCents: cents,
+          paidAt,
+          method,
+          reference,
+          memo,
+          idempotencyKey: payoutKeyRef.current,
+        }),
+      });
+    } catch {
+      setMsg(t.failed);
+      return;
+    } finally {
+      submittingRef.current = false;
+      setBusy(false);
+    }
     if (!res.ok) {
       setMsg(t.failed);
       return;
     }
+    payoutKeyRef.current = null;
+    payoutSignatureRef.current = null;
     setAmount("");
     setReference("");
     setMemo("");

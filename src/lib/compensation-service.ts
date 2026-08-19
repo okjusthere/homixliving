@@ -17,6 +17,7 @@ import { teamTermsSelection } from "@/lib/team-terms";
 
 type ParticipantFact = { agentId: number; sharePct: number };
 type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+type DbExecutor = typeof db | DbTransaction;
 
 const VALID_SOURCES = new Set<CompensationSource>([
   "self",
@@ -42,10 +43,10 @@ export async function buildCompensationEstimate(input: {
   outsideReferralAmount?: number;
   rebateAmount?: number;
   participants: ParticipantFact[];
-}): Promise<CompensationResult> {
+}, executor: DbExecutor = db): Promise<CompensationResult> {
   const agentRows = await Promise.all(
     input.participants.map((participant) =>
-      db.select().from(agents).where(eq(agents.id, participant.agentId)).then((rows) => rows[0]),
+      executor.select().from(agents).where(eq(agents.id, participant.agentId)).then((rows) => rows[0]),
     ),
   );
 
@@ -61,7 +62,7 @@ export async function buildCompensationEstimate(input: {
       frozenEffectiveFrom: agent.teamTermsEffectiveFrom,
     });
     const { window } = terms;
-    const [companyUsage] = await db
+    const [companyUsage] = await executor
       .select({ amount: sql<number>`coalesce(sum(${dealCompensationAllocations.companyCapCredit}), 0)` })
       .from(dealCompensationAllocations)
       .innerJoin(
@@ -80,7 +81,7 @@ export async function buildCompensationEstimate(input: {
     let teamCapUsed = 0;
     if (agent.teamId) {
       if (terms.frozenConfigId) {
-        teamConfig = await db
+        teamConfig = await executor
           .select()
           .from(teamCompensationConfigs)
           .where(and(
@@ -91,7 +92,7 @@ export async function buildCompensationEstimate(input: {
           .then((rows) => rows[0] || null);
       }
       if (!teamConfig) {
-        teamConfig = await db
+        teamConfig = await executor
           .select()
           .from(teamCompensationConfigs)
           .where(and(
@@ -102,10 +103,10 @@ export async function buildCompensationEstimate(input: {
           .limit(1)
           .then((rows) => rows[0] || null);
       }
-      const team = await db.select().from(teams).where(eq(teams.id, agent.teamId)).then((rows) => rows[0]);
+      const team = await executor.select().from(teams).where(eq(teams.id, agent.teamId)).then((rows) => rows[0]);
       leaderAgentId = team?.leaderAgentId || null;
       if (teamConfig?.teamCapCents) {
-        const [teamUsage] = await db
+        const [teamUsage] = await executor
           .select({ amount: sql<number>`coalesce(sum(${dealCompensationAllocations.teamCapCredit}), 0)` })
           .from(dealCompensationAllocations)
           .innerJoin(

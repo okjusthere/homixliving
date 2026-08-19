@@ -6,8 +6,11 @@ import { requireActiveAgentApi, requireAdminApi } from "@/lib/auth-guards";
 import { logAudit } from "@/lib/audit";
 import { notify } from "@/lib/notify";
 import { applyPayoutToObligations } from "@/lib/compensation-ledger";
+import { lockAgentLedgers } from "@/lib/advisory-locks";
 
 const METHODS = new Set(["ach", "check", "quickbooks", "zelle", "other"]);
+
+class PayoutConflictError extends Error {}
 
 // Payout ledger. Money moves OUTSIDE the system (QuickBooks ACH / checks);
 // admins record each disbursement here. Yearly per-agent sums are the 1099
@@ -42,6 +45,7 @@ export async function POST(req: NextRequest) {
   const amountCents = Math.round(Number(body.amountCents));
   const paidAt = String(body.paidAt || "").slice(0, 10);
   const method = String(body.method || "ach");
+  const idempotencyKey = String(body.idempotencyKey || "").trim().slice(0, 120);
   if (!Number.isInteger(agentId) || agentId <= 0) {
     return NextResponse.json({ error: "agentId is required" }, { status: 400 });
   }
@@ -54,35 +58,58 @@ export async function POST(req: NextRequest) {
   if (!METHODS.has(method)) {
     return NextResponse.json({ error: "Unknown method" }, { status: 400 });
   }
+  if (!/^[A-Za-z0-9_-]{8,120}$/.test(idempotencyKey)) {
+    return NextResponse.json({ error: "A valid idempotencyKey is required" }, { status: 400 });
+  }
   const [agent] = await db.select().from(agents).where(eq(agents.id, agentId)).limit(1);
   if (!agent) return NextResponse.json({ error: "Agent not found" }, { status: 404 });
 
   const dealType = String(body.dealType || "").trim();
   const dealId = Number(body.dealId);
-  const { row, application } = await db.transaction(async (tx) => {
-    const [created] = await tx
-      .insert(agentPayouts)
-      .values({
-        agentId,
+  let transactionResult;
+  try {
+    transactionResult = await db.transaction(async (tx) => {
+      await lockAgentLedgers(tx, [agentId]);
+      const [existing] = await tx
+        .select()
+        .from(agentPayouts)
+        .where(eq(agentPayouts.idempotencyKey, idempotencyKey))
+        .limit(1);
+      if (existing) {
+        if (existing.agentId !== agentId) throw new PayoutConflictError();
+        return { row: existing, application: null, replayed: true };
+      }
+      const [created] = await tx
+        .insert(agentPayouts)
+        .values({
+          agentId,
+          amountCents,
+          method,
+          reference: String(body.reference || "").trim().slice(0, 120) || null,
+          memo: String(body.memo || "").trim().slice(0, 500) || null,
+          dealType: ["rental", "sale"].includes(dealType) ? dealType : null,
+          dealId: Number.isInteger(dealId) && dealId > 0 ? dealId : null,
+          paidAt,
+          createdByEmail: auth.session.user.email ?? null,
+          idempotencyKey,
+        })
+        .returning();
+      const applied = await applyPayoutToObligations(tx, {
+        payoutId: created.id,
+        recipientAgentId: agentId,
         amountCents,
-        method,
-        reference: String(body.reference || "").trim().slice(0, 120) || null,
-        memo: String(body.memo || "").trim().slice(0, 500) || null,
-        dealType: ["rental", "sale"].includes(dealType) ? dealType : null,
-        dealId: Number.isInteger(dealId) && dealId > 0 ? dealId : null,
-        paidAt,
-        createdByEmail: auth.session.user.email ?? null,
-      })
-      .returning();
-    const applied = await applyPayoutToObligations(tx, {
-      payoutId: created.id,
-      recipientAgentId: agentId,
-      amountCents,
+      });
+      return { row: created, application: applied, replayed: false };
     });
-    return { row: created, application: applied };
-  });
+  } catch (error) {
+    if (error instanceof PayoutConflictError) {
+      return NextResponse.json({ error: "Idempotency key belongs to another agent" }, { status: 409 });
+    }
+    throw error;
+  }
+  const { row, application, replayed } = transactionResult;
 
-  await logAudit(
+  if (!replayed) await logAudit(
     auth.session,
     "create",
     "agent_payout",
@@ -90,7 +117,7 @@ export async function POST(req: NextRequest) {
     `登记佣金发放：${agent.name} $${(amountCents / 100).toFixed(2)}（${method}）`,
     application,
   );
-  try {
+  if (!replayed) try {
     await notify({
       recipientAgentIds: [agentId],
       type: "payout_recorded",
@@ -103,5 +130,5 @@ export async function POST(req: NextRequest) {
     console.error("payout notification failed", error);
   }
 
-  return NextResponse.json({ ...row, application });
+  return NextResponse.json({ ...row, application, replayed });
 }

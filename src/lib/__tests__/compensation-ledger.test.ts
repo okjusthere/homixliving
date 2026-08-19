@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { obligationsForAllocation } from "../compensation-ledger";
+import { isFullCompensationReceipt, obligationsForAllocation } from "../compensation-ledger";
 
 const rows = obligationsForAllocation({
   id: 7,
@@ -18,5 +18,8 @@ assert.deepEqual(rows.map((row) => [row.kind, row.recipientAgentId, row.amountCe
   ["sponsor_reward", 22, 10_000],
 ]);
 assert.equal(rows.filter((row) => row.recipientAgentId === 22).length, 2);
+assert.equal(isFullCompensationReceipt(3_702.03, 370_202), false);
+assert.equal(isFullCompensationReceipt(3_702.03, 370_203), true);
+assert.equal(isFullCompensationReceipt(3_702.03, 400_000), true);
 
 console.log("compensation ledger tests passed");

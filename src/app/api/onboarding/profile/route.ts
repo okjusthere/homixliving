@@ -14,6 +14,7 @@ import {
   applyInvitationRouting,
   invitationLocks,
 } from "@/lib/onboarding-routing";
+import { lockOnboardingAgent } from "@/lib/advisory-locks";
 
 const ONBOARDING_PLANS = new Set<AgentPlan>(["solo", "solo_pro", "team_member", "holding"]);
 
@@ -214,7 +215,20 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: "The selected team has no active compensation terms." }, { status: 409 });
   }
   const updated = await db.transaction(async (tx) => {
-    if (invitation && !agent.onboardingInviteId) {
+    await lockOnboardingAgent(tx, agent.id);
+    const [boundAgent] = await tx
+      .select({ onboardingInviteId: agents.onboardingInviteId })
+      .from(agents)
+      .where(eq(agents.id, agent.id))
+      .limit(1);
+    if (!boundAgent) throw new Error("Agent no longer exists.");
+    if (
+      boundAgent.onboardingInviteId &&
+      boundAgent.onboardingInviteId !== invitation?.id
+    ) {
+      throw new Error("A different invitation is already bound to this account.");
+    }
+    if (invitation && !boundAgent.onboardingInviteId) {
       const [consumed] = await tx
         .update(onboardingInvitations)
         .set({ useCount: sql`${onboardingInvitations.useCount} + 1` })
@@ -246,7 +260,7 @@ export async function PUT(req: NextRequest) {
         onboardingCompletedAt: now,
         onboardingStage: "agreement",
         onboardingSource: invitation?.source || agent.onboardingSource || "direct",
-        onboardingInviteId: invitation?.id || agent.onboardingInviteId,
+        onboardingInviteId: invitation?.id || boundAgent.onboardingInviteId,
         paymentStatus: agent.paymentStatus,
         updatedAt: now,
       })

@@ -7,6 +7,7 @@ import {
   commerceCharges,
   commerceOrders,
   compensationObligations,
+  sponsorPlanRewards,
   type CommerceCharge,
   type CommerceOrder,
 } from "@/db/schema";
@@ -27,9 +28,9 @@ const M = {
     eyebrow: "Finance",
     title: "Agent fee ledger",
     description:
-      "Stripe paid totals after discounts and tax — before Stripe fees or refunds — with one row per charge.",
-    totalCollected: "Stripe paid (all time)",
-    monthCollected: "Stripe paid this month",
+      "Verified agent fees from Stripe and administrator-recorded offline payments, with one auditable row per receipt.",
+    totalCollected: "Fees paid (all time)",
+    monthCollected: "Fees paid this month",
     activeSubs: "Active subscriptions",
     failedCharges: "Failed charges",
     byAgent: "By agent",
@@ -57,6 +58,7 @@ const M = {
     tInitial: "Subscription · first",
     tRenewal: "Subscription · renewal",
     tSubOrder: "Subscription",
+    tOffline: "Offline · verified",
     unmatched: "(not on roster)",
     empty: "No records match the current filters.",
     resultCount: (n: number) => `${n} records`,
@@ -72,9 +74,9 @@ const M = {
   zh: {
     eyebrow: "财务",
     title: "经纪人缴费",
-    description: "按 Stripe 实际支付总额统计优惠与税费后的收款；不代表扣除手续费或退款后的银行净入账。",
-    totalCollected: "Stripe 累计已支付",
-    monthCollected: "Stripe 本月已支付",
+    description: "统一统计 Stripe 实收与管理员核验的线下缴费；每笔都保留可审计的收款记录。",
+    totalCollected: "累计已缴费用",
+    monthCollected: "本月已缴费用",
     activeSubs: "生效中的订阅",
     failedCharges: "扣款失败",
     byAgent: "按经纪人汇总",
@@ -102,6 +104,7 @@ const M = {
     tInitial: "订阅 · 首期",
     tRenewal: "订阅 · 续费",
     tSubOrder: "订阅",
+    tOffline: "线下 · 已核验",
     unmatched: "（不在花名册）",
     empty: "当前筛选条件下没有记录。",
     resultCount: (n: number) => `${n} 条记录`,
@@ -131,7 +134,7 @@ const STATUS_TONE: Record<string, PillTone> = {
   canceling: "draft",
 };
 
-type RowType = "onetime" | "initial" | "renewal" | "suborder";
+type RowType = "onetime" | "initial" | "renewal" | "suborder" | "offline";
 
 interface LedgerRow {
   key: string;
@@ -167,7 +170,7 @@ export default async function FinancePage({
   const t = M[locale];
   const filters = await searchParams;
 
-  const [orders, charges, roster, obligationRows] = await Promise.all([
+  const [orders, charges, roster, obligationRows, planRewardRows] = await Promise.all([
     db.select().from(commerceOrders).orderBy(desc(commerceOrders.id)),
     db.select().from(commerceCharges).orderBy(desc(commerceCharges.id)),
     db.select({ id: agents.id, name: agents.name, email: agents.email }).from(agents),
@@ -179,6 +182,7 @@ export default async function FinancePage({
         status: compensationObligations.status,
       })
       .from(compensationObligations),
+    db.select().from(sponsorPlanRewards),
   ]);
 
   const agentByEmail = new Map(roster.map((a) => [String(a.email || "").toLowerCase(), a]));
@@ -196,6 +200,7 @@ export default async function FinancePage({
     initial: t.tInitial,
     renewal: t.tRenewal,
     suborder: t.tSubOrder,
+    offline: t.tOffline,
   };
 
   // Stripe history is returned newest-first, so local IDs do not indicate the
@@ -251,7 +256,7 @@ export default async function FinancePage({
       payerEmail: o.customerEmail || "",
       product: commerceProductName(o.productKey, o.productName, locale),
       amountCents: o.amountCents,
-      type: isSub ? "suborder" : "onetime",
+      type: o.paymentChannel === "offline" ? "offline" : isSub ? "suborder" : "onetime",
       status: o.status,
       isPaidMoney: PAID_ORDER_STATUSES.has(o.status),
     });
@@ -322,13 +327,18 @@ export default async function FinancePage({
   const payableRows = obligationRows.filter(
     (row) => row.status === "payable" || row.status === "partially_paid",
   );
-  const payableCents = payableRows.reduce((sum, row) => sum + outstandingCents(row), 0);
+  const planRewardDueCents = planRewardRows
+    .filter((row) => row.status === "accrued" || row.status === "partially_paid")
+    .reduce((sum, row) => sum + Math.max(0, row.amountCents - row.paidCents), 0);
+  const payableCents = payableRows.reduce((sum, row) => sum + outstandingCents(row), 0)
+    + planRewardDueCents;
   const teamSplitCents = payableRows
     .filter((row) => row.kind === "team_split")
     .reduce((sum, row) => sum + outstandingCents(row), 0);
   const sponsorRewardCents = payableRows
     .filter((row) => row.kind === "sponsor_reward")
-    .reduce((sum, row) => sum + outstandingCents(row), 0);
+    .reduce((sum, row) => sum + outstandingCents(row), 0)
+    + planRewardDueCents;
   const commissionStats = [
     { label: t.awaitingReceipt, value: awaitingReceiptCents },
     { label: t.payableNow, value: payableCents },

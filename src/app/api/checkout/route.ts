@@ -6,12 +6,11 @@ import { validateCheckoutPayload } from "@/lib/commerce/checkout";
 import { formatProductAmount, getProductStripePriceId } from "@/lib/commerce/catalog";
 import { getStripe, stripeId } from "@/lib/stripe";
 import { and, desc, eq, gte, inArray } from "drizzle-orm";
-import { isOnboardingESignConfigured } from "@/lib/esign";
 import {
-  onboardingPaymentProduct,
   SOLO_PRO_UPGRADE_CREDIT_DAYS,
   soloProUpgradeCreditCents,
 } from "@/lib/onboarding";
+import { canPurchasePlanProduct, isPlanPaymentProduct } from "@/lib/plan-payments";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -58,23 +57,12 @@ export async function POST(request: Request) {
   }
 
   const { product, payload } = result;
-  const onboardingProduct = onboardingPaymentProduct(agent.plan, agent.affiliationTermMonths);
-  const isPlanPayment = [
-    "one_year_membership",
-    "two_year_membership",
-    "elite_desk_fee",
-    "growth_desk_fee",
-  ].includes(product.key);
-  if (agent.accountStatus === "pending" && isPlanPayment && product.key !== onboardingProduct) {
-    return NextResponse.json(
-      { error: "This payment does not match the selected compensation plan." },
-      { status: 409 },
-    );
-  }
+  const purchase = canPurchasePlanProduct(agent, product.key);
+  if (!purchase.ok) return NextResponse.json({ error: purchase.error }, { status: 409 });
+  const isPlanPayment = isPlanPaymentProduct(product.key);
   if (
     agent.accountStatus === "pending" &&
     isPlanPayment &&
-    isOnboardingESignConfigured() &&
     agent.agreementStatus !== "completed"
   ) {
     return NextResponse.json({ error: "Sign the affiliation agreement before paying." }, { status: 409 });

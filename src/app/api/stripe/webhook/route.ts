@@ -1,18 +1,17 @@
 import type Stripe from "stripe";
 import { NextResponse } from "next/server";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import {
-  agents,
   commerceCharges,
   commerceOrders,
-  sponsorPlanRewards,
   stripeEvents,
   type CommerceOrder,
 } from "@/db/schema";
 import { settledCheckoutAmountCents } from "@/lib/commerce/settlement";
 import { getStripe, getStripeWebhookSecret, stripeId } from "@/lib/stripe";
 import { provisionWorkspaceForOrder, suspendWorkspaceForOrder } from "@/lib/google-workspace";
+import { settlePlanPayment } from "@/lib/plan-payments";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -72,56 +71,6 @@ async function maybeSuspendWorkspace(order: CommerceOrder) {
   await suspendWorkspaceForOrder(order);
 }
 
-const SPONSOR_ELIGIBLE_PLAN_PRODUCTS = new Set([
-  "one_year_membership",
-  "two_year_membership",
-  "elite_desk_fee",
-  "growth_desk_fee",
-]);
-
-async function recordPlanSponsorReward(input: {
-  order: CommerceOrder;
-  sourceKey: string;
-  amountCents: number;
-  earnedAt: string;
-}) {
-  if (!SPONSOR_ELIGIBLE_PLAN_PRODUCTS.has(input.order.productKey) || input.amountCents <= 0) return;
-  const email = input.order.customerEmail?.trim().toLowerCase();
-  const [agent] = input.order.agentId
-    ? await db.select().from(agents).where(eq(agents.id, input.order.agentId)).limit(1)
-    : email
-      ? await db.select().from(agents).where(sql`lower(${agents.email}) = ${email}`).limit(1)
-      : [];
-  if (!agent) return;
-
-  const termMonths = input.order.productKey === "two_year_membership" ? 24 : 12;
-  const plan = input.order.productKey === "elite_desk_fee" && agent.plan !== "team_leader"
-    ? "solo_pro" as const
-    : agent.plan;
-  await db.update(agents).set({
-    affiliationPaidAt: input.earnedAt.slice(0, 10),
-    affiliationTermMonths: termMonths,
-    plan,
-    splitPct: plan === "solo_pro" ? 100 : agent.splitPct,
-    paymentStatus: "paid",
-    onboardingStage: agent.accountStatus === "pending" && (
-      agent.agreementStatus === "completed" || !agent.esignEnvelopeId
-    ) ? "review" : agent.onboardingStage,
-    updatedAt: input.earnedAt,
-  }).where(eq(agents.id, agent.id));
-
-  if (!agent.referredByAgentId) return;
-  await db.insert(sponsorPlanRewards).values({
-    sourceKey: input.sourceKey,
-    orderId: input.order.id,
-    sponsorAgentId: agent.referredByAgentId,
-    referredAgentId: agent.id,
-    amountCents: Math.round(input.amountCents * 0.1),
-    status: "accrued",
-    earnedAt: input.earnedAt,
-  }).onConflictDoNothing({ target: sponsorPlanRewards.sourceKey });
-}
-
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promise<number | null> {
   const metadataOrderId = session.metadata?.orderId ? Number(session.metadata.orderId) : NaN;
   const order =
@@ -174,7 +123,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
     // Checkout owns the initial payment for both one-time and subscription
     // products. Stripe does not guarantee delivery order between
     // checkout.session.completed and the subscription's first invoice event.
-    await recordPlanSponsorReward({
+    await settlePlanPayment(db, {
       order: updatedOrder,
       sourceKey: `checkout:${session.id}`,
       amountCents,
@@ -266,7 +215,7 @@ async function handleInvoicePaid(invoice: Stripe.Invoice): Promise<number | null
   // The initial subscription payment is handled by checkout.session.completed.
   // Subsequent invoices are renewals and create their own sponsor reward.
   if (invoice.billing_reason !== "subscription_create") {
-    await recordPlanSponsorReward({
+    await settlePlanPayment(db, {
       order: updatedOrder,
       sourceKey: `invoice:${invoice.id}`,
       amountCents: invoice.amount_paid,

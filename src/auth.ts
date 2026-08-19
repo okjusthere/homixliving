@@ -24,6 +24,8 @@ const googleEnabled =
 
 type Agent = typeof agents.$inferSelect;
 
+class EmailChangeConflictError extends Error {}
+
 async function reconcileConfiguredAccess(
   existing: Agent,
   admin: boolean,
@@ -93,39 +95,45 @@ async function completeEmailChange(pendingAgent: Agent, email: string) {
   const admin = isConfiguredAdminEmail(email);
   const now = new Date().toISOString();
 
-  const [updated] = await db.transaction(async (tx) => {
-    // These legacy ownership paths still use email rather than agent_id.
-    await tx
-      .update(invoices)
-      .set({ agentEmail: email, updatedAt: now })
-      .where(sql`lower(${invoices.agentEmail}) = ${oldEmail.toLowerCase()}`);
-    await tx
-      .update(trainingVideoViews)
-      .set({ agentEmail: email, updatedAt: now })
-      .where(eq(trainingVideoViews.agentId, pendingAgent.id));
+  let updated: Agent;
+  try {
+    updated = await db.transaction(async (tx) => {
+      // These legacy ownership paths still use email rather than agent_id.
+      await tx
+        .update(invoices)
+        .set({ agentEmail: email, updatedAt: now })
+        .where(sql`lower(${invoices.agentEmail}) = ${oldEmail.toLowerCase()}`);
+      await tx
+        .update(trainingVideoViews)
+        .set({ agentEmail: email, updatedAt: now })
+        .where(eq(trainingVideoViews.agentId, pendingAgent.id));
 
-    return tx
-      .update(agents)
-      .set({
-        email,
-        pendingEmail: null,
-        emailChangeRequestedAt: null,
-        emailChangeTokenHash: null,
-        isAdmin: admin,
-        ...(admin ? { accountStatus: "active" as const } : {}),
-        updatedAt: now,
-      })
-      .where(
-        and(
-          eq(agents.id, pendingAgent.id),
-          sql`lower(${agents.pendingEmail}) = ${email}`,
-        ),
-      )
-      .returning();
-  });
-
-  if (!updated) {
-    throw new Error(`Email change request no longer available for ${email}`);
+      const [changedAgent] = await tx
+        .update(agents)
+        .set({
+          email,
+          pendingEmail: null,
+          emailChangeRequestedAt: null,
+          emailChangeTokenHash: null,
+          isAdmin: admin,
+          ...(admin ? { accountStatus: "active" as const } : {}),
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(agents.id, pendingAgent.id),
+            sql`lower(${agents.pendingEmail}) = ${email}`,
+          ),
+        )
+        .returning();
+      if (!changedAgent) throw new EmailChangeConflictError();
+      return changedAgent;
+    });
+  } catch (error) {
+    if (error instanceof EmailChangeConflictError) {
+      throw new Error(`Email change request no longer available for ${email}`);
+    }
+    throw error;
   }
 
   await logAudit(

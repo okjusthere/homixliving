@@ -328,7 +328,15 @@ export async function PUT(req: NextRequest) {
       }
     }
     if (isAdmin && body.plan !== undefined && cleaned.plan !== normalizeAgentPlan(existing.plan)) {
-      cleaned.planEffectiveFrom = dateOrNull(body.planEffectiveFrom) || new Date().toISOString().slice(0, 10);
+      const today = new Date().toISOString().slice(0, 10);
+      const requestedEffectiveFrom = dateOrNull(body.planEffectiveFrom);
+      if (requestedEffectiveFrom && requestedEffectiveFrom !== today) {
+        return NextResponse.json(
+          { error: "Plan changes take effect immediately. Future plan scheduling requires a versioned plan-history workflow." },
+          { status: 409 },
+        );
+      }
+      cleaned.planEffectiveFrom = today;
     }
     const data = isAdmin
       ? {

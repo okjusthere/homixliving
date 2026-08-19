@@ -58,6 +58,9 @@ export function validateCheckoutPayload(input: unknown): CheckoutValidationResul
   if (!product) {
     return { ok: false, error: "Unknown product." };
   }
+  if (product.availableForSale === false) {
+    return { ok: false, error: "This product is no longer available for purchase." };
+  }
 
   const customerName = cleanText(body.customerName, 120);
   const customerEmail = cleanEmail(body.customerEmail);

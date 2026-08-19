@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, desc, eq, gte, lte } from "drizzle-orm";
+import { and, desc, eq, gt, lte } from "drizzle-orm";
 import { db } from "@/db";
 import { teamCompensationConfigs, teams } from "@/db/schema";
 import { requireActiveAgentApi } from "@/lib/auth-guards";
@@ -9,6 +9,7 @@ import {
   isTeamSourcedSplitPreset,
   isTeamSplitPreset,
 } from "@/lib/team-compensation-policy";
+import { lockTeamConfiguration } from "@/lib/advisory-locks";
 
 async function authority(teamId: number) {
   const auth = await requireActiveAgentApi();
@@ -37,7 +38,7 @@ export async function GET(
     .from(teamCompensationConfigs)
     .where(and(
       eq(teamCompensationConfigs.teamId, teamId),
-      gte(teamCompensationConfigs.effectiveFrom, today),
+      gt(teamCompensationConfigs.effectiveFrom, today),
     ))
     .orderBy(desc(teamCompensationConfigs.effectiveFrom), desc(teamCompensationConfigs.version));
   const [current] = await db
@@ -89,6 +90,7 @@ export async function POST(
     );
   }
   const [created] = await db.transaction(async (tx) => {
+    await lockTeamConfiguration(tx, teamId);
     const [latest] = await tx
       .select()
       .from(teamCompensationConfigs)
