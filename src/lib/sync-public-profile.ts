@@ -1,4 +1,8 @@
 import { syncPublicIdentity } from "@/lib/homixweb";
+import {
+  interpretPublicIdentityResult,
+  type PublicIdentitySyncResult,
+} from "@/lib/public-identity-status";
 
 /**
  * Sync portal-owned identity fields through the marketing site's API. The
@@ -13,14 +17,15 @@ import { syncPublicIdentity } from "@/lib/homixweb";
  * skipped and logged.
  *
  * Best-effort by design: a temporary website outage must not roll back the
- * canonical portal save. The next identity edit retries the sync.
+ * canonical portal save. The website's daily reconciliation retries licenses
+ * that could not be matched during this request.
  */
 export async function syncPublicAgentProfile(input: {
   agentId: number;
   name?: string | null;
   phone?: string | null;
   licenseNumber?: string | null;
-}): Promise<void> {
+}): Promise<PublicIdentitySyncResult> {
   try {
     const result = await syncPublicIdentity({
       agentId: input.agentId,
@@ -34,7 +39,9 @@ export async function syncPublicAgentProfile(input: {
         result.body.error || `HTTP ${result.status}`,
       );
     }
+    return interpretPublicIdentityResult(result);
   } catch (error) {
     console.warn("public identity sync skipped:", (error as Error).message);
+    return { status: "failed", notice: (error as Error).message };
   }
 }

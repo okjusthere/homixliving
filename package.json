@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "npm run test:commission && npm run test:share-url && npm run test:share-catalog && npm run test:visibility && npm run test:onboarding-progress && npm run test:lifecycle && npm run test:training-categories && npm run test:company-w9-model && npm run test:email-sender && npm run test:invoice-payment && npm run test:commerce && npm run test:aging && npm run test:reporting && npm run test:renewals && npm run test:training-views && npm run test:deal-document-storage && npm run test:db-time && npm run test:domain-labels",
+    "test": "npm run test:commission && npm run test:share-url && npm run test:share-catalog && npm run test:visibility && npm run test:onboarding-progress && npm run test:lifecycle && npm run test:training-categories && npm run test:company-w9-model && npm run test:email-sender && npm run test:invoice-payment && npm run test:commerce && npm run test:aging && npm run test:reporting && npm run test:renewals && npm run test:training-views && npm run test:deal-document-storage && npm run test:db-time && npm run test:domain-labels && npm run test:public-identity-status",
     "test:commission": "tsx src/lib/__tests__/commission.test.ts",
     "test:share-url": "tsx src/lib/__tests__/share-url.test.ts",
     "test:share-catalog": "tsx src/lib/__tests__/share-catalog.test.ts",
@@ -28,7 +28,8 @@
     "google:workspace:oauth": "tsx scripts/google-workspace-oauth.ts",
     "test:onboarding-progress": "tsx src/lib/__tests__/onboarding-progress.test.ts",
     "test:db-time": "tsx src/lib/__tests__/db-time.test.ts",
-    "test:domain-labels": "tsx src/lib/__tests__/domain-labels.test.ts"
+    "test:domain-labels": "tsx src/lib/__tests__/domain-labels.test.ts",
+    "test:public-identity-status": "tsx src/lib/__tests__/public-identity-status.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1092.0",

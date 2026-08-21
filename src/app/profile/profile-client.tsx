@@ -7,6 +7,7 @@ import { CardHeader } from "@/components/homix/page-kit";
 import { fmtDate, fmtMoney, tone } from "@/components/homix/tokens";
 import { useLocale } from "@/lib/i18n-client";
 import type { Agent, AgentPayout } from "@/db/schema";
+import type { MlsVerificationStatus } from "@/lib/public-identity-status";
 
 // Masked payment state — full routing/account digits never reach the client.
 export type SafePaymentProfile = {
@@ -35,6 +36,13 @@ const M = {
     saving: "Saving…",
     saved: "Saved.",
     saveFailed: "Save failed — please retry.",
+    mlsVerified: "Saved. MLS identity verified. Past sales appear when OneKey has eligible Closed records.",
+    mlsUnavailable: "Saved. MLS verification is temporarily unavailable and will retry automatically.",
+    mlsUnmatched: "Saved. This license has not matched the Homix OneKey roster. Check the number; the system retries daily.",
+    mlsAmbiguous: "Saved. Multiple MLS records matched this license; ask the office to review it.",
+    mlsClaimed: "Saved. This license is already linked to another website profile; ask the office to review it.",
+    mlsUnlinked: "Saved. Your website profile is not linked yet; ask the office to link it.",
+    mlsFailed: "Saved in the Portal, but the website sync did not finish. The office should review it.",
     achTitle: "Payout account (ACH)",
     achLead:
       "Payouts run through QuickBooks/checks — this tells the office where to send your money. Only you and admins can see it.",
@@ -85,6 +93,13 @@ const M = {
     saving: "保存中…",
     saved: "已保存。",
     saveFailed: "保存失败，请重试。",
+    mlsVerified: "已保存，并已匹配 MLS 身份。OneKey 有可展示的 Closed 记录时，历史成交会自动出现。",
+    mlsUnavailable: "已保存。MLS 暂时无法验证，系统会自动重试。",
+    mlsUnmatched: "已保存，但该执照号尚未匹配 Homix 的 OneKey 名册。请核对号码；系统每天会自动重试。",
+    mlsAmbiguous: "已保存，但该执照号匹配到多条 MLS 记录，请联系公司核对。",
+    mlsClaimed: "已保存，但该执照号已关联另一份官网档案，请联系公司核对。",
+    mlsUnlinked: "已保存，但你的官网主页尚未关联，请联系公司处理。",
+    mlsFailed: "Portal 已保存，但官网同步未完成，请联系公司核对。",
     achTitle: "收款账户（ACH）",
     achLead: "打款走 QuickBooks/支票——这里告诉公司把钱打到哪。仅你本人和管理员可见。",
     payeeType: "收款主体",
@@ -158,8 +173,25 @@ export function ProfileClient({
         licenseExpiresAt: licenseExpires,
       }),
     });
+    const body = await res.json().catch(() => ({}));
     setBasicBusy(false);
-    setBasicMsg(res.ok ? t.saved : t.saveFailed);
+    if (!res.ok) {
+      setBasicMsg(t.saveFailed);
+      return;
+    }
+    const verificationStatus = body?.mlsVerification?.status as
+      | MlsVerificationStatus
+      | undefined;
+    const messages: Partial<Record<MlsVerificationStatus, string>> = {
+      verified: t.mlsVerified,
+      unavailable: t.mlsUnavailable,
+      unmatched: t.mlsUnmatched,
+      ambiguous: t.mlsAmbiguous,
+      claimed: t.mlsClaimed,
+      unlinked: t.mlsUnlinked,
+      failed: t.mlsFailed,
+    };
+    setBasicMsg((verificationStatus && messages[verificationStatus]) || t.saved);
     if (res.ok) router.refresh();
   }
 

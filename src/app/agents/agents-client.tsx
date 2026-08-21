@@ -20,6 +20,7 @@ import {
 } from "@/lib/agent-plans";
 import type { Agent, Team } from "@/db/schema";
 import type { AdminAgentRow } from "@/lib/homixweb";
+import type { MlsVerificationStatus } from "@/lib/public-identity-status";
 import { RosterConsole } from "../roster/console";
 
 const M = {
@@ -106,6 +107,11 @@ const M = {
     saving: "Saving…",
     save: "Save",
     syncWarning: "The Portal record was saved, but the public website did not finish syncing. Retry from the website roster.",
+    mlsUnavailable: "MLS verification is temporarily unavailable and will retry automatically.",
+    mlsUnmatched: "The license has not matched the Homix OneKey roster. Check the number; the system retries daily.",
+    mlsAmbiguous: "Multiple MLS records matched this license. Review it before relying on past sales.",
+    mlsClaimed: "This license is already linked to another website profile.",
+    mlsUnlinked: "This Portal account has no linked website profile.",
   },
   zh: {
     agentApproved: "经纪人已批准",
@@ -190,6 +196,11 @@ const M = {
     saving: "保存中…",
     save: "保存",
     syncWarning: "Portal 档案已保存，但官网同步未完成；请稍后在官网名册中重试。",
+    mlsUnavailable: "MLS 暂时无法验证，系统会自动重试。",
+    mlsUnmatched: "该执照号尚未匹配 Homix 的 OneKey 名册，请核对号码；系统每天会自动重试。",
+    mlsAmbiguous: "该执照号匹配到多条 MLS 记录，请核对后再使用历史成交。",
+    mlsClaimed: "该执照号已关联另一份官网档案。",
+    mlsUnlinked: "该 Portal 账号尚未关联官网主页。",
   },
 } as const;
 
@@ -259,6 +270,23 @@ export default function AgentsConsole({ initialView }: { initialView: AdminView 
   const router = useRouter();
   const locale = useLocale();
   const t = M[locale];
+
+  const showSyncFeedback = (data: Record<string, unknown>) => {
+    if (data.warning) {
+      toast.warning(t.syncWarning);
+      return;
+    }
+    const status = (data.mlsVerification as { status?: MlsVerificationStatus } | undefined)?.status;
+    const messages: Partial<Record<MlsVerificationStatus, string>> = {
+      unavailable: t.mlsUnavailable,
+      unmatched: t.mlsUnmatched,
+      ambiguous: t.mlsAmbiguous,
+      claimed: t.mlsClaimed,
+      unlinked: t.mlsUnlinked,
+      failed: t.syncWarning,
+    };
+    if (status && messages[status]) toast.warning(messages[status]);
+  };
   const [view, setView] = useState<AdminView>(initialView);
   const [agents, setAgents] = useState<AgentRow[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
@@ -412,7 +440,7 @@ export default function AgentsConsole({ initialView }: { initialView: AdminView 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(t.couldNotApprove);
       toast.success(t.agentApproved);
-      if (data.warning) toast.warning(t.syncWarning);
+      showSyncFeedback(data);
       fetchAgents();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t.couldNotApprove);
@@ -501,7 +529,7 @@ export default function AgentsConsole({ initialView }: { initialView: AdminView 
       }
       const data = await res.json().catch(() => ({}));
       toast.success(editAgent.id ? t.agentSaved : t.agentCreated);
-      if (data.warning) toast.warning(t.syncWarning);
+      showSyncFeedback(data);
       closeDialog();
       fetchAgents();
     } catch (err) {
