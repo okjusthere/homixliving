@@ -8,6 +8,11 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { useLocale } from "@/lib/i18n-client";
+import {
+  prepareHeadshotSource,
+  ProfileImageError,
+  type ProfileImageErrorCode,
+} from "@/lib/profile-image-client";
 
 const M = {
   en: {
@@ -19,7 +24,15 @@ const M = {
     photoHint: "On mobile, you can take a photo. A clean, solid background works best.",
     zoom: "Zoom",
     dragHint: "Drag the photo to reposition it.",
-    fileHint: "JPG or PNG, up to 8 MB.",
+    fileHint: "HEIC, HEIF, JPG, PNG, WebP, or GIF. Phone photos are converted automatically.",
+    processing: "Preparing photo…",
+    errors: {
+      source_too_large: "The original photo is larger than 25 MB.",
+      unsupported_image: "Choose a HEIC, HEIF, JPG, PNG, WebP, or GIF image.",
+      heic_conversion_failed: "This HEIC/HEIF photo could not be converted. Try exporting it as JPG.",
+      image_decode_failed: "This photo could not be read. Try a different file.",
+      output_too_large: "This photo is still too large after processing.",
+    },
   },
   zh: {
     portrait: "竖版 4:5",
@@ -30,7 +43,15 @@ const M = {
     photoHint: "手机可直接拍照；干净纯色背景的证件照效果最好。",
     zoom: "缩放",
     dragHint: "拖动照片可调整位置。",
-    fileHint: "JPG 或 PNG，最大 8 MB。",
+    fileHint: "支持 HEIC、HEIF、JPG、PNG、WebP 或 GIF；手机照片会自动转换。",
+    processing: "正在处理照片…",
+    errors: {
+      source_too_large: "原始照片超过 25 MB，请选择较小的照片。",
+      unsupported_image: "请选择 HEIC、HEIF、JPG、PNG、WebP 或 GIF 图片。",
+      heic_conversion_failed: "这张 HEIC/HEIF 照片无法转换，请尝试导出为 JPG 后再上传。",
+      image_decode_failed: "无法读取这张照片，请换一张重试。",
+      output_too_large: "处理后的照片仍然太大，请换一张重试。",
+    },
   },
 } as const;
 
@@ -55,29 +76,46 @@ export function AvatarCropper({
   currentSrc,
   alt,
   onPick,
+  onFileReady,
+  onProcessingChange,
+  onError,
 }: {
   name: string;
   currentSrc: string;
   alt: string;
   /** Fired true once a cropped photo has been written to the hidden input. */
   onPick?: (hasPhoto: boolean) => void;
+  /** Provides the processed file without relying on DataTransfer support. */
+  onFileReady?: (file: File | null) => void;
+  onProcessingChange?: (processing: boolean) => void;
+  onError?: (message: string | null) => void;
 }) {
   const t = M[useLocale()];
   const fileInputRef = useRef<HTMLInputElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
   const fileNameRef = useRef<string>("");
+  const loadVersionRef = useRef(0);
+  const renderVersionRef = useRef(0);
 
   const onPickRef = useRef(onPick);
+  const onFileReadyRef = useRef(onFileReady);
+  const onProcessingChangeRef = useRef(onProcessingChange);
+  const onErrorRef = useRef(onError);
   useEffect(() => {
     onPickRef.current = onPick;
-  }, [onPick]);
+    onFileReadyRef.current = onFileReady;
+    onProcessingChangeRef.current = onProcessingChange;
+    onErrorRef.current = onError;
+  }, [onError, onFileReady, onPick, onProcessingChange]);
 
   const [ratio, setRatio] = useState<Ratio>("portrait");
   const [editing, setEditing] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [dragOver, setDragOver] = useState(false);
+  const [processing, setProcessing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const aspect = ASPECT[ratio];
   const FRAME_H = Math.round(FRAME_W / aspect);
@@ -109,6 +147,9 @@ export function AvatarCropper({
     (scale: number, off: { x: number; y: number }) => {
       const img = imgRef.current;
       if (!img) return;
+      const renderVersion = ++renderVersionRef.current;
+      setProcessing(true);
+      onProcessingChangeRef.current?.(true);
       const sx = -off.x / scale;
       const sy = -off.y / scale;
       const sw = FRAME_W / scale;
@@ -127,32 +168,81 @@ export function AvatarCropper({
       out.width = OUT_W;
       out.height = OUT_H;
       const octx = out.getContext("2d");
-      if (!octx) return;
+      if (!octx) {
+        const message = t.errors.image_decode_failed;
+        setError(message);
+        onErrorRef.current?.(message);
+        setProcessing(false);
+        onProcessingChangeRef.current?.(false);
+        return;
+      }
       octx.drawImage(img, sx, sy, sw, sh, 0, 0, OUT_W, OUT_H);
       out.toBlob(
         (blob) => {
-          if (!blob || !fileInputRef.current) return;
+          if (renderVersion !== renderVersionRef.current) return;
+          if (!blob) {
+            const message = t.errors.image_decode_failed;
+            setError(message);
+            onErrorRef.current?.(message);
+            setProcessing(false);
+            onProcessingChangeRef.current?.(false);
+            return;
+          }
           const base = (fileNameRef.current || "headshot").replace(/\.[^.]+$/, "");
           const file = new File([blob], `${base}.jpg`, { type: "image/jpeg" });
-          const dt = new DataTransfer();
-          dt.items.add(file);
-          fileInputRef.current.files = dt.files;
+          try {
+            if (fileInputRef.current && typeof DataTransfer !== "undefined") {
+              const dt = new DataTransfer();
+              dt.items.add(file);
+              fileInputRef.current.files = dt.files;
+            }
+          } catch {
+            // Safari and embedded browsers may not permit assigning input.files.
+          }
+          onFileReadyRef.current?.(file);
           onPickRef.current?.(true);
+          setProcessing(false);
+          onProcessingChangeRef.current?.(false);
         },
         "image/jpeg",
         0.9,
       );
     },
-    [FRAME_H, OUT_H],
+    [FRAME_H, OUT_H, t.errors.image_decode_failed],
   );
 
   const loadFile = useCallback(
-    (file: File) => {
-      if (!file.type.startsWith("image/")) return;
-      fileNameRef.current = file.name;
+    async (source: File) => {
+      const loadVersion = ++loadVersionRef.current;
+      setProcessing(true);
+      setError(null);
+      onErrorRef.current?.(null);
+      onProcessingChangeRef.current?.(true);
+      onFileReadyRef.current?.(null);
+      onPickRef.current?.(false);
+      let file: File;
+      try {
+        file = await prepareHeadshotSource(source);
+      } catch (cause) {
+        if (loadVersion !== loadVersionRef.current) return;
+        const code: ProfileImageErrorCode =
+          cause instanceof ProfileImageError ? cause.code : "image_decode_failed";
+        const message = t.errors[code];
+        setError(message);
+        onErrorRef.current?.(message);
+        setProcessing(false);
+        onProcessingChangeRef.current?.(false);
+        return;
+      }
+      if (loadVersion !== loadVersionRef.current) return;
+      fileNameRef.current = source.name;
       const url = URL.createObjectURL(file);
       const img = new Image();
       img.onload = () => {
+        if (loadVersion !== loadVersionRef.current) {
+          URL.revokeObjectURL(url);
+          return;
+        }
         imgRef.current = img;
         const cs = Math.max(FRAME_W / img.naturalWidth, FRAME_H / img.naturalHeight);
         const dw = img.naturalWidth * cs;
@@ -164,9 +254,21 @@ export function AvatarCropper({
         requestAnimationFrame(() => render(cs, start));
         URL.revokeObjectURL(url);
       };
+      img.onerror = () => {
+        if (loadVersion !== loadVersionRef.current) {
+          URL.revokeObjectURL(url);
+          return;
+        }
+        URL.revokeObjectURL(url);
+        const message = t.errors.image_decode_failed;
+        setError(message);
+        onErrorRef.current?.(message);
+        setProcessing(false);
+        onProcessingChangeRef.current?.(false);
+      };
       img.src = url;
     },
-    [FRAME_H, render],
+    [FRAME_H, render, t.errors],
   );
 
   useEffect(() => {
@@ -220,7 +322,7 @@ export function AvatarCropper({
 
   return (
     <div className="space-y-4">
-      <input ref={fileInputRef} type="file" name={name} accept="image/*" className="sr-only" tabIndex={-1} />
+      <input ref={fileInputRef} type="file" name={name} accept="image/*,.heic,.heif" className="sr-only" tabIndex={-1} />
 
       <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
         <div className="shrink-0">
@@ -279,7 +381,7 @@ export function AvatarCropper({
               e.preventDefault();
               setDragOver(false);
               const f = e.dataTransfer.files?.[0];
-              if (f) loadFile(f);
+              if (f) void loadFile(f);
             }}
             className={`flex flex-col items-center justify-center rounded-sm border border-dashed px-4 py-5 text-center transition-colors ${
               dragOver ? "border-bronze bg-bronze/5" : "border-line bg-surface"
@@ -291,11 +393,12 @@ export function AvatarCropper({
                 {t.choose}
                 <input
                   type="file"
-                  accept="image/*"
+                  accept="image/*,.heic,.heif"
                   className="sr-only"
                   onChange={(e) => {
                     const f = e.target.files?.[0];
-                    if (f) loadFile(f);
+                    e.currentTarget.value = "";
+                    if (f) void loadFile(f);
                   }}
                 />
               </label>{" "}
@@ -304,12 +407,13 @@ export function AvatarCropper({
                 {t.takePhoto}
                 <input
                   type="file"
-                  accept="image/*"
+                  accept="image/*,.heic,.heif"
                   capture="user"
                   className="sr-only"
                   onChange={(e) => {
                     const f = e.target.files?.[0];
-                    if (f) loadFile(f);
+                    e.currentTarget.value = "";
+                    if (f) void loadFile(f);
                   }}
                 />
               </label>
@@ -334,8 +438,8 @@ export function AvatarCropper({
               />
             </label>
           )}
-          <p className="text-xs text-ink-50">
-            {editing ? t.dragHint : t.fileHint}
+          <p className={`text-xs ${error ? "text-red-700" : "text-ink-50"}`}>
+            {error || (processing ? t.processing : editing ? t.dragHint : t.fileHint)}
           </p>
         </div>
       </div>

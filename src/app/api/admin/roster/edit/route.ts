@@ -33,11 +33,23 @@ export async function POST(req: NextRequest) {
       signal: AbortSignal.timeout(20000),
     });
     const out = await res.json().catch(() => ({}));
+    if (!res.ok || !out?.ok) {
+      console.warn("Admin public profile save rejected by website", {
+        publicAgentId: id,
+        status: res.status,
+        code: out?.code ?? "unknown",
+        field: out?.field ?? "profile",
+      });
+    }
     if (res.ok && out?.ok) {
       await logAudit(auth.session, "update", "agent", id, `编辑对外经纪人主页（${id}，管理员）`);
     }
     return NextResponse.json(out, { status: res.status });
-  } catch {
+  } catch (error) {
+    console.warn("Admin public profile website request failed", {
+      publicAgentId: id,
+      message: error instanceof Error ? error.message : "unknown",
+    });
     return NextResponse.json({ error: "Couldn't reach the website." }, { status: 502 });
   }
 }
