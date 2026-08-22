@@ -9,6 +9,11 @@ import { tone } from "@/components/homix/tokens";
 import { AvatarCropper } from "@/components/homix/avatar-cropper";
 import type { PublicProfile } from "@/lib/homixweb";
 import { useLocale } from "@/lib/i18n-client";
+import {
+  prepareQrUpload,
+  ProfileImageError,
+  type ProfileImageErrorCode,
+} from "@/lib/profile-image-client";
 
 const PLACEHOLDER = "/agent-placeholder-logo.png";
 const SOCIAL_KEYS = ["instagram", "xiaohongshu", "douyin", "youtube", "linkedin", "website"] as const;
@@ -48,6 +53,24 @@ const M = {
     visibleSaved: "The profile is now visible on the website.",
     hiddenSaved: "You have hidden the profile.",
     saveFailed: "Unable to save. Please try again.",
+    imageProcessing: "Wait for the selected image to finish processing.",
+    imageProcessingShort: "Processing…",
+    qrReady: (name: string) => `${name} is ready to upload.`,
+    imageErrors: {
+      source_too_large: "The original image is larger than 25 MB.",
+      unsupported_image: "Choose a HEIC, HEIF, JPG, PNG, WebP, or GIF image.",
+      heic_conversion_failed: "This HEIC/HEIF image could not be converted. Try exporting it as JPG.",
+      image_decode_failed: "This image could not be read. Try a different file.",
+      output_too_large: "This image is still too large after processing.",
+    },
+    saveErrors: {
+      image_too_large: "The processed image is too large. Choose a smaller image and try again.",
+      heic_requires_conversion: "The HEIC/HEIF conversion did not finish. Select the image again.",
+      unsupported_image: "The selected file is not a supported image.",
+      image_decode_failed: "The selected image could not be read. Try a different file.",
+      image_upload_failed: "The image upload failed. Please try again.",
+      profile_update_failed: "The profile could not be saved. Please try again.",
+    },
     saved: "Saved and synced to the public website.",
     visible: "Visible on the public website",
     agentHidden: "Hidden by you",
@@ -83,7 +106,7 @@ const M = {
     removeQr: "Remove QR code",
     removeAfterSave: "The QR code will be removed after saving.",
     undo: "Undo",
-    qrHint: "Uploading a new code replaces the current one. Upload a clear, uncropped image.",
+    qrHint: "Uploading a new code replaces the current one. HEIC/HEIF and phone photos are converted automatically.",
     reviews: "Review links",
     reviewsHint: "A link is required to display a source; rating and count are optional.",
     link: "link",
@@ -112,6 +135,24 @@ const M = {
     visibleSaved: "主页已在官网显示。",
     hiddenSaved: "主页已由你隐藏。",
     saveFailed: "保存失败，请重试。",
+    imageProcessing: "请等待所选图片处理完成后再保存。",
+    imageProcessingShort: "正在处理…",
+    qrReady: (name: string) => `${name} 已处理完毕，保存后上传。`,
+    imageErrors: {
+      source_too_large: "原始图片超过 25 MB，请选择较小的图片。",
+      unsupported_image: "请选择 HEIC、HEIF、JPG、PNG、WebP 或 GIF 图片。",
+      heic_conversion_failed: "这张 HEIC/HEIF 图片无法转换，请尝试导出为 JPG 后再上传。",
+      image_decode_failed: "无法读取这张图片，请换一张重试。",
+      output_too_large: "处理后的图片仍然太大，请换一张重试。",
+    },
+    saveErrors: {
+      image_too_large: "处理后的图片仍然太大，请选择较小的图片后重试。",
+      heic_requires_conversion: "HEIC/HEIF 转换未完成，请重新选择图片。",
+      unsupported_image: "所选文件不是系统支持的图片格式。",
+      image_decode_failed: "无法读取所选图片，请换一张重试。",
+      image_upload_failed: "图片上传失败，请重试。",
+      profile_update_failed: "主页资料保存失败，请重试。",
+    },
     saved: "已保存并同步到对外网站。",
     visible: "已在对外网站公开",
     agentHidden: "已由你隐藏",
@@ -147,7 +188,7 @@ const M = {
     removeQr: "移除二维码",
     removeAfterSave: "将在保存后移除。",
     undo: "撤销",
-    qrHint: "上传新二维码会替换现有图片。二维码不裁剪，请上传清晰完整的图。",
+    qrHint: "上传新二维码会替换现有图片；HEIC/HEIF 和手机照片会自动转换压缩。",
     reviews: "客户评价链接",
     reviewsHint: "填写链接后才显示；评分与数量选填。",
     link: "链接",
@@ -234,6 +275,11 @@ export function PublicProfileEditor({
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [removeQr, setRemoveQr] = useState(false);
   const [visibility, setVisibility] = useState(profile?.visibility_status ?? "visible");
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [qrFile, setQrFile] = useState<File | null>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [qrBusy, setQrBusy] = useState(false);
+  const [qrError, setQrError] = useState<string | null>(null);
 
   if (unreachable) {
     return (
@@ -318,24 +364,64 @@ export function PublicProfileEditor({
   async function save() {
     const form = formRef.current;
     if (!form) return;
+    if (photoBusy || qrBusy) {
+      setMsg({ ok: false, text: t.imageProcessing });
+      return;
+    }
     setBusy(true);
     setMsg(null);
     const fd = new FormData(form);
+    fd.delete("photo");
+    fd.delete("wechat_qr");
+    if (photoFile) fd.set("photo", photoFile);
+    if (qrFile) fd.set("wechat_qr", qrFile);
     if (removeQr) fd.set("remove_wechat_qr", "1");
     // Admin editing by public agent id → the admin endpoint; otherwise the
     // self/portal-admin path keyed by portal agent id.
     const endpoint = adminPublicId ? "/api/admin/roster/edit" : "/api/profile/public";
     if (adminPublicId) fd.set("id", adminPublicId);
     else if (!isOwn) fd.set("agentId", String(targetAgentId));
-    const res = await fetch(endpoint, { method: "POST", body: fd });
-    const body = await res.json().catch(() => ({}));
-    setBusy(false);
-    if (!res.ok || !body.ok) {
+    try {
+      const res = await fetch(endpoint, { method: "POST", body: fd });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || !body.ok) {
+        const code = typeof body.code === "string" ? body.code : "";
+        const text = code && code in t.saveErrors
+          ? t.saveErrors[code as keyof typeof t.saveErrors]
+          : typeof body.error === "string"
+            ? body.error
+            : t.saveFailed;
+        setMsg({ ok: false, text });
+        return;
+      }
+      setMsg({ ok: true, text: t.saved });
+      setPhotoFile(null);
+      setQrFile(null);
+      setRemoveQr(false);
+      router.refresh();
+    } catch {
       setMsg({ ok: false, text: t.saveFailed });
-      return;
+    } finally {
+      setBusy(false);
     }
-    setMsg({ ok: true, text: t.saved });
-    router.refresh();
+  }
+
+  async function chooseQr(source: File | undefined) {
+    if (!source) return;
+    setQrBusy(true);
+    setQrError(null);
+    setQrFile(null);
+    try {
+      const prepared = await prepareQrUpload(source);
+      setQrFile(prepared);
+      setRemoveQr(false);
+    } catch (cause) {
+      const code: ProfileImageErrorCode =
+        cause instanceof ProfileImageError ? cause.code : "image_decode_failed";
+      setQrError(t.imageErrors[code]);
+    } finally {
+      setQrBusy(false);
+    }
   }
 
   return (
@@ -369,7 +455,13 @@ export function PublicProfileEditor({
       <Card className="flex flex-col">
         <CardHeader title={t.photo} subtitle={t.photoHint} />
         <div className="p-5">
-          <AvatarCropper name="photo" currentSrc={p.photo_url || PLACEHOLDER} alt={p.name || ""} />
+          <AvatarCropper
+            name="photo"
+            currentSrc={p.photo_url || PLACEHOLDER}
+            alt={p.name || ""}
+            onFileReady={setPhotoFile}
+            onProcessingChange={setPhotoBusy}
+          />
         </div>
       </Card>
 
@@ -474,7 +566,21 @@ export function PublicProfileEditor({
               {t.removeAfterSave}<button type="button" onClick={() => setRemoveQr(false)} className="ml-2 underline" style={{ color: tone.accent }}>{t.undo}</button>
             </p>
           )}
-          <input type="file" name="wechat_qr" accept="image/*" className="block text-[12.5px]" style={{ color: tone.ink70 }} />
+          <input
+            type="file"
+            accept="image/*,.heic,.heif"
+            className="block text-[12.5px]"
+            style={{ color: tone.ink70 }}
+            disabled={qrBusy}
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.currentTarget.value = "";
+              void chooseQr(file);
+            }}
+          />
+          {qrBusy && <p className="text-[12px]" style={{ color: tone.ink50 }}>{t.imageProcessing}</p>}
+          {qrFile && !qrBusy && <p className="text-[12px]" style={{ color: tone.green }}>{t.qrReady(qrFile.name)}</p>}
+          {qrError && <p className="text-[12px]" style={{ color: tone.rose }}>{qrError}</p>}
           <p className="text-[11.5px]" style={{ color: tone.ink50 }}>{t.qrHint}</p>
         </div>
       </Card>
@@ -539,8 +645,8 @@ export function PublicProfileEditor({
         <span className="text-[12.5px]" style={{ color: msg ? (msg.ok ? tone.green : tone.rose) : tone.ink50 }}>
           {msg ? msg.text : t.unsavedHint}
         </span>
-        <Btn variant="primary" onClick={save} disabled={busy}>
-          {busy ? t.saving : t.save}
+        <Btn variant="primary" onClick={save} disabled={busy || photoBusy || qrBusy}>
+          {busy ? t.saving : photoBusy || qrBusy ? t.imageProcessingShort : t.save}
         </Btn>
       </div>
     </form>
