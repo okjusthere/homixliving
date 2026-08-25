@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { CheckCircle2, Clock, Mail } from "lucide-react";
+import { auth } from "@/auth";
 import { db } from "@/db";
 import { commerceOrders } from "@/db/schema";
 import { commerceProductName, formatProductAmount } from "@/lib/commerce/catalog";
@@ -45,11 +46,15 @@ export default async function PaySuccessPage({
   const t = M[locale];
   const params = await searchParams;
   const sessionId = typeof params.session_id === "string" ? params.session_id : "";
+  const session = await auth();
   const [order] = sessionId
     ? await db
         .select()
         .from(commerceOrders)
-        .where(eq(commerceOrders.stripeCheckoutSessionId, sessionId))
+        .where(and(
+          eq(commerceOrders.stripeCheckoutSessionId, sessionId),
+          eq(commerceOrders.agentId, session?.user?.agentId ?? -1),
+        ))
         .limit(1)
     : [];
 

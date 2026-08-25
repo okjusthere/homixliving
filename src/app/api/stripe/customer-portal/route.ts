@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { and, desc, eq, isNotNull } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull, or } from "drizzle-orm";
 import { db } from "@/db";
 import { commerceOrders } from "@/db/schema";
 import { requireActiveAgentApi } from "@/lib/auth-guards";
@@ -23,9 +23,10 @@ export async function POST(request: Request) {
   const authResult = await requireActiveAgentApi();
   if ("error" in authResult) return authResult.error;
 
+  const agentId = authResult.session.user.agentId;
   const email = authResult.session.user.email?.trim().toLowerCase();
-  if (!email) {
-    return NextResponse.json({ error: "Signed-in user email is missing." }, { status: 400 });
+  if (!agentId) {
+    return NextResponse.json({ error: "Signed-in agent is missing." }, { status: 400 });
   }
 
   const [order] = await db
@@ -36,7 +37,13 @@ export async function POST(request: Request) {
     .from(commerceOrders)
     .where(
       and(
-        eq(commerceOrders.customerEmail, email),
+        or(
+          eq(commerceOrders.agentId, agentId),
+          and(
+            isNull(commerceOrders.agentId),
+            eq(commerceOrders.customerEmail, email || ""),
+          ),
+        ),
         isNotNull(commerceOrders.stripeCustomerId)
       )
     )

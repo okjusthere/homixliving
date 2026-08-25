@@ -1,25 +1,30 @@
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 import { after } from "next/server";
+import { cookies } from "next/headers";
 import { db } from "@/db";
-import { agents } from "@/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { agents, invoices, trainingVideoViews } from "@/db/schema";
+import { and, eq, sql } from "drizzle-orm";
 import { authConfig } from "./auth.config";
 import { DEFAULT_AGENT_SPLIT_PCT } from "@/lib/splits";
 import { adminAgentIds, notify } from "@/lib/notify";
-
-const adminEmails = (process.env.ADMIN_EMAILS ?? "")
-  .split(",")
-  .map((email) => email.trim().toLowerCase())
-  .filter(Boolean);
+import { isConfiguredAdminEmail } from "@/lib/admin-emails";
+import { logAudit } from "@/lib/audit";
+import {
+  isEmailChangeRequestActive,
+  normalizeEmail,
+} from "@/lib/email-change";
+import {
+  EMAIL_CHANGE_COOKIE,
+  emailChangeTokenMatches,
+} from "@/lib/email-change-token";
 
 const googleEnabled =
   !!process.env.AUTH_GOOGLE_ID && !!process.env.AUTH_GOOGLE_SECRET;
 
-const isAdminEmail = (email: string) =>
-  adminEmails.includes(email.toLowerCase());
-
 type Agent = typeof agents.$inferSelect;
+
+class EmailChangeConflictError extends Error {}
 
 async function reconcileConfiguredAccess(
   existing: Agent,
@@ -67,9 +72,80 @@ async function loadAgentFromDatabase(user: {
 
   return reconcileConfiguredAccess(
     existing,
-    isAdminEmail(email),
+    isConfiguredAdminEmail(email),
     user.name,
   );
+}
+
+async function completeEmailChange(pendingAgent: Agent, email: string) {
+  if (!isEmailChangeRequestActive(pendingAgent.emailChangeRequestedAt)) {
+    throw new Error(`Email change request expired for ${email}`);
+  }
+
+  const verificationToken = (await cookies()).get(EMAIL_CHANGE_COOKIE)?.value;
+  if (
+    !verificationToken ||
+    !pendingAgent.emailChangeTokenHash ||
+    !emailChangeTokenMatches(verificationToken, pendingAgent.emailChangeTokenHash)
+  ) {
+    throw new Error(`Email change verification context missing for ${email}`);
+  }
+
+  const oldEmail = pendingAgent.email;
+  const admin = isConfiguredAdminEmail(email);
+  const now = new Date().toISOString();
+
+  let updated: Agent;
+  try {
+    updated = await db.transaction(async (tx) => {
+      // These legacy ownership paths still use email rather than agent_id.
+      await tx
+        .update(invoices)
+        .set({ agentEmail: email, updatedAt: now })
+        .where(sql`lower(${invoices.agentEmail}) = ${oldEmail.toLowerCase()}`);
+      await tx
+        .update(trainingVideoViews)
+        .set({ agentEmail: email, updatedAt: now })
+        .where(eq(trainingVideoViews.agentId, pendingAgent.id));
+
+      const [changedAgent] = await tx
+        .update(agents)
+        .set({
+          email,
+          pendingEmail: null,
+          emailChangeRequestedAt: null,
+          emailChangeTokenHash: null,
+          isAdmin: admin,
+          ...(admin ? { accountStatus: "active" as const } : {}),
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(agents.id, pendingAgent.id),
+            sql`lower(${agents.pendingEmail}) = ${email}`,
+          ),
+        )
+        .returning();
+      if (!changedAgent) throw new EmailChangeConflictError();
+      return changedAgent;
+    });
+  } catch (error) {
+    if (error instanceof EmailChangeConflictError) {
+      throw new Error(`Email change request no longer available for ${email}`);
+    }
+    throw error;
+  }
+
+  await logAudit(
+    { user: { email } },
+    "complete_email_change",
+    "agent",
+    updated.id,
+    `登录邮箱已从 ${oldEmail} 更换为 ${email}`,
+    { oldEmail, newEmail: email },
+  );
+
+  return updated;
 }
 
 async function upsertAgentFromGoogle(user: {
@@ -78,9 +154,32 @@ async function upsertAgentFromGoogle(user: {
 }) {
   if (!user.email) throw new Error("Google account has no email");
 
-  const email = user.email.trim().toLowerCase();
-  const admin = isAdminEmail(email);
+  const email = normalizeEmail(user.email);
+  if (!email) throw new Error("Google account has no email");
+
+  const admin = isConfiguredAdminEmail(email);
   const now = new Date().toISOString();
+
+  const [existing] = await db
+    .select()
+    .from(agents)
+    .where(sql`lower(${agents.email}) = ${email}`)
+    .limit(1);
+
+  if (existing) {
+    return reconcileConfiguredAccess(existing, admin, user.name);
+  }
+
+  const [pendingAgent] = await db
+    .select()
+    .from(agents)
+    .where(sql`lower(${agents.pendingEmail}) = ${email}`)
+    .limit(1);
+
+  if (pendingAgent) {
+    const updated = await completeEmailChange(pendingAgent, email);
+    return reconcileConfiguredAccess(updated, admin, user.name);
+  }
 
   const [created] = await db
     .insert(agents)
@@ -90,6 +189,9 @@ async function upsertAgentFromGoogle(user: {
       isAdmin: admin,
       accountStatus: admin ? "active" : "pending",
       splitPct: DEFAULT_AGENT_SPLIT_PCT,
+      plan: "solo",
+      planEffectiveFrom: now.slice(0, 10),
+      anniversaryStart: now.slice(0, 10),
       joinedAt: now.slice(0, 10),
       createdAt: now,
       updatedAt: now,
@@ -116,7 +218,7 @@ async function upsertAgentFromGoogle(user: {
     });
   }
 
-  const existing =
+  const upserted =
     created ||
     (
       await db
@@ -126,11 +228,11 @@ async function upsertAgentFromGoogle(user: {
         .limit(1)
     )[0];
 
-  if (!existing) {
+  if (!upserted) {
     throw new Error(`Failed to upsert agent for ${email}`);
   }
 
-  return reconcileConfiguredAccess(existing, admin, user.name);
+  return reconcileConfiguredAccess(upserted, admin, user.name);
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -146,6 +248,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     : [],
   callbacks: {
     ...authConfig.callbacks,
+    async signIn({ account, profile }) {
+      if (account?.provider !== "google") return false;
+      return profile?.email_verified === true;
+    },
     async jwt({ token, user, trigger }) {
       const email =
         (typeof user?.email === "string" && user.email) ||

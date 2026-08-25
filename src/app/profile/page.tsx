@@ -66,6 +66,19 @@ export default async function ProfilePage() {
         w9UploadedAt: profile.w9UploadedAt,
       }
     : null;
+  const safeAgent = agent
+    ? {
+        id: agent.id,
+        name: agent.name,
+        phone: agent.phone,
+        licenseNumber: agent.licenseNumber,
+        licenseExpiresAt: agent.licenseExpiresAt,
+        email: agent.email,
+        splitPct: agent.splitPct,
+        pendingEmail: agent.pendingEmail,
+        emailChangeRequestedAt: agent.emailChangeRequestedAt,
+      }
+    : null;
 
   // Onboarding completeness needs the website profile too (headshot + bio live
   // there). Kept off the critical path: if the site is unreachable those two
@@ -109,7 +122,7 @@ export default async function ProfilePage() {
           →
         </span>
       </Link>
-      <ProfileClient agent={agent ?? null} profile={safeProfile} payouts={payouts} />
+      <ProfileClient agent={safeAgent} profile={safeProfile} payouts={payouts} />
     </div>
   );
 }

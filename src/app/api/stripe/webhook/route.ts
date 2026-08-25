@@ -2,10 +2,16 @@ import type Stripe from "stripe";
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { commerceCharges, commerceOrders, stripeEvents, type CommerceOrder } from "@/db/schema";
+import {
+  commerceCharges,
+  commerceOrders,
+  stripeEvents,
+  type CommerceOrder,
+} from "@/db/schema";
 import { settledCheckoutAmountCents } from "@/lib/commerce/settlement";
 import { getStripe, getStripeWebhookSecret, stripeId } from "@/lib/stripe";
 import { provisionWorkspaceForOrder, suspendWorkspaceForOrder } from "@/lib/google-workspace";
+import { settlePlanPayment } from "@/lib/plan-payments";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -114,6 +120,15 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
     .where(eq(commerceOrders.id, order.id));
 
   if (isPaid) {
+    // Checkout owns the initial payment for both one-time and subscription
+    // products. Stripe does not guarantee delivery order between
+    // checkout.session.completed and the subscription's first invoice event.
+    await settlePlanPayment(db, {
+      order: updatedOrder,
+      sourceKey: `checkout:${session.id}`,
+      amountCents,
+      earnedAt: now,
+    });
     await maybeProvisionWorkspace(updatedOrder);
   }
 
@@ -197,6 +212,16 @@ async function handleInvoicePaid(invoice: Stripe.Invoice): Promise<number | null
     .set({ status: "active", paidAt: now, updatedAt: now })
     .where(eq(commerceOrders.id, order.id));
 
+  // The initial subscription payment is handled by checkout.session.completed.
+  // Subsequent invoices are renewals and create their own sponsor reward.
+  if (invoice.billing_reason !== "subscription_create") {
+    await settlePlanPayment(db, {
+      order: updatedOrder,
+      sourceKey: `invoice:${invoice.id}`,
+      amountCents: invoice.amount_paid,
+      earnedAt: now,
+    });
+  }
   await maybeProvisionWorkspace(updatedOrder);
   return order.id;
 }

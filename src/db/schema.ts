@@ -101,12 +101,48 @@ export const teams = portal.table("teams", {
   notes: text("notes"),
 });
 
+export const teamCompensationConfigs = portal.table(
+  "team_compensation_configs",
+  {
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    teamId: integer("team_id")
+      .notNull()
+      .references(() => teams.id, { onDelete: "cascade" }),
+    version: integer("version").notNull(),
+    effectiveFrom: dateCol("effective_from").notNull(),
+    defaultTeamSplitPct: integer("default_team_split_pct").notNull().default(10),
+    teamLeadSplitPct: integer("team_lead_split_pct").notNull().default(10),
+    teamCapCents: integer("team_cap_cents"),
+    createdByEmail: text("created_by_email"),
+    createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => [
+    uniqueIndex("uq_team_comp_config_version").on(table.teamId, table.version),
+    index("idx_team_comp_config_effective").on(table.teamId, table.effectiveFrom),
+  ],
+);
+
 export type AgentAccountStatus = "pending" | "active" | "inactive";
+export type OnboardingStage = "profile" | "agreement" | "payment" | "review" | "complete";
+export type OnboardingAgreementStatus =
+  | "not_started"
+  | "preparing"
+  | "sent"
+  | "completed"
+  | "declined"
+  | "voided"
+  | "expired"
+  | "failed";
+export type OnboardingPaymentStatus = "pending" | "paid" | "not_required";
+export type OnboardingInvitationKind = "personal_referral" | "team_recruiting" | "admin";
 
 export const agents = portal.table("agents", {
   id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
+  pendingEmail: text("pending_email"),
+  emailChangeRequestedAt: timestamptz("email_change_requested_at"),
+  emailChangeTokenHash: text("email_change_token_hash"),
   phone: text("phone"),
   licenseNumber: text("license_number"),
   // NY licenses expire every 2 years — the reminder cron watches this date.
@@ -123,8 +159,39 @@ export const agents = portal.table("agents", {
   notes: text("notes"),
   /** Name on the licence / tax forms, when it differs from the display name. */
   legalName: text("legal_name"),
-  /** Commission plan — see lib/agent-plans.ts (standard 80 / growth 92 / elite 100). */
-  plan: text("plan").$type<AgentPlan>().notNull().default("standard"),
+  /** v3.1 compensation track. Legacy values are normalized by lib/agent-plans.ts. */
+  plan: text("plan").$type<AgentPlan>().notNull().default("solo"),
+  planEffectiveFrom: dateCol("plan_effective_from"),
+  anniversaryStart: dateCol("anniversary_start"),
+  /** Team terms frozen into the member's onboarding agreement for this cycle. */
+  teamTermsConfigId: integer("team_terms_config_id").references(
+    () => teamCompensationConfigs.id,
+    { onDelete: "set null" },
+  ),
+  teamTermsEffectiveFrom: dateCol("team_terms_effective_from"),
+  teamTermsAcceptedAt: timestamptz("team_terms_accepted_at"),
+  affiliationTermMonths: integer("affiliation_term_months"),
+  affiliationPaidAt: dateCol("affiliation_paid_at"),
+  onboardingCompletedAt: timestamptz("onboarding_completed_at"),
+  onboardingStage: text("onboarding_stage")
+    .$type<OnboardingStage>()
+    .notNull()
+    .default("profile"),
+  onboardingSource: text("onboarding_source").notNull().default("direct"),
+  onboardingInviteId: integer("onboarding_invite_id"),
+  agreementStatus: text("agreement_status")
+    .$type<OnboardingAgreementStatus>()
+    .notNull()
+    .default("not_started"),
+  esignTransactionId: text("esign_transaction_id"),
+  esignEnvelopeId: text("esign_envelope_id"),
+  esignTemplateVersionId: text("esign_template_version_id"),
+  esignEvidencePackageId: text("esign_evidence_package_id"),
+  agreementCompletedAt: timestamptz("agreement_completed_at"),
+  paymentStatus: text("payment_status")
+    .$type<OnboardingPaymentStatus>()
+    .notNull()
+    .default("pending"),
   /** rental | sales | both. Null when not yet specified. */
   practice: text("practice").$type<AgentPractice>(),
   /** Which existing agent recruited this one — set by an admin, never inferred. */
@@ -134,7 +201,47 @@ export const agents = portal.table("agents", {
   ),
   createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
   updatedAt: timestamptz("updated_at").$defaultFn(() => new Date().toISOString()),
-});
+}, (table) => [
+  uniqueIndex("uq_agents_pending_email_lower")
+    .on(sql`lower(${table.pendingEmail})`)
+    .where(sql`${table.pendingEmail} IS NOT NULL`),
+]);
+
+// Invitation links freeze only their authoritative facts. A personal referral
+// locks the sponsor, while a team campaign also locks the team and plan. Only
+// a SHA-256 token hash is stored; plaintext exists only in the generated URL.
+export const onboardingInvitations = portal.table(
+  "onboarding_invitations",
+  {
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    tokenHash: text("token_hash").notNull().unique(),
+    email: text("email"),
+    kind: text("kind").$type<OnboardingInvitationKind>().notNull().default("admin"),
+    source: text("source").notNull().default("direct"),
+    teamId: integer("team_id").references(() => teams.id, { onDelete: "set null" }),
+    sponsorAgentId: integer("sponsor_agent_id").references(() => agents.id, {
+      onDelete: "set null",
+    }),
+    plan: text("plan").$type<AgentPlan>().notNull().default("solo"),
+    affiliationTermMonths: integer("affiliation_term_months").notNull().default(12),
+    lockPlan: boolean("lock_plan").notNull().default(true),
+    lockTeam: boolean("lock_team").notNull().default(true),
+    lockSponsor: boolean("lock_sponsor").notNull().default(true),
+    lockTerm: boolean("lock_term").notNull().default(true),
+    expiresAt: timestamptz("expires_at").notNull(),
+    maxUses: integer("max_uses").notNull().default(1),
+    useCount: integer("use_count").notNull().default(0),
+    createdByAgentId: integer("created_by_agent_id").references(() => agents.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
+    revokedAt: timestamptz("revoked_at"),
+  },
+  (table) => [
+    index("idx_onboarding_invites_team").on(table.teamId),
+    index("idx_onboarding_invites_expires").on(table.expiresAt),
+  ],
+);
 
 export const rentalDeals = portal.table("rental_deals", {
   id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
@@ -164,6 +271,8 @@ export const rentalDeals = portal.table("rental_deals", {
   status: text("status").notNull().default("active"),
   dealDate: dateCol("deal_date"),
   source: text("source"), // 客源来源 — see DealSource in src/lib/sources.ts
+  compensationSource: text("compensation_source").notNull().default("self"),
+  clientRebate: money("client_rebate").notNull().default(0),
   notes: text("notes"),
   // Renewal tracking — for upcoming lease-end follow-ups
   renewalStatus: text("renewal_status"), // null | 'pending' | 'renewing' | 'moving_out' | 'renewed' | 'lost'
@@ -227,6 +336,8 @@ export const saleDeals = portal.table("sale_deals", {
   lenderName: text("lender_name"),
   escrowHolder: text("escrow_holder"),
   source: text("source"),
+  compensationSource: text("compensation_source").notNull().default("self"),
+  clientRebate: money("client_rebate").notNull().default(0),
   notes: text("notes"),
   // 登单人 — the signed-in account that entered this deal.
   createdByEmail: text("created_by_email"),
@@ -248,6 +359,141 @@ export const saleDealAgents = portal.table(
     createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
   },
   (table) => [primaryKey({ columns: [table.saleDealId, table.agentId] })]
+);
+
+export const dealCompensationSnapshots = portal.table(
+  "deal_compensation_snapshots",
+  {
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    dealType: text("deal_type").notNull(),
+    dealId: integer("deal_id").notNull(),
+    version: integer("version").notNull().default(1),
+    status: text("status").notNull().default("estimated"),
+    effectiveDate: dateCol("effective_date").notNull(),
+    grossCommission: money("gross_commission").notNull(),
+    sourceType: text("source_type").notNull().default("self"),
+    sourceFee: money("source_fee").notNull().default(0),
+    outsideReferral: money("outside_referral").notNull().default(0),
+    commissionBase: money("commission_base").notNull(),
+    companyDollar: money("company_dollar").notNull().default(0),
+    teamAllocation: money("team_allocation").notNull().default(0),
+    transactionFee: money("transaction_fee").notNull().default(0),
+    rebateAmount: money("rebate_amount").notNull().default(0),
+    sponsorAmount: money("sponsor_amount").notNull().default(0),
+    agentNetTotal: money("agent_net_total").notNull().default(0),
+    homixRetained: money("homix_retained").notNull().default(0),
+    policyVersion: text("policy_version").notNull().default("3.1"),
+    configuration: jsonb("configuration").$type<Record<string, unknown>>(),
+    finalizedAt: timestamptz("finalized_at"),
+    finalizedByEmail: text("finalized_by_email"),
+    supersededAt: timestamptz("superseded_at"),
+    createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => [
+    uniqueIndex("uq_deal_comp_snapshot_version").on(table.dealType, table.dealId, table.version),
+    index("idx_deal_comp_snapshot_current").on(table.dealType, table.dealId, table.supersededAt),
+  ],
+);
+
+export const dealCompensationAllocations = portal.table(
+  "deal_compensation_allocations",
+  {
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    snapshotId: integer("snapshot_id")
+      .notNull()
+      .references(() => dealCompensationSnapshots.id, { onDelete: "cascade" }),
+    agentId: integer("agent_id")
+      .notNull()
+      .references(() => agents.id, { onDelete: "restrict" }),
+    sharePct: fractionalPct("share_pct").notNull(),
+    plan: text("plan").notNull(),
+    teamId: integer("team_id").references(() => teams.id, { onDelete: "set null" }),
+    teamConfigId: integer("team_config_id").references(() => teamCompensationConfigs.id, { onDelete: "set null" }),
+    teamLeaderAgentId: integer("team_leader_agent_id").references((): AnyPgColumn => agents.id, { onDelete: "set null" }),
+    sponsorAgentId: integer("sponsor_agent_id").references((): AnyPgColumn => agents.id, { onDelete: "set null" }),
+    grossShare: money("gross_share").notNull(),
+    companyDollar: money("company_dollar").notNull().default(0),
+    companyCapCredit: money("company_cap_credit").notNull().default(0),
+    teamLeaderAllocation: money("team_leader_allocation").notNull().default(0),
+    teamCapCredit: money("team_cap_credit").notNull().default(0),
+    transactionFee: money("transaction_fee").notNull().default(0),
+    rebateAmount: money("rebate_amount").notNull().default(0),
+    sponsorAmount: money("sponsor_amount").notNull().default(0),
+    agentNet: money("agent_net").notNull().default(0),
+    createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => [
+    uniqueIndex("uq_deal_comp_allocation_agent").on(table.snapshotId, table.agentId),
+    index("idx_deal_comp_allocation_agent").on(table.agentId, table.snapshotId),
+  ],
+);
+
+export type CompensationObligationKind = "agent_net" | "team_split" | "sponsor_reward";
+export type CompensationObligationStatus =
+  | "pending_receipt"
+  | "payable"
+  | "partially_paid"
+  | "paid"
+  | "void";
+
+// One finalized allocation can create three independent liabilities. Keeping
+// Team Split and Sponsor Reward separate is intentional even when both are
+// payable to the same team leader.
+export const compensationObligations = portal.table(
+  "compensation_obligations",
+  {
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    snapshotId: integer("snapshot_id")
+      .notNull()
+      .references(() => dealCompensationSnapshots.id, { onDelete: "cascade" }),
+    allocationId: integer("allocation_id")
+      .notNull()
+      .references(() => dealCompensationAllocations.id, { onDelete: "cascade" }),
+    recipientAgentId: integer("recipient_agent_id")
+      .notNull()
+      .references(() => agents.id, { onDelete: "restrict" }),
+    sourceAgentId: integer("source_agent_id")
+      .notNull()
+      .references(() => agents.id, { onDelete: "restrict" }),
+    kind: text("kind").$type<CompensationObligationKind>().notNull(),
+    amountCents: integer("amount_cents").notNull(),
+    paidCents: integer("paid_cents").notNull().default(0),
+    status: text("status")
+      .$type<CompensationObligationStatus>()
+      .notNull()
+      .default("pending_receipt"),
+    availableAt: timestamptz("available_at"),
+    createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
+    updatedAt: timestamptz("updated_at").$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => [
+    uniqueIndex("uq_comp_obligation_source").on(
+      table.allocationId,
+      table.kind,
+      table.recipientAgentId,
+    ),
+    index("idx_comp_obligation_recipient_status").on(table.recipientAgentId, table.status),
+    index("idx_comp_obligation_snapshot").on(table.snapshotId),
+  ],
+);
+
+// Receipt means Homix actually has the commission funds. Finalizing the math
+// alone must never make an agent payable.
+export const compensationReceipts = portal.table(
+  "compensation_receipts",
+  {
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    snapshotId: integer("snapshot_id")
+      .notNull()
+      .references(() => dealCompensationSnapshots.id, { onDelete: "restrict" }),
+    amountCents: integer("amount_cents").notNull(),
+    receivedAt: timestamptz("received_at").notNull(),
+    method: text("method").notNull().default("other"),
+    reference: text("reference"),
+    createdByEmail: text("created_by_email"),
+    createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => [uniqueIndex("uq_comp_receipt_snapshot").on(table.snapshotId)],
 );
 
 // ============================================================
@@ -345,6 +591,7 @@ export const checklistItems = portal.table("checklist_items", {
 
 export const commerceOrders = portal.table("commerce_orders", {
   id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  agentId: integer("agent_id").references(() => agents.id, { onDelete: "set null" }),
   productKey: text("product_key").notNull(),
   productName: text("product_name").notNull(),
   billingMode: text("billing_mode").notNull(), // payment | subscription
@@ -356,6 +603,11 @@ export const commerceOrders = portal.table("commerce_orders", {
   stripeCustomerId: text("stripe_customer_id"),
   stripeSubscriptionId: text("stripe_subscription_id"),
   stripePaymentIntentId: text("stripe_payment_intent_id"),
+  paymentChannel: text("payment_channel").notNull().default("stripe"),
+  offlineMethod: text("offline_method"),
+  offlineReference: text("offline_reference"),
+  verifiedByEmail: text("verified_by_email"),
+  externalPaymentKey: text("external_payment_key").unique(),
   checkoutUrl: text("checkout_url"),
   customerName: text("customer_name"),
   customerEmail: text("customer_email"),
@@ -394,6 +646,29 @@ export const commerceCharges = portal.table("commerce_charges", {
   periodStart: timestamptz("period_start"),
   periodEnd: timestamptz("period_end"),
   paidAt: timestamptz("paid_at"),
+  createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
+});
+
+// Sponsor reward generated by an affiliation/plan payment. Deal-based sponsor
+// rewards remain frozen in deal_compensation_allocations; this ledger covers
+// Stripe plan-fee payments and is idempotent by checkout/invoice source key.
+export const sponsorPlanRewards = portal.table("sponsor_plan_rewards", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  sourceKey: text("source_key").notNull().unique(),
+  orderId: integer("commerce_order_id").references(() => commerceOrders.id, {
+    onDelete: "set null",
+  }),
+  sponsorAgentId: integer("sponsor_agent_id")
+    .notNull()
+    .references(() => agents.id, { onDelete: "restrict" }),
+  referredAgentId: integer("referred_agent_id")
+    .notNull()
+    .references(() => agents.id, { onDelete: "restrict" }),
+  amountCents: integer("amount_cents").notNull(),
+  paidCents: integer("paid_cents").notNull().default(0),
+  status: text("status").notNull().default("accrued"),
+  earnedAt: timestamptz("earned_at").notNull(),
+  availableAt: timestamptz("available_at"),
   createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
 });
 
@@ -440,9 +715,37 @@ export const agentPayouts = portal.table("agent_payouts", {
   dealId: integer("deal_id"),
   paidAt: dateCol("paid_at").notNull(), // date the money actually moved
   createdByEmail: text("created_by_email"),
+  idempotencyKey: text("idempotency_key").unique(),
   createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
   updatedAt: timestamptz("updated_at").$defaultFn(() => new Date().toISOString()),
 });
+
+// A bank/check payout may settle several obligations. These applications are
+// the auditable bridge from a QuickBooks payment to the frozen deal math.
+export const payoutApplications = portal.table(
+  "payout_applications",
+  {
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    payoutId: integer("payout_id")
+      .notNull()
+      .references(() => agentPayouts.id, { onDelete: "cascade" }),
+    obligationId: integer("obligation_id")
+      .references(() => compensationObligations.id, { onDelete: "restrict" }),
+    sponsorPlanRewardId: integer("sponsor_plan_reward_id")
+      .references(() => sponsorPlanRewards.id, { onDelete: "restrict" }),
+    amountCents: integer("amount_cents").notNull(),
+    createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => [
+    uniqueIndex("uq_payout_application").on(table.payoutId, table.obligationId),
+    uniqueIndex("uq_payout_application_plan_reward").on(
+      table.payoutId,
+      table.sponsorPlanRewardId,
+    ),
+    index("idx_payout_application_obligation").on(table.obligationId),
+    index("idx_payout_application_plan_reward").on(table.sponsorPlanRewardId),
+  ],
+);
 
 export const stripeEvents = portal.table("stripe_events", {
   id: text("id").primaryKey(),
@@ -592,6 +895,21 @@ export const notifications = portal.table("notifications", {
   createdAt: timestamptz("created_at").$defaultFn(() => new Date().toISOString()),
 });
 
+export type AnonymousSuggestionStatus = "new" | "reviewing" | "planned" | "closed";
+
+// The submission route authenticates eligibility but deliberately stores no
+// agent id, email, IP address, user agent, or audit-log entry.
+export const anonymousSuggestions = portal.table("anonymous_suggestions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  category: text("category").notNull(),
+  message: text("message").notNull(),
+  locale: text("locale").notNull().default("zh"),
+  status: text("status").$type<AnonymousSuggestionStatus>().notNull().default("new"),
+  adminNote: text("admin_note"),
+  createdAt: timestamptz("created_at").notNull().defaultNow(),
+  updatedAt: timestamptz("updated_at").notNull().defaultNow(),
+});
+
 // ============================================================
 // Audit log — who changed what, when. Append-only; writes are best-effort
 // (a failed log write must never fail the underlying request).
@@ -637,6 +955,8 @@ export type Invoice = typeof invoices.$inferSelect;
 export type NewInvoice = typeof invoices.$inferInsert;
 export type Team = typeof teams.$inferSelect;
 export type NewTeam = typeof teams.$inferInsert;
+export type TeamCompensationConfig = typeof teamCompensationConfigs.$inferSelect;
+export type OnboardingInvitation = typeof onboardingInvitations.$inferSelect;
 export type Agent = typeof agents.$inferSelect;
 export type NewAgent = typeof agents.$inferInsert;
 export type RentalDeal = typeof rentalDeals.$inferSelect;
@@ -651,6 +971,8 @@ export type SaleDeal = typeof saleDeals.$inferSelect;
 export type NewSaleDeal = typeof saleDeals.$inferInsert;
 export type SaleDealAgent = typeof saleDealAgents.$inferSelect;
 export type NewSaleDealAgent = typeof saleDealAgents.$inferInsert;
+export type DealCompensationSnapshot = typeof dealCompensationSnapshots.$inferSelect;
+export type DealCompensationAllocation = typeof dealCompensationAllocations.$inferSelect;
 export type InvoiceSendLog = typeof invoiceSendLog.$inferSelect;
 export type NewInvoiceSendLog = typeof invoiceSendLog.$inferInsert;
 export type TrainingVideo = typeof trainingVideos.$inferSelect;
@@ -662,6 +984,7 @@ export type NewResource = typeof resources.$inferInsert;
 export type ChecklistItem = typeof checklistItems.$inferSelect;
 export type NewChecklistItem = typeof checklistItems.$inferInsert;
 export type CommerceOrder = typeof commerceOrders.$inferSelect;
+export type SponsorPlanReward = typeof sponsorPlanRewards.$inferSelect;
 export type CommerceCharge = typeof commerceCharges.$inferSelect;
 export type AgentPaymentProfile = typeof agentPaymentProfiles.$inferSelect;
 export type AgentPayout = typeof agentPayouts.$inferSelect;

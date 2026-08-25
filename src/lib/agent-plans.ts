@@ -2,27 +2,38 @@
  * Commission plan and practice area — the two things an admin most often needs
  * to adjust on an existing agent.
  *
- * Plans mirror the desk-fee products in lib/commerce/catalog.ts, where the fee
- * and the commission split are two sides of the same deal:
- *   standard — no desk fee, agent keeps 80%
- *   growth   — $1,588/yr desk fee, agent keeps 92%
- *   elite    — $3,650/yr desk fee, agent keeps 100%
- *
- * The split stays its own column: the plan sets the expected default, but a
- * negotiated exception has to remain possible, so we suggest rather than force.
+ * v3.1 treats plans as effective-dated compensation tracks. `splitPct` remains
+ * as a compatibility projection for older views; new transactions use the
+ * versioned plan and team configuration instead.
  */
 
-export type AgentPlan = "standard" | "growth" | "elite";
+export type AgentPlan =
+  | "solo"
+  | "solo_pro"
+  | "team_member"
+  | "team_leader"
+  | "holding"
+  | "legacy_growth";
 export type AgentPractice = "rental" | "sales" | "both";
 
-export const AGENT_PLANS: AgentPlan[] = ["standard", "growth", "elite"];
+export const AGENT_PLANS: AgentPlan[] = [
+  "solo",
+  "solo_pro",
+  "team_member",
+  "team_leader",
+  "holding",
+  "legacy_growth",
+];
 export const AGENT_PRACTICES: AgentPractice[] = ["rental", "sales", "both"];
 
 /** Commission the agent keeps under each plan — the default when switching. */
 export const PLAN_SPLIT_PCT: Record<AgentPlan, number> = {
-  standard: 80,
-  growth: 92,
-  elite: 100,
+  solo: 85,
+  solo_pro: 100,
+  team_member: 90,
+  team_leader: 100,
+  holding: 100,
+  legacy_growth: 92,
 };
 
 export function isAgentPlan(v: unknown): v is AgentPlan {
@@ -33,14 +44,31 @@ export function isAgentPractice(v: unknown): v is AgentPractice {
   return typeof v === "string" && (AGENT_PRACTICES as string[]).includes(v);
 }
 
-/** Falls back to `standard` so a null/legacy value still renders sensibly. */
+/** Maps the three legacy values during the additive v3.1 rollout. */
 export function normalizeAgentPlan(v: unknown): AgentPlan {
-  return isAgentPlan(v) ? v : "standard";
+  if (isAgentPlan(v)) return v;
+  if (v === "elite") return "solo_pro";
+  if (v === "growth") return "legacy_growth";
+  return "solo";
 }
 
 export const PLAN_LABELS: Record<"en" | "zh", Record<AgentPlan, string>> = {
-  en: { standard: "Standard", growth: "Growth", elite: "Elite" },
-  zh: { standard: "标准", growth: "Growth", elite: "Elite" },
+  en: {
+    solo: "Solo",
+    solo_pro: "Solo Pro",
+    team_member: "Team Member",
+    team_leader: "Team Leader",
+    holding: "Holding / Non-Producing",
+    legacy_growth: "Legacy Growth",
+  },
+  zh: {
+    solo: "独立经纪人",
+    solo_pro: "独立经纪人 Pro",
+    team_member: "团队成员",
+    team_leader: "团队负责人",
+    holding: "执照挂靠 / 暂不展业",
+    legacy_growth: "原 Growth 方案",
+  },
 };
 
 export const PRACTICE_LABELS: Record<

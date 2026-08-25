@@ -1,12 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { agents, buildings, dealAgents, deals, invoices } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { agents, buildings, dealAgents, dealCompensationSnapshots, deals, invoices } from "@/db/schema";
+import { and, eq } from "drizzle-orm";
 import { requireActiveAgentApi } from "@/lib/auth-guards";
 import { canEditDeal, canViewDeal } from "@/lib/visibility";
 import { summarizeInvoicePayment } from "@/lib/invoice-payment";
 import { logAudit } from "@/lib/audit";
 import { dateOrNull } from "@/lib/db-time";
+import {
+  buildCompensationEstimate,
+  normalizeCompensationSource,
+  persistCompensationSnapshot,
+} from "@/lib/compensation-service";
+import { lockAgentLedgers, lockCompensationDeal } from "@/lib/advisory-locks";
+
+class FinalizedDealDeletionError extends Error {}
 
 type DealAgentPayload = {
   agentId: number;
@@ -94,6 +102,10 @@ async function validateDealUpdate({
     return { error: "Referrer type must be percent or flat" };
   }
 
+  const clientRebate = parseNumber(body.clientRebate) ?? existing.clientRebate;
+  const compensationSource = referrerType
+    ? "outside"
+    : normalizeCompensationSource(body.compensationSource || existing.compensationSource, "rental");
   return {
     data: {
       buildingId,
@@ -116,6 +128,8 @@ async function validateDealUpdate({
       status,
       dealDate: dateOrNull(body.dealDate) || existing.dealDate,
       source: stringOrNull(body.source),
+      compensationSource,
+      clientRebate,
       notes: stringOrNull(body.notes),
       updatedAt: new Date().toISOString(),
     },
@@ -206,7 +220,22 @@ export async function PUT(
       return NextResponse.json({ error: result.error }, { status: result.status || 400 });
     }
 
+    const effectiveDate = result.data.dealDate || new Date().toISOString().slice(0, 10);
+    const outsideReferralAmount = result.data.referrerType === "percent"
+      ? result.data.totalCommission * (Number(result.data.referrerAmount || 0) / 100)
+      : Number(result.data.referrerAmount || 0);
     await db.transaction(async (tx) => {
+      await lockCompensationDeal(tx, "rental", parsedId);
+      await lockAgentLedgers(tx, result.agents.map((agent) => agent.agentId));
+      const compensation = await buildCompensationEstimate({
+        dealType: "rental",
+        effectiveDate,
+        grossCommission: result.data.totalCommission,
+        source: result.data.compensationSource,
+        outsideReferralAmount,
+        rebateAmount: result.data.clientRebate,
+        participants: result.agents.map((agent) => ({ agentId: agent.agentId, sharePct: agent.sharePct })),
+      }, tx);
       await tx.update(deals).set(result.data).where(eq(deals.id, parsedId));
       await tx.delete(dealAgents).where(eq(dealAgents.dealId, parsedId));
       for (const agent of result.agents) {
@@ -218,6 +247,12 @@ export async function PUT(
           createdAt: new Date().toISOString(),
         });
       }
+      await persistCompensationSnapshot(tx, {
+        dealType: "rental",
+        dealId: parsedId,
+        effectiveDate,
+        result: compensation,
+      });
     });
 
     await logAudit(
@@ -251,8 +286,35 @@ export async function DELETE(
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
 
-  await db.update(invoices).set({ dealId: null, updatedAt: new Date().toISOString() }).where(eq(invoices.dealId, parsedId));
-  await db.delete(deals).where(eq(deals.id, parsedId));
+  try {
+    await db.transaction(async (tx) => {
+      await lockCompensationDeal(tx, "rental", parsedId);
+      const snapshots = await tx
+        .select({ id: dealCompensationSnapshots.id, status: dealCompensationSnapshots.status })
+        .from(dealCompensationSnapshots)
+        .where(and(
+          eq(dealCompensationSnapshots.dealType, "rental"),
+          eq(dealCompensationSnapshots.dealId, parsedId),
+        ));
+      if (snapshots.some((row) => row.status === "finalized")) {
+        throw new FinalizedDealDeletionError();
+      }
+      await tx.delete(dealCompensationSnapshots).where(and(
+        eq(dealCompensationSnapshots.dealType, "rental"),
+        eq(dealCompensationSnapshots.dealId, parsedId),
+      ));
+      await tx.update(invoices).set({ dealId: null, updatedAt: new Date().toISOString() }).where(eq(invoices.dealId, parsedId));
+      await tx.delete(deals).where(eq(deals.id, parsedId));
+    });
+  } catch (error) {
+    if (error instanceof FinalizedDealDeletionError) {
+      return NextResponse.json(
+        { error: "Finalized compensation cannot be deleted. Cancel the rental or record a correction instead." },
+        { status: 409 },
+      );
+    }
+    throw error;
+  }
   await logAudit(
     authResult.session,
     "delete",

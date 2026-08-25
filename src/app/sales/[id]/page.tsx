@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Btn, Card, Icons, Pill, SoftField } from "@/components/homix/primitives";
 import { PageHeader, CardHeader } from "@/components/homix/page-kit";
 import { DealBreakdownBar } from "@/components/homix/deal-breakdown";
+import { CompensationV31Card } from "@/components/homix/compensation-v31-card";
 import { fmtDate, fmtLongDate, fmtMoney, tone } from "@/components/homix/tokens";
 import { computeCommission } from "@/lib/commission";
 import { saleRepresentationLabel, saleStageLabel } from "@/lib/sales";
@@ -409,6 +410,10 @@ export default function SaleDetailPage() {
 
         <div className="min-w-0">
           <div className="space-y-6 xl:sticky xl:top-24">
+            <CompensationV31Card
+              dealType="sale"
+              dealId={saleDeal.id}
+              fallback={(
             <Card>
               <CardHeader title={t.commissionBreakdown} />
               <div className="p-6">
@@ -457,6 +462,8 @@ export default function SaleDetailPage() {
                 </div>
               </div>
             </Card>
+              )}
+            />
 
             <DealDocuments dealType="sale" dealId={saleDeal.id} />
           </div>

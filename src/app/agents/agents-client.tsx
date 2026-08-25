@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -22,6 +22,8 @@ import type { Agent, Team } from "@/db/schema";
 import type { AdminAgentRow } from "@/lib/homixweb";
 import type { MlsVerificationStatus } from "@/lib/public-identity-status";
 import { RosterConsole } from "../roster/console";
+import { onboardingPaymentProduct } from "@/lib/onboarding";
+import { getCommerceProduct } from "@/lib/commerce/catalog";
 
 const M = {
   en: {
@@ -107,6 +109,17 @@ const M = {
     saving: "Saving…",
     save: "Save",
     syncWarning: "The Portal record was saved, but the public website did not finish syncing. Retry from the website roster.",
+    agreement: "Agreement",
+    payment: "Payment",
+    recordOffline: "Record offline payment",
+    offlineTitle: "Verify offline onboarding payment",
+    offlineLead: "Use only after the signed fee was actually received. This creates the same finance and sponsor-reward records as Stripe.",
+    offlineMethod: "Payment method",
+    offlineDate: "Received date",
+    offlineReference: "Receipt / check / transaction reference",
+    offlineAmount: "Full amount (USD)",
+    offlineSave: "Verify payment",
+    offlineRecorded: "Offline payment verified",
     mlsUnavailable: "MLS verification is temporarily unavailable and will retry automatically.",
     mlsUnmatched: "The license has not matched the Homix OneKey roster. Check the number; the system retries daily.",
     mlsAmbiguous: "Multiple MLS records matched this license. Review it before relying on past sales.",
@@ -196,6 +209,17 @@ const M = {
     saving: "保存中…",
     save: "保存",
     syncWarning: "Portal 档案已保存，但官网同步未完成；请稍后在官网名册中重试。",
+    agreement: "协议",
+    payment: "付款",
+    recordOffline: "登记线下付款",
+    offlineTitle: "核验线下入职付款",
+    offlineLead: "仅在公司确实收到签约费用后登记；系统会像 Stripe 一样更新财务台账和 10% 推荐奖励。",
+    offlineMethod: "付款方式",
+    offlineDate: "收款日期",
+    offlineReference: "收据 / 支票号 / 交易参考号",
+    offlineAmount: "全额金额（美元）",
+    offlineSave: "确认已收款",
+    offlineRecorded: "线下付款已核验",
     mlsUnavailable: "MLS 暂时无法验证，系统会自动重试。",
     mlsUnmatched: "该执照号尚未匹配 Homix 的 OneKey 名册，请核对号码；系统每天会自动重试。",
     mlsAmbiguous: "该执照号匹配到多条 MLS 记录，请核对后再使用历史成交。",
@@ -228,7 +252,7 @@ const emptyAgent: Partial<Agent> = {
   accountStatus: "active",
   joinedAt: "",
   notes: "",
-  plan: "standard",
+  plan: "solo",
   practice: null,
 };
 
@@ -270,6 +294,21 @@ export default function AgentsConsole({ initialView }: { initialView: AdminView 
   const router = useRouter();
   const locale = useLocale();
   const t = M[locale];
+  const agreementStatusLabel = (status: Agent["agreementStatus"]) => locale === "en"
+    ? status.replaceAll("_", " ")
+    : ({
+        not_started: "未开始",
+        preparing: "正在生成协议",
+        sent: "待签署",
+        completed: "已签署",
+        declined: "已拒签",
+        voided: "已作废",
+        expired: "已过期",
+        failed: "失败",
+      } as const)[status];
+  const paymentStatusLabel = (status: Agent["paymentStatus"]) => locale === "en"
+    ? status.replaceAll("_", " ")
+    : ({ pending: "待付款", paid: "已付款", not_required: "无需付款" } as const)[status];
 
   const showSyncFeedback = (data: Record<string, unknown>) => {
     if (data.warning) {
@@ -299,6 +338,14 @@ export default function AgentsConsole({ initialView }: { initialView: AdminView 
   const [loading, setLoading] = useState(true);
   const [editAgent, setEditAgent] = useState<Partial<Agent> | null>(null);
   const [saving, setSaving] = useState(false);
+  const [offlineAgent, setOfflineAgent] = useState<Agent | null>(null);
+  const [offlineMethod, setOfflineMethod] = useState("check");
+  const [offlineReference, setOfflineReference] = useState("");
+  const [offlineDate, setOfflineDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [offlineAmount, setOfflineAmount] = useState("");
+  const [offlineKey, setOfflineKey] = useState("");
+  const [offlineSaving, setOfflineSaving] = useState(false);
+  const offlineSignatureRef = useRef<string | null>(null);
 
   const fetchAgents = () => {
     setLoading(true);
@@ -438,7 +485,7 @@ export default function AgentsConsole({ initialView }: { initialView: AdminView 
         body: JSON.stringify({ publicProfileId, referredByAgentId }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(t.couldNotApprove);
+      if (!res.ok) throw new Error(String(data.error || t.couldNotApprove));
       toast.success(t.agentApproved);
       showSyncFeedback(data);
       fetchAgents();
@@ -456,6 +503,58 @@ export default function AgentsConsole({ initialView }: { initialView: AdminView 
       fetchAgents();
     } catch {
       toast.error(t.couldNotIgnore);
+    }
+  };
+
+  const openOfflinePayment = (agent: Agent) => {
+    const productKey = onboardingPaymentProduct(agent.plan, agent.affiliationTermMonths);
+    const product = productKey ? getCommerceProduct(productKey) : null;
+    setOfflineAgent(agent);
+    setOfflineMethod("check");
+    setOfflineReference("");
+    setOfflineDate(new Date().toISOString().slice(0, 10));
+    setOfflineAmount(product ? (product.amountCents / 100).toFixed(2) : "");
+    setOfflineKey(crypto.randomUUID());
+    offlineSignatureRef.current = null;
+  };
+
+  const recordOfflinePayment = async () => {
+    if (!offlineAgent) return;
+    setOfflineSaving(true);
+    try {
+      const signature = JSON.stringify({
+        agentId: offlineAgent.id,
+        method: offlineMethod,
+        reference: offlineReference,
+        receivedAt: offlineDate,
+        amount: offlineAmount,
+      });
+      const idempotencyKey = offlineSignatureRef.current === signature
+        ? offlineKey
+        : crypto.randomUUID();
+      if (idempotencyKey !== offlineKey) setOfflineKey(idempotencyKey);
+      offlineSignatureRef.current = signature;
+      const res = await fetch("/api/onboarding/payments/offline", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          agentId: offlineAgent.id,
+          method: offlineMethod,
+          reference: offlineReference,
+          receivedAt: offlineDate,
+          amountCents: Math.round(Number(offlineAmount) * 100),
+          idempotencyKey,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(String(data.error || t.saveFailed));
+      toast.success(t.offlineRecorded);
+      setOfflineAgent(null);
+      fetchAgents();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t.saveFailed);
+    } finally {
+      setOfflineSaving(false);
     }
   };
 
@@ -618,6 +717,11 @@ export default function AgentsConsole({ initialView }: { initialView: AdminView 
                       <span> · {t.joined} {agent.joinedAt}</span>
                     )}
                   </div>
+                  <div className="mt-1 flex flex-wrap gap-2 text-[11px]" style={{ color: tone.ink50 }}>
+                    <span>{t.agreement}: {agreementStatusLabel(agent.agreementStatus)}</span>
+                    <span>·</span>
+                    <span>{t.payment}: {paymentStatusLabel(agent.paymentStatus)}</span>
+                  </div>
                 </div>
                 <div className="col-span-full flex min-w-0 flex-wrap items-center gap-2 sm:col-span-1 sm:justify-end">
                   <label className="flex w-full min-w-0 flex-col gap-1 sm:w-auto sm:flex-none">
@@ -683,6 +787,17 @@ export default function AgentsConsole({ initialView }: { initialView: AdminView 
                   >
                     {t.edit}
                   </Btn>
+                  {agent.agreementStatus === "completed" &&
+                    agent.paymentStatus !== "paid" &&
+                    (agent.plan !== "team_member" || Boolean(agent.teamTermsAcceptedAt)) && (
+                    <Btn
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openOfflinePayment(agent)}
+                    >
+                      {t.recordOffline}
+                    </Btn>
+                  )}
                   <Btn
                     variant="outline"
                     size="sm"
@@ -695,7 +810,6 @@ export default function AgentsConsole({ initialView }: { initialView: AdminView 
                     size="sm"
                     icon={<Icons.Check />}
                     onClick={() => handleApprove(agent.id)}
-                    disabled={publicRosterLoading}
                   >
                     {t.approve}
                   </Btn>
@@ -912,6 +1026,44 @@ export default function AgentsConsole({ initialView }: { initialView: AdminView 
       )}
       </div>
 
+      {offlineAgent && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: "rgba(26, 24, 20, 0.45)" }} onClick={() => setOfflineAgent(null)}>
+          <div className="w-full max-w-lg rounded-xl p-6" style={{ background: tone.card, border: `1px solid ${tone.line}` }} onClick={(event) => event.stopPropagation()}>
+            <div className="font-serif text-[26px]" style={{ color: tone.ink }}>{t.offlineTitle}</div>
+            <p className="mt-2 text-[13px] leading-6" style={{ color: tone.ink50 }}>{t.offlineLead}</p>
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <LabeledField label={t.offlineMethod}>
+                <select className="h-11 w-full rounded-lg bg-white px-3 text-[13px]" style={{ border: `1px solid ${tone.line}`, color: tone.ink }} value={offlineMethod} onChange={(event) => setOfflineMethod(event.target.value)}>
+                  <option value="check">{locale === "zh" ? "支票" : "Check"}</option>
+                  <option value="cash">{locale === "zh" ? "现金" : "Cash"}</option>
+                  <option value="ach">ACH</option>
+                  <option value="zelle">Zelle</option>
+                  <option value="wire">{locale === "zh" ? "电汇" : "Wire"}</option>
+                  <option value="other">{locale === "zh" ? "其他" : "Other"}</option>
+                </select>
+              </LabeledField>
+              <LabeledField label={t.offlineDate}>
+                <EditorialInput type="date" value={offlineDate} onChange={setOfflineDate} />
+              </LabeledField>
+              <LabeledField label={t.offlineAmount}>
+                <div className="flex h-11 items-center rounded-lg bg-white px-3 font-mono text-[13px]" style={{ border: `1px solid ${tone.line}`, color: tone.ink }}>
+                  ${offlineAmount}
+                </div>
+              </LabeledField>
+              <LabeledField label={t.offlineReference}>
+                <EditorialInput value={offlineReference} onChange={setOfflineReference} />
+              </LabeledField>
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <Btn variant="outline" onClick={() => setOfflineAgent(null)}>{t.cancel}</Btn>
+              <Btn variant="primary" onClick={() => void recordOfflinePayment()} disabled={offlineSaving || !offlineReference.trim()}>
+                {offlineSaving ? t.saving : t.offlineSave}
+              </Btn>
+            </div>
+          </div>
+        </div>
+      )}
+
       {editAgent && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8" style={{ background: "rgba(26, 24, 20, 0.4)", backdropFilter: "blur(4px)" }} onClick={closeDialog}>
           <div className="w-full max-w-2xl rounded-2xl max-h-[90vh] overflow-hidden flex flex-col" style={{ background: tone.card, border: `1px solid ${tone.line}`, boxShadow: "0 30px 80px -20px rgba(0,0,0,0.3)" }} onClick={(e) => e.stopPropagation()}>
@@ -960,16 +1112,11 @@ export default function AgentsConsole({ initialView }: { initialView: AdminView 
                 {editAgent.id && <LabeledField label={t.labelLicenseExpires}>
                   <EditorialInput value={editAgent.licenseExpiresAt || ""} onChange={(v) => updateField("licenseExpiresAt", v)} type="date" mono />
                 </LabeledField>}
-                {editAgent.id && <LabeledField label={t.labelKeep}>
-                  <EditorialInput value={editAgent.splitPct ?? DEFAULT_AGENT_SPLIT_PCT} onChange={(v) => updateField("splitPct", Number(v))} type="number" mono />
-                </LabeledField>}
                 {editAgent.id && <LabeledField label={t.labelPlan}>
                   <select
                     value={normalizeAgentPlan(editAgent.plan)}
                     onChange={(e) => {
                       const plan = e.target.value as (typeof AGENT_PLANS)[number];
-                      // Switching plan pre-fills that plan's standard split, but
-                      // the field stays editable — negotiated exceptions exist.
                       setEditAgent((cur) =>
                         cur ? { ...cur, plan, splitPct: PLAN_SPLIT_PCT[plan] } : cur,
                       );

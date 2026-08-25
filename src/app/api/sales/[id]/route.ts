@@ -1,11 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { agents, saleDealAgents, saleDeals } from "@/db/schema";
+import { agents, dealCompensationSnapshots, saleDealAgents, saleDeals } from "@/db/schema";
 import { requireActiveAgentApi } from "@/lib/auth-guards";
 import { canEditSaleDeal, canViewSaleDeal } from "@/lib/visibility";
 import { logAudit } from "@/lib/audit";
 import { dateOrNull } from "@/lib/db-time";
+import {
+  buildCompensationEstimate,
+  normalizeCompensationSource,
+  persistCompensationSnapshot,
+} from "@/lib/compensation-service";
+import { lockAgentLedgers, lockCompensationDeal } from "@/lib/advisory-locks";
+
+class FinalizedDealDeletionError extends Error {}
 
 type SaleAgentPayload = {
   agentId: number;
@@ -109,6 +117,12 @@ async function validateSaleUpdate({
     return { error: "Every sale agent must be active", status: 400 };
   }
 
+  const referralAmount = parseNumber(body.referralAmount) ?? existing.referralAmount ?? 0;
+  const clientRebate = parseNumber(body.clientRebate) ?? existing.clientRebate;
+  const compensationSource = referralAmount > 0
+    ? "outside"
+    : normalizeCompensationSource(body.compensationSource || existing.compensationSource, "sale");
+
   return {
     data: {
       representationType,
@@ -127,7 +141,7 @@ async function validateSaleUpdate({
       closingDate: dateOrNull(body.closingDate),
       purchasePrice: parseNumber(body.purchasePrice),
       grossCommission,
-      referralAmount: parseNumber(body.referralAmount),
+      referralAmount,
       brokerageFee: parseNumber(body.brokerageFee),
       listingAgentName: stringOrNull(body.listingAgentName),
       listingAgentEmail: stringOrNull(body.listingAgentEmail),
@@ -141,6 +155,8 @@ async function validateSaleUpdate({
       lenderName: stringOrNull(body.lenderName),
       escrowHolder: stringOrNull(body.escrowHolder),
       source: stringOrNull(body.source),
+      compensationSource,
+      clientRebate,
       notes: stringOrNull(body.notes),
       updatedAt: new Date().toISOString(),
     },
@@ -216,7 +232,19 @@ export async function PUT(
       return NextResponse.json({ error: result.error }, { status: result.status || 400 });
     }
 
+    const effectiveDate = result.data.closingDate || result.data.contractDate || new Date().toISOString().slice(0, 10);
     await db.transaction(async (tx) => {
+      await lockCompensationDeal(tx, "sale", parsedId);
+      await lockAgentLedgers(tx, result.agents.map((agent) => agent.agentId));
+      const compensation = await buildCompensationEstimate({
+        dealType: "sale",
+        effectiveDate,
+        grossCommission: result.data.grossCommission,
+        source: result.data.compensationSource,
+        outsideReferralAmount: result.data.referralAmount,
+        rebateAmount: result.data.clientRebate,
+        participants: result.agents.map((agent) => ({ agentId: agent.agentId, sharePct: agent.sharePct })),
+      }, tx);
       await tx.update(saleDeals).set(result.data).where(eq(saleDeals.id, parsedId));
       await tx.delete(saleDealAgents).where(eq(saleDealAgents.saleDealId, parsedId));
       for (const agent of result.agents) {
@@ -228,6 +256,12 @@ export async function PUT(
           createdAt: new Date().toISOString(),
         });
       }
+      await persistCompensationSnapshot(tx, {
+        dealType: "sale",
+        dealId: parsedId,
+        effectiveDate,
+        result: compensation,
+      });
     });
 
     await logAudit(
@@ -261,7 +295,34 @@ export async function DELETE(
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
 
-  await db.delete(saleDeals).where(eq(saleDeals.id, parsedId));
+  try {
+    await db.transaction(async (tx) => {
+      await lockCompensationDeal(tx, "sale", parsedId);
+      const snapshots = await tx
+        .select({ id: dealCompensationSnapshots.id, status: dealCompensationSnapshots.status })
+        .from(dealCompensationSnapshots)
+        .where(and(
+          eq(dealCompensationSnapshots.dealType, "sale"),
+          eq(dealCompensationSnapshots.dealId, parsedId),
+        ));
+      if (snapshots.some((row) => row.status === "finalized")) {
+        throw new FinalizedDealDeletionError();
+      }
+      await tx.delete(dealCompensationSnapshots).where(and(
+        eq(dealCompensationSnapshots.dealType, "sale"),
+        eq(dealCompensationSnapshots.dealId, parsedId),
+      ));
+      await tx.delete(saleDeals).where(eq(saleDeals.id, parsedId));
+    });
+  } catch (error) {
+    if (error instanceof FinalizedDealDeletionError) {
+      return NextResponse.json(
+        { error: "Finalized compensation cannot be deleted. Cancel the sale or record a correction instead." },
+        { status: 409 },
+      );
+    }
+    throw error;
+  }
   await logAudit(authResult.session, "delete", "sale_deal", parsedId, `删除买卖成交 #${parsedId}`);
   return NextResponse.json({ success: true });
 }

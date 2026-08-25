@@ -33,6 +33,8 @@ const M = {
     estimatedTake: "Estimated agent take",
     myEstimatedTake: "My estimated take",
     actualPaid: "Actually paid",
+    teamSplitReward: "Team split",
+    sponsorReward: "Sponsor reward",
     topAgents: "Agent performance",
     myProduction: "My production",
     colAgent: "Agent",
@@ -73,6 +75,8 @@ const M = {
     estimatedTake: "预计经纪人实得",
     myEstimatedTake: "我的预计实得",
     actualPaid: "实际已发放",
+    teamSplitReward: "团队分成",
+    sponsorReward: "推荐奖励",
     topAgents: "经纪人业绩",
     myProduction: "我的业绩",
     colAgent: "经纪人",
@@ -114,6 +118,8 @@ type ReportPayload = {
     agentPayouts: number;
     actualPaid: number;
     referrerPayouts: number;
+    sponsorRewards: number;
+    teamLeaderRewards: number;
   };
   topAgents: Array<{
     agent: ReportAgent;
@@ -269,7 +275,11 @@ export default function ReportsConsole() {
                         ? `${t.salesGrossNote} $${fmtMoney(report.summary.salesGrossCommission)}`
                         : "",
                     ],
-                    [t.companyPool, `$${fmtMoney(report.summary.companyPool)}`, ""],
+                    [
+                      t.companyPool,
+                      `$${fmtMoney(report.summary.companyPool)}`,
+                      `${t.teamSplitReward} $${fmtMoney(report.summary.teamLeaderRewards)} · ${t.sponsorReward} $${fmtMoney(report.summary.sponsorRewards)}`,
+                    ],
                     [t.actualPaid, `$${fmtMoney(report.summary.actualPaid)}`, ""],
                   ]
                 : [
@@ -279,7 +289,11 @@ export default function ReportsConsole() {
                       `${report.summary.rentalDeals} ${t.rentalShort} · ${report.summary.salesDeals} ${t.saleShort}`,
                     ],
                     [t.attributableCommission, `$${fmtMoney(report.summary.totalCommission)}`, ""],
-                    [t.myEstimatedTake, `$${fmtMoney(report.summary.agentPayouts)}`, ""],
+                    [
+                      t.myEstimatedTake,
+                      `$${fmtMoney(report.summary.agentPayouts)}`,
+                      `${t.teamSplitReward} $${fmtMoney(report.summary.teamLeaderRewards)} · ${t.sponsorReward} $${fmtMoney(report.summary.sponsorRewards)}`,
+                    ],
                     [t.actualPaid, `$${fmtMoney(report.summary.actualPaid)}`, ""],
                   ]
             ).map(([label, value, sub]) => (

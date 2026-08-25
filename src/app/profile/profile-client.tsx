@@ -2,12 +2,26 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { signOut } from "next-auth/react";
 import { Btn, Card, EditorialInput } from "@/components/homix/primitives";
 import { CardHeader } from "@/components/homix/page-kit";
 import { fmtDate, fmtMoney, tone } from "@/components/homix/tokens";
 import { useLocale } from "@/lib/i18n-client";
-import type { Agent, AgentPayout } from "@/db/schema";
+import { isEmailChangeRequestActive } from "@/lib/email-change";
+import type { AgentPayout } from "@/db/schema";
 import type { MlsVerificationStatus } from "@/lib/public-identity-status";
+
+export type SafeAgentProfile = {
+  id: number;
+  name: string;
+  phone: string | null;
+  licenseNumber: string | null;
+  licenseExpiresAt: string | null;
+  email: string;
+  splitPct: number;
+  pendingEmail: string | null;
+  emailChangeRequestedAt: string | null;
+};
 
 // Masked payment state — full routing/account digits never reach the client.
 export type SafePaymentProfile = {
@@ -25,7 +39,7 @@ export type SafePaymentProfile = {
 const M = {
   en: {
     basicTitle: "Basic info",
-    basicLead: "Email and commission split are managed by the office.",
+    basicLead: "Contact details are self-service. Commission terms are managed by the office.",
     name: "Name",
     phone: "Phone",
     license: "License number",
@@ -36,6 +50,24 @@ const M = {
     saving: "Saving…",
     saved: "Saved.",
     saveFailed: "Save failed — please retry.",
+    emailChangeTitle: "Google login email",
+    emailChangeLead:
+      "Enter the new address, then verify it by signing in with that Google account. Your deals, team, and payouts stay on the same profile.",
+    newEmail: "New Google email",
+    requestEmailChange: "Change email",
+    requestingEmailChange: "Saving…",
+    pendingEmail: (email: string) => `Waiting for verification: ${email}`,
+    pendingEmailLead:
+      "This request is valid for 7 days. Sign out, choose the new Google account, and Homix will rebind this profile after Google verifies it.",
+    verifyEmail: "Verify with Google",
+    cancelEmailChange: "Cancel request",
+    cancelingEmailChange: "Canceling…",
+    emailInvalid: "Enter a valid email address.",
+    emailSame: "That is already your login email.",
+    emailInUse: "That email is already linked or waiting to be linked to another profile.",
+    emailAdmin:
+      "An admin must add the new address to ADMIN_EMAILS before changing this login.",
+    emailChangeFailed: "Could not start the email change. Please retry.",
     mlsVerified: "Saved. MLS identity verified. Past sales appear when OneKey has eligible Closed records.",
     mlsUnavailable: "Saved. MLS verification is temporarily unavailable and will retry automatically.",
     mlsUnmatched: "Saved. This license has not matched the Homix OneKey roster. Check the number; the system retries daily.",
@@ -72,6 +104,13 @@ const M = {
     w9Failed: "Upload failed — please retry.",
     payoutsTitle: "My payouts",
     payoutsLead: "Commission disbursements the office has recorded for you.",
+    referralTitle: "My referral link",
+    referralLead: "Share this link with an agent you introduce to Homix. It records you as the sponsor without forcing the person into your team.",
+    referralCreate: "Create referral link",
+    referralCreating: "Creating…",
+    referralCopy: "Copy link",
+    referralCopied: "Link copied.",
+    referralFailed: "Could not create the link.",
     colDate: "Date",
     colAmount: "Amount",
     colMethod: "Method",
@@ -82,7 +121,7 @@ const M = {
   },
   zh: {
     basicTitle: "基本信息",
-    basicLead: "邮箱与分成比例由公司管理。",
+    basicLead: "联系方式可自行维护，佣金方案由公司管理。",
     name: "姓名",
     phone: "电话",
     license: "执照号",
@@ -93,6 +132,23 @@ const M = {
     saving: "保存中…",
     saved: "已保存。",
     saveFailed: "保存失败，请重试。",
+    emailChangeTitle: "Google 登录邮箱",
+    emailChangeLead:
+      "填写新邮箱后，需要用该 Google 账号重新登录完成验证。成交、团队、付款等资料仍保留在同一个档案下。",
+    newEmail: "新的 Google 邮箱",
+    requestEmailChange: "更换邮箱",
+    requestingEmailChange: "保存中…",
+    pendingEmail: (email: string) => `等待验证：${email}`,
+    pendingEmailLead:
+      "申请 7 天内有效。退出后选择新的 Google 账号登录，Google 验证成功后系统会自动完成换绑。",
+    verifyEmail: "使用 Google 验证",
+    cancelEmailChange: "取消申请",
+    cancelingEmailChange: "取消中…",
+    emailInvalid: "请输入有效邮箱。",
+    emailSame: "这已经是当前登录邮箱。",
+    emailInUse: "该邮箱已关联或正等待关联到其他档案。",
+    emailAdmin: "管理员换绑前，需要先把新地址加入 ADMIN_EMAILS。",
+    emailChangeFailed: "无法发起邮箱更换，请重试。",
     mlsVerified: "已保存，并已匹配 MLS 身份。OneKey 有可展示的 Closed 记录时，历史成交会自动出现。",
     mlsUnavailable: "已保存。MLS 暂时无法验证，系统会自动重试。",
     mlsUnmatched: "已保存，但该执照号尚未匹配 Homix 的 OneKey 名册。请核对号码；系统每天会自动重试。",
@@ -128,6 +184,13 @@ const M = {
     w9Failed: "上传失败，请重试。",
     payoutsTitle: "我的收款记录",
     payoutsLead: "公司为你登记的每一笔佣金发放。",
+    referralTitle: "我的推荐链接",
+    referralLead: "把此链接发给你介绍加入 Homix 的经纪人。系统只会记录你为介绍人，不会强制对方加入你的团队。",
+    referralCreate: "生成推荐链接",
+    referralCreating: "正在生成…",
+    referralCopy: "复制链接",
+    referralCopied: "链接已复制。",
+    referralFailed: "无法生成链接。",
     colDate: "日期",
     colAmount: "金额",
     colMethod: "方式",
@@ -143,12 +206,13 @@ export function ProfileClient({
   profile,
   payouts,
 }: {
-  agent: Agent | null;
+  agent: SafeAgentProfile | null;
   profile: SafePaymentProfile | null;
   payouts: AgentPayout[];
 }) {
   const router = useRouter();
-  const t = M[useLocale()];
+  const locale = useLocale();
+  const t = M[locale];
 
   // --- basic info ---
   const [name, setName] = useState(agent?.name ?? "");
@@ -157,6 +221,14 @@ export function ProfileClient({
   const [licenseExpires, setLicenseExpires] = useState(agent?.licenseExpiresAt ?? "");
   const [basicBusy, setBasicBusy] = useState(false);
   const [basicMsg, setBasicMsg] = useState<string | null>(null);
+  const [newEmail, setNewEmail] = useState("");
+  const [pendingEmail, setPendingEmail] = useState(
+    agent?.pendingEmail && isEmailChangeRequestActive(agent.emailChangeRequestedAt)
+      ? agent.pendingEmail
+      : "",
+  );
+  const [emailBusy, setEmailBusy] = useState(false);
+  const [emailMsg, setEmailMsg] = useState<string | null>(null);
 
   async function saveBasic() {
     if (!agent) return;
@@ -193,6 +265,67 @@ export function ProfileClient({
     };
     setBasicMsg((verificationStatus && messages[verificationStatus]) || t.saved);
     if (res.ok) router.refresh();
+  }
+
+  function emailErrorMessage(code: unknown) {
+    switch (code) {
+      case "INVALID_EMAIL":
+        return t.emailInvalid;
+      case "SAME_EMAIL":
+        return t.emailSame;
+      case "EMAIL_IN_USE":
+        return t.emailInUse;
+      case "ADMIN_EMAIL_NOT_CONFIGURED":
+        return t.emailAdmin;
+      default:
+        return t.emailChangeFailed;
+    }
+  }
+
+  async function requestEmailChange() {
+    setEmailBusy(true);
+    setEmailMsg(null);
+    try {
+      const response = await fetch("/api/profile/email", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: newEmail }),
+      });
+      const data = (await response.json().catch(() => null)) as
+        | { pendingEmail?: string; code?: string }
+        | null;
+      if (!response.ok || !data?.pendingEmail) {
+        setEmailMsg(emailErrorMessage(data?.code));
+        return;
+      }
+      setPendingEmail(data.pendingEmail);
+      setNewEmail("");
+    } catch {
+      setEmailMsg(t.emailChangeFailed);
+    } finally {
+      setEmailBusy(false);
+    }
+  }
+
+  async function cancelEmailChange() {
+    setEmailBusy(true);
+    setEmailMsg(null);
+    try {
+      const response = await fetch("/api/profile/email", { method: "DELETE" });
+      if (!response.ok) {
+        setEmailMsg(t.emailChangeFailed);
+        return;
+      }
+      setPendingEmail("");
+    } catch {
+      setEmailMsg(t.emailChangeFailed);
+    } finally {
+      setEmailBusy(false);
+    }
+  }
+
+  async function verifyEmailChange() {
+    await signOut({ redirectTo: "/login?switchAccount=1" });
   }
 
   // --- ACH ---
@@ -253,6 +386,36 @@ export function ProfileClient({
     router.refresh();
   }
 
+  // --- recruiting attribution ---
+  const [referralBusy, setReferralBusy] = useState(false);
+  const [referralUrl, setReferralUrl] = useState("");
+  const [referralMsg, setReferralMsg] = useState<string | null>(null);
+
+  async function createReferralLink() {
+    setReferralBusy(true);
+    setReferralMsg(null);
+    try {
+      const response = await fetch("/api/onboarding/invitations", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ kind: "personal_referral", source: "direct", maxUses: 100 }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.url) throw new Error();
+      setReferralUrl(data.url);
+    } catch {
+      setReferralMsg(t.referralFailed);
+    } finally {
+      setReferralBusy(false);
+    }
+  }
+
+  async function copyReferralLink() {
+    if (!referralUrl) return;
+    await navigator.clipboard.writeText(referralUrl);
+    setReferralMsg(t.referralCopied);
+  }
+
   // --- payouts ---
   const yearTotals = useMemo(() => {
     const map = new Map<string, number>();
@@ -305,6 +468,68 @@ export function ProfileClient({
               <span className="text-[12.5px]" style={{ color: tone.ink70 }}>
                 {basicMsg}
               </span>
+            )}
+          </div>
+          <div className="mt-4 border-t pt-4" style={{ borderColor: tone.lineSoft }}>
+            <div className="text-[13.5px] font-medium" style={{ color: tone.ink }}>
+              {t.emailChangeTitle}
+            </div>
+            <p className="mt-1 text-[12.5px] leading-5" style={{ color: tone.ink50 }}>
+              {t.emailChangeLead}
+            </p>
+            {pendingEmail ? (
+              <div className="mt-3 space-y-3 rounded-lg p-3" style={{ background: tone.paperDeep }}>
+                <div>
+                  <div className="break-all font-mono text-[13px]" style={{ color: tone.ink }}>
+                    {t.pendingEmail(pendingEmail)}
+                  </div>
+                  <p className="mt-1 text-[12px] leading-5" style={{ color: tone.ink50 }}>
+                    {t.pendingEmailLead}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Btn
+                    variant="primary"
+                    size="sm"
+                    onClick={() => void verifyEmailChange()}
+                    disabled={emailBusy}
+                  >
+                    {t.verifyEmail}
+                  </Btn>
+                  <Btn
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => void cancelEmailChange()}
+                    disabled={emailBusy}
+                  >
+                    {emailBusy ? t.cancelingEmailChange : t.cancelEmailChange}
+                  </Btn>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                <EditorialInput
+                  value={newEmail}
+                  onChange={setNewEmail}
+                  placeholder={t.newEmail}
+                  type="email"
+                  mono
+                  className="flex-1"
+                />
+                <Btn
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void requestEmailChange()}
+                  disabled={emailBusy || !newEmail.trim()}
+                >
+                  {emailBusy ? t.requestingEmailChange : t.requestEmailChange}
+                </Btn>
+              </div>
+            )}
+            {emailMsg && (
+              <p className="mt-2 text-[12.5px]" style={{ color: tone.rose }}>
+                {emailMsg}
+              </p>
             )}
           </div>
         </div>
@@ -410,6 +635,34 @@ export function ProfileClient({
           {w9Msg && (
             <p className="text-[12.5px]" style={{ color: tone.ink70 }}>
               {w9Msg}
+            </p>
+          )}
+        </div>
+      </Card>
+
+      <Card className="flex flex-col">
+        <CardHeader title={t.referralTitle} />
+        <div className="space-y-3 p-5">
+          <p className="text-[12.5px]" style={{ color: tone.ink50 }}>
+            {t.referralLead}
+          </p>
+          {referralUrl ? (
+            <div className="space-y-3">
+              <div className="break-all rounded-md px-3 py-2 font-mono text-[12px]" style={inputStyle}>
+                {referralUrl}
+              </div>
+              <Btn variant="primary" size="sm" onClick={() => void copyReferralLink()}>
+                {t.referralCopy}
+              </Btn>
+            </div>
+          ) : (
+            <Btn variant="primary" size="sm" onClick={() => void createReferralLink()} disabled={referralBusy}>
+              {referralBusy ? t.referralCreating : t.referralCreate}
+            </Btn>
+          )}
+          {referralMsg && (
+            <p className="text-[12.5px]" style={{ color: tone.ink70 }}>
+              {referralMsg}
             </p>
           )}
         </div>

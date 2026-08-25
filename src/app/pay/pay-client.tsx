@@ -47,7 +47,7 @@ const M = {
     notConfigured: "This payment option is not configured.",
     checkoutFailed: "Checkout could not start.",
     title: "Agent payments",
-    lead: "Memberships, desk fees, company email, and agent services.",
+    lead: "Affiliation plans, company email, and agent services.",
     secureBilling: "Secure billing",
     recurring: "Recurring",
     autoRenewal: "Auto-renewal",
@@ -72,7 +72,7 @@ const M = {
     notConfigured: "此付款项目尚未完成配置。",
     checkoutFailed: "暂时无法发起付款，请稍后重试。",
     title: "经纪人缴费",
-    lead: "会员费、办公费、公司邮箱与经纪人服务。",
+    lead: "Affiliation 方案、公司邮箱与经纪人服务。",
     secureBilling: "安全付款",
     recurring: "订阅项目",
     autoRenewal: "自动续费",
@@ -106,24 +106,24 @@ const PRODUCT_COPY: Partial<Record<CommerceProductKey, {
     recurrenceLabel: "每月续费",
   },
   elite_desk_fee: {
-    name: "Elite 方案办公费",
-    description: "经纪人保留 100% 佣金的年度办公费。",
+    name: "Solo Pro 年费",
+    description: "经纪人保留 100% 佣金，按每笔交易收取处理费。",
     recurrenceLabel: "每年续费",
-    commissionLabel: "保留 100%",
+    commissionLabel: "100% 佣金 · 另收交易处理费",
   },
   growth_desk_fee: {
-    name: "Growth 方案办公费",
-    description: "经纪人保留 92% 佣金的年度办公费。",
+    name: "Legacy Growth 年费（已停止新售）",
+    description: "仅供既有 Legacy Growth 经纪人续期。",
     recurrenceLabel: "每年续费",
     commissionLabel: "保留 92%",
   },
   two_year_membership: {
-    name: "Homix Living 两年会员费",
-    description: "加入 Homix Living Inc. 的两年会员费。",
+    name: "Homix 两年 affiliation 费用",
+    description: "Solo 与 Team Member 方案的两年 affiliation 周期。",
   },
   one_year_membership: {
-    name: "Homix Living 一年会员费",
-    description: "加入 Homix Living Inc. 的一年会员费。",
+    name: "Homix 一年 affiliation 费用",
+    description: "Solo 与 Team Member 方案的一年 affiliation 周期。",
   },
   libor: {
     name: "LIBOR",
@@ -166,18 +166,37 @@ export function PayClient({
   canceled,
   stripeConfigured,
   workspaceDomains,
+  initialProductKey,
+  identity,
 }: {
   products: PublicPayProduct[];
   canceled: boolean;
   stripeConfigured: boolean;
   workspaceDomains: string[];
+  initialProductKey?: string;
+  identity: {
+    name: string;
+    email: string;
+    phone: string;
+    referralHasAgent: "yes" | "no";
+    referralAgentName: string;
+  };
 }) {
   const locale = useLocale();
   const t = M[locale];
   const [selectedKey, setSelectedKey] = useState<CommerceProductKey>(
-    "company_domain_email"
+    products.some((product) => product.key === initialProductKey)
+      ? initialProductKey as CommerceProductKey
+      : "company_domain_email"
   );
-  const [form, setForm] = useState<FormState>(initialForm);
+  const [form, setForm] = useState<FormState>({
+    ...initialForm,
+    customerName: identity.name,
+    customerEmail: identity.email,
+    phone: identity.phone,
+    referralHasAgent: identity.referralHasAgent,
+    referralAgentName: identity.referralAgentName,
+  });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(canceled ? t.canceled : null);
 
@@ -389,7 +408,7 @@ export function PayClient({
                 <input
                   className={inputClass()}
                   value={form.customerName}
-                  onChange={(event) => update("customerName", event.target.value)}
+                  readOnly
                   autoComplete="name"
                 />
               </Field>
@@ -398,7 +417,7 @@ export function PayClient({
                 <input
                   className={inputClass()}
                   value={form.customerEmail}
-                  onChange={(event) => update("customerEmail", event.target.value)}
+                  readOnly
                   autoComplete="email"
                   inputMode="email"
                 />
@@ -424,40 +443,6 @@ export function PayClient({
                       inputMode="tel"
                     />
                   </Field>
-                </>
-              )}
-
-              {selectedProduct.requiresReferral && (
-                <>
-                  <Field label={t.agentReferral}>
-                    <div className="grid grid-cols-2 gap-2">
-                      {(["yes", "no"] as const).map((value) => (
-                        <button
-                          key={value}
-                          type="button"
-                          onClick={() => update("referralHasAgent", value)}
-                          className="h-10 rounded-md border text-[13px] transition"
-                          style={{
-                            borderColor:
-                              form.referralHasAgent === value ? "#1A1814" : "#E4DED2",
-                            background:
-                              form.referralHasAgent === value ? "#EFEAE1" : "#FFFFFF",
-                          }}
-                        >
-                          {value === "yes" ? t.yes : t.no}
-                        </button>
-                      ))}
-                    </div>
-                  </Field>
-                  {form.referralHasAgent === "yes" && (
-                    <Field label={t.referralName}>
-                      <input
-                        className={inputClass()}
-                        value={form.referralAgentName}
-                        onChange={(event) => update("referralAgentName", event.target.value)}
-                      />
-                    </Field>
-                  )}
                 </>
               )}
 
