@@ -44,7 +44,13 @@ export async function POST(
     return NextResponse.json({ error: "Agent not found" }, { status: 404 });
   }
   if (existing.accountStatus === "pending" && isOnboardingV2Enforced()) {
-    if (existing.esignEnvelopeId && isOnboardingESignConfigured()) {
+    if (existing.esignEnvelopeId) {
+      if (!isOnboardingESignConfigured(existing.licensedCompany)) {
+        return NextResponse.json(
+          { error: "The agent's licensed company does not have a configured onboarding agreement." },
+          { status: 503 },
+        );
+      }
       try {
         existing = await syncOnboardingAgreement(existing);
       } catch (error) {

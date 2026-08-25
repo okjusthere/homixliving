@@ -15,6 +15,7 @@ import {
   invitationLocks,
 } from "@/lib/onboarding-routing";
 import { lockOnboardingAgent } from "@/lib/advisory-locks";
+import { resolveOnboardingESignEntity } from "@/lib/esign";
 
 const ONBOARDING_PLANS = new Set<AgentPlan>(["solo", "solo_pro", "team_member", "holding"]);
 
@@ -195,7 +196,15 @@ export async function PUT(req: NextRequest) {
   const legalName = cleanText(body.legalName) || agent.legalName || agent.name;
   const phone = cleanText(body.phone, 40) || agent.phone;
   const licenseNumber = cleanText(body.licenseNumber, 80) || agent.licenseNumber;
-  const licensedCompany = cleanText(body.licensedCompany, 120) || agent.licensedCompany;
+  const requestedLicensedCompany = cleanText(body.licensedCompany, 120) || agent.licensedCompany;
+  const licensedEntity = resolveOnboardingESignEntity(requestedLicensedCompany);
+  if (!licensedEntity) {
+    return NextResponse.json(
+      { error: "Select Homix Realty Inc. or Homix Living Inc." },
+      { status: 400 },
+    );
+  }
+  const licensedCompany = licensedEntity.legalName;
   const practice = body.practice === "rental" || body.practice === "sales" || body.practice === "both"
     ? body.practice
     : agent.practice;

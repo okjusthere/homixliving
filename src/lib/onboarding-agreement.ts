@@ -5,7 +5,7 @@ import {
   getESignEnvelope,
   getESignEvidence,
   isOnboardingESignConfigured,
-  onboardingESignTemplatePin,
+  onboardingESignTemplateConfiguration,
   type ESignEnvelope,
 } from "@/lib/esign";
 import { onboardingPaymentProduct } from "@/lib/onboarding";
@@ -23,10 +23,16 @@ export function onboardingAgreementState(status: ESignEnvelope["status"]) {
 }
 
 export async function syncOnboardingAgreement(agent: typeof agents.$inferSelect) {
-  if (!agent.esignEnvelopeId || !isOnboardingESignConfigured()) return agent;
+  if (!agent.esignEnvelopeId) return agent;
+  if (!isOnboardingESignConfigured(agent.licensedCompany)) {
+    throw new Error("The licensed company does not have a configured onboarding agreement.");
+  }
+  const templateConfiguration = onboardingESignTemplateConfiguration(agent.licensedCompany);
+  if (!templateConfiguration) {
+    throw new Error("The licensed company does not have an approved onboarding agreement.");
+  }
   const envelope = await getESignEnvelope(agent.esignEnvelopeId);
-  const templatePin = onboardingESignTemplatePin();
-  if (envelope.templateVersionId !== templatePin.versionId) {
+  if (envelope.templateVersionId !== templateConfiguration.templateVersionId) {
     throw new Error("The onboarding envelope uses an unapproved template version.");
   }
   const status = onboardingAgreementState(envelope.status);

@@ -8,9 +8,7 @@ import {
   findOrCreateESignTransaction,
   getESignTemplate,
   isOnboardingESignConfigured,
-  onboardingESignCountersigner,
-  onboardingESignTemplateId,
-  onboardingESignTemplatePin,
+  onboardingESignTemplateConfiguration,
   sendESignEnvelope,
 } from "@/lib/esign";
 import { lockOnboardingAgent } from "@/lib/advisory-locks";
@@ -83,7 +81,7 @@ export async function GET() {
   try {
     const synced = await syncOnboardingAgreement(agent);
     return NextResponse.json({
-      configured: isOnboardingESignConfigured(),
+      configured: isOnboardingESignConfigured(agent.licensedCompany),
       agreementStatus: synced.agreementStatus,
       onboardingStage: synced.onboardingStage,
       paymentStatus: synced.paymentStatus,
@@ -92,7 +90,7 @@ export async function GET() {
   } catch (error) {
     console.error("Unable to sync onboarding agreement", error);
     return NextResponse.json({
-      configured: isOnboardingESignConfigured(),
+      configured: isOnboardingESignConfigured(agent.licensedCompany),
       agreementStatus: agent.agreementStatus,
       onboardingStage: agent.onboardingStage,
       paymentStatus: agent.paymentStatus,
@@ -105,7 +103,16 @@ export async function GET() {
 export async function POST() {
   const sessionAgent = await currentAgent();
   if (!sessionAgent) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!isOnboardingESignConfigured()) {
+  const sessionTemplateConfiguration = onboardingESignTemplateConfiguration(
+    sessionAgent.licensedCompany,
+  );
+  if (!sessionTemplateConfiguration) {
+    return NextResponse.json(
+      { error: "Select Homix Realty Inc. or Homix Living Inc. before preparing the agreement." },
+      { status: 409 },
+    );
+  }
+  if (!isOnboardingESignConfigured(sessionAgent.licensedCompany)) {
     return NextResponse.json({ error: "eSign onboarding is not configured." }, { status: 503 });
   }
   let agent;
@@ -136,16 +143,27 @@ export async function POST() {
       return NextResponse.json({ success: true, agreementStatus: agent.agreementStatus });
     }
 
-    const templateId = onboardingESignTemplateId();
-    const templatePin = onboardingESignTemplatePin();
+    const templateConfiguration = onboardingESignTemplateConfiguration(agent.licensedCompany);
+    if (!templateConfiguration) {
+      throw new OnboardingESignTemplateError(
+        "The licensed company does not have an approved onboarding agreement.",
+      );
+    }
+    const templateId = templateConfiguration.templateId;
     const template = await getESignTemplate(templateId);
     const { version, signerRole, countersignerRoles } = validateOnboardingESignTemplate({
       template,
-      expectedVersionId: templatePin.versionId,
-      expectedSchemaHash: templatePin.schemaHash,
+      expectedVersionId: templateConfiguration.templateVersionId,
+      expectedSchemaHash: templateConfiguration.templateSchemaHash,
       includeTeamTerms: agent.plan === "team_member",
     });
-    const countersigner = countersignerRoles.length ? onboardingESignCountersigner() : null;
+    const countersigner = templateConfiguration.countersignerName &&
+      templateConfiguration.countersignerEmail
+      ? {
+          name: templateConfiguration.countersignerName,
+          email: templateConfiguration.countersignerEmail,
+        }
+      : null;
     if (countersignerRoles.length && !countersigner) {
       throw new OnboardingESignTemplateError(
         "The company countersigner is not configured.",
@@ -188,6 +206,7 @@ export async function POST() {
     const envelope = await createESignEnvelope({
       transactionId: transaction.id,
       templateId,
+      legalEntityName: templateConfiguration.legalEntityName,
       agentId: agent.id,
       recipients,
       mergeData: {
@@ -196,7 +215,7 @@ export async function POST() {
         agent_email: agent.email,
         agent_phone: agent.phone || "",
         license_number: agent.licenseNumber || "",
-        licensed_company: agent.licensedCompany || "",
+        licensed_company: templateConfiguration.legalEntityName,
         compensation_plan: agent.plan,
         split_pct: agent.splitPct,
         team_name: team?.name || "",

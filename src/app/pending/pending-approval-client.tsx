@@ -40,6 +40,7 @@ const M = {
     phone: "Phone",
     license: "License number",
     company: "Licensed company",
+    selectCompany: "Select licensed company",
     practice: "Practice",
     rental: "Rental",
     sales: "Sales",
@@ -93,6 +94,7 @@ const M = {
     phone: "电话",
     license: "执照号码",
     company: "持牌公司",
+    selectCompany: "请选择持牌公司",
     practice: "业务范围",
     rental: "租赁",
     sales: "买卖",
@@ -426,7 +428,11 @@ export function PendingApprovalClient({
                   </label>
                   <label className="grid gap-1 text-[12px]" style={{ color: tone.ink70 }}>
                     {t.company}
-                    <input value={licensedCompany} onChange={(event) => setLicensedCompany(event.target.value)} disabled={agreementStatus !== "not_started"} className="h-11 rounded-lg bg-white px-3 text-[13px] disabled:opacity-60" style={{ border: `1px solid ${tone.line}`, color: tone.ink }} />
+                    <select value={licensedCompany} onChange={(event) => setLicensedCompany(event.target.value)} disabled={agreementStatus !== "not_started"} className="h-11 rounded-lg bg-white px-3 text-[13px] disabled:opacity-60" style={{ border: `1px solid ${tone.line}`, color: tone.ink }}>
+                      <option value="">{t.selectCompany}</option>
+                      <option value="Homix Realty Inc.">Homix Realty Inc.</option>
+                      <option value="Homix Living Inc.">Homix Living Inc.</option>
+                    </select>
                   </label>
                   <label className="grid gap-1 text-[12px] sm:col-span-2" style={{ color: tone.ink70 }}>
                     {t.practice}
