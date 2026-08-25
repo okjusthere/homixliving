@@ -205,6 +205,12 @@ export async function PUT(req: NextRequest) {
     }
     const [currentTeam] = await db.select().from(teams).where(eq(teams.id, id)).limit(1);
     if (!currentTeam) return NextResponse.json({ error: "Team not found" }, { status: 404 });
+    if (currentTeam.status === "forming") {
+      return NextResponse.json(
+        { error: "Forming team leadership and v1 terms are locked until onboarding is complete." },
+        { status: 409 },
+      );
+    }
     if (currentTeam.leaderAgentId !== leaderAgentId && effectiveFrom > today) {
       return NextResponse.json(
         { error: "Leader changes take effect immediately; only compensation terms may be scheduled." },
@@ -249,7 +255,7 @@ export async function PUT(req: NextRequest) {
           }).where(eq(agents.id, currentTeam.leaderAgentId));
         }
       }
-      if (leaderAgentId) {
+      if (leaderAgentId && currentTeam.status === "active") {
         await tx.update(agents).set({
           plan: "team_leader",
           splitPct: 100,
@@ -277,6 +283,7 @@ export async function DELETE(req: NextRequest) {
     const deleted = await db.transaction(async (tx) => {
       const [team] = await tx.select().from(teams).where(eq(teams.id, parsedId)).limit(1);
       if (!team) return "missing" as const;
+      if (team.status === "forming") return "forming_locked" as const;
       const [member] = await tx
         .select({ id: agents.id })
         .from(agents)
@@ -303,6 +310,12 @@ export async function DELETE(req: NextRequest) {
       return "deleted" as const;
     });
     if (deleted === "missing") return NextResponse.json({ error: "Team not found" }, { status: 404 });
+    if (deleted === "forming_locked") {
+      return NextResponse.json(
+        { error: "A forming team cannot be deleted while its Team Leader onboarding is in progress." },
+        { status: 409 },
+      );
+    }
     if (deleted === "has_members") {
       return NextResponse.json(
         { error: "Move every team member to another plan or team before deleting this team." },

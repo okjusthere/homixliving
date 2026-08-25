@@ -97,6 +97,17 @@ const M = {
     published: "Team terms published",
     publishFailed: "Could not publish team terms",
     versionHistory: "Version history",
+    formingTitle: "Finish Team Leader setup",
+    formingLead: "The office approved this forming team and published v1 terms. Sign the Team Leader agreement before creating recruiting links.",
+    agreement: "Agreement",
+    prepareAgreement: "Prepare and send agreement",
+    agreementPreparing: "Preparing…",
+    agreementSent: "Agreement sent. Complete it from the eSign email, then check again.",
+    checkAgreement: "Check agreement status",
+    agreementComplete: "Team Leader agreement completed. Recruiting is unlocked.",
+    activationLead: "The team becomes active when the first Team Member completes their agreement.",
+    agreementFailed: "Could not prepare or refresh the Team Leader agreement.",
+    agreementStatus: { not_started: "Not started", preparing: "Preparing", sent: "Sent", completed: "Completed", declined: "Declined", voided: "Voided", expired: "Expired", failed: "Failed" },
     memberStatus: { active: "Active", pending: "Pending", inactive: "Inactive" },
     version: (value: number) => `v${value}`,
     stage: {
@@ -193,6 +204,17 @@ const M = {
     published: "团队条款已发布",
     publishFailed: "无法发布团队条款",
     versionHistory: "版本记录",
+    formingTitle: "完成 Team Leader 启用准备",
+    formingLead: "公司已批准筹备中的团队并发布 v1 条款。签署 Team Leader 协议后，系统才开放团队招聘链接。",
+    agreement: "协议",
+    prepareAgreement: "生成并发送协议",
+    agreementPreparing: "处理中…",
+    agreementSent: "协议已发送，请在 eSign 邮件中完成签署后再检查状态。",
+    checkAgreement: "检查协议状态",
+    agreementComplete: "Team Leader 协议已完成，团队招聘已开放。",
+    activationLead: "首名 Team Member 完成协议后，团队与 Team Leader 才正式启用。",
+    agreementFailed: "无法生成或刷新 Team Leader 协议。",
+    agreementStatus: { not_started: "未开始", preparing: "生成中", sent: "已发送", completed: "已完成", declined: "已拒签", voided: "已作废", expired: "已过期", failed: "失败" },
     memberStatus: { active: "在职", pending: "入职中", inactive: "已停用" },
     version: (value: number) => `v${value}`,
     stage: {
@@ -244,6 +266,7 @@ export function TeamWorkspaceClient({
   const [createdUrl, setCreatedUrl] = useState("");
   const [termsBusy, setTermsBusy] = useState(false);
   const [decisionBusy, setDecisionBusy] = useState<number | null>(null);
+  const [leaderAgreementBusy, setLeaderAgreementBusy] = useState(false);
   const [declineReasons, setDeclineReasons] = useState<Record<number, string>>({});
   const [terms, setTerms] = useState({
     defaultTeamSplitPct: data.currentConfig?.defaultTeamSplitPct ?? 10,
@@ -361,12 +384,30 @@ export function TeamWorkspaceClient({
     }
   }
 
+  async function updateLeaderAgreement(method: "GET" | "POST") {
+    if (!data.leaderApplication) return;
+    setLeaderAgreementBusy(true);
+    try {
+      const response = await fetch(`/api/team-leader-applications/${data.leaderApplication.id}/agreement`, { method });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(String(payload.error || t.agreementFailed));
+      toast.success(payload.agreementStatus === "completed" ? t.agreementComplete : t.agreementSent);
+      router.refresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t.agreementFailed);
+    } finally {
+      setLeaderAgreementBusy(false);
+    }
+  }
+
   const fieldStyle = { background: tone.card, border: `1px solid ${tone.line}`, color: tone.ink };
   const statCards = [
     [t.active, data.counts.active, tone.green],
     [t.pending, data.counts.pending, tone.amber],
     [t.inactive, data.counts.inactive, tone.ink50],
   ] as const;
+  const recruitingEnabled = data.team.status === "active" ||
+    data.leaderApplication?.agreementStatus === "completed";
 
   return (
     <div className="space-y-7">
@@ -397,6 +438,32 @@ export function TeamWorkspaceClient({
           </Card>
         ))}
       </div>
+
+      {data.team.status === "forming" && data.leaderApplication && (
+        <Card>
+          <CardHeader title={t.formingTitle} subtitle={t.formingLead} />
+          <div className="space-y-3 p-5">
+            <div className="flex flex-wrap items-center gap-3">
+              <Pill tone={data.leaderApplication.agreementStatus === "completed" ? "sent" : "draft"}>
+                {t.agreement}: {t.agreementStatus[data.leaderApplication.agreementStatus]}
+              </Pill>
+              {data.leaderApplication.agreementStatus === "completed" ? (
+                <span className="text-[13px]" style={{ color: tone.green }}>{t.agreementComplete}</span>
+              ) : (
+                <Btn
+                  variant="primary"
+                  size="sm"
+                  onClick={() => void updateLeaderAgreement(data.leaderApplication?.agreementStatus === "not_started" ? "POST" : "GET")}
+                  disabled={leaderAgreementBusy}
+                >
+                  {leaderAgreementBusy ? t.agreementPreparing : data.leaderApplication.agreementStatus === "not_started" ? t.prepareAgreement : t.checkAgreement}
+                </Btn>
+              )}
+            </div>
+            <p className="text-[12.5px]" style={{ color: tone.ink50 }}>{t.activationLead}</p>
+          </div>
+        </Card>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="p-5">
@@ -476,7 +543,7 @@ export function TeamWorkspaceClient({
         </div>
       </Card>
 
-      <Card>
+      <Card className={!recruitingEnabled ? "opacity-60" : ""}>
         <CardHeader title={t.inviteTitle} subtitle={t.inviteLead} />
         <div className="space-y-4 p-5">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -497,7 +564,7 @@ export function TeamWorkspaceClient({
               <option value="90">{t.days90}</option>
             </select>
           </div>
-          <Btn variant="primary" icon={<UserPlus size={16} />} onClick={() => void createInvitation()} disabled={inviteBusy || !sponsorAgentId}>
+          <Btn variant="primary" icon={<UserPlus size={16} />} onClick={() => void createInvitation()} disabled={!recruitingEnabled || inviteBusy || !sponsorAgentId}>
             {inviteBusy ? t.creating : t.create}
           </Btn>
           {createdUrl && (

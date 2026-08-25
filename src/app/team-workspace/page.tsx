@@ -7,6 +7,7 @@ import {
   onboardingInvitations,
   teamCompensationConfigs,
   teamJoinRequests,
+  teamLeaderApplications,
   teams,
 } from "@/db/schema";
 import { requireActiveAgent } from "@/lib/auth-guards";
@@ -70,6 +71,14 @@ export default async function TeamWorkspacePage({
       .orderBy(desc(teamJoinRequests.createdAt))
       .limit(60),
   ]);
+  const [leaderApplication] = await db
+    .select()
+    .from(teamLeaderApplications)
+    .where(and(
+      eq(teamLeaderApplications.teamId, selectedTeam.id),
+      inArray(teamLeaderApplications.status, ["approved", "active"]),
+    ))
+    .limit(1);
 
   const invitationIds = invitationRows.map((invite) => invite.id);
   const inviteCandidateRows = invitationIds.length
@@ -130,7 +139,14 @@ export default async function TeamWorkspacePage({
       id: selectedTeam.id,
       name: selectedTeam.name,
       leaderAgentId: selectedTeam.leaderAgentId,
+      status: selectedTeam.status,
     },
+    leaderApplication: leaderApplication ? {
+      id: leaderApplication.id,
+      status: leaderApplication.status as "approved" | "active",
+      agreementStatus: leaderApplication.agreementStatus,
+      agreementCompletedAt: leaderApplication.agreementCompletedAt,
+    } : null,
     leaderName: selectedTeam.leaderAgentId
       ? nameByAgentId.get(selectedTeam.leaderAgentId) || null
       : null,

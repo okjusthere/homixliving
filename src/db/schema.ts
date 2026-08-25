@@ -94,10 +94,13 @@ export const settings = portal.table("settings", {
   value: text("value").notNull(),
 });
 
+export type TeamLifecycleStatus = "forming" | "active" | "inactive";
+
 export const teams = portal.table("teams", {
   id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
   name: text("name").notNull(),
   leaderAgentId: integer("leader_agent_id").references((): AnyPgColumn => agents.id),
+  status: text("status").$type<TeamLifecycleStatus>().notNull().default("active"),
   notes: text("notes"),
 });
 
@@ -260,6 +263,63 @@ export type TeamJoinRequestStatus =
   | "declined"
   | "cancelled"
   | "superseded";
+
+export type TeamLeaderApplicationStatus =
+  | "submitted"
+  | "approved"
+  | "declined"
+  | "withdrawn"
+  | "active";
+
+export const teamLeaderApplications = portal.table(
+  "team_leader_applications",
+  {
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    applicantAgentId: integer("applicant_agent_id")
+      .notNull()
+      .references(() => agents.id, { onDelete: "restrict" }),
+    licensedCompany: text("licensed_company").notNull(),
+    proposedTeamName: text("proposed_team_name").notNull(),
+    expectedMemberCount: integer("expected_member_count").notNull(),
+    positioning: text("positioning").notNull(),
+    proposedTeamSplitPct: integer("proposed_team_split_pct").notNull(),
+    status: text("status")
+      .$type<TeamLeaderApplicationStatus>()
+      .notNull()
+      .default("submitted"),
+    teamId: integer("team_id").references(() => teams.id, { onDelete: "restrict" }),
+    teamCompensationConfigId: integer("team_compensation_config_id").references(
+      () => teamCompensationConfigs.id,
+      { onDelete: "restrict" },
+    ),
+    decidedByAgentId: integer("decided_by_agent_id").references(() => agents.id, {
+      onDelete: "set null",
+    }),
+    decisionReason: text("decision_reason"),
+    decidedAt: timestamptz("decided_at"),
+    agreementStatus: text("agreement_status")
+      .$type<OnboardingAgreementStatus>()
+      .notNull()
+      .default("not_started"),
+    esignTransactionId: text("esign_transaction_id"),
+    esignEnvelopeId: text("esign_envelope_id"),
+    esignTemplateVersionId: text("esign_template_version_id"),
+    esignEvidencePackageId: text("esign_evidence_package_id"),
+    agreementCompletedAt: timestamptz("agreement_completed_at"),
+    activatedAt: timestamptz("activated_at"),
+    createdAt: timestamptz("created_at").notNull().defaultNow(),
+    updatedAt: timestamptz("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("uq_team_leader_applications_open_agent")
+      .on(table.applicantAgentId)
+      .where(sql`${table.status} IN ('submitted', 'approved')`),
+    uniqueIndex("uq_team_leader_applications_team")
+      .on(table.teamId)
+      .where(sql`${table.teamId} IS NOT NULL`),
+    index("idx_team_leader_applications_status_created").on(table.status, table.createdAt),
+  ],
+);
 
 // Direct and personally referred applicants need Team Leader approval before
 // team compensation terms are frozen. Team recruiting invitations are already
@@ -1053,6 +1113,7 @@ export type NewTeam = typeof teams.$inferInsert;
 export type TeamCompensationConfig = typeof teamCompensationConfigs.$inferSelect;
 export type OnboardingInvitation = typeof onboardingInvitations.$inferSelect;
 export type TeamJoinRequest = typeof teamJoinRequests.$inferSelect;
+export type TeamLeaderApplication = typeof teamLeaderApplications.$inferSelect;
 export type OnboardingEvent = typeof onboardingEvents.$inferSelect;
 export type NewOnboardingEvent = typeof onboardingEvents.$inferInsert;
 export type Agent = typeof agents.$inferSelect;

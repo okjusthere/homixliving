@@ -6,6 +6,7 @@ import {
   onboardingEvents,
   onboardingInvitations,
   teamCompensationConfigs,
+  teamLeaderApplications,
   teams,
 } from "@/db/schema";
 import { requireActiveAgentApi } from "@/lib/auth-guards";
@@ -22,6 +23,7 @@ import {
 } from "@/lib/onboarding-routing";
 import { canAssignInvitationSponsor } from "@/lib/onboarding-invitation-policy";
 import { onboardingEventValues } from "@/lib/onboarding-events";
+import { canCreateTeamRecruitingInvitation } from "@/lib/team-leader-applications";
 
 const INVITE_PLANS = new Set<AgentPlan>(["solo", "solo_pro", "team_member", "holding"]);
 
@@ -112,12 +114,32 @@ export async function POST(request: NextRequest) {
   let selectedTeamLeaderId: number | null = null;
   if (requestedTeamId) {
     const [team] = await db
-      .select({ id: teams.id, leaderAgentId: teams.leaderAgentId })
+      .select({ id: teams.id, leaderAgentId: teams.leaderAgentId, status: teams.status })
       .from(teams)
       .where(eq(teams.id, requestedTeamId))
       .limit(1);
     if (!team) return NextResponse.json({ error: "Team not found" }, { status: 404 });
     selectedTeamLeaderId = team.leaderAgentId;
+    if (kind === "team_recruiting") {
+      const [leaderApplication] = team.status === "forming"
+        ? await db
+            .select({ agreementStatus: teamLeaderApplications.agreementStatus })
+            .from(teamLeaderApplications)
+            .where(eq(teamLeaderApplications.teamId, team.id))
+            .limit(1)
+        : [];
+      if (!canCreateTeamRecruitingInvitation({
+        teamStatus: team.status,
+        leaderAgreementStatus: leaderApplication?.agreementStatus || null,
+      })) {
+        return NextResponse.json(
+          { error: team.status === "forming"
+            ? "Complete the Team Leader agreement before recruiting."
+            : "This team is not accepting recruits." },
+          { status: 409 },
+        );
+      }
+    }
   }
 
   if (body.plan !== undefined && !INVITE_PLANS.has(String(body.plan) as AgentPlan)) {

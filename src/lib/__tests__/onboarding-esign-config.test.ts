@@ -3,6 +3,8 @@ import {
   isOnboardingESignConfigured,
   onboardingESignTemplateConfiguration,
   resolveOnboardingESignEntity,
+  isTeamLeaderESignConfigured,
+  teamLeaderESignTemplateConfiguration,
 } from "../esign";
 
 const ENV_KEYS = [
@@ -16,6 +18,9 @@ const ENV_KEYS = [
   "ESIGN_ONBOARDING_HOMIX_LIVING_TEMPLATE_ID",
   "ESIGN_ONBOARDING_HOMIX_LIVING_TEMPLATE_VERSION_ID",
   "ESIGN_ONBOARDING_HOMIX_LIVING_TEMPLATE_SCHEMA_HASH",
+  "ESIGN_TEAM_LEADER_HOMIX_REALTY_TEMPLATE_ID",
+  "ESIGN_TEAM_LEADER_HOMIX_REALTY_TEMPLATE_VERSION_ID",
+  "ESIGN_TEAM_LEADER_HOMIX_REALTY_TEMPLATE_SCHEMA_HASH",
 ] as const;
 
 const original = new Map(ENV_KEYS.map((key) => [key, process.env[key]]));
@@ -38,6 +43,13 @@ try {
   assert.equal(isOnboardingESignConfigured("Homix Realty Inc."), true);
   assert.equal(isOnboardingESignConfigured("Homix Living Inc."), false);
   assert.equal(isOnboardingESignConfigured("Unknown Company"), false);
+  assert.equal(isTeamLeaderESignConfigured("Homix Realty Inc."), false);
+
+  process.env.ESIGN_TEAM_LEADER_HOMIX_REALTY_TEMPLATE_ID = "leader-template";
+  process.env.ESIGN_TEAM_LEADER_HOMIX_REALTY_TEMPLATE_VERSION_ID = "leader-version";
+  process.env.ESIGN_TEAM_LEADER_HOMIX_REALTY_TEMPLATE_SCHEMA_HASH = "leader-hash";
+  assert.equal(isTeamLeaderESignConfigured("Homix Realty Inc."), true);
+  assert.equal(teamLeaderESignTemplateConfiguration("Homix Realty Inc.")?.templateId, "leader-template");
 
   const realty = onboardingESignTemplateConfiguration("homix realty");
   assert.deepEqual(realty, {

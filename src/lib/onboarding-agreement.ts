@@ -9,6 +9,7 @@ import {
   type ESignEnvelope,
 } from "@/lib/esign";
 import { onboardingPaymentProduct } from "@/lib/onboarding";
+import { activateFormingTeamAfterMemberAgreement } from "@/lib/team-leader-agreement";
 
 export function onboardingAgreementState(status: ESignEnvelope["status"]) {
   if (status === "DRAFT" || status === "PREPARED" || status === "READY_TO_SEND") {
@@ -65,6 +66,13 @@ export async function syncOnboardingAgreement(agent: typeof agents.$inferSelect)
     completedAt === agent.agreementCompletedAt &&
     teamTermsAcceptedAt === agent.teamTermsAcceptedAt
   ) {
+    if (agent.plan === "team_member" && agent.agreementStatus === "completed") {
+      await activateFormingTeamAfterMemberAgreement({
+        teamId: agent.teamId,
+        memberAgentId: agent.id,
+        memberAgreementStatus: agent.agreementStatus,
+      });
+    }
     return agent;
   }
   const [updated] = await db.update(agents).set({
@@ -76,5 +84,13 @@ export async function syncOnboardingAgreement(agent: typeof agents.$inferSelect)
     teamTermsAcceptedAt: teamTermsAcceptedAt || null,
     updatedAt: new Date().toISOString(),
   }).where(eq(agents.id, agent.id)).returning();
-  return updated || agent;
+  const result = updated || agent;
+  if (result.plan === "team_member" && result.agreementStatus === "completed") {
+    await activateFormingTeamAfterMemberAgreement({
+      teamId: result.teamId,
+      memberAgentId: result.id,
+      memberAgreementStatus: result.agreementStatus,
+    });
+  }
+  return result;
 }

@@ -3,6 +3,7 @@ import type { ESignTemplate, ESignTemplateField } from "../esign";
 import {
   OnboardingESignTemplateError,
   validateOnboardingESignTemplate,
+  validateTeamLeaderESignTemplate,
 } from "../onboarding-esign-policy";
 
 const VERSION_ID = "version-approved";
@@ -24,6 +25,12 @@ const TEAM_KEYS = [
   "team_split_pct",
   "team_sourced_split_pct",
   "team_cap_usd",
+  "team_terms_effective_from",
+];
+const TEAM_LEADER_KEYS = [
+  "agent_id", "agent_name", "agent_email", "agent_phone", "license_number",
+  "licensed_company", "compensation_plan", "team_name", "expected_member_count",
+  "team_positioning", "team_split_pct", "team_sourced_split_pct", "team_cap_usd",
   "team_terms_effective_from",
 ];
 
@@ -72,6 +79,17 @@ assert.throws(
   () => validate(template({ schemaHash: "changed" })),
   OnboardingESignTemplateError,
 );
+
+assert.equal(validateTeamLeaderESignTemplate({
+  template: template({ fields: TEAM_LEADER_KEYS.map((key) => field(key)) }),
+  expectedVersionId: VERSION_ID,
+  expectedSchemaHash: SCHEMA_HASH,
+}).signerRole.id, "agent-role");
+assert.throws(() => validateTeamLeaderESignTemplate({
+  template: template({ fields: TEAM_LEADER_KEYS.filter((key) => key !== "team_positioning").map((key) => field(key)) }),
+  expectedVersionId: VERSION_ID,
+  expectedSchemaHash: SCHEMA_HASH,
+}), /team_positioning/);
 assert.throws(
   () => validate({ ...template(), activeVersionId: "unreviewed" }),
   OnboardingESignTemplateError,

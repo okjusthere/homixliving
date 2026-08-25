@@ -14,10 +14,10 @@ version, or permits eSign preparation. Declining returns the applicant to plan
 selection and never changes Sponsor attribution.
 
 The Portal decision is an operational approval record, not a substitute for a
-legal Team Addendum. The current eSign policy intentionally still has one agent
-signer and an optional company countersigner. If counsel requires the Team Leader
-to sign a separate Team Addendum, provide that approved PDF and recipient-role
-specification before adding a Team Leader signer to the production template.
+legal agreement. Team Member affiliation and Team Leader responsibilities use
+separate pinned templates. Each envelope has one agent/leader signer and an
+optional company countersigner; a Team Leader is never silently added as a
+recipient to a Team Member agreement.
 
 ## What the business must provide
 
@@ -26,6 +26,14 @@ affiliates agents:
 
 - Homix Realty Inc.
 - Homix Living Inc., if it uses a separate affiliation agreement
+
+For each entity that supports teams, also provide a separate Team Leader
+agreement. The production matrix is therefore up to four immutable templates:
+
+| Purpose | Homix Realty Inc. | Homix Living Inc. |
+| --- | --- | --- |
+| Agent affiliation / Team Member | Required | Required when Living onboards agents |
+| Team Leader agreement | Required before team applications can recruit | Required before Living teams can recruit |
 
 Prefer a native-text, non-password-protected PDF. The business owner must confirm
 the agreement edition/effective date, governing entity, required company signer,
@@ -81,6 +89,26 @@ Team-member templates also require:
 | `team_cap_usd` | Frozen team cap, or `No cap` |
 | `team_terms_effective_from` | Accepted terms effective date |
 
+Team Leader templates use the same recipient-role policy and require these
+read-only merge fields exactly once:
+
+| Merge key | Source |
+| --- | --- |
+| `agent_id` | Team Leader's Portal agent ID |
+| `agent_name` | Legal name, falling back to roster name |
+| `agent_email` | Login/contact email |
+| `agent_phone` | Portal profile |
+| `license_number` | Portal profile |
+| `licensed_company` | Canonical contracting entity frozen on the Team Leader application |
+| `compensation_plan` | `team_leader` |
+| `team_name` | Admin-approved team name |
+| `expected_member_count` | Submitted application |
+| `team_positioning` | Submitted application |
+| `team_split_pct` | Admin-published v1 standard Team Split |
+| `team_sourced_split_pct` | Admin-published v1 team-sourced Split |
+| `team_cap_usd` | Admin-published v1 cap, or `No cap` |
+| `team_terms_effective_from` | v1 effective date |
+
 If the legal PDF has different language or fields for Solo and Team plans, publish
 separate legal templates and extend Portal's plan-to-template selection before
 activation. Do not hide materially different terms with conditional merge values.
@@ -92,15 +120,20 @@ activation. Do not hide materially different terms with conditional merge values
 3. Record the template ID, published version ID, and schema hash.
 4. Configure the matching `ESIGN_ONBOARDING_HOMIX_REALTY_*` or
    `ESIGN_ONBOARDING_HOMIX_LIVING_*` variables in Vercel Production.
+   Configure Team Leader pins separately under
+   `ESIGN_TEAM_LEADER_HOMIX_REALTY_*` and
+   `ESIGN_TEAM_LEADER_HOMIX_LIVING_*`.
 5. Use a dedicated production `HR` application credential; never use the
    development smoke credential.
 6. Run synthetic online-payment and administrator-verified offline-payment tests.
 7. Review evidence, receipts, sponsor rewards, team split, and final activation.
 8. Keep `ONBOARDING_V2_ENFORCED=0` until the business explicitly approves cutover.
 
-Deploy the additive `20260825-team-join-approval.sql` migration before deploying
-code that reads team applications. Do not enable the enforcement flag as part of
-that migration or deployment.
+Deploy the additive migrations in this order before deploying code that reads
+the new lifecycle: `20260825-team-leader-workspace.sql`,
+`20260825-team-join-approval.sql`, then
+`20260825-team-leader-applications.sql`. Do not enable the enforcement flag as
+part of a migration or deployment.
 
 Any PDF edit creates a new template version and schema hash. Review and repin it;
 never silently replace a published agreement under an existing pin.

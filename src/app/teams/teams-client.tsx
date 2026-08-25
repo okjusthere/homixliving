@@ -11,7 +11,7 @@ import {
   TEAM_SOURCED_SPLIT_PRESETS,
   TEAM_SPLIT_PRESETS,
 } from "@/lib/team-compensation-policy";
-import type { Agent, Team, TeamCompensationConfig } from "@/db/schema";
+import type { Agent, Team, TeamCompensationConfig, TeamLeaderApplication } from "@/db/schema";
 
 const M = {
   en: {
@@ -32,6 +32,7 @@ const M = {
     leader: "Leader",
     unassigned: "Unassigned",
     members: "members",
+    forming: "Onboarding in progress",
     edit: "Edit",
     noMembers: "No members assigned.",
     noLicense: "No license",
@@ -66,6 +67,16 @@ const M = {
     months12: "12 months",
     months24: "24 months",
     general: "Any email",
+    applications: "Team Leader applications",
+    noApplications: "No applications awaiting review.",
+    expectedMembers: "expected members",
+    proposedSplit: "proposed Team Split",
+    review: "Review",
+    approveApplication: "Approve and create forming team",
+    declineApplication: "Decline application",
+    decisionReason: "Decision note (optional)",
+    applicationApproved: "Application approved; forming team and v1 terms created",
+    applicationDeclined: "Application declined",
   },
   zh: {
     nameRequired: "请填写名称",
@@ -85,6 +96,7 @@ const M = {
     leader: "负责人",
     unassigned: "未分配",
     members: "名成员",
+    forming: "启用流程进行中",
     edit: "编辑",
     noMembers: "暂无分配成员。",
     noLicense: "无执照",
@@ -119,6 +131,16 @@ const M = {
     months12: "12 个月",
     months24: "24 个月",
     general: "不限邮箱",
+    applications: "Team Leader 申请",
+    noApplications: "暂无待审核申请。",
+    expectedMembers: "名预计成员",
+    proposedSplit: "拟定 Team Split",
+    review: "审核",
+    approveApplication: "批准并创建筹备中团队",
+    declineApplication: "不批准申请",
+    decisionReason: "审核备注（可选）",
+    applicationApproved: "申请已批准，已创建筹备中团队及 v1 条款",
+    applicationDeclined: "申请已拒绝",
   },
 } as const;
 
@@ -137,6 +159,15 @@ type TeamEdit = Partial<Team> & {
   teamLeadSplitPct?: number;
   teamCapCents?: number | null;
   effectiveFrom?: string;
+};
+
+type ApplicationRow = {
+  application: TeamLeaderApplication;
+  applicantName: string;
+  applicantEmail: string;
+  applicantCompany: string | null;
+  teamName: string | null;
+  teamStatus: string | null;
 };
 
 const emptyTeam: TeamEdit = {
@@ -165,6 +196,14 @@ export default function TeamsConsole() {
   const [invitePlan, setInvitePlan] = useState("solo");
   const [inviteTerm, setInviteTerm] = useState("12");
   const [sponsorAgents, setSponsorAgents] = useState<Agent[]>([]);
+  const [applications, setApplications] = useState<ApplicationRow[]>([]);
+  const [reviewApplication, setReviewApplication] = useState<ApplicationRow | null>(null);
+  const [reviewSaving, setReviewSaving] = useState(false);
+  const [reviewTeamName, setReviewTeamName] = useState("");
+  const [reviewTeamSplit, setReviewTeamSplit] = useState(10);
+  const [reviewLeadSplit, setReviewLeadSplit] = useState(10);
+  const [reviewCap, setReviewCap] = useState<number | null>(null);
+  const [reviewReason, setReviewReason] = useState("");
   const locale = useLocale();
   const t = M[locale];
 
@@ -173,9 +212,11 @@ export default function TeamsConsole() {
     Promise.all([
       fetch("/api/teams").then((r) => r.json()),
       fetch("/api/agents").then((r) => (r.ok ? r.json() : [])),
+      fetch("/api/team-leader-applications").then((r) => (r.ok ? r.json() : [])),
     ])
-      .then(([teamRows, agentRows]) => {
+      .then(([teamRows, agentRows, applicationRows]) => {
         setTeams(teamRows);
+        setApplications(applicationRows);
         setSponsorAgents(
           (agentRows as Array<{ agent: Agent }>)
             .map((row) => row.agent)
@@ -184,6 +225,43 @@ export default function TeamsConsole() {
       })
       .finally(() => setLoading(false));
   };
+
+  function openApplicationReview(row: ApplicationRow) {
+    setReviewApplication(row);
+    setReviewTeamName(row.application.proposedTeamName);
+    setReviewTeamSplit(row.application.proposedTeamSplitPct);
+    setReviewLeadSplit(row.application.proposedTeamSplitPct);
+    setReviewCap(null);
+    setReviewReason("");
+  }
+
+  async function decideApplication(action: "approve" | "decline") {
+    if (!reviewApplication) return;
+    setReviewSaving(true);
+    try {
+      const response = await fetch(`/api/team-leader-applications/${reviewApplication.application.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action,
+          teamName: reviewTeamName,
+          defaultTeamSplitPct: reviewTeamSplit,
+          teamLeadSplitPct: reviewLeadSplit,
+          teamCapCents: reviewCap,
+          decisionReason: reviewReason,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || t.saveFailed);
+      toast.success(action === "approve" ? t.applicationApproved : t.applicationDeclined);
+      setReviewApplication(null);
+      load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t.saveFailed);
+    } finally {
+      setReviewSaving(false);
+    }
+  }
 
   useEffect(() => {
     load();
@@ -279,6 +357,27 @@ export default function TeamsConsole() {
         </div>}
       />
 
+      <Card className="overflow-hidden">
+        <div className="border-b border-line px-5 py-4 sm:px-6">
+          <h2 className="font-serif text-[24px]" style={{ color: tone.ink }}>{t.applications}</h2>
+        </div>
+        {applications.filter((row) => row.application.status === "submitted").length === 0 ? (
+          <p className="px-5 py-6 text-[13px] sm:px-6" style={{ color: tone.ink50 }}>{t.noApplications}</p>
+        ) : applications.filter((row) => row.application.status === "submitted").map((row) => (
+          <div key={row.application.id} className="flex flex-col gap-4 border-b border-line px-5 py-5 last:border-b-0 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+            <div className="min-w-0">
+              <div className="text-[16px] font-medium" style={{ color: tone.ink }}>{row.applicantName}</div>
+              <div className="mt-1 text-[12px] font-mono" style={{ color: tone.ink50 }}>{row.applicantEmail}</div>
+              <div className="mt-2 text-[13px]" style={{ color: tone.ink70 }}>
+                {row.application.proposedTeamName} · {row.application.expectedMemberCount} {t.expectedMembers} · {row.application.proposedTeamSplitPct}% {t.proposedSplit}
+              </div>
+              <p className="mt-2 line-clamp-2 text-[12.5px]" style={{ color: tone.ink50 }}>{row.application.positioning}</p>
+            </div>
+            <Btn variant="outline" size="sm" onClick={() => openApplicationReview(row)}>{t.review}</Btn>
+          </div>
+        ))}
+      </Card>
+
       {loading ? (
         <p className="text-[13px]" style={{ color: tone.ink50 }}>
           {t.loading}
@@ -333,23 +432,27 @@ export default function TeamsConsole() {
                     ${fmtMoney(row.mtdTake)}
                   </div>
                   <div className="flex justify-end gap-2">
-                    <Btn
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setEditTeam({
-                          ...row.team,
-                          defaultTeamSplitPct: row.compensationConfig?.defaultTeamSplitPct ?? 10,
-                          teamLeadSplitPct: row.compensationConfig?.teamLeadSplitPct ?? 10,
-                          teamCapCents: row.compensationConfig?.teamCapCents ?? null,
-                          effectiveFrom: new Date().toISOString().slice(0, 10),
-                        });
-                      }}
-                    >
-                      {t.edit}
-                    </Btn>
+                    {row.team.status === "forming" ? (
+                      <Pill tone="draft">{t.forming}</Pill>
+                    ) : (
+                      <Btn
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setEditTeam({
+                            ...row.team,
+                            defaultTeamSplitPct: row.compensationConfig?.defaultTeamSplitPct ?? 10,
+                            teamLeadSplitPct: row.compensationConfig?.teamLeadSplitPct ?? 10,
+                            teamCapCents: row.compensationConfig?.teamCapCents ?? null,
+                            effectiveFrom: new Date().toISOString().slice(0, 10),
+                          });
+                        }}
+                      >
+                        {t.edit}
+                      </Btn>
+                    )}
                   </div>
                 </div>
                 {expanded && (
@@ -466,6 +569,47 @@ export default function TeamsConsole() {
                   {saving ? t.saving : t.save}
                 </Btn>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {reviewApplication && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(26,24,20,.4)", backdropFilter: "blur(4px)" }} onClick={() => setReviewApplication(null)}>
+          <div className="w-full max-w-xl rounded-xl border border-line bg-white p-6" onClick={(event) => event.stopPropagation()}>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <div className="text-[11px] uppercase tracking-[0.12em]" style={{ color: tone.ink50 }}>{t.applications}</div>
+                <h2 className="font-serif text-[27px]">{reviewApplication.applicantName}</h2>
+              </div>
+              <button type="button" aria-label={t.cancel} className="flex size-9 items-center justify-center rounded-md bg-paper-deep" onClick={() => setReviewApplication(null)}><Icons.Close /></button>
+            </div>
+            <p className="mt-4 text-[13px] leading-6" style={{ color: tone.ink70 }}>{reviewApplication.application.positioning}</p>
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <LabeledField label={t.nameField}><EditorialInput value={reviewTeamName} onChange={setReviewTeamName} /></LabeledField>
+              <LabeledField label={t.defaultSplit}>
+                <select value={reviewTeamSplit} onChange={(event) => setReviewTeamSplit(Number(event.target.value))} className="h-11 w-full rounded-lg border border-line bg-white px-3 text-[13px]">
+                  {TEAM_SPLIT_PRESETS.map((value) => <option key={value} value={value}>{value}%</option>)}
+                </select>
+              </LabeledField>
+              <LabeledField label={t.leadSplit}>
+                <select value={reviewLeadSplit} onChange={(event) => setReviewLeadSplit(Number(event.target.value))} className="h-11 w-full rounded-lg border border-line bg-white px-3 text-[13px]">
+                  {TEAM_SOURCED_SPLIT_PRESETS.map((value) => <option key={value} value={value}>{value}%</option>)}
+                </select>
+              </LabeledField>
+              <LabeledField label={t.teamCap}>
+                <select value={reviewCap ?? ""} onChange={(event) => setReviewCap(event.target.value ? Number(event.target.value) : null)} className="h-11 w-full rounded-lg border border-line bg-white px-3 text-[13px]">
+                  <option value="">{t.noCap}</option>
+                  {TEAM_CAP_CENTS_PRESETS.map((value) => <option key={value} value={value}>${(value / 100).toLocaleString()}</option>)}
+                </select>
+              </LabeledField>
+              <LabeledField label={t.decisionReason} wide>
+                <textarea value={reviewReason} onChange={(event) => setReviewReason(event.target.value)} rows={3} className="w-full rounded-lg border border-line bg-white p-3 text-[13px] outline-none" />
+              </LabeledField>
+            </div>
+            <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Btn variant="danger" onClick={() => void decideApplication("decline")} disabled={reviewSaving}>{t.declineApplication}</Btn>
+              <Btn variant="primary" onClick={() => void decideApplication("approve")} disabled={reviewSaving}>{reviewSaving ? t.saving : t.approveApplication}</Btn>
             </div>
           </div>
         </div>

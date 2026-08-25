@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { and, desc, eq, lte, sql } from "drizzle-orm";
+import { and, desc, eq, lte, or, sql } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "@/db";
 import {
@@ -74,6 +74,9 @@ export async function GET() {
     db
       .select({ id: teams.id, name: teams.name, leaderAgentId: teams.leaderAgentId })
       .from(teams)
+      .where(invitation?.teamId
+        ? or(eq(teams.status, "active"), eq(teams.id, invitation.teamId))
+        : eq(teams.status, "active"))
       .orderBy(teams.name),
     db
       .select({ id: agents.id, name: agents.name })
@@ -226,7 +229,7 @@ export async function PUT(req: NextRequest) {
   }
   const selectedTeam = teamId
     ? await db
-        .select({ id: teams.id, name: teams.name, leaderAgentId: teams.leaderAgentId })
+        .select({ id: teams.id, name: teams.name, leaderAgentId: teams.leaderAgentId, status: teams.status })
         .from(teams)
         .where(eq(teams.id, teamId))
         .limit(1)
@@ -234,6 +237,15 @@ export async function PUT(req: NextRequest) {
     : null;
   if (teamId && !selectedTeam) {
     return NextResponse.json({ error: "Team not found" }, { status: 404 });
+  }
+  const preapprovedFormingTeam = Boolean(
+    selectedTeam?.status === "forming" &&
+    invitation?.kind === "team_recruiting" &&
+    invitation.teamId === selectedTeam.id &&
+    invitation.lockTeam,
+  );
+  if (selectedTeam && selectedTeam.status !== "active" && !preapprovedFormingTeam) {
+    return NextResponse.json({ error: "The selected team is not accepting applications." }, { status: 409 });
   }
   const routeRequiresTeamApproval = requiresTeamJoinApproval({ plan, teamId, invitation });
   const mayReuseAcceptedRouting = canReuseAcceptedTeamRouting({

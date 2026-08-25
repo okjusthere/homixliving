@@ -131,6 +131,26 @@ export function onboardingESignTemplateConfiguration(
   };
 }
 
+export function teamLeaderESignTemplateConfiguration(
+  licensedCompany: string | null | undefined,
+) {
+  const entity = resolveOnboardingESignEntity(licensedCompany);
+  if (!entity) return null;
+  const prefix = entity.key === "homix_realty"
+    ? "ESIGN_TEAM_LEADER_HOMIX_REALTY"
+    : "ESIGN_TEAM_LEADER_HOMIX_LIVING";
+  const read = (suffix: string) => process.env[`${prefix}_${suffix}`]?.trim() || "";
+  return {
+    entityKey: entity.key,
+    legalEntityName: entity.legalName,
+    templateId: read("TEMPLATE_ID"),
+    templateVersionId: read("TEMPLATE_VERSION_ID"),
+    templateSchemaHash: read("TEMPLATE_SCHEMA_HASH"),
+    countersignerName: read("COUNTERSIGNER_NAME"),
+    countersignerEmail: read("COUNTERSIGNER_EMAIL"),
+  };
+}
+
 class ESignApiError extends Error {
   constructor(message: string, readonly status: number) {
     super(message);
@@ -143,6 +163,21 @@ export function isOnboardingESignConfigured(
 ) {
   const api = apiConfig();
   const value = onboardingESignTemplateConfiguration(licensedCompany);
+  return Boolean(
+    value &&
+      api.baseUrl &&
+      api.applicationKey &&
+      value.templateId &&
+      value.templateVersionId &&
+      value.templateSchemaHash,
+  );
+}
+
+export function isTeamLeaderESignConfigured(
+  licensedCompany: string | null | undefined,
+) {
+  const api = apiConfig();
+  const value = teamLeaderESignTemplateConfiguration(licensedCompany);
   return Boolean(
     value &&
       api.baseUrl &&
@@ -237,19 +272,23 @@ export function createESignEnvelope(input: {
   mergeData: Record<string, string | number | boolean>;
   expectedTemplateVersionId: string;
   expectedTemplateSchemaHash: string;
+  externalReference?: string;
+  subject?: string;
+  message?: string;
 }) {
   const expiresAt = new Date(Date.now() + 14 * 86_400_000).toISOString();
+  const externalReference = input.externalReference || `homix-onboarding-agent-${input.agentId}`;
   return esignRequest<ESignEnvelope>("/v1/envelopes", {
     method: "POST",
-    headers: { "idempotency-key": `homix-onboarding-agent-${input.agentId}` },
+    headers: { "idempotency-key": externalReference },
     body: JSON.stringify({
       templateId: input.templateId,
       expectedTemplateVersionId: input.expectedTemplateVersionId,
       expectedTemplateSchemaHash: input.expectedTemplateSchemaHash,
       transactionId: input.transactionId,
-      externalReference: `homix-onboarding-agent-${input.agentId}`,
-      subject: `${input.legalEntityName} agent affiliation agreement`,
-      message: `Please review and sign your ${input.legalEntityName} affiliation agreement.`,
+      externalReference,
+      subject: input.subject || `${input.legalEntityName} agent affiliation agreement`,
+      message: input.message || `Please review and sign your ${input.legalEntityName} affiliation agreement.`,
       expiresAt,
       recipients: input.recipients,
       mergeData: input.mergeData,
@@ -257,12 +296,12 @@ export function createESignEnvelope(input: {
   });
 }
 
-export function sendESignEnvelope(envelopeId: string, agentId: number) {
+export function sendESignEnvelope(envelopeId: string, agentId: number, idempotencyKey?: string) {
   return esignRequest<{ envelope: ESignEnvelope; replayed: boolean }>(
     `/v1/envelopes/${encodeURIComponent(envelopeId)}/send`,
     {
       method: "POST",
-      headers: { "idempotency-key": `homix-onboarding-send-agent-${agentId}` },
+      headers: { "idempotency-key": idempotencyKey || `homix-onboarding-send-agent-${agentId}` },
       body: "{}",
     },
   );

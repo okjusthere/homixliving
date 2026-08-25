@@ -329,6 +329,16 @@ Sponsor：李四
 
 ## 11. 验收清单
 
+### 11.1 Team Leader 申请与启用
+
+- [x] Solo Pro 可从 `/profile` 提交 Team Leader 申请。
+- [x] 申请包含团队名称、预计成员、定位与拟定 Team Split。
+- [x] 管理员批准时原子创建 `forming` Team 和 v1 Compensation Config。
+- [x] Team Leader agreement 完成前，后端拒绝创建团队招聘链接。
+- [x] 首名 Team Member agreement evidence 验证完成后，Team 与 Team Leader 自动启用。
+- [ ] 法务提供并批准两家公司适用的正式 Team Leader agreement PDF。
+- [ ] 生产 eSign 发布模板并在 Vercel 配置精确 template/version/schema pins。
+
 - [ ] 普通 Agent 可生成个人推荐链接。
 - [ ] 个人推荐链接只锁定 Sponsor，不强制 Team。
 - [ ] Team Leader 可以访问自己的工作台。

@@ -3,6 +3,7 @@ import type {
   OnboardingAgreementStatus,
   OnboardingPaymentStatus,
   OnboardingStage,
+  TeamLifecycleStatus,
 } from "@/db/schema";
 
 export type TeamRecruitingStage =
@@ -49,7 +50,13 @@ export function recruitingInvitationState(input: {
 
 export type TeamWorkspaceData = {
   teams: Array<{ id: number; name: string }>;
-  team: { id: number; name: string; leaderAgentId: number | null };
+  team: { id: number; name: string; leaderAgentId: number | null; status: TeamLifecycleStatus };
+  leaderApplication: {
+    id: number;
+    status: "approved" | "active";
+    agreementStatus: OnboardingAgreementStatus;
+    agreementCompletedAt: string | null;
+  } | null;
   leaderName: string | null;
   counts: { active: number; pending: number; inactive: number };
   currentConfig: TeamWorkspaceConfig | null;
