@@ -287,6 +287,7 @@ export default function AgentsConsole({ initialView }: { initialView: AdminView 
     ? status.replaceAll("_", " ")
     : ({
         not_started: "未开始",
+        preparing: "正在生成协议",
         sent: "待签署",
         completed: "已签署",
         declined: "已拒签",

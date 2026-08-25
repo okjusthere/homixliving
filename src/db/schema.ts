@@ -126,6 +126,7 @@ export type AgentAccountStatus = "pending" | "active" | "inactive";
 export type OnboardingStage = "profile" | "agreement" | "payment" | "review" | "complete";
 export type OnboardingAgreementStatus =
   | "not_started"
+  | "preparing"
   | "sent"
   | "completed"
   | "declined"

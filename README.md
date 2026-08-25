@@ -167,14 +167,18 @@ gate, and 10% sponsor-reward ledger; there is no unaudited "skip payment" switch
 ESIGN_API_URL=https://esign.kevv.ai
 ESIGN_APPLICATION_KEY=...       # dedicated HR-only Portal credential; never expose client-side
 ESIGN_ONBOARDING_TEMPLATE_ID=...
+ESIGN_ONBOARDING_TEMPLATE_VERSION_ID=... # exact reviewed and published version
+ESIGN_ONBOARDING_TEMPLATE_SCHEMA_HASH=... # immutable hash returned by eSign
 ESIGN_ONBOARDING_COUNTERSIGNER_NAME=...   # required only when the template has a countersigner role
 ESIGN_ONBOARDING_COUNTERSIGNER_EMAIL=...
 ONBOARDING_V2_ENFORCED=0         # switch to 1 only after the rollout smoke test
 ```
 
-The onboarding template must be published, require no approval step, and contain
-exactly one agent signer role. Portal creates an HR transaction and envelope,
-fills the agent/legal/team/plan fields, sends the envelope, and polls its status.
+The onboarding template must be a published New York HR template, require no
+approval step, contain exactly one agent signer role, and expose every required
+Portal merge field as one read-only field. Portal pins the reviewed version and
+schema hash, creates an HR transaction and envelope, fills the agent/legal/team/
+plan fields, sends the envelope, and verifies its evidence package before payment.
 Do not reuse an administrator-wide eSign credential: grant only
 `templates:read`, `transactions:write`, and `envelopes:read/write/send`.
 

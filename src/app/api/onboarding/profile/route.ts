@@ -18,6 +18,8 @@ import { lockOnboardingAgent } from "@/lib/advisory-locks";
 
 const ONBOARDING_PLANS = new Set<AgentPlan>(["solo", "solo_pro", "team_member", "holding"]);
 
+class OnboardingProfileConflict extends Error {}
+
 async function currentAgent() {
   const session = await auth();
   if (!session?.user?.email) return null;
@@ -214,65 +216,92 @@ export async function PUT(req: NextRequest) {
   if (plan === "team_member" && !teamTermsConfig) {
     return NextResponse.json({ error: "The selected team has no active compensation terms." }, { status: 409 });
   }
-  const updated = await db.transaction(async (tx) => {
-    await lockOnboardingAgent(tx, agent.id);
-    const [boundAgent] = await tx
-      .select({ onboardingInviteId: agents.onboardingInviteId })
-      .from(agents)
-      .where(eq(agents.id, agent.id))
-      .limit(1);
-    if (!boundAgent) throw new Error("Agent no longer exists.");
-    if (
-      boundAgent.onboardingInviteId &&
-      boundAgent.onboardingInviteId !== invitation?.id
-    ) {
-      throw new Error("A different invitation is already bound to this account.");
+  let updated;
+  try {
+    updated = await db.transaction(async (tx) => {
+      await lockOnboardingAgent(tx, agent.id);
+      const [boundAgent] = await tx
+        .select({
+          accountStatus: agents.accountStatus,
+          agreementStatus: agents.agreementStatus,
+          onboardingInviteId: agents.onboardingInviteId,
+          planEffectiveFrom: agents.planEffectiveFrom,
+          anniversaryStart: agents.anniversaryStart,
+          joinedAt: agents.joinedAt,
+          onboardingSource: agents.onboardingSource,
+          paymentStatus: agents.paymentStatus,
+        })
+        .from(agents)
+        .where(eq(agents.id, agent.id))
+        .limit(1);
+      if (!boundAgent) throw new OnboardingProfileConflict("Agent no longer exists.");
+      if (boundAgent.accountStatus !== "pending") {
+        throw new OnboardingProfileConflict("Onboarding is only available to pending accounts.");
+      }
+      if (boundAgent.agreementStatus !== "not_started") {
+        throw new OnboardingProfileConflict(
+          "Onboarding facts are frozen after agreement preparation begins.",
+        );
+      }
+      if (
+        boundAgent.onboardingInviteId &&
+        boundAgent.onboardingInviteId !== invitation?.id
+      ) {
+        throw new OnboardingProfileConflict(
+          "A different invitation is already bound to this account.",
+        );
+      }
+      if (invitation && !boundAgent.onboardingInviteId) {
+        const [consumed] = await tx
+          .update(onboardingInvitations)
+          .set({ useCount: sql`${onboardingInvitations.useCount} + 1` })
+          .where(and(
+            eq(onboardingInvitations.id, invitation.id),
+            sql`${onboardingInvitations.useCount} < ${onboardingInvitations.maxUses}`,
+          ))
+          .returning({ id: onboardingInvitations.id });
+        if (!consumed) {
+          throw new OnboardingProfileConflict("Invitation has already been used.");
+        }
+      }
+      const [row] = await tx
+        .update(agents)
+        .set({
+          legalName,
+          phone,
+          licenseNumber,
+          licensedCompany,
+          practice,
+          plan,
+          splitPct: PLAN_SPLIT_PCT[plan],
+          teamId: plan === "team_member" ? teamId : null,
+          referredByAgentId,
+          affiliationTermMonths,
+          planEffectiveFrom: boundAgent.planEffectiveFrom || now.slice(0, 10),
+          anniversaryStart: boundAgent.anniversaryStart || boundAgent.joinedAt || now.slice(0, 10),
+          teamTermsConfigId: teamTermsConfig?.id || null,
+          teamTermsEffectiveFrom: teamTermsConfig ? teamTermsEffectiveFrom : null,
+          teamTermsAcceptedAt: null,
+          onboardingCompletedAt: now,
+          onboardingStage: "agreement",
+          onboardingSource: invitation?.source || boundAgent.onboardingSource || "direct",
+          onboardingInviteId: invitation?.id || boundAgent.onboardingInviteId,
+          paymentStatus: boundAgent.paymentStatus,
+          updatedAt: now,
+        })
+        .where(eq(agents.id, agent.id))
+        .returning();
+      return row;
+    });
+  } catch (error) {
+    if (error instanceof OnboardingProfileConflict) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
     }
-    if (invitation && !boundAgent.onboardingInviteId) {
-      const [consumed] = await tx
-        .update(onboardingInvitations)
-        .set({ useCount: sql`${onboardingInvitations.useCount} + 1` })
-        .where(and(
-          eq(onboardingInvitations.id, invitation.id),
-          sql`${onboardingInvitations.useCount} < ${onboardingInvitations.maxUses}`,
-        ))
-        .returning({ id: onboardingInvitations.id });
-      if (!consumed) throw new Error("Invitation has already been used.");
-    }
-    const [row] = await tx
-      .update(agents)
-      .set({
-        legalName,
-        phone,
-        licenseNumber,
-        licensedCompany,
-        practice,
-        plan,
-        splitPct: PLAN_SPLIT_PCT[plan],
-        teamId: plan === "team_member" ? teamId : null,
-        referredByAgentId,
-        affiliationTermMonths,
-        planEffectiveFrom: agent.planEffectiveFrom || now.slice(0, 10),
-        anniversaryStart: agent.anniversaryStart || agent.joinedAt || now.slice(0, 10),
-        teamTermsConfigId: teamTermsConfig?.id || null,
-        teamTermsEffectiveFrom: teamTermsConfig ? teamTermsEffectiveFrom : null,
-        teamTermsAcceptedAt: null,
-        onboardingCompletedAt: now,
-        onboardingStage: "agreement",
-        onboardingSource: invitation?.source || agent.onboardingSource || "direct",
-        onboardingInviteId: invitation?.id || boundAgent.onboardingInviteId,
-        paymentStatus: agent.paymentStatus,
-        updatedAt: now,
-      })
-      .where(eq(agents.id, agent.id))
-      .returning();
-    return row;
-  }).catch((error) => {
     console.error("Unable to save onboarding profile", error);
-    return null;
-  });
+    return NextResponse.json({ error: "Unable to save onboarding profile." }, { status: 500 });
+  }
   if (!updated) {
-    return NextResponse.json({ error: "Invitation is no longer available." }, { status: 409 });
+    return NextResponse.json({ error: "Unable to save onboarding profile." }, { status: 500 });
   }
   try {
     await notify({

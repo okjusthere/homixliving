@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { agents, teamCompensationConfigs, teams } from "@/db/schema";
@@ -10,16 +10,71 @@ import {
   isOnboardingESignConfigured,
   onboardingESignCountersigner,
   onboardingESignTemplateId,
+  onboardingESignTemplatePin,
   sendESignEnvelope,
 } from "@/lib/esign";
+import { lockOnboardingAgent } from "@/lib/advisory-locks";
 import { onboardingPaymentProduct } from "@/lib/onboarding";
 import { syncOnboardingAgreement } from "@/lib/onboarding-agreement";
+import {
+  OnboardingESignTemplateError,
+  validateOnboardingESignTemplate,
+} from "@/lib/onboarding-esign-policy";
+
+const PREPARATION_STALE_MS = 5 * 60_000;
+
+class AgreementPreparationConflict extends Error {}
 
 async function currentAgent() {
   const session = await auth();
   if (!session?.user?.agentId) return null;
   const [agent] = await db.select().from(agents).where(eq(agents.id, session.user.agentId)).limit(1);
   return agent || null;
+}
+
+async function claimAgreementPreparation(agentId: number) {
+  return db.transaction(async (tx) => {
+    await lockOnboardingAgent(tx, agentId);
+    const [fresh] = await tx.select().from(agents).where(eq(agents.id, agentId)).limit(1);
+    if (!fresh) throw new AgreementPreparationConflict("Agent no longer exists.");
+    if (fresh.accountStatus !== "pending") {
+      throw new AgreementPreparationConflict("Onboarding is only available to pending accounts.");
+    }
+    if (!fresh.onboardingCompletedAt) {
+      throw new AgreementPreparationConflict("Complete the onboarding profile first.");
+    }
+
+    if (fresh.agreementStatus === "preparing" && !fresh.esignEnvelopeId) {
+      const updatedAt = fresh.updatedAt ? new Date(fresh.updatedAt).getTime() : Number.NaN;
+      if (Number.isFinite(updatedAt) && Date.now() - updatedAt < PREPARATION_STALE_MS) {
+        throw new AgreementPreparationConflict("The onboarding agreement is already being prepared.");
+      }
+    } else if (fresh.agreementStatus !== "not_started") {
+      return fresh;
+    }
+
+    const [claimed] = await tx
+      .update(agents)
+      .set({
+        agreementStatus: "preparing",
+        onboardingStage: "agreement",
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(agents.id, agentId))
+      .returning();
+    return claimed;
+  });
+}
+
+async function releaseFailedPreparation(agentId: number) {
+  await db
+    .update(agents)
+    .set({ agreementStatus: "not_started", updatedAt: new Date().toISOString() })
+    .where(and(
+      eq(agents.id, agentId),
+      eq(agents.agreementStatus, "preparing"),
+      isNull(agents.esignEnvelopeId),
+    ));
 }
 
 export async function GET() {
@@ -48,21 +103,25 @@ export async function GET() {
 }
 
 export async function POST() {
-  const agent = await currentAgent();
-  if (!agent) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (agent.accountStatus !== "pending") {
-    return NextResponse.json({ error: "Onboarding is only available to pending accounts." }, { status: 409 });
-  }
+  const sessionAgent = await currentAgent();
+  if (!sessionAgent) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (!isOnboardingESignConfigured()) {
     return NextResponse.json({ error: "eSign onboarding is not configured." }, { status: 503 });
   }
-  if (!agent.onboardingCompletedAt) {
-    return NextResponse.json({ error: "Complete the onboarding profile first." }, { status: 409 });
+  let agent;
+  try {
+    agent = await claimAgreementPreparation(sessionAgent.id);
+  } catch (error) {
+    if (error instanceof AgreementPreparationConflict) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
+    console.error("Unable to freeze onboarding facts", error);
+    return NextResponse.json({ error: "Unable to freeze onboarding facts." }, { status: 500 });
   }
   try {
     if (agent.esignEnvelopeId) {
       const synced = await syncOnboardingAgreement(agent);
-      if (synced.agreementStatus === "not_started") {
+      if (synced.agreementStatus === "preparing") {
         await sendESignEnvelope(agent.esignEnvelopeId, agent.id);
         await db.update(agents).set({
           agreementStatus: "sent",
@@ -73,45 +132,23 @@ export async function POST() {
       }
       return NextResponse.json({ success: true, agreementStatus: synced.agreementStatus });
     }
+    if (agent.agreementStatus !== "preparing") {
+      return NextResponse.json({ success: true, agreementStatus: agent.agreementStatus });
+    }
 
     const templateId = onboardingESignTemplateId();
+    const templatePin = onboardingESignTemplatePin();
     const template = await getESignTemplate(templateId);
-    const version = template.versions.find((candidate) => candidate.id === template.activeVersionId);
-    if (!version || version.status !== "PUBLISHED") {
-      return NextResponse.json({ error: "The onboarding template is not published." }, { status: 409 });
-    }
-    if (version.approvalRequired) {
-      return NextResponse.json({ error: "The onboarding template must not require preparer approval." }, { status: 409 });
-    }
-    const signerRoles = version.roles.filter((role) => role.kind === "signer");
-    if (signerRoles.length !== 1) {
-      return NextResponse.json(
-        { error: "The onboarding template must contain exactly one agent signer role." },
-        { status: 409 },
-      );
-    }
-    const [signerRole] = signerRoles;
-    const countersignerRoles = version.roles.filter((role) => role.kind === "countersigner");
-    if (countersignerRoles.length > 1) {
-      return NextResponse.json(
-        { error: "The onboarding template may contain at most one company countersigner role." },
-        { status: 409 },
-      );
-    }
-    const unsupportedRoles = version.roles.filter(
-      (role) => role.kind !== "signer" && role.kind !== "countersigner",
-    );
-    if (unsupportedRoles.length > 0) {
-      return NextResponse.json(
-        { error: "The onboarding template contains unsupported recipient roles." },
-        { status: 409 },
-      );
-    }
+    const { version, signerRole, countersignerRoles } = validateOnboardingESignTemplate({
+      template,
+      expectedVersionId: templatePin.versionId,
+      expectedSchemaHash: templatePin.schemaHash,
+      includeTeamTerms: agent.plan === "team_member",
+    });
     const countersigner = countersignerRoles.length ? onboardingESignCountersigner() : null;
     if (countersignerRoles.length && !countersigner) {
-      return NextResponse.json(
-        { error: "The company countersigner is not configured." },
-        { status: 503 },
+      throw new OnboardingESignTemplateError(
+        "The company countersigner is not configured.",
       );
     }
     const [team] = agent.teamId
@@ -128,9 +165,8 @@ export async function POST() {
           .limit(1)
       : [];
     if (agent.plan === "team_member" && (!teamTerms || teamTerms.teamId !== agent.teamId)) {
-      return NextResponse.json(
-        { error: "Team compensation terms must be selected before preparing the agreement." },
-        { status: 409 },
+      throw new OnboardingESignTemplateError(
+        "Team compensation terms must be selected before preparing the agreement.",
       );
     }
     const transaction = await findOrCreateESignTransaction({
@@ -171,12 +207,19 @@ export async function POST() {
         sponsor_name: sponsor?.name || "",
         affiliation_term_months: agent.affiliationTermMonths || 12,
       },
+      expectedTemplateVersionId: version.id,
+      expectedTemplateSchemaHash: version.schemaHash!,
     });
+    if (envelope.templateVersionId !== version.id) {
+      throw new OnboardingESignTemplateError(
+        "eSign created the envelope from an unapproved template version.",
+      );
+    }
     await db.update(agents).set({
       esignTransactionId: transaction.id,
       esignEnvelopeId: envelope.id,
       esignTemplateVersionId: envelope.templateVersionId,
-      agreementStatus: "not_started",
+      agreementStatus: "preparing",
       onboardingStage: "agreement",
       updatedAt: new Date().toISOString(),
     }).where(eq(agents.id, agent.id));
@@ -187,6 +230,12 @@ export async function POST() {
     }).where(eq(agents.id, agent.id));
     return NextResponse.json({ success: true, agreementStatus: "sent" });
   } catch (error) {
+    await releaseFailedPreparation(agent.id).catch((releaseError) => {
+      console.error("Unable to release failed onboarding preparation", releaseError);
+    });
+    if (error instanceof OnboardingESignTemplateError) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
     console.error("Unable to create onboarding agreement", error);
     return NextResponse.json({ error: "Unable to prepare the onboarding agreement." }, { status: 502 });
   }

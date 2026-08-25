@@ -4,11 +4,23 @@ type ESignRole = {
   kind: "signer" | "approver" | "countersigner" | "viewer" | "copy";
 };
 
-type ESignTemplateVersion = {
+export type ESignTemplateField = {
+  id: string;
+  type: string;
+  readOnly: boolean;
+  required: boolean;
+  mergeKey?: string;
+};
+
+export type ESignTemplateVersion = {
   id: string;
   status: "DRAFT" | "PUBLISHED" | "RETIRED";
+  businessDomain: "HR" | "REAL_ESTATE";
+  jurisdiction: string;
   approvalRequired: boolean;
   roles: ESignRole[];
+  fields: ESignTemplateField[];
+  schemaHash?: string;
 };
 
 export type ESignTemplate = {
@@ -40,7 +52,7 @@ export type ESignEnvelope = {
 
 export type ESignEvidence = {
   id: string;
-  verificationStatus: string;
+  verificationStatus: "VERIFIED" | "FAILED";
 };
 
 export type ESignTransaction = {
@@ -61,6 +73,8 @@ function config() {
     baseUrl: process.env.ESIGN_API_URL?.trim().replace(/\/+$/, "") || "",
     applicationKey: process.env.ESIGN_APPLICATION_KEY?.trim() || "",
     templateId: process.env.ESIGN_ONBOARDING_TEMPLATE_ID?.trim() || "",
+    templateVersionId: process.env.ESIGN_ONBOARDING_TEMPLATE_VERSION_ID?.trim() || "",
+    templateSchemaHash: process.env.ESIGN_ONBOARDING_TEMPLATE_SCHEMA_HASH?.trim() || "",
     countersignerName: process.env.ESIGN_ONBOARDING_COUNTERSIGNER_NAME?.trim() || "",
     countersignerEmail: process.env.ESIGN_ONBOARDING_COUNTERSIGNER_EMAIL?.trim() || "",
   };
@@ -75,11 +89,25 @@ class ESignApiError extends Error {
 
 export function isOnboardingESignConfigured() {
   const value = config();
-  return Boolean(value.baseUrl && value.applicationKey && value.templateId);
+  return Boolean(
+    value.baseUrl &&
+      value.applicationKey &&
+      value.templateId &&
+      value.templateVersionId &&
+      value.templateSchemaHash,
+  );
 }
 
 export function onboardingESignTemplateId() {
   return config().templateId;
+}
+
+export function onboardingESignTemplatePin() {
+  const value = config();
+  return {
+    versionId: value.templateVersionId,
+    schemaHash: value.templateSchemaHash,
+  };
 }
 
 export function onboardingESignCountersigner() {
@@ -170,6 +198,8 @@ export function createESignEnvelope(input: {
   agentId: number;
   recipients: ESignRecipientInput[];
   mergeData: Record<string, string | number | boolean>;
+  expectedTemplateVersionId: string;
+  expectedTemplateSchemaHash: string;
 }) {
   const expiresAt = new Date(Date.now() + 14 * 86_400_000).toISOString();
   return esignRequest<ESignEnvelope>("/v1/envelopes", {
@@ -177,6 +207,8 @@ export function createESignEnvelope(input: {
     headers: { "idempotency-key": `homix-onboarding-agent-${input.agentId}` },
     body: JSON.stringify({
       templateId: input.templateId,
+      expectedTemplateVersionId: input.expectedTemplateVersionId,
+      expectedTemplateSchemaHash: input.expectedTemplateSchemaHash,
       transactionId: input.transactionId,
       externalReference: `homix-onboarding-agent-${input.agentId}`,
       subject: "Homix agent affiliation agreement",

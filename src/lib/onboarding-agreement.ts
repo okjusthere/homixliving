@@ -5,13 +5,14 @@ import {
   getESignEnvelope,
   getESignEvidence,
   isOnboardingESignConfigured,
+  onboardingESignTemplatePin,
   type ESignEnvelope,
 } from "@/lib/esign";
 import { onboardingPaymentProduct } from "@/lib/onboarding";
 
 export function onboardingAgreementState(status: ESignEnvelope["status"]) {
   if (status === "DRAFT" || status === "PREPARED" || status === "READY_TO_SEND") {
-    return "not_started" as const;
+    return "preparing" as const;
   }
   if (status === "COMPLETED") return "completed" as const;
   if (status === "DECLINED") return "declined" as const;
@@ -24,14 +25,24 @@ export function onboardingAgreementState(status: ESignEnvelope["status"]) {
 export async function syncOnboardingAgreement(agent: typeof agents.$inferSelect) {
   if (!agent.esignEnvelopeId || !isOnboardingESignConfigured()) return agent;
   const envelope = await getESignEnvelope(agent.esignEnvelopeId);
+  const templatePin = onboardingESignTemplatePin();
+  if (envelope.templateVersionId !== templatePin.versionId) {
+    throw new Error("The onboarding envelope uses an unapproved template version.");
+  }
   const status = onboardingAgreementState(envelope.status);
   const paymentRequired = onboardingPaymentProduct(agent.plan, agent.affiliationTermMonths);
   const onboardingStage = status === "completed"
     ? paymentRequired && agent.paymentStatus !== "paid" ? "payment" : "review"
     : "agreement";
-  let evidencePackageId = envelope.evidencePackageId || agent.esignEvidencePackageId;
-  if (status === "completed" && !evidencePackageId) {
+  let evidencePackageId = agent.esignEvidencePackageId;
+  if (status === "completed") {
     const evidence = await getESignEvidence(envelope.id);
+    if (evidence.verificationStatus !== "VERIFIED") {
+      throw new Error("The onboarding evidence package could not be verified.");
+    }
+    if (envelope.evidencePackageId && envelope.evidencePackageId !== evidence.id) {
+      throw new Error("The onboarding evidence package does not match the completed envelope.");
+    }
     evidencePackageId = evidence.id;
   }
   const completedAt = status === "completed"

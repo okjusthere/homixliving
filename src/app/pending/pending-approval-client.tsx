@@ -48,6 +48,7 @@ const M = {
     agreementTitle: "Affiliation agreement",
     agreementHint: "Your submitted facts are inserted into the agreement. Review and sign before payment.",
     sendAgreement: "Send agreement to my email",
+    agreementPreparing: "Preparing your approved agreement…",
     agreementSent: "Agreement sent. Open the secure link in your email, then return here.",
     agreementCompleted: "Agreement signed",
     agreementUnavailable: "eSign is not configured yet. An administrator can continue the current manual process.",
@@ -100,6 +101,7 @@ const M = {
     agreementTitle: "挂靠协议",
     agreementHint: "系统会把已提交的信息带入协议；请先阅读签署，再支付费用。",
     sendAgreement: "发送协议到我的邮箱",
+    agreementPreparing: "正在生成已审核版本的协议…",
     agreementSent: "协议已发送，请打开邮箱中的安全链接签署，然后返回本页。",
     agreementCompleted: "协议已签署",
     agreementUnavailable: "eSign 尚未配置，管理员仍可按现有人工流程处理。",
@@ -276,7 +278,7 @@ export function PendingApprovalClient({
   }, [accountStatus, refreshAgreement]);
 
   useEffect(() => {
-    if (agreementStatus !== "sent") return;
+    if (agreementStatus !== "preparing" && agreementStatus !== "sent") return;
     const interval = window.setInterval(() => void refreshAgreement(), 15_000);
     return () => window.clearInterval(interval);
   }, [agreementStatus, refreshAgreement]);
@@ -517,6 +519,8 @@ export function PendingApprovalClient({
                     <p className="mt-3 text-[12px]" style={{ color: tone.amber }}>{t.agreementUnavailable}</p>
                   ) : agreementStatus === "completed" ? (
                     <p className="mt-3 text-[13px]" style={{ color: tone.green }}>{t.agreementCompleted}</p>
+                  ) : agreementStatus === "preparing" ? (
+                    <p className="mt-3 text-[12px]" style={{ color: tone.amber }}>{t.agreementPreparing}</p>
                   ) : agreementStatus === "sent" ? (
                     <p className="mt-3 text-[12px]" style={{ color: tone.green }}>{t.agreementSent}</p>
                   ) : (
