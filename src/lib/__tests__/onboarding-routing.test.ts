@@ -18,6 +18,13 @@ assert.deepEqual(defaultInvitationLocks("personal_referral"), {
   term: false,
 });
 
+assert.deepEqual(defaultInvitationLocks("admin", { sponsorAgentId: null }), {
+  plan: true,
+  team: false,
+  sponsor: true,
+  term: true,
+});
+
 assert.deepEqual(
   applyInvitationRouting(requested, {
     plan: "solo",

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/db";
-import { agents, onboardingInvitations, teams } from "@/db/schema";
+import { agents, onboardingInvitations, teamCompensationConfigs, teams } from "@/db/schema";
 import { requireActiveAgentApi } from "@/lib/auth-guards";
 import { normalizeAgentPlan, type AgentPlan } from "@/lib/agent-plans";
 import {
@@ -13,6 +13,7 @@ import {
   defaultInvitationLocks,
   type InvitationKind,
 } from "@/lib/onboarding-routing";
+import { canAssignInvitationSponsor } from "@/lib/onboarding-invitation-policy";
 
 const INVITE_PLANS = new Set<AgentPlan>(["solo", "solo_pro", "team_member", "holding"]);
 
@@ -49,14 +50,20 @@ export async function GET() {
     .from(onboardingInvitations)
     .leftJoin(teams, eq(teams.id, onboardingInvitations.teamId))
     .leftJoin(agents, eq(agents.id, onboardingInvitations.sponsorAgentId))
-    .where(
-      authority.session.user.isAdmin
-        ? isNull(onboardingInvitations.revokedAt)
-        : and(
-            isNull(onboardingInvitations.revokedAt),
+    .where(authority.session.user.isAdmin
+      ? isNull(onboardingInvitations.revokedAt)
+      : and(
+          isNull(onboardingInvitations.revokedAt),
+          or(
             eq(onboardingInvitations.createdByAgentId, authority.agentId),
+            ...(authority.ledTeamIds.length
+              ? [and(
+                  eq(onboardingInvitations.kind, "team_recruiting"),
+                  inArray(onboardingInvitations.teamId, authority.ledTeamIds),
+                )]
+              : []),
           ),
-    )
+        ))
     .orderBy(desc(onboardingInvitations.createdAt));
   return NextResponse.json(rows);
 }
@@ -70,10 +77,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid team" }, { status: 400 });
   }
   const requestedKind = String(body.kind || "");
-  const kind: InvitationKind = requestedKind === "personal_referral" ||
-    requestedKind === "team_recruiting" || requestedKind === "admin"
-    ? requestedKind
-    : requestedTeamId ? "team_recruiting" : authority.session.user.isAdmin ? "admin" : "personal_referral";
+  if (
+    requestedKind !== "personal_referral" &&
+    requestedKind !== "team_recruiting" &&
+    requestedKind !== "admin"
+  ) {
+    return NextResponse.json({ error: "Invitation type is required." }, { status: 400 });
+  }
+  const kind: InvitationKind = requestedKind;
   if (kind === "admin" && !authority.session.user.isAdmin) {
     return NextResponse.json({ error: "Only admins may create admin invitations." }, { status: 403 });
   }
@@ -109,6 +120,12 @@ export async function POST(request: NextRequest) {
   if (!INVITE_PLANS.has(plan)) {
     return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
   }
+  if (plan === "team_member" && !requestedTeamId) {
+    return NextResponse.json({ error: "Team Member invitations require a team." }, { status: 400 });
+  }
+  if (plan !== "team_member" && requestedTeamId) {
+    return NextResponse.json({ error: "Only Team Member invitations may assign a team." }, { status: 400 });
+  }
   const requestedSponsorId = body.sponsorAgentId ? Number(body.sponsorAgentId) : null;
   if (requestedSponsorId !== null && (!Number.isInteger(requestedSponsorId) || requestedSponsorId <= 0)) {
     return NextResponse.json({ error: "Invalid sponsor" }, { status: 400 });
@@ -116,11 +133,48 @@ export async function POST(request: NextRequest) {
   const sponsorAgentId = kind === "personal_referral"
     ? authority.agentId
     : authority.session.user.isAdmin
-      ? requestedSponsorId || selectedTeamLeaderId
-      : authority.agentId;
+      ? requestedSponsorId
+      : requestedSponsorId || authority.agentId;
   if (sponsorAgentId) {
-    const [sponsor] = await db.select({ id: agents.id }).from(agents).where(eq(agents.id, sponsorAgentId)).limit(1);
+    const [sponsor] = await db
+      .select({ id: agents.id, teamId: agents.teamId, accountStatus: agents.accountStatus })
+      .from(agents)
+      .where(eq(agents.id, sponsorAgentId))
+      .limit(1);
     if (!sponsor) return NextResponse.json({ error: "Sponsor not found" }, { status: 404 });
+    if (!canAssignInvitationSponsor({
+      kind,
+      isAdmin: authority.session.user.isAdmin,
+      actorAgentId: authority.agentId,
+      targetTeamId: requestedTeamId,
+      targetTeamLeaderId: selectedTeamLeaderId,
+      candidate: sponsor,
+    })) {
+      return NextResponse.json(
+        { error: kind === "team_recruiting"
+          ? "Sponsor must be an active member of the selected team."
+          : "Sponsor is not eligible for this invitation." },
+        { status: 403 },
+      );
+    }
+  }
+  const teamCompensationConfig = plan === "team_member" && requestedTeamId
+    ? await db
+        .select({ id: teamCompensationConfigs.id })
+        .from(teamCompensationConfigs)
+        .where(and(
+          eq(teamCompensationConfigs.teamId, requestedTeamId),
+          lte(teamCompensationConfigs.effectiveFrom, new Date().toISOString().slice(0, 10)),
+        ))
+        .orderBy(desc(teamCompensationConfigs.effectiveFrom), desc(teamCompensationConfigs.version))
+        .limit(1)
+        .then((rows) => rows[0] || null)
+    : null;
+  if (plan === "team_member" && !teamCompensationConfig) {
+    return NextResponse.json(
+      { error: "The selected team has no active compensation terms." },
+      { status: 409 },
+    );
   }
   const email = typeof body.email === "string" && body.email.trim()
     ? body.email.trim().toLowerCase()
@@ -144,6 +198,7 @@ export async function POST(request: NextRequest) {
     kind,
     source: cleanOnboardingSource(body.source),
     teamId: kind === "personal_referral" ? null : requestedTeamId,
+    teamCompensationConfigId: teamCompensationConfig?.id || null,
     sponsorAgentId,
     plan,
     affiliationTermMonths: Number(body.affiliationTermMonths) === 24 ? 24 : 12,
@@ -169,13 +224,20 @@ export async function DELETE(request: NextRequest) {
   if (!Number.isInteger(id) || id <= 0) {
     return NextResponse.json({ error: "Invalid invitation" }, { status: 400 });
   }
-  const conditions = [eq(onboardingInvitations.id, id)];
-  if (!authority.session.user.isAdmin) {
-    conditions.push(eq(onboardingInvitations.createdByAgentId, authority.agentId));
-  }
+  const ownership = authority.session.user.isAdmin
+    ? undefined
+    : or(
+        eq(onboardingInvitations.createdByAgentId, authority.agentId),
+        ...(authority.ledTeamIds.length
+          ? [and(
+              eq(onboardingInvitations.kind, "team_recruiting"),
+              inArray(onboardingInvitations.teamId, authority.ledTeamIds),
+            )]
+          : []),
+      );
   const [revoked] = await db.update(onboardingInvitations).set({
     revokedAt: new Date().toISOString(),
-  }).where(and(...conditions)).returning({ id: onboardingInvitations.id });
+  }).where(and(eq(onboardingInvitations.id, id), ownership)).returning({ id: onboardingInvitations.id });
   if (!revoked) return NextResponse.json({ error: "Invitation not found" }, { status: 404 });
   return NextResponse.json({ success: true });
 }

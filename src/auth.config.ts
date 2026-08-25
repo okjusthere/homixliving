@@ -37,6 +37,7 @@ export const authConfig: NextAuthConfig = {
       session.user.name =
         typeof token.name === "string" ? token.name : session.user.name;
       session.user.isAdmin = Boolean(token.isAdmin);
+      session.user.isTeamLeader = Boolean(token.isTeamLeader);
       session.user.accountStatus =
         token.accountStatus === "active" || token.accountStatus === "inactive"
           ? token.accountStatus

@@ -3,7 +3,7 @@ import Google from "next-auth/providers/google";
 import { after } from "next/server";
 import { cookies } from "next/headers";
 import { db } from "@/db";
-import { agents, invoices, trainingVideoViews } from "@/db/schema";
+import { agents, invoices, teams, trainingVideoViews } from "@/db/schema";
 import { and, eq, sql } from "drizzle-orm";
 import { authConfig } from "./auth.config";
 import { DEFAULT_AGENT_SPLIT_PCT } from "@/lib/splits";
@@ -273,7 +273,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       const isFreshSignIn = Boolean(user);
       const checkedAt = typeof token.checkedAt === "number" ? token.checkedAt : 0;
       const isStale =
-        trigger === "update" || Date.now() - checkedAt > 5 * 60 * 1000;
+        trigger === "update" ||
+        typeof token.isTeamLeader !== "boolean" ||
+        Date.now() - checkedAt > 5 * 60 * 1000;
       if (!isFreshSignIn && !isStale) {
         return token;
       }
@@ -293,6 +295,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       token.name = agent.name;
       token.isAdmin = Boolean(agent.isAdmin);
       token.accountStatus = agent.accountStatus;
+      const [leadership] = await db
+        .select({ id: teams.id })
+        .from(teams)
+        .where(eq(teams.leaderAgentId, agent.id))
+        .limit(1);
+      token.isTeamLeader = Boolean(leadership);
       // Derived compatibility flag for deal-access helpers. The database has
       // one lifecycle source of truth: account_status.
       token.isActive = agent.accountStatus === "active";

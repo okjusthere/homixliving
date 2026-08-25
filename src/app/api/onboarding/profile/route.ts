@@ -85,6 +85,9 @@ export async function GET() {
   const frozenTerms = agent.teamTermsConfigId
     ? configRows.find((config) => config.id === agent.teamTermsConfigId) || null
     : null;
+  const invitedTeamTerms = invitation?.teamCompensationConfigId
+    ? configRows.find((config) => config.id === invitation.teamCompensationConfigId) || null
+    : null;
   return NextResponse.json({
     profile: {
       plan: agent.plan,
@@ -119,7 +122,12 @@ export async function GET() {
       kind: null,
       source: agent.onboardingSource,
     },
-    teams: teamRows.map((team) => ({ ...team, compensationConfig: currentConfigByTeam.get(team.id) || null })),
+    teams: teamRows.map((team) => ({
+      ...team,
+      compensationConfig: invitation?.teamId === team.id && invitedTeamTerms
+        ? invitedTeamTerms
+        : currentConfigByTeam.get(team.id) || null,
+    })),
     sponsors: sponsorRows.filter((row) => row.id !== agent.id),
   });
 }
@@ -211,16 +219,26 @@ export async function PUT(req: NextRequest) {
   const now = new Date().toISOString();
   const teamTermsEffectiveFrom = now.slice(0, 10);
   const teamTermsConfig = plan === "team_member" && teamId
-    ? await db
-        .select()
-        .from(teamCompensationConfigs)
-        .where(and(
-          eq(teamCompensationConfigs.teamId, teamId),
-          lte(teamCompensationConfigs.effectiveFrom, teamTermsEffectiveFrom),
-        ))
-        .orderBy(desc(teamCompensationConfigs.effectiveFrom), desc(teamCompensationConfigs.version))
-        .limit(1)
-        .then((rows) => rows[0] || null)
+    ? invitation?.teamCompensationConfigId
+      ? await db
+          .select()
+          .from(teamCompensationConfigs)
+          .where(and(
+            eq(teamCompensationConfigs.id, invitation.teamCompensationConfigId),
+            eq(teamCompensationConfigs.teamId, teamId),
+          ))
+          .limit(1)
+          .then((rows) => rows[0] || null)
+      : await db
+          .select()
+          .from(teamCompensationConfigs)
+          .where(and(
+            eq(teamCompensationConfigs.teamId, teamId),
+            lte(teamCompensationConfigs.effectiveFrom, teamTermsEffectiveFrom),
+          ))
+          .orderBy(desc(teamCompensationConfigs.effectiveFrom), desc(teamCompensationConfigs.version))
+          .limit(1)
+          .then((rows) => rows[0] || null)
     : null;
   if (plan === "team_member" && !teamTermsConfig) {
     return NextResponse.json({ error: "The selected team has no active compensation terms." }, { status: 409 });

@@ -107,6 +107,7 @@ const M = {
     referralTitle: "My referral link",
     referralLead: "Share this link with an agent you introduce to Homix. It records you as the sponsor without forcing the person into your team.",
     referralCreate: "Create referral link",
+    referralEmail: "Specific email (optional)",
     referralCreating: "Creating…",
     referralCopy: "Copy link",
     referralCopied: "Link copied.",
@@ -187,6 +188,7 @@ const M = {
     referralTitle: "我的推荐链接",
     referralLead: "把此链接发给你介绍加入 Homix 的经纪人。系统只会记录你为介绍人，不会强制对方加入你的团队。",
     referralCreate: "生成推荐链接",
+    referralEmail: "限定邮箱（可选）",
     referralCreating: "正在生成…",
     referralCopy: "复制链接",
     referralCopied: "链接已复制。",
@@ -389,6 +391,7 @@ export function ProfileClient({
   // --- recruiting attribution ---
   const [referralBusy, setReferralBusy] = useState(false);
   const [referralUrl, setReferralUrl] = useState("");
+  const [referralEmail, setReferralEmail] = useState("");
   const [referralMsg, setReferralMsg] = useState<string | null>(null);
 
   async function createReferralLink() {
@@ -398,7 +401,12 @@ export function ProfileClient({
       const response = await fetch("/api/onboarding/invitations", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ kind: "personal_referral", source: "direct", maxUses: 100 }),
+        body: JSON.stringify({
+          kind: "personal_referral",
+          source: "direct",
+          email: referralEmail.trim() || null,
+          maxUses: referralEmail.trim() ? 1 : 100,
+        }),
       });
       const data = await response.json();
       if (!response.ok || !data.url) throw new Error();
@@ -656,9 +664,12 @@ export function ProfileClient({
               </Btn>
             </div>
           ) : (
-            <Btn variant="primary" size="sm" onClick={() => void createReferralLink()} disabled={referralBusy}>
-              {referralBusy ? t.referralCreating : t.referralCreate}
-            </Btn>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <EditorialInput value={referralEmail} onChange={setReferralEmail} placeholder={t.referralEmail} type="email" className="flex-1" />
+              <Btn variant="primary" size="sm" onClick={() => void createReferralLink()} disabled={referralBusy}>
+                {referralBusy ? t.referralCreating : t.referralCreate}
+              </Btn>
+            </div>
           )}
           {referralMsg && (
             <p className="text-[12.5px]" style={{ color: tone.ink70 }}>

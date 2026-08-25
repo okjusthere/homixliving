@@ -7,6 +7,7 @@ declare module "next-auth" {
       id: string;
       agentId: number | null;
       isAdmin: boolean;
+      isTeamLeader: boolean;
       accountStatus: AgentAccountStatus;
       /** Derived from accountStatus for legacy access helpers. */
       isActive: boolean;
@@ -18,6 +19,7 @@ declare module "@auth/core/jwt" {
   interface JWT {
     agentId?: number | null;
     isAdmin?: boolean;
+    isTeamLeader?: boolean;
     accountStatus?: AgentAccountStatus;
     isActive?: boolean;
     /** epoch ms of the last DB refresh — throttles the jwt callback's upsert. */

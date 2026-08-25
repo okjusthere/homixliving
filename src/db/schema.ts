@@ -219,6 +219,10 @@ export const onboardingInvitations = portal.table(
     kind: text("kind").$type<OnboardingInvitationKind>().notNull().default("admin"),
     source: text("source").notNull().default("direct"),
     teamId: integer("team_id").references(() => teams.id, { onDelete: "set null" }),
+    teamCompensationConfigId: integer("team_compensation_config_id").references(
+      () => teamCompensationConfigs.id,
+      { onDelete: "set null" },
+    ),
     sponsorAgentId: integer("sponsor_agent_id").references(() => agents.id, {
       onDelete: "set null",
     }),
@@ -239,6 +243,7 @@ export const onboardingInvitations = portal.table(
   },
   (table) => [
     index("idx_onboarding_invites_team").on(table.teamId),
+    index("idx_onboarding_invites_team_config").on(table.teamCompensationConfigId),
     index("idx_onboarding_invites_expires").on(table.expiresAt),
   ],
 );

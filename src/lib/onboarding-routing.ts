@@ -68,7 +68,9 @@ export function defaultInvitationLocks(
   return {
     plan: true,
     team: Boolean(fields?.teamId),
-    sponsor: Boolean(fields?.sponsorAgentId),
+    // An admin choosing "No Sponsor" is an explicit attribution decision.
+    // Keep it locked so the recruit cannot create a referral reward later.
+    sponsor: true,
     term: true,
   };
 }
