@@ -18,6 +18,7 @@ import { normalizeAgentPlan, PLAN_SPLIT_PCT } from "@/lib/agent-plans";
 import { isOnboardingV2Enforced, onboardingPaymentProduct } from "@/lib/onboarding";
 import { isOnboardingESignConfigured } from "@/lib/esign";
 import { syncOnboardingAgreement } from "@/lib/onboarding-agreement";
+import { syncPublicAgentProfile } from "@/lib/sync-public-profile";
 
 export async function POST(
   req: NextRequest,
@@ -263,6 +264,15 @@ export async function POST(
     }
   }
 
+  const mlsVerification = publicResult?.ok
+    ? await syncPublicAgentProfile({
+        agentId: agent.id,
+        name: agent.name,
+        phone: agent.phone,
+        licenseNumber: agent.licenseNumber,
+      })
+    : { status: "failed" as const };
+
   await logAudit(
     authResult.session,
     "approve",
@@ -291,6 +301,7 @@ export async function POST(
   return NextResponse.json({
     success: true,
     publicProfileLinked: publicResult?.ok ?? false,
+    mlsVerification,
     ...((publicResult && !publicResult.ok)
       ? {
           warning: String(

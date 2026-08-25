@@ -15,6 +15,7 @@ import {
 import { DEFAULT_AGENT_SPLIT_PCT } from "@/lib/splits";
 import { logAudit } from "@/lib/audit";
 import { syncPublicAgentProfile } from "@/lib/sync-public-profile";
+import { interpretPublicIdentityResult } from "@/lib/public-identity-status";
 import {
   isAgentAccountStatus,
   normalizeAgentAccountStatus,
@@ -238,9 +239,11 @@ export async function POST(req: NextRequest) {
       phone: created.phone,
       license: created.licenseNumber,
     });
+    const mlsVerification = interpretPublicIdentityResult(publicResult);
     return NextResponse.json(
       {
         ...created,
+        mlsVerification,
         ...(!publicResult.ok
           ? {
               warning: String(
@@ -437,13 +440,13 @@ export async function PUT(req: NextRequest) {
     // Same database as the marketing site now — mirror the shared identity
     // fields onto the linked public profile and nudge its cache. Best-effort;
     // unlinked agents are skipped (see scripts/link-agent-rosters.ts).
-    await syncPublicAgentProfile({
+    const mlsVerification = await syncPublicAgentProfile({
       agentId: updated.id,
       name: updated.name,
       phone: updated.phone,
       licenseNumber: updated.licenseNumber,
     });
-    return NextResponse.json(updated);
+    return NextResponse.json({ ...updated, mlsVerification });
   } catch {
     return NextResponse.json({ error: "Agent update failed" }, { status: 500 });
   }

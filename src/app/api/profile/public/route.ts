@@ -57,7 +57,11 @@ export async function GET(req: NextRequest) {
     if (res.status === 404) return NextResponse.json({ linked: false });
     const body = await res.json().catch(() => ({}));
     return NextResponse.json(body, { status: res.ok ? 200 : res.status });
-  } catch {
+  } catch (error) {
+    console.warn("Public profile website request failed", {
+      agentId: target.agentId,
+      message: error instanceof Error ? error.message : "unknown",
+    });
     return NextResponse.json({ error: "Couldn't reach the website." }, { status: 502 });
   }
 }
@@ -95,6 +99,14 @@ export async function POST(req: NextRequest) {
       signal: AbortSignal.timeout(20000),
     });
     const body = await res.json().catch(() => ({}));
+    if (!res.ok || !body?.ok) {
+      console.warn("Public profile save rejected by website", {
+        agentId: target.agentId,
+        status: res.status,
+        code: body?.code ?? "unknown",
+        field: body?.field ?? "profile",
+      });
+    }
     if (res.ok && body?.ok) {
       await logAudit(
         auth.session,
@@ -105,7 +117,11 @@ export async function POST(req: NextRequest) {
       );
     }
     return NextResponse.json(body, { status: res.status });
-  } catch {
+  } catch (error) {
+    console.warn("Public profile website save request failed", {
+      agentId: target.agentId,
+      message: error instanceof Error ? error.message : "unknown",
+    });
     return NextResponse.json({ error: "Couldn't reach the website." }, { status: 502 });
   }
 }
