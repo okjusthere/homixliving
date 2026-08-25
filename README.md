@@ -243,16 +243,18 @@ Postgres service, including typecheck, lint, schema seed, tests, and build.
 
 ### Compensation and onboarding v3.1 rollout
 
-Keep this order so existing agents continue to work while the new workflow is
-being configured:
+Keep this producer-before-consumer order so existing agents continue to work
+while the new workflow is being configured:
 
-1. Deploy the schema/code with `ONBOARDING_V2_ENFORCED=0`, then run the checked-in migration or the idempotent schema endpoint.
-2. Publish the eSign onboarding template and create a dedicated Portal application key with the minimum permissions listed above.
-3. Issue a dedicated eSign `HR` application credential with `templates:read`, `transactions:read`, `transactions:write`, `envelopes:read`, `envelopes:write`, `envelopes:send`, and `evidence:read`; configure the `ESIGN_*` variables and confirm the Stripe annual-plan prices and webhook are active.
-4. Run one invited-agent smoke test through profile, agreement, payment, webhook, admin review, and activation.
-5. Run a second smoke test using the administrator-verified offline-payment path and confirm the order, sponsor reward, finance total, and approval gate all match the Stripe path.
-6. Set `ONBOARDING_V2_ENFORCED=1`. From this point, admin approval fails closed until required agreement and payment steps are complete.
+1. Complete the eSign production release gates (retention, monitoring, backup/recovery, network isolation, and counsel/broker acceptance), then deploy the eSign API version that enforces `expectedTemplateVersionId` and `expectedTemplateSchemaHash`. Do not use the development smoke credential for Portal.
+2. Publish the reviewed New York HR onboarding template. Record its template ID, exact active version ID, and immutable schema hash; changing any of them requires a new Portal rollout review.
+3. Issue a dedicated production eSign `HR` credential with only `templates:read`, `transactions:read`, `transactions:write`, `envelopes:read`, `envelopes:write`, `envelopes:send`, and `evidence:read`.
+4. Deploy Portal schema/code with `ONBOARDING_V2_ENFORCED=0`, then run the checked-in migrations or idempotent schema endpoint. Existing approval behavior remains available while configuration is verified.
+5. Configure the production `ESIGN_*` pins and credential, and confirm the Stripe annual-plan prices, checkout return URL, and signed webhook are active.
+6. Run one synthetic invited-agent smoke test through profile, agreement creation, signing, verified evidence, Stripe payment, webhook settlement, sponsor reward, admin review, and activation.
+7. Run a second synthetic test through the administrator-verified offline-payment path and confirm the order, sponsor reward, finance total, receipt evidence, and approval gate match the Stripe path.
+8. Set `ONBOARDING_V2_ENFORCED=1`. From this point, admin approval fails closed until required agreement and payment steps are complete.
 
-Do not enable the flag before step 4. The flag deliberately separates deployment
-from enforcement so a missing eSign template or Stripe price cannot strand all
-pending agents.
+Do not enable the flag before steps 6 and 7 pass. The flag deliberately separates
+deployment from enforcement so a missing eSign template, credential, or Stripe
+price cannot strand all pending agents.
