@@ -18,6 +18,7 @@ import {
   sendESignEnvelope,
 } from "@/lib/esign";
 import { lockOnboardingAgent } from "@/lib/advisory-locks";
+import { normalizeAgentPlan } from "@/lib/agent-plans";
 import { onboardingPaymentProduct } from "@/lib/onboarding";
 import { syncOnboardingAgreement } from "@/lib/onboarding-agreement";
 import {
@@ -187,11 +188,12 @@ export async function POST() {
     }
     const templateId = templateConfiguration.templateId;
     const template = await getESignTemplate(templateId);
+    const effectivePlan = normalizeAgentPlan(agent.plan);
     const { version, signerRole, countersignerRoles } = validateOnboardingESignTemplate({
       template,
       expectedVersionId: templateConfiguration.templateVersionId,
       expectedSchemaHash: templateConfiguration.templateSchemaHash,
-      includeTeamTerms: agent.plan === "team_member",
+      includeTeamTerms: effectivePlan === "team_member",
     });
     const countersigner = templateConfiguration.countersignerName &&
       templateConfiguration.countersignerEmail
@@ -218,7 +220,7 @@ export async function POST() {
           .where(eq(teamCompensationConfigs.id, agent.teamTermsConfigId))
           .limit(1)
       : [];
-    if (agent.plan === "team_member" && (!teamTerms || teamTerms.teamId !== agent.teamId)) {
+    if (effectivePlan === "team_member" && (!teamTerms || teamTerms.teamId !== agent.teamId)) {
       throw new OnboardingESignTemplateError(
         "Team compensation terms must be selected before preparing the agreement.",
       );
@@ -252,7 +254,7 @@ export async function POST() {
         agent_phone: agent.phone || "",
         license_number: agent.licenseNumber || "",
         licensed_company: templateConfiguration.legalEntityName,
-        compensation_plan: agent.plan,
+        compensation_plan: effectivePlan,
         split_pct: agent.splitPct,
         team_name: team?.name || "",
         team_split_pct: teamTerms?.defaultTeamSplitPct ?? "",

@@ -94,7 +94,7 @@
 
 **规则：**
 
-- 管理员显式选择 Solo、Solo Pro、Team Member 或 Holding。
+- 管理员显式选择 Solo、Solo Pro 或 Team Member。暂不展业是 Solo 下的经营状态，不是独立佣金方案。
 - Team Member 必须指定 Team。
 - Sponsor 可为空。
 - 管理员必须看到并确认所有锁定字段。

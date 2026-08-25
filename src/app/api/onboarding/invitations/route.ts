@@ -25,7 +25,7 @@ import { canAssignInvitationSponsor } from "@/lib/onboarding-invitation-policy";
 import { onboardingEventValues } from "@/lib/onboarding-events";
 import { canCreateTeamRecruitingInvitation } from "@/lib/team-leader-applications";
 
-const INVITE_PLANS = new Set<AgentPlan>(["solo", "solo_pro", "team_member", "holding"]);
+const INVITE_PLANS = new Set<AgentPlan>(["solo", "solo_pro", "team_member"]);
 
 function baseUrl(request: Request) {
   return (

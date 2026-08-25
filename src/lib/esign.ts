@@ -169,7 +169,9 @@ export function isOnboardingESignConfigured(
       api.applicationKey &&
       value.templateId &&
       value.templateVersionId &&
-      value.templateSchemaHash,
+      value.templateSchemaHash &&
+      value.countersignerName &&
+      value.countersignerEmail,
   );
 }
 
@@ -184,7 +186,9 @@ export function isTeamLeaderESignConfigured(
       api.applicationKey &&
       value.templateId &&
       value.templateVersionId &&
-      value.templateSchemaHash,
+      value.templateSchemaHash &&
+      value.countersignerName &&
+      value.countersignerEmail,
   );
 }
 

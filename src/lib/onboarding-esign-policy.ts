@@ -88,9 +88,9 @@ export function validateOnboardingESignTemplate(input: {
     );
   }
   const countersignerRoles = version.roles.filter((role) => role.kind === "countersigner");
-  if (countersignerRoles.length > 1) {
+  if (countersignerRoles.length !== 1) {
     throw new OnboardingESignTemplateError(
-      "The onboarding template may contain at most one company countersigner role.",
+      "The onboarding template must contain exactly one company countersigner role.",
     );
   }
   const unsupportedRoles = version.roles.filter(
@@ -153,7 +153,7 @@ export function validateTeamLeaderESignTemplate(input: {
   const unsupportedRoles = version.roles.filter(
     (role) => role.kind !== "signer" && role.kind !== "countersigner",
   );
-  if (signerRoles.length !== 1 || countersignerRoles.length > 1 || unsupportedRoles.length) {
+  if (signerRoles.length !== 1 || countersignerRoles.length !== 1 || unsupportedRoles.length) {
     throw new OnboardingESignTemplateError("The Team Leader template recipient roles are invalid.");
   }
   const mergeFields = new Map<string, ESignTemplateField[]>();

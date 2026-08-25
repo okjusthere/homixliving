@@ -61,7 +61,7 @@ const PLAN_RULES: Record<AgentPlan, { companyRate: number; companyCap: number | 
   solo_pro: { companyRate: 0, companyCap: null },
   team_member: { companyRate: 0.1, companyCap: 10_000 },
   team_leader: { companyRate: 0, companyCap: null },
-  holding: { companyRate: 0, companyCap: null },
+  holding: { companyRate: 0.15, companyCap: 12_000 },
   legacy_growth: { companyRate: 0.08, companyCap: null },
 };
 

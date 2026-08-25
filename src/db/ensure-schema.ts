@@ -927,11 +927,17 @@ export async function ensureSchema(sql: Sql) {
   await run(`
     UPDATE portal.agents
     SET plan = CASE plan
-      WHEN 'standard' THEN 'solo'
-      WHEN 'growth' THEN 'legacy_growth'
-      WHEN 'elite' THEN 'solo_pro'
-      ELSE COALESCE(plan, 'solo')
-    END`);
+        WHEN 'standard' THEN 'solo'
+        WHEN 'growth' THEN 'legacy_growth'
+        WHEN 'elite' THEN 'solo_pro'
+        WHEN 'holding' THEN 'solo'
+        ELSE COALESCE(plan, 'solo')
+      END,
+      split_pct = CASE WHEN plan = 'holding' THEN 85 ELSE split_pct END`);
+  await run(`
+    UPDATE portal.onboarding_invitations
+    SET plan = 'solo'
+    WHERE plan = 'holding'`);
   await run(`
     UPDATE portal.agents
     SET anniversary_start = COALESCE(anniversary_start, joined_at, created_at::date),

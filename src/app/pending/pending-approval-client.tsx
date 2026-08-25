@@ -25,7 +25,6 @@ const M = {
     solo: "Solo · 85/15 · $12K cap",
     soloPro: "Solo Pro · 100% · $3,650/year",
     teamMember: "Team Member · 90/10 · $10K Homix cap",
-    holding: "Holding / Non-Producing",
     team: "Team",
     selectTeam: "Select your team",
     sponsor: "Sponsor / who introduced you",
@@ -82,7 +81,6 @@ const M = {
     solo: "独立经纪人 · 85/15 · $12K 封顶",
     soloPro: "独立经纪人 Pro · 100% · $3,650/年",
     teamMember: "团队成员 · 90/10 · Homix $10K 封顶",
-    holding: "执照挂靠 / 暂不展业",
     team: "所属团队",
     selectTeam: "请选择团队",
     sponsor: "Sponsor / 介绍人",
@@ -497,7 +495,6 @@ export function PendingApprovalClient({
                       <option value="solo">{t.solo}</option>
                       <option value="solo_pro">{t.soloPro}</option>
                       <option value="team_member">{t.teamMember}</option>
-                      <option value="holding">{t.holding}</option>
                     </select>
                   </label>
                   {plan === "team_member" ? (

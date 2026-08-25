@@ -21,6 +21,8 @@ const ENV_KEYS = [
   "ESIGN_TEAM_LEADER_HOMIX_REALTY_TEMPLATE_ID",
   "ESIGN_TEAM_LEADER_HOMIX_REALTY_TEMPLATE_VERSION_ID",
   "ESIGN_TEAM_LEADER_HOMIX_REALTY_TEMPLATE_SCHEMA_HASH",
+  "ESIGN_TEAM_LEADER_HOMIX_REALTY_COUNTERSIGNER_NAME",
+  "ESIGN_TEAM_LEADER_HOMIX_REALTY_COUNTERSIGNER_EMAIL",
 ] as const;
 
 const original = new Map(ENV_KEYS.map((key) => [key, process.env[key]]));
@@ -48,6 +50,9 @@ try {
   process.env.ESIGN_TEAM_LEADER_HOMIX_REALTY_TEMPLATE_ID = "leader-template";
   process.env.ESIGN_TEAM_LEADER_HOMIX_REALTY_TEMPLATE_VERSION_ID = "leader-version";
   process.env.ESIGN_TEAM_LEADER_HOMIX_REALTY_TEMPLATE_SCHEMA_HASH = "leader-hash";
+  assert.equal(isTeamLeaderESignConfigured("Homix Realty Inc."), false);
+  process.env.ESIGN_TEAM_LEADER_HOMIX_REALTY_COUNTERSIGNER_NAME = "Realty Broker";
+  process.env.ESIGN_TEAM_LEADER_HOMIX_REALTY_COUNTERSIGNER_EMAIL = "broker@example.com";
   assert.equal(isTeamLeaderESignConfigured("Homix Realty Inc."), true);
   assert.equal(teamLeaderESignTemplateConfiguration("Homix Realty Inc.")?.templateId, "leader-template");
 

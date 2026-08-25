@@ -645,7 +645,6 @@ export default function TeamsConsole() {
                   <option value="solo">Solo</option>
                   <option value="solo_pro">Solo Pro</option>
                   <option value="team_member">Team Member</option>
-                  <option value="holding">Holding</option>
                 </select>
               </LabeledField>
               <LabeledField label={t.inviteTerm}>

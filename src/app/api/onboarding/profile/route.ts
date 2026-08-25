@@ -11,7 +11,7 @@ import {
   teamJoinRequests,
   teams,
 } from "@/db/schema";
-import { PLAN_SPLIT_PCT, type AgentPlan } from "@/lib/agent-plans";
+import { normalizeAgentPlan, PLAN_SPLIT_PCT, type AgentPlan } from "@/lib/agent-plans";
 import { adminAgentIds, notify } from "@/lib/notify";
 import {
   findUsableInvitation,
@@ -29,7 +29,7 @@ import {
   requiresTeamJoinApproval,
 } from "@/lib/team-join-requests";
 
-const ONBOARDING_PLANS = new Set<AgentPlan>(["solo", "solo_pro", "team_member", "holding"]);
+const ONBOARDING_PLANS = new Set<AgentPlan>(["solo", "solo_pro", "team_member"]);
 
 class OnboardingProfileConflict extends Error {}
 
@@ -125,7 +125,7 @@ export async function GET() {
     : null;
   return NextResponse.json({
     profile: {
-      plan: agent.plan,
+      plan: normalizeAgentPlan(agent.plan),
       teamId: agent.teamId,
       referredByAgentId: agent.referredByAgentId,
       affiliationTermMonths: agent.affiliationTermMonths,
@@ -145,7 +145,7 @@ export async function GET() {
       locks,
       kind: invitation.kind,
       source: invitation.source,
-      plan: locks.plan ? invitation.plan : agent.plan,
+      plan: normalizeAgentPlan(locks.plan ? invitation.plan : agent.plan),
       teamId: locks.team ? invitation.teamId : agent.teamId,
       referredByAgentId: locks.sponsor ? invitation.sponsorAgentId : agent.referredByAgentId,
       affiliationTermMonths: locks.term
@@ -213,7 +213,7 @@ export async function PUT(req: NextRequest) {
       affiliationTermMonths: requestedTerm,
     },
     invitation ? {
-      plan: invitation.plan,
+      plan: normalizeAgentPlan(invitation.plan),
       teamId: invitation.teamId,
       sponsorAgentId: invitation.sponsorAgentId,
       affiliationTermMonths: invitation.affiliationTermMonths,
@@ -223,7 +223,8 @@ export async function PUT(req: NextRequest) {
       lockTerm: invitation.lockTerm,
     } : null,
   );
-  const { plan, teamId, sponsorAgentId: referredByAgentId, affiliationTermMonths } = routing;
+  const plan = normalizeAgentPlan(routing.plan);
+  const { teamId, sponsorAgentId: referredByAgentId, affiliationTermMonths } = routing;
   if (plan === "team_member" && !Number.isInteger(teamId)) {
     return NextResponse.json({ error: "Team members must select a team" }, { status: 400 });
   }

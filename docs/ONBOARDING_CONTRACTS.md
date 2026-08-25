@@ -15,31 +15,42 @@ selection and never changes Sponsor attribution.
 
 The Portal decision is an operational approval record, not a substitute for a
 legal agreement. Team Member affiliation and Team Leader responsibilities use
-separate pinned templates. Each envelope has one agent/leader signer and an
-optional company countersigner; a Team Leader is never silently added as a
-recipient to a Team Member agreement.
+separate pinned templates. Each envelope has one agent/leader signer and exactly
+one company countersigner; a Team Leader is never silently added as a recipient
+to a Team Member agreement.
 
-## What the business must provide
+## Candidate contract package generated
 
-Provide a final, broker/counsel-approved PDF for every legal entity that hires or
-affiliates agents:
+The law-reviewed enrollment packages supplied by the business were used as the
+base legal text. The old 92/8 middle tier, card-authorization pages, and manual
+fee receipts were removed. The regenerated candidate package is:
 
-- Homix Realty Inc.
-- Homix Living Inc., if it uses a separate affiliation agreement
+- `output/pdf/Homix_Realty_Agent_Affiliation_Agreement_v3.1.pdf`
+- `output/pdf/Homix_Living_Agent_Affiliation_Agreement_v3.1.pdf`
+- `output/pdf/Homix_Realty_Team_Leader_Agreement_v1.0.pdf`
+- `output/pdf/Homix_Living_Team_Leader_Agreement_v1.0.pdf`
 
-For each entity that supports teams, also provide a separate Team Leader
-agreement. The production matrix is therefore up to four immutable templates:
+Each Agent agreement now offers only Solo, Solo Pro, and Team Member. A
+non-producing agent remains on Solo; non-producing is an operational status, not
+a fourth compensation plan. Team Leader is granted through the approved Team
+Leader lifecycle and uses its own agreement.
+
+The production matrix is four immutable templates:
 
 | Purpose | Homix Realty Inc. | Homix Living Inc. |
 | --- | --- | --- |
-| Agent affiliation / Team Member | Required | Required when Living onboards agents |
-| Team Leader agreement | Required before team applications can recruit | Required before Living teams can recruit |
+| Agent affiliation / Team Member | Candidate generated; final company review required | Candidate generated; final company review required |
+| Team Leader agreement | Candidate generated; final company review required | Candidate generated; final company review required |
 
-Prefer a native-text, non-password-protected PDF. The business owner must confirm
-the agreement edition/effective date, governing entity, required company signer,
-company signer name/title/email, and whether Solo and Team members use the same
-legal form. Portal and eSign can place fields, but they cannot decide legal terms
-or infer which company is bound by a document.
+The confirmed company countersigner for both entities is Si Zhang, Broker,
+`sunnyz@homixny.com`. Countersigning is required and occurs manually after the
+administrator's compliance approval. Portal and eSign may not auto-apply the
+company signature.
+
+Before production publication, Si Zhang or company counsel must approve the new
+compensation schedule, Team Leader terms, edition/effective date, and the
+continued use of the retained legal pages. Portal and eSign can place fields,
+but they cannot provide that legal approval.
 
 Do not upload a real agreement to development. Production templates and completed
 records belong only in the approved production eSign environment.
@@ -53,13 +64,17 @@ is similar. Every template must use:
 - jurisdiction `NY`
 - `approvalRequired=false`
 - exactly one `signer` role for the agent
-- zero or one `countersigner` role for the company
+- exactly one `countersigner` role for the company
 - no approver, viewer, or copy roles
 
 The PDF must contain a required agent `signature` field and a required
-`signed_date` field assigned to the agent role. Add a company signature and signed
-date only when the approved agreement requires countersigning. Required
+`signed_date` field assigned to the agent role, plus a required company signature
+and signed date assigned to the countersigner role. Required
 acknowledgements may use agent-owned checkbox or initials fields.
+
+Production signing stays at `https://esign.kevv.ai`. Synthetic recipients may
+only use `okjusthere@gmail.com`, `kertweller@gmail.com`,
+`wellerkert@gmail.com`, and `eric.wei@homixny.com` until cutover.
 
 ## Read-only Portal merge fields
 
@@ -131,9 +146,9 @@ activation. Do not hide materially different terms with conditional merge values
 
 Deploy the additive migrations in this order before deploying code that reads
 the new lifecycle: `20260825-team-leader-workspace.sql`,
-`20260825-team-join-approval.sql`, then
-`20260825-team-leader-applications.sql`. Do not enable the enforcement flag as
-part of a migration or deployment.
+`20260825-team-join-approval.sql`, `20260825-team-leader-applications.sql`, then
+`20260825-holding-to-solo.sql`. Do not enable the enforcement flag as part of a
+migration or deployment.
 
 Any PDF edit creates a new template version and schema hash. Review and repin it;
 never silently replace a published agreement under an existing pin.

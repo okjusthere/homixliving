@@ -56,7 +56,10 @@ function template(overrides: Partial<ESignTemplate["versions"][number]> = {}): E
       jurisdiction: "NY",
       approvalRequired: false,
       schemaHash: SCHEMA_HASH,
-      roles: [{ id: "agent-role", name: "Agent", kind: "signer" }],
+      roles: [
+        { id: "agent-role", name: "Agent", kind: "signer" },
+        { id: "company-role", name: "Company", kind: "countersigner" },
+      ],
       fields: [...BASE_KEYS, ...TEAM_KEYS].map((key) => field(key)),
       ...overrides,
     }],
@@ -73,6 +76,7 @@ function validate(value: ESignTemplate, includeTeamTerms = false) {
 }
 
 assert.equal(validate(template()).signerRole.id, "agent-role");
+assert.equal(validate(template()).countersignerRoles[0].id, "company-role");
 assert.equal(validate(template(), true).version.schemaHash, SCHEMA_HASH);
 
 assert.throws(
@@ -110,6 +114,10 @@ assert.throws(
 assert.throws(
   () => validate(template({ fields: BASE_KEYS.map((key) => field(key)) }), true),
   /team_name/,
+);
+assert.throws(
+  () => validate(template({ roles: [{ id: "agent-role", name: "Agent", kind: "signer" }] })),
+  /exactly one company countersigner/,
 );
 
 console.log("onboarding eSign policy tests passed");

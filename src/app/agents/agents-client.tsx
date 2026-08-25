@@ -11,8 +11,8 @@ import { DEFAULT_AGENT_SPLIT_PCT, splitLabel } from "@/lib/splits";
 import { useLocale } from "@/lib/i18n-client";
 import { computeOnboarding } from "@/lib/onboarding-progress";
 import {
-  AGENT_PLANS,
   AGENT_PRACTICES,
+  CURRENT_AGENT_PLANS,
   PLAN_LABELS,
   PLAN_SPLIT_PCT,
   PRACTICE_LABELS,
@@ -1116,7 +1116,7 @@ export default function AgentsConsole({ initialView }: { initialView: AdminView 
                   <select
                     value={normalizeAgentPlan(editAgent.plan)}
                     onChange={(e) => {
-                      const plan = e.target.value as (typeof AGENT_PLANS)[number];
+                      const plan = e.target.value as (typeof CURRENT_AGENT_PLANS)[number];
                       setEditAgent((cur) =>
                         cur ? { ...cur, plan, splitPct: PLAN_SPLIT_PCT[plan] } : cur,
                       );
@@ -1124,7 +1124,12 @@ export default function AgentsConsole({ initialView }: { initialView: AdminView 
                     className="w-full h-11 sm:h-10 rounded-lg px-3 text-[13.5px] outline-none"
                     style={{ background: tone.card, border: `1px solid ${tone.line}`, color: tone.ink }}
                   >
-                    {AGENT_PLANS.map((planKey) => (
+                    {normalizeAgentPlan(editAgent.plan) === "legacy_growth" ? (
+                      <option value="legacy_growth" disabled>
+                        {PLAN_LABELS[locale].legacy_growth} · {PLAN_SPLIT_PCT.legacy_growth}%
+                      </option>
+                    ) : null}
+                    {CURRENT_AGENT_PLANS.map((planKey) => (
                       <option key={planKey} value={planKey}>
                         {PLAN_LABELS[locale][planKey]} · {PLAN_SPLIT_PCT[planKey]}%
                       </option>
