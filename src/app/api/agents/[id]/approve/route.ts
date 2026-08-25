@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { agents, teams } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { agents, teamJoinRequests, teams } from "@/db/schema";
+import { and, eq } from "drizzle-orm";
 import { requireAdminApi } from "@/lib/auth-guards";
 import { notify } from "@/lib/notify";
 import { logAudit } from "@/lib/audit";
@@ -42,6 +42,20 @@ export async function POST(
     .limit(1);
   if (!existing) {
     return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+  }
+  const [pendingTeamJoinRequest] = await db
+    .select({ id: teamJoinRequests.id })
+    .from(teamJoinRequests)
+    .where(and(
+      eq(teamJoinRequests.agentId, existing.id),
+      eq(teamJoinRequests.status, "pending"),
+    ))
+    .limit(1);
+  if (pendingTeamJoinRequest) {
+    return NextResponse.json(
+      { error: "The Team Leader must decide the pending team application before approval." },
+      { status: 409 },
+    );
   }
   if (existing.accountStatus === "pending" && isOnboardingV2Enforced()) {
     if (existing.esignEnvelopeId) {

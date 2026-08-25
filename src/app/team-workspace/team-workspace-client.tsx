@@ -63,6 +63,22 @@ const M = {
     revokeFailed: "Could not disable the invitation",
     regeneratedWithWarning: "New link created, but the previous link could not be disabled. Disable it manually.",
     noInvites: "No team recruiting links yet.",
+    joinRequests: "Team applications",
+    joinRequestsLead: "Direct and personally referred applicants need your approval. Accepting freezes the current team terms; Sponsor attribution stays unchanged.",
+    noJoinRequests: "No team applications yet.",
+    requestedAt: "Requested",
+    acceptRequest: "Accept with current terms",
+    declineRequest: "Decline",
+    declineReason: "Reason required when declining",
+    decisionFailed: "Could not update the team application",
+    decisionSaved: "Team application updated",
+    requestStatus: {
+      pending: "Awaiting decision",
+      accepted: "Accepted",
+      declined: "Declined",
+      cancelled: "Cancelled",
+      superseded: "Replaced",
+    },
     progress: "New agent onboarding",
     progressLead: "Business progress only. W-9, ACH, card details, evidence files, and internal notes remain admin-only.",
     noCandidates: "No recruits are onboarding for this team.",
@@ -85,6 +101,7 @@ const M = {
     version: (value: number) => `v${value}`,
     stage: {
       profile: "Profile incomplete",
+      team_review: "Team approval pending",
       agreement: "Agreement pending",
       payment: "Annual fee pending",
       review: "Admin review",
@@ -142,6 +159,22 @@ const M = {
     revokeFailed: "无法停用邀请",
     regeneratedWithWarning: "新链接已生成，但旧链接未能自动停用，请手动停用旧链接。",
     noInvites: "尚未创建团队招聘链接。",
+    joinRequests: "团队加入申请",
+    joinRequestsLead: "自行注册或个人推荐的新人需要你确认。接受时锁定当前团队条款，Sponsor 归因保持不变。",
+    noJoinRequests: "目前没有团队加入申请。",
+    requestedAt: "申请时间",
+    acceptRequest: "按当前条款接受",
+    declineRequest: "不接受",
+    declineReason: "不接受时必须填写原因",
+    decisionFailed: "无法更新团队申请",
+    decisionSaved: "团队申请已更新",
+    requestStatus: {
+      pending: "等待决定",
+      accepted: "已接受",
+      declined: "未接受",
+      cancelled: "已取消",
+      superseded: "已替换",
+    },
     progress: "新人入职进度",
     progressLead: "这里只显示业务进度。W-9、ACH、银行卡、证据文件和管理员内部备注仍仅管理员可见。",
     noCandidates: "本团队暂无正在入职的新人。",
@@ -164,6 +197,7 @@ const M = {
     version: (value: number) => `v${value}`,
     stage: {
       profile: "资料待完成",
+      team_review: "等待团队确认",
       agreement: "协议待签署",
       payment: "年费待支付",
       review: "等待管理员审核",
@@ -209,6 +243,8 @@ export function TeamWorkspaceClient({
   const [inviteBusy, setInviteBusy] = useState(false);
   const [createdUrl, setCreatedUrl] = useState("");
   const [termsBusy, setTermsBusy] = useState(false);
+  const [decisionBusy, setDecisionBusy] = useState<number | null>(null);
+  const [declineReasons, setDeclineReasons] = useState<Record<number, string>>({});
   const [terms, setTerms] = useState({
     defaultTeamSplitPct: data.currentConfig?.defaultTeamSplitPct ?? 10,
     teamLeadSplitPct: data.currentConfig?.teamLeadSplitPct ?? 10,
@@ -301,6 +337,30 @@ export function TeamWorkspaceClient({
     }
   }
 
+  async function decideJoinRequest(requestId: number, action: "accept" | "decline") {
+    const reason = declineReasons[requestId]?.trim() || "";
+    if (action === "decline" && !reason) {
+      toast.error(t.declineReason);
+      return;
+    }
+    setDecisionBusy(requestId);
+    try {
+      const response = await fetch(`/api/team-workspace/join-requests/${requestId}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action, reason: reason || null }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(String(payload.error || t.decisionFailed));
+      toast.success(t.decisionSaved);
+      router.refresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t.decisionFailed);
+    } finally {
+      setDecisionBusy(null);
+    }
+  }
+
   const fieldStyle = { background: tone.card, border: `1px solid ${tone.line}`, color: tone.ink };
   const statCards = [
     [t.active, data.counts.active, tone.green],
@@ -362,6 +422,59 @@ export function TeamWorkspaceClient({
           </div>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader title={t.joinRequests} subtitle={t.joinRequestsLead} />
+        <div className="divide-y" style={{ borderColor: tone.lineSoft }}>
+          {!data.joinRequests.length && (
+            <p className="p-5 text-[13px]" style={{ color: tone.ink50 }}>{t.noJoinRequests}</p>
+          )}
+          {data.joinRequests.map((request) => (
+            <div key={request.id} className="grid gap-4 p-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.7fr)_minmax(240px,0.9fr)] lg:items-center">
+              <div className="min-w-0">
+                <div className="truncate text-[14px] font-medium" style={{ color: tone.ink }}>{request.name}</div>
+                <div className="truncate text-[12px]" style={{ color: tone.ink50 }}>{request.email}</div>
+                <div className="mt-2 text-[12px]" style={{ color: tone.ink50 }}>
+                  {t.sponsor}: <span style={{ color: tone.ink70 }}>{request.sponsorName || t.sponsorNone}</span>
+                </div>
+              </div>
+              <div className="space-y-2 text-[12px]" style={{ color: tone.ink50 }}>
+                <Pill tone={request.status === "accepted" ? "sent" : request.status === "declined" ? "failed" : "draft"}>
+                  {t.requestStatus[request.status]}
+                </Pill>
+                <div>{t.requestedAt}: <span className="font-mono" style={{ color: tone.ink70 }}>{fmtDate(request.requestedAt.slice(0, 10))}</span></div>
+                {request.acceptedConfigVersion && <div>{t.termsVersion}: {t.version(request.acceptedConfigVersion)}</div>}
+                {request.decisionReason && <div style={{ color: tone.ink70 }}>{request.decisionReason}</div>}
+              </div>
+              {request.status === "pending" ? (
+                <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto] lg:grid-cols-1">
+                  <EditorialInput
+                    value={declineReasons[request.id] || ""}
+                    onChange={(value) => setDeclineReasons((old) => ({ ...old, [request.id]: value }))}
+                    placeholder={t.declineReason}
+                  />
+                  <Btn
+                    variant="primary"
+                    size="sm"
+                    onClick={() => void decideJoinRequest(request.id, "accept")}
+                    disabled={decisionBusy === request.id || !data.currentConfig}
+                  >
+                    {t.acceptRequest}
+                  </Btn>
+                  <Btn
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void decideJoinRequest(request.id, "decline")}
+                    disabled={decisionBusy === request.id}
+                  >
+                    {t.declineRequest}
+                  </Btn>
+                </div>
+              ) : <div />}
+            </div>
+          ))}
+        </div>
+      </Card>
 
       <Card>
         <CardHeader title={t.inviteTitle} subtitle={t.inviteLead} />

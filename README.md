@@ -240,9 +240,10 @@ Postgres service, including typecheck, lint, schema seed, tests, and build.
   `/api/cron/renewal-reminders`, both daily). Vercel sends `CRON_SECRET`
   automatically; the routes reject anything without it.
 - The Stripe webhook must point at `https://<domain>/api/stripe/webhook`.
-- **Schema rollouts**: after adding tables/columns to
-  `src/db/ensure-schema.ts`, deploy and then hit the rollout endpoint — it
-  runs the idempotent DDL against Supabase Postgres:
+- **Schema rollouts**: apply additive checked-in migrations before deploying
+  code that reads new tables or columns. The protected rollout endpoint runs
+  the same idempotent DDL and is suitable for a schema-first deployment or a
+  backwards-compatible expansion:
 
   ```bash
   curl -X POST https://agents.homixny.com/api/admin/ensure-schema \
@@ -259,7 +260,7 @@ while the new workflow is being configured:
 1. Complete the eSign production release gates (retention, monitoring, backup/recovery, network isolation, and counsel/broker acceptance), then deploy the eSign API version that enforces `expectedTemplateVersionId` and `expectedTemplateSchemaHash`. Do not use the development smoke credential for Portal.
 2. Publish one reviewed New York HR onboarding template per legal entity. Record each template ID, exact active version ID, and immutable schema hash; changing any of them requires a new Portal rollout review.
 3. Issue a dedicated production eSign `HR` credential with only `templates:read`, `transactions:read`, `transactions:write`, `envelopes:read`, `envelopes:write`, `envelopes:send`, and `evidence:read`.
-4. Deploy Portal schema/code with `ONBOARDING_V2_ENFORCED=0`, then run the checked-in migrations or idempotent schema endpoint. Existing approval behavior remains available while configuration is verified.
+4. Apply the checked-in additive migrations, then deploy Portal code with `ONBOARDING_V2_ENFORCED=0`. Existing approval behavior remains available while configuration is verified; do not deploy code that reads a new table before its migration exists in production.
 5. Configure the production `ESIGN_*` pins and credential, and confirm the Stripe annual-plan prices, checkout return URL, and signed webhook are active.
 6. Run one synthetic invited-agent smoke test through profile, agreement creation, signing, verified evidence, Stripe payment, webhook settlement, sponsor reward, admin review, and activation.
 7. Run a second synthetic test through the administrator-verified offline-payment path and confirm the order, sponsor reward, finance total, receipt evidence, and approval gate match the Stripe path.

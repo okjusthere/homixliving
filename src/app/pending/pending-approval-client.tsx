@@ -35,6 +35,9 @@ const M = {
     twoYears: "$500 · 2 years prepaid",
     saveSetup: "Submit setup",
     setupSaved: "Setup submitted. An admin can now approve the account.",
+    teamRequestPending: (team: string) => `Team request sent to ${team}. Continue after the Team Leader accepts it.`,
+    teamRequestDeclined: (team: string, reason: string | null) =>
+      `${team} did not accept this request.${reason ? ` Reason: ${reason}` : " Choose another team or a solo plan."}`,
     setupFailed: "Could not save setup.",
     legalName: "Legal name",
     phone: "Phone",
@@ -89,6 +92,9 @@ const M = {
     twoYears: "$500 · 2 年预付",
     saveSetup: "提交入职资料",
     setupSaved: "资料已提交，管理员现在可以直接批准。",
+    teamRequestPending: (team: string) => `已申请加入 ${team}，Team Leader 接受后即可继续签署协议。`,
+    teamRequestDeclined: (team: string, reason: string | null) =>
+      `${team} 未接受本次申请。${reason ? `原因：${reason}` : "你可以选择其他团队或独立经纪人方案。"}`,
     setupFailed: "无法保存入职资料。",
     legalName: "法定姓名",
     phone: "电话",
@@ -129,7 +135,16 @@ type TeamTerms = {
 type TeamOption = {
   id: number;
   name: string;
+  requestable: boolean;
   compensationConfig: TeamTerms | null;
+};
+
+type TeamJoinRequest = {
+  id: number;
+  teamId: number;
+  teamName: string;
+  status: "pending" | "accepted" | "declined" | "cancelled" | "superseded";
+  decisionReason: string | null;
 };
 
 export function PendingApprovalClient({
@@ -168,20 +183,20 @@ export function PendingApprovalClient({
   const [agreementLoading, setAgreementLoading] = useState(false);
   const [teams, setTeams] = useState<TeamOption[]>([]);
   const [frozenTeamTerms, setFrozenTeamTerms] = useState<TeamTerms | null>(null);
+  const [teamJoinRequest, setTeamJoinRequest] = useState<TeamJoinRequest | null>(null);
   const [sponsors, setSponsors] = useState<Array<{ id: number; name: string }>>([]);
   const checkedOnce = useRef(false);
   const checkInFlight = useRef(false);
   const effectiveStatus = session?.user?.accountStatus ?? accountStatus;
   const t = M[useLocale()];
 
-  useEffect(() => {
-    if (accountStatus !== "pending") return;
-    fetch("/api/onboarding/profile")
-      .then(async (response) => {
-        if (!response.ok) throw new Error();
-        return response.json();
-      })
-      .then((data) => {
+  const refreshProfile = useCallback(async () => {
+    try {
+      const response = await fetch("/api/onboarding/profile", { cache: "no-store" });
+      if (!response.ok) throw new Error();
+      const data = await response.json();
+      const request = (data.teamJoinRequest || null) as TeamJoinRequest | null;
+      setTeamJoinRequest(request);
         setPlan(data.profile?.plan || "solo");
         setTeamId(data.profile?.teamId ? String(data.profile.teamId) : "");
         setSponsorId(data.profile?.referredByAgentId ? String(data.profile.referredByAgentId) : "");
@@ -209,11 +224,34 @@ export function PendingApprovalClient({
         setPaymentStatus(data.profile?.paymentStatus || "pending");
         setTeams(data.teams || []);
         setSponsors(data.sponsors || []);
-        if (data.profile?.onboardingCompletedAt) setSetupMessage(t.setupSaved);
-      })
-      .catch(() => setSetupMessage(t.setupFailed))
-      .finally(() => setSetupLoading(false));
-  }, [accountStatus, t.setupFailed, t.setupSaved]);
+      if (request?.status === "pending") {
+        setPlan("team_member");
+        setTeamId(String(request.teamId));
+        setSetupMessage(t.teamRequestPending(request.teamName));
+      } else if (request?.status === "declined" && !data.profile?.onboardingCompletedAt) {
+        setSetupMessage(t.teamRequestDeclined(request.teamName, request.decisionReason));
+      } else if (data.profile?.onboardingCompletedAt) {
+        setSetupMessage(t.setupSaved);
+      }
+    } catch {
+      setSetupMessage(t.setupFailed);
+    } finally {
+      setSetupLoading(false);
+    }
+  }, [t]);
+
+  useEffect(() => {
+    if (accountStatus !== "pending") return;
+    void refreshProfile();
+  }, [accountStatus, refreshProfile]);
+
+  useEffect(() => {
+    if (teamJoinRequest?.status !== "pending") return;
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") void refreshProfile();
+    }, 15_000);
+    return () => window.clearInterval(interval);
+  }, [refreshProfile, teamJoinRequest?.status]);
 
   const saveSetup = async () => {
     if (plan === "team_member" && !teamId) {
@@ -238,9 +276,20 @@ export function PendingApprovalClient({
           practice,
         }),
       });
+      const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error();
-      setSetupMessage(t.setupSaved);
-      await refreshAgreement();
+      if (data.requiresTeamApproval && data.teamJoinRequest) {
+        const request = {
+          ...data.teamJoinRequest,
+          teamName: teams.find((team) => team.id === data.teamJoinRequest.teamId)?.name || t.team,
+        } as TeamJoinRequest;
+        setTeamJoinRequest(request);
+        setSetupMessage(t.teamRequestPending(request.teamName));
+      } else {
+        setTeamJoinRequest(null);
+        setSetupMessage(t.setupSaved);
+        await refreshAgreement();
+      }
     } catch {
       setSetupMessage(t.setupFailed);
     } finally {
@@ -356,9 +405,9 @@ export function PendingApprovalClient({
     };
   }, [effectiveStatus, refreshApproval, session?.user?.email, status]);
 
-  const selectedTeamTerms = agreementStatus !== "not_started" && frozenTeamTerms
-    ? frozenTeamTerms
-    : teams.find((team) => String(team.id) === teamId)?.compensationConfig || null;
+  const selectedTeamTerms = frozenTeamTerms
+    || teams.find((team) => String(team.id) === teamId)?.compensationConfig
+    || null;
 
   return (
     <div className="min-h-screen flex items-center justify-center px-6">
@@ -456,7 +505,15 @@ export function PendingApprovalClient({
                       {t.team}
                       <select value={teamId} onChange={(event) => setTeamId(event.target.value)} disabled={routingLocks.team || agreementStatus !== "not_started"} className="h-11 rounded-lg bg-white px-3 text-[13px] disabled:opacity-60" style={{ border: `1px solid ${tone.line}`, color: tone.ink }}>
                         <option value="">{t.selectTeam}</option>
-                        {teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
+                        {teams.map((team) => (
+                          <option
+                            key={team.id}
+                            value={team.id}
+                            disabled={!team.requestable && !routingLocks.team}
+                          >
+                            {team.name}
+                          </option>
+                        ))}
                       </select>
                     </label>
                   ) : (
@@ -513,7 +570,20 @@ export function PendingApprovalClient({
                   <Btn variant="primary" className="justify-center sm:col-span-2" onClick={() => void saveSetup()} disabled={setupSaving || agreementStatus !== "not_started"}>
                     {setupSaving ? t.checking : t.saveSetup}
                   </Btn>
-                  {setupMessage && <p className="text-center text-[12px] sm:col-span-2" style={{ color: setupMessage === t.setupSaved ? tone.green : tone.rose }}>{setupMessage}</p>}
+                  {setupMessage && (
+                    <p
+                      className="text-center text-[12px] sm:col-span-2"
+                      style={{
+                        color: setupMessage === t.setupSaved
+                          ? tone.green
+                          : teamJoinRequest?.status === "pending"
+                            ? tone.amber
+                            : tone.rose,
+                      }}
+                    >
+                      {setupMessage}
+                    </p>
+                  )}
                 </div>
               )}
 

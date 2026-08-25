@@ -7,6 +7,7 @@ import type {
 
 export type TeamRecruitingStage =
   | "profile"
+  | "team_review"
   | "agreement"
   | "payment"
   | "review"
@@ -25,6 +26,7 @@ export function teamRecruitingStage(input: {
   if (["declined", "voided", "expired", "failed"].includes(input.agreementStatus)) {
     return "attention";
   }
+  if (input.onboardingStage === "team_review") return "team_review";
   if (input.onboardingStage === "profile") return "profile";
   if (input.agreementStatus !== "completed") return "agreement";
   if (input.paymentStatus === "pending") return "payment";
@@ -54,6 +56,18 @@ export type TeamWorkspaceData = {
   scheduledConfig: TeamWorkspaceConfig | null;
   configs: TeamWorkspaceConfig[];
   sponsorCandidates: Array<{ id: number; name: string }>;
+  joinRequests: Array<{
+    id: number;
+    agentId: number;
+    name: string;
+    email: string;
+    sponsorName: string | null;
+    status: "pending" | "accepted" | "declined" | "cancelled" | "superseded";
+    requestedAt: string;
+    decidedAt: string | null;
+    decisionReason: string | null;
+    acceptedConfigVersion: number | null;
+  }>;
   members: Array<{
     id: number;
     name: string;

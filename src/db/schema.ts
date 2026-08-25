@@ -123,7 +123,13 @@ export const teamCompensationConfigs = portal.table(
 );
 
 export type AgentAccountStatus = "pending" | "active" | "inactive";
-export type OnboardingStage = "profile" | "agreement" | "payment" | "review" | "complete";
+export type OnboardingStage =
+  | "profile"
+  | "team_review"
+  | "agreement"
+  | "payment"
+  | "review"
+  | "complete";
 export type OnboardingAgreementStatus =
   | "not_started"
   | "preparing"
@@ -245,6 +251,90 @@ export const onboardingInvitations = portal.table(
     index("idx_onboarding_invites_team").on(table.teamId),
     index("idx_onboarding_invites_team_config").on(table.teamCompensationConfigId),
     index("idx_onboarding_invites_expires").on(table.expiresAt),
+  ],
+);
+
+export type TeamJoinRequestStatus =
+  | "pending"
+  | "accepted"
+  | "declined"
+  | "cancelled"
+  | "superseded";
+
+// Direct and personally referred applicants need Team Leader approval before
+// team compensation terms are frozen. Team recruiting invitations are already
+// approved by the Team Leader and therefore do not create one of these rows.
+export const teamJoinRequests = portal.table(
+  "team_join_requests",
+  {
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    agentId: integer("agent_id")
+      .notNull()
+      .references(() => agents.id, { onDelete: "cascade" }),
+    teamId: integer("team_id")
+      .notNull()
+      .references(() => teams.id, { onDelete: "restrict" }),
+    sponsorAgentId: integer("sponsor_agent_id").references(() => agents.id, {
+      onDelete: "set null",
+    }),
+    sourceInvitationId: integer("source_invitation_id").references(
+      () => onboardingInvitations.id,
+      { onDelete: "set null" },
+    ),
+    status: text("status")
+      .$type<TeamJoinRequestStatus>()
+      .notNull()
+      .default("pending"),
+    acceptedConfigId: integer("accepted_config_id").references(
+      () => teamCompensationConfigs.id,
+      { onDelete: "set null" },
+    ),
+    decidedByAgentId: integer("decided_by_agent_id").references(() => agents.id, {
+      onDelete: "set null",
+    }),
+    decisionReason: text("decision_reason"),
+    requestedAt: timestamptz("requested_at").notNull().defaultNow(),
+    decidedAt: timestamptz("decided_at"),
+    createdAt: timestamptz("created_at").notNull().defaultNow(),
+    updatedAt: timestamptz("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("uq_team_join_requests_pending_agent")
+      .on(table.agentId)
+      .where(sql`${table.status} = 'pending'`),
+    index("idx_team_join_requests_team_status").on(table.teamId, table.status),
+    index("idx_team_join_requests_agent_created").on(table.agentId, table.createdAt),
+  ],
+);
+
+// Business timeline for onboarding attribution and decisions. Unlike the
+// general audit log, this table also records invitation events before an agent
+// account exists and can be queried as one onboarding history later.
+export const onboardingEvents = portal.table(
+  "onboarding_events",
+  {
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    eventType: text("event_type").notNull(),
+    agentId: integer("agent_id").references(() => agents.id, { onDelete: "set null" }),
+    actorAgentId: integer("actor_agent_id").references(() => agents.id, {
+      onDelete: "set null",
+    }),
+    actorEmail: text("actor_email"),
+    invitationId: integer("invitation_id").references(() => onboardingInvitations.id, {
+      onDelete: "set null",
+    }),
+    teamJoinRequestId: integer("team_join_request_id").references(
+      () => teamJoinRequests.id,
+      { onDelete: "set null" },
+    ),
+    teamId: integer("team_id").references(() => teams.id, { onDelete: "set null" }),
+    detail: jsonb("detail").$type<Record<string, unknown>>(),
+    createdAt: timestamptz("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("idx_onboarding_events_agent_created").on(table.agentId, table.createdAt),
+    index("idx_onboarding_events_invitation_created").on(table.invitationId, table.createdAt),
+    index("idx_onboarding_events_team_created").on(table.teamId, table.createdAt),
   ],
 );
 
@@ -962,6 +1052,9 @@ export type Team = typeof teams.$inferSelect;
 export type NewTeam = typeof teams.$inferInsert;
 export type TeamCompensationConfig = typeof teamCompensationConfigs.$inferSelect;
 export type OnboardingInvitation = typeof onboardingInvitations.$inferSelect;
+export type TeamJoinRequest = typeof teamJoinRequests.$inferSelect;
+export type OnboardingEvent = typeof onboardingEvents.$inferSelect;
+export type NewOnboardingEvent = typeof onboardingEvents.$inferInsert;
 export type Agent = typeof agents.$inferSelect;
 export type NewAgent = typeof agents.$inferInsert;
 export type RentalDeal = typeof rentalDeals.$inferSelect;

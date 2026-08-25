@@ -2,7 +2,13 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { agents, onboardingInvitations, teamCompensationConfigs, teams } from "@/db/schema";
+import {
+  agents,
+  onboardingInvitations,
+  teamCompensationConfigs,
+  teamJoinRequests,
+  teams,
+} from "@/db/schema";
 import { requireActiveAgent } from "@/lib/auth-guards";
 import {
   recruitingInvitationState,
@@ -36,7 +42,7 @@ export default async function TeamWorkspacePage({
   const selectedTeam = availableTeams.find((team) => team.id === requestedId) || availableTeams[0];
   const today = new Date().toISOString().slice(0, 10);
 
-  const [memberRows, configRows, invitationRows] = await Promise.all([
+  const [memberRows, configRows, invitationRows, joinRequestRows] = await Promise.all([
     db.select().from(agents).where(eq(agents.teamId, selectedTeam.id)).orderBy(agents.name),
     db
       .select()
@@ -51,6 +57,17 @@ export default async function TeamWorkspacePage({
         eq(onboardingInvitations.kind, "team_recruiting"),
       ))
       .orderBy(desc(onboardingInvitations.createdAt))
+      .limit(60),
+    db
+      .select({
+        request: teamJoinRequests,
+        candidateName: agents.name,
+        candidateEmail: agents.email,
+      })
+      .from(teamJoinRequests)
+      .innerJoin(agents, eq(agents.id, teamJoinRequests.agentId))
+      .where(eq(teamJoinRequests.teamId, selectedTeam.id))
+      .orderBy(desc(teamJoinRequests.createdAt))
       .limit(60),
   ]);
 
@@ -70,6 +87,7 @@ export default async function TeamWorkspacePage({
   const relatedAgentIds = new Set<number>([
     ...(selectedTeam.leaderAgentId ? [selectedTeam.leaderAgentId] : []),
     ...invitationRows.flatMap((invite) => invite.sponsorAgentId ? [invite.sponsorAgentId] : []),
+    ...joinRequestRows.flatMap(({ request }) => request.sponsorAgentId ? [request.sponsorAgentId] : []),
     ...allRelevantAgents.flatMap((agent) => agent.referredByAgentId ? [agent.referredByAgentId] : []),
   ]);
   const relatedAgents = relatedAgentIds.size
@@ -118,13 +136,31 @@ export default async function TeamWorkspacePage({
       : null,
     counts: {
       active: memberRows.filter((agent) => agent.accountStatus === "active").length,
-      pending: [...candidateById.values()].filter((agent) => agent.accountStatus === "pending").length,
+      pending:
+        [...candidateById.values()].filter((agent) => agent.accountStatus === "pending").length +
+        joinRequestRows.filter(({ request }) => request.status === "pending").length,
       inactive: memberRows.filter((agent) => agent.accountStatus === "inactive").length,
     },
     currentConfig: currentConfig ? configs.find((config) => config.id === currentConfig.id) || null : null,
     scheduledConfig: scheduledConfig ? configs.find((config) => config.id === scheduledConfig.id) || null : null,
     configs,
     sponsorCandidates: [...sponsorCandidates].map(([id, name]) => ({ id, name })),
+    joinRequests: joinRequestRows.map(({ request, candidateName, candidateEmail }) => ({
+      id: request.id,
+      agentId: request.agentId,
+      name: candidateName,
+      email: candidateEmail,
+      sponsorName: request.sponsorAgentId
+        ? nameByAgentId.get(request.sponsorAgentId) || null
+        : null,
+      status: request.status,
+      requestedAt: request.requestedAt,
+      decidedAt: request.decidedAt,
+      decisionReason: request.decisionReason,
+      acceptedConfigVersion: request.acceptedConfigId
+        ? configById.get(request.acceptedConfigId)?.version || null
+        : null,
+    })),
     members: memberRows.map((member) => ({
       id: member.id,
       name: member.name,

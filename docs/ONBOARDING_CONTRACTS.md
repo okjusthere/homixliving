@@ -4,6 +4,21 @@
 payment smoke tests pass. A missing contract or template pin must not block the
 existing approval flow during preparation.
 
+## Team consent implemented in Portal
+
+Team recruiting links and administrator invitations with a locked Team are
+pre-approved routes. A direct applicant or a personally referred applicant who
+selects a Team creates a `team_join_request` instead. The Team Leader must accept
+that request before Portal binds the Team, freezes the current compensation
+version, or permits eSign preparation. Declining returns the applicant to plan
+selection and never changes Sponsor attribution.
+
+The Portal decision is an operational approval record, not a substitute for a
+legal Team Addendum. The current eSign policy intentionally still has one agent
+signer and an optional company countersigner. If counsel requires the Team Leader
+to sign a separate Team Addendum, provide that approved PDF and recipient-role
+specification before adding a Team Leader signer to the production template.
+
 ## What the business must provide
 
 Provide a final, broker/counsel-approved PDF for every legal entity that hires or
@@ -82,6 +97,10 @@ activation. Do not hide materially different terms with conditional merge values
 6. Run synthetic online-payment and administrator-verified offline-payment tests.
 7. Review evidence, receipts, sponsor rewards, team split, and final activation.
 8. Keep `ONBOARDING_V2_ENFORCED=0` until the business explicitly approves cutover.
+
+Deploy the additive `20260825-team-join-approval.sql` migration before deploying
+code that reads team applications. Do not enable the enforcement flag as part of
+that migration or deployment.
 
 Any PDF edit creates a new template version and schema hash. Review and repin it;
 never silently replace a published agreement under an existing pin.

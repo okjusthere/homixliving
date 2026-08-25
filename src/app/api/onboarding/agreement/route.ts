@@ -2,7 +2,13 @@ import { NextResponse } from "next/server";
 import { and, eq, isNull } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { agents, teamCompensationConfigs, teams } from "@/db/schema";
+import {
+  agents,
+  onboardingInvitations,
+  teamCompensationConfigs,
+  teamJoinRequests,
+  teams,
+} from "@/db/schema";
 import {
   createESignEnvelope,
   findOrCreateESignTransaction,
@@ -18,6 +24,7 @@ import {
   OnboardingESignTemplateError,
   validateOnboardingESignTemplate,
 } from "@/lib/onboarding-esign-policy";
+import { hasPreapprovedTeamRouting } from "@/lib/team-join-requests";
 
 const PREPARATION_STALE_MS = 5 * 60_000;
 
@@ -40,6 +47,35 @@ async function claimAgreementPreparation(agentId: number) {
     }
     if (!fresh.onboardingCompletedAt) {
       throw new AgreementPreparationConflict("Complete the onboarding profile first.");
+    }
+    if (fresh.plan === "team_member") {
+      if (!fresh.teamId || !fresh.teamTermsConfigId) {
+        throw new AgreementPreparationConflict(
+          "Team Leader approval is required before preparing the agreement.",
+        );
+      }
+      const [acceptedRequest] = await tx
+        .select({ id: teamJoinRequests.id })
+        .from(teamJoinRequests)
+        .where(and(
+          eq(teamJoinRequests.agentId, fresh.id),
+          eq(teamJoinRequests.teamId, fresh.teamId),
+          eq(teamJoinRequests.acceptedConfigId, fresh.teamTermsConfigId),
+          eq(teamJoinRequests.status, "accepted"),
+        ))
+        .limit(1);
+      const [invitation] = fresh.onboardingInviteId
+        ? await tx
+            .select()
+            .from(onboardingInvitations)
+            .where(eq(onboardingInvitations.id, fresh.onboardingInviteId))
+            .limit(1)
+        : [];
+      if (!acceptedRequest && !hasPreapprovedTeamRouting(invitation, fresh.teamId)) {
+        throw new AgreementPreparationConflict(
+          "Team Leader approval is required before preparing the agreement.",
+        );
+      }
     }
 
     if (fresh.agreementStatus === "preparing" && !fresh.esignEnvelopeId) {

@@ -167,14 +167,16 @@ Team Leader 只能看到完成招聘所需的业务状态，不得看到 W-9、A
 4. 系统绑定邀请，并分别保存 Sponsor 和 Team 路由。
 5. 新人填写法定姓名、电话、执照、所属公司、业务方向等资料。
 6. 系统显示佣金计划、公司 Split、Team Split、Cap、Sponsor Reward 规则、年费和期限。
-7. Team Member 明确接受当前 Team Compensation Config。
-8. Portal 调用生产 eSign，生成对应法律实体及计划的协议。
-9. 新人完成电子签名及必要的公司 countersignature。
-10. 新人在线支付年费，或管理员确认已经实际收到线下付款。
-11. 系统生成统一订单、付款记录和 Sponsor Reward 记录。
-12. 管理员完成执照与合规终审。
-13. 账户变为 Active，立即进入 Portal。
-14. 官网主页、Team、Sponsor 和佣金计划同步生效。
+7. Team 招聘链接或管理员锁定团队的邀请视为 Team Leader 已预先同意；个人推荐或自行注册申请团队时，先进入 `team_review`。
+8. Team Leader 接受申请后，系统绑定 Team，并锁定接受当日有效的 Team Compensation Config；拒绝则返回计划选择，Sponsor 不变。
+9. Team Member 明确接受已锁定的 Team Compensation Config。
+10. Portal 调用生产 eSign，生成对应法律实体及计划的协议。
+11. 新人完成电子签名及必要的公司 countersignature。
+12. 新人在线支付年费，或管理员确认已经实际收到线下付款。
+13. 系统生成统一订单、付款记录和 Sponsor Reward 记录。
+14. 管理员完成执照与合规终审。
+15. 账户变为 Active，立即进入 Portal。
+16. 官网主页、Team、Sponsor 和佣金计划同步生效。
 
 ## 6. Sponsor 与 Team 冲突处理
 
@@ -232,6 +234,10 @@ Team Leader 只能看到完成招聘所需的业务状态，不得看到 W-9、A
 - Team Leader 接受团队申请的时间与操作者
 - Sponsor 或 Team 路由变更原因
 - 招聘阶段事件或统一 onboarding event log
+
+已落地：`team_join_requests` 保留申请及决定历史，`onboarding_events`
+统一记录邀请创建/撤销、团队申请/替换/取消/接受/拒绝和资料完成事件。
+通用 `audit_log` 继续记录 Team Leader 或管理员执行的业务操作。
 
 不把敏感付款信息复制到邀请表。
 

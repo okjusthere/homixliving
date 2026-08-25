@@ -9,6 +9,7 @@ const base = {
 };
 
 assert.equal(teamRecruitingStage(base), "profile");
+assert.equal(teamRecruitingStage({ ...base, onboardingStage: "team_review" }), "team_review");
 assert.equal(teamRecruitingStage({ ...base, onboardingStage: "agreement", agreementStatus: "sent" }), "agreement");
 assert.equal(teamRecruitingStage({ ...base, onboardingStage: "payment", agreementStatus: "completed" }), "payment");
 assert.equal(teamRecruitingStage({ ...base, onboardingStage: "review", agreementStatus: "completed", paymentStatus: "paid" }), "review");

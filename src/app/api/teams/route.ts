@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { agents, dealAgents, deals, teamCompensationConfigs, teams } from "@/db/schema";
+import {
+  agents,
+  dealAgents,
+  deals,
+  teamCompensationConfigs,
+  teamJoinRequests,
+  teams,
+} from "@/db/schema";
 import { and, desc, eq, lte, ne } from "drizzle-orm";
 import {
   activeDeal,
@@ -17,6 +24,7 @@ import {
   isTeamSourcedSplitPreset,
   isTeamSplitPreset,
 } from "@/lib/team-compensation-policy";
+import { teamDeletionBlocker } from "@/lib/team-join-requests";
 
 function parseId(value: unknown) {
   const parsed = parseInt(String(value), 10);
@@ -274,7 +282,16 @@ export async function DELETE(req: NextRequest) {
         .from(agents)
         .where(eq(agents.teamId, parsedId))
         .limit(1);
-      if (member) return "has_members" as const;
+      const [application] = await tx
+        .select({ id: teamJoinRequests.id })
+        .from(teamJoinRequests)
+        .where(eq(teamJoinRequests.teamId, parsedId))
+        .limit(1);
+      const blocker = teamDeletionBlocker({
+        hasMembers: Boolean(member),
+        hasApplications: Boolean(application),
+      });
+      if (blocker) return blocker;
       await tx.delete(teams).where(eq(teams.id, parsedId));
       if (team?.leaderAgentId) {
         await tx.update(agents).set({
@@ -289,6 +306,12 @@ export async function DELETE(req: NextRequest) {
     if (deleted === "has_members") {
       return NextResponse.json(
         { error: "Move every team member to another plan or team before deleting this team." },
+        { status: 409 },
+      );
+    }
+    if (deleted === "has_applications") {
+      return NextResponse.json(
+        { error: "Resolve or move every team application before deleting this team." },
         { status: 409 },
       );
     }

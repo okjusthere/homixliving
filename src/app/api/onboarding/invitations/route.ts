@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { and, desc, eq, inArray, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/db";
-import { agents, onboardingInvitations, teamCompensationConfigs, teams } from "@/db/schema";
+import {
+  agents,
+  onboardingEvents,
+  onboardingInvitations,
+  teamCompensationConfigs,
+  teams,
+} from "@/db/schema";
 import { requireActiveAgentApi } from "@/lib/auth-guards";
+import { logAudit } from "@/lib/audit";
 import { normalizeAgentPlan, type AgentPlan } from "@/lib/agent-plans";
 import {
   cleanOnboardingSource,
@@ -14,6 +21,7 @@ import {
   type InvitationKind,
 } from "@/lib/onboarding-routing";
 import { canAssignInvitationSponsor } from "@/lib/onboarding-invitation-policy";
+import { onboardingEventValues } from "@/lib/onboarding-events";
 
 const INVITE_PLANS = new Set<AgentPlan>(["solo", "solo_pro", "team_member", "holding"]);
 
@@ -192,24 +200,51 @@ export async function POST(request: NextRequest) {
       }
     : defaults;
   const token = createInviteToken();
-  const [invite] = await db.insert(onboardingInvitations).values({
-    tokenHash: hashInviteToken(token),
-    email,
-    kind,
-    source: cleanOnboardingSource(body.source),
-    teamId: kind === "personal_referral" ? null : requestedTeamId,
-    teamCompensationConfigId: teamCompensationConfig?.id || null,
-    sponsorAgentId,
-    plan,
-    affiliationTermMonths: Number(body.affiliationTermMonths) === 24 ? 24 : 12,
-    lockPlan: locks.plan,
-    lockTeam: locks.team,
-    lockSponsor: locks.sponsor,
-    lockTerm: locks.term,
-    expiresAt: new Date(Date.now() + days * 86_400_000).toISOString(),
-    maxUses,
-    createdByAgentId: authority.agentId,
-  }).returning();
+  const source = cleanOnboardingSource(body.source);
+  const [invite] = await db.transaction(async (tx) => {
+    const created = await tx.insert(onboardingInvitations).values({
+      tokenHash: hashInviteToken(token),
+      email,
+      kind,
+      source,
+      teamId: kind === "personal_referral" ? null : requestedTeamId,
+      teamCompensationConfigId: teamCompensationConfig?.id || null,
+      sponsorAgentId,
+      plan,
+      affiliationTermMonths: Number(body.affiliationTermMonths) === 24 ? 24 : 12,
+      lockPlan: locks.plan,
+      lockTeam: locks.team,
+      lockSponsor: locks.sponsor,
+      lockTerm: locks.term,
+      expiresAt: new Date(Date.now() + days * 86_400_000).toISOString(),
+      maxUses,
+      createdByAgentId: authority.agentId,
+    }).returning();
+    await tx.insert(onboardingEvents).values(onboardingEventValues({
+      eventType: "invitation_created",
+      session: authority.session,
+      invitationId: created[0].id,
+      teamId: kind === "personal_referral" ? null : requestedTeamId,
+      detail: {
+        kind,
+        source,
+        email,
+        sponsorAgentId,
+        plan,
+        teamCompensationConfigId: teamCompensationConfig?.id || null,
+        maxUses,
+      },
+    }));
+    return created;
+  });
+  await logAudit(
+    authority.session,
+    "create",
+    "onboarding_invitation",
+    invite.id,
+    `Created ${kind} onboarding invitation`,
+    { email, teamId: invite.teamId, sponsorAgentId, plan, source, maxUses },
+  );
   return NextResponse.json({
     invite,
     url: `${baseUrl(request)}/join/${token}`,
@@ -235,9 +270,33 @@ export async function DELETE(request: NextRequest) {
             )]
           : []),
       );
-  const [revoked] = await db.update(onboardingInvitations).set({
-    revokedAt: new Date().toISOString(),
-  }).where(and(eq(onboardingInvitations.id, id), ownership)).returning({ id: onboardingInvitations.id });
+  const [revoked] = await db.transaction(async (tx) => {
+    const rows = await tx.update(onboardingInvitations).set({
+      revokedAt: new Date().toISOString(),
+    }).where(and(eq(onboardingInvitations.id, id), ownership)).returning({
+      id: onboardingInvitations.id,
+      teamId: onboardingInvitations.teamId,
+      kind: onboardingInvitations.kind,
+    });
+    if (rows[0]) {
+      await tx.insert(onboardingEvents).values(onboardingEventValues({
+        eventType: "invitation_revoked",
+        session: authority.session,
+        invitationId: rows[0].id,
+        teamId: rows[0].teamId,
+        detail: { kind: rows[0].kind },
+      }));
+    }
+    return rows;
+  });
   if (!revoked) return NextResponse.json({ error: "Invitation not found" }, { status: 404 });
+  await logAudit(
+    authority.session,
+    "revoke",
+    "onboarding_invitation",
+    revoked.id,
+    `Revoked ${revoked.kind} onboarding invitation`,
+    { teamId: revoked.teamId },
+  );
   return NextResponse.json({ success: true });
 }
