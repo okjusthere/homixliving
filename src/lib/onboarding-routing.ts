@@ -7,6 +7,7 @@ export type RoutingLocks = {
   team: boolean;
   sponsor: boolean;
   term: boolean;
+  company: boolean;
 };
 
 export type InvitationRouting = {
@@ -18,6 +19,8 @@ export type InvitationRouting = {
   lockTeam: boolean;
   lockSponsor: boolean;
   lockTerm: boolean;
+  companyId?: "homix_realty" | "homix_living" | null;
+  lockCompany?: boolean;
 };
 
 export type RequestedRouting = {
@@ -33,6 +36,7 @@ export function invitationLocks(invitation?: InvitationRouting | null): RoutingL
     team: Boolean(invitation?.lockTeam),
     sponsor: Boolean(invitation?.lockSponsor),
     term: Boolean(invitation?.lockTerm),
+    company: Boolean(invitation?.lockCompany),
   };
 }
 
@@ -57,18 +61,25 @@ export function applyInvitationRouting(
 
 export function defaultInvitationLocks(
   kind: InvitationKind,
-  fields?: { teamId?: number | null; sponsorAgentId?: number | null },
+  fields?: {
+    teamId?: number | null;
+    sponsorAgentId?: number | null;
+    companyId?: "homix_realty" | "homix_living" | null;
+  },
 ): RoutingLocks {
   if (kind === "personal_referral") {
-    return { plan: false, team: false, sponsor: true, term: false };
+    return { plan: false, team: false, sponsor: true, term: false, company: false };
   }
   if (kind === "team_recruiting") {
-    return { plan: true, team: true, sponsor: true, term: true };
+    return { plan: true, team: true, sponsor: true, term: true, company: true };
   }
   return {
     plan: true,
     team: Boolean(fields?.teamId),
-    sponsor: Boolean(fields?.sponsorAgentId),
+    // An admin choosing "No Sponsor" is an explicit attribution decision.
+    // Keep it locked so the recruit cannot create a referral reward later.
+    sponsor: true,
     term: true,
+    company: Boolean(fields?.companyId),
   };
 }

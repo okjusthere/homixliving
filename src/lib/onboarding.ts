@@ -10,7 +10,7 @@ export function soloProUpgradeCreditCents(input: {
   priorPaidAt: string | null;
   now?: Date;
 }) {
-  if (!['solo', 'holding', 'legacy_growth'].includes(input.currentPlan)) return 0;
+  if (!['solo', 'legacy_growth'].includes(input.currentPlan)) return 0;
   if (!['one_year_membership', 'two_year_membership'].includes(input.priorProductKey)) return 0;
   if (!input.priorPaidAt) return 0;
   const paidAt = new Date(input.priorPaidAt);

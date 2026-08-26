@@ -6,7 +6,11 @@ type ESignRole = {
 
 export type ESignTemplateField = {
   id: string;
+  fieldKey?: string;
+  page: number;
   type: string;
+  roleId: string | null;
+  label: string;
   readOnly: boolean;
   required: boolean;
   mergeKey?: string;
@@ -18,6 +22,7 @@ export type ESignTemplateVersion = {
   businessDomain: "HR" | "REAL_ESTATE";
   jurisdiction: string;
   approvalRequired: boolean;
+  documents: Array<{ id: string; pageCount: number }>;
   roles: ESignRole[];
   fields: ESignTemplateField[];
   schemaHash?: string;
@@ -68,15 +73,86 @@ export type ESignRecipientInput = {
 
 type ApiResult<T> = { data: T };
 
-function config() {
+export type OnboardingESignEntityKey = "homix_realty" | "homix_living";
+
+type OnboardingESignEntity = {
+  key: OnboardingESignEntityKey;
+  legalName: string;
+  envPrefix: "ESIGN_ONBOARDING_HOMIX_REALTY" | "ESIGN_ONBOARDING_HOMIX_LIVING";
+  aliases: readonly string[];
+};
+
+const ONBOARDING_ESIGN_ENTITIES: readonly OnboardingESignEntity[] = [
+  {
+    key: "homix_realty",
+    legalName: "Homix Realty Inc.",
+    envPrefix: "ESIGN_ONBOARDING_HOMIX_REALTY",
+    aliases: ["homix realty", "homix realty inc", "homix realty incorporated"],
+  },
+  {
+    key: "homix_living",
+    legalName: "Homix Living Inc.",
+    envPrefix: "ESIGN_ONBOARDING_HOMIX_LIVING",
+    aliases: ["homix living", "homix living inc", "homix living incorporated"],
+  },
+] as const;
+
+function normalizeLegalEntity(value: string | null | undefined) {
+  return (value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+export function resolveOnboardingESignEntity(
+  licensedCompany: string | null | undefined,
+) {
+  const normalized = normalizeLegalEntity(licensedCompany);
+  return ONBOARDING_ESIGN_ENTITIES.find((entity) => entity.aliases.includes(normalized)) || null;
+}
+
+function apiConfig() {
   return {
     baseUrl: process.env.ESIGN_API_URL?.trim().replace(/\/+$/, "") || "",
     applicationKey: process.env.ESIGN_APPLICATION_KEY?.trim() || "",
-    templateId: process.env.ESIGN_ONBOARDING_TEMPLATE_ID?.trim() || "",
-    templateVersionId: process.env.ESIGN_ONBOARDING_TEMPLATE_VERSION_ID?.trim() || "",
-    templateSchemaHash: process.env.ESIGN_ONBOARDING_TEMPLATE_SCHEMA_HASH?.trim() || "",
-    countersignerName: process.env.ESIGN_ONBOARDING_COUNTERSIGNER_NAME?.trim() || "",
-    countersignerEmail: process.env.ESIGN_ONBOARDING_COUNTERSIGNER_EMAIL?.trim() || "",
+  };
+}
+
+export function onboardingESignTemplateConfiguration(
+  licensedCompany: string | null | undefined,
+) {
+  const entity = resolveOnboardingESignEntity(licensedCompany);
+  if (!entity) return null;
+  const read = (suffix: string) => process.env[`${entity.envPrefix}_${suffix}`]?.trim() || "";
+  return {
+    entityKey: entity.key,
+    legalEntityName: entity.legalName,
+    templateId: read("TEMPLATE_ID"),
+    templateVersionId: read("TEMPLATE_VERSION_ID"),
+    templateSchemaHash: read("TEMPLATE_SCHEMA_HASH"),
+    countersignerName: read("COUNTERSIGNER_NAME"),
+    countersignerEmail: read("COUNTERSIGNER_EMAIL"),
+  };
+}
+
+export function teamLeaderESignTemplateConfiguration(
+  licensedCompany: string | null | undefined,
+) {
+  const entity = resolveOnboardingESignEntity(licensedCompany);
+  if (!entity) return null;
+  const prefix = entity.key === "homix_realty"
+    ? "ESIGN_TEAM_LEADER_HOMIX_REALTY"
+    : "ESIGN_TEAM_LEADER_HOMIX_LIVING";
+  const read = (suffix: string) => process.env[`${prefix}_${suffix}`]?.trim() || "";
+  return {
+    entityKey: entity.key,
+    legalEntityName: entity.legalName,
+    templateId: read("TEMPLATE_ID"),
+    templateVersionId: read("TEMPLATE_VERSION_ID"),
+    templateSchemaHash: read("TEMPLATE_SCHEMA_HASH"),
+    countersignerName: read("COUNTERSIGNER_NAME"),
+    countersignerEmail: read("COUNTERSIGNER_EMAIL"),
   };
 }
 
@@ -87,38 +163,42 @@ class ESignApiError extends Error {
   }
 }
 
-export function isOnboardingESignConfigured() {
-  const value = config();
+export function isOnboardingESignConfigured(
+  licensedCompany: string | null | undefined,
+) {
+  const api = apiConfig();
+  const value = onboardingESignTemplateConfiguration(licensedCompany);
   return Boolean(
-    value.baseUrl &&
-      value.applicationKey &&
+    value &&
+      api.baseUrl &&
+      api.applicationKey &&
       value.templateId &&
       value.templateVersionId &&
-      value.templateSchemaHash,
+      value.templateSchemaHash &&
+      value.countersignerName &&
+      value.countersignerEmail,
   );
 }
 
-export function onboardingESignTemplateId() {
-  return config().templateId;
-}
-
-export function onboardingESignTemplatePin() {
-  const value = config();
-  return {
-    versionId: value.templateVersionId,
-    schemaHash: value.templateSchemaHash,
-  };
-}
-
-export function onboardingESignCountersigner() {
-  const value = config();
-  return value.countersignerName && value.countersignerEmail
-    ? { name: value.countersignerName, email: value.countersignerEmail }
-    : null;
+export function isTeamLeaderESignConfigured(
+  licensedCompany: string | null | undefined,
+) {
+  const api = apiConfig();
+  const value = teamLeaderESignTemplateConfiguration(licensedCompany);
+  return Boolean(
+    value &&
+      api.baseUrl &&
+      api.applicationKey &&
+      value.templateId &&
+      value.templateVersionId &&
+      value.templateSchemaHash &&
+      value.countersignerName &&
+      value.countersignerEmail,
+  );
 }
 
 async function esignRequest<T>(path: string, init?: RequestInit): Promise<T> {
-  const value = config();
+  const value = apiConfig();
   if (!value.baseUrl || !value.applicationKey) {
     throw new Error("eSign onboarding is not configured.");
   }
@@ -195,24 +275,29 @@ export async function findOrCreateESignTransaction(input: {
 export function createESignEnvelope(input: {
   transactionId: string;
   templateId: string;
+  legalEntityName: string;
   agentId: number;
   recipients: ESignRecipientInput[];
   mergeData: Record<string, string | number | boolean>;
   expectedTemplateVersionId: string;
   expectedTemplateSchemaHash: string;
+  externalReference?: string;
+  subject?: string;
+  message?: string;
 }) {
   const expiresAt = new Date(Date.now() + 14 * 86_400_000).toISOString();
+  const externalReference = input.externalReference || `homix-onboarding-agent-${input.agentId}`;
   return esignRequest<ESignEnvelope>("/v1/envelopes", {
     method: "POST",
-    headers: { "idempotency-key": `homix-onboarding-agent-${input.agentId}` },
+    headers: { "idempotency-key": externalReference },
     body: JSON.stringify({
       templateId: input.templateId,
       expectedTemplateVersionId: input.expectedTemplateVersionId,
       expectedTemplateSchemaHash: input.expectedTemplateSchemaHash,
       transactionId: input.transactionId,
-      externalReference: `homix-onboarding-agent-${input.agentId}`,
-      subject: "Homix agent affiliation agreement",
-      message: "Please review and sign your Homix affiliation agreement.",
+      externalReference,
+      subject: input.subject || `${input.legalEntityName} agent affiliation agreement`,
+      message: input.message || `Please review and sign your ${input.legalEntityName} affiliation agreement.`,
       expiresAt,
       recipients: input.recipients,
       mergeData: input.mergeData,
@@ -220,12 +305,12 @@ export function createESignEnvelope(input: {
   });
 }
 
-export function sendESignEnvelope(envelopeId: string, agentId: number) {
+export function sendESignEnvelope(envelopeId: string, agentId: number, idempotencyKey?: string) {
   return esignRequest<{ envelope: ESignEnvelope; replayed: boolean }>(
     `/v1/envelopes/${encodeURIComponent(envelopeId)}/send`,
     {
       method: "POST",
-      headers: { "idempotency-key": `homix-onboarding-send-agent-${agentId}` },
+      headers: { "idempotency-key": idempotencyKey || `homix-onboarding-send-agent-${agentId}` },
       body: "{}",
     },
   );

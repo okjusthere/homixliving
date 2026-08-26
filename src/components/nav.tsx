@@ -45,23 +45,24 @@ const workspaceGroups = [
   {
     key: "transactionSupport",
     items: [
-      { href: "/market", key: "market", icon: LineChart },
-      { href: "/expired-listings", key: "expiredListings", icon: History },
+      { href: "/market", key: "market", icon: LineChart, leaderOnly: false },
+      { href: "/expired-listings", key: "expiredListings", icon: History, leaderOnly: false },
     ],
   },
   {
     key: "learningGrowth",
     items: [
-      { href: "/onboarding", key: "onboarding", icon: ClipboardCheck },
-      { href: "/training", key: "training", icon: GraduationCap },
-      { href: "/buyercoach", key: "coach", icon: Bot },
+      { href: "/onboarding", key: "onboarding", icon: ClipboardCheck, leaderOnly: false },
+      { href: "/training", key: "training", icon: GraduationCap, leaderOnly: false },
+      { href: "/buyercoach", key: "coach", icon: Bot, leaderOnly: false },
     ],
   },
   {
     key: "companyPerformance",
     items: [
-      { href: "/resources", key: "resources", icon: Library },
-      { href: "/reports", key: "reports", icon: BarChart3 },
+      { href: "/resources", key: "resources", icon: Library, leaderOnly: false },
+      { href: "/reports", key: "reports", icon: BarChart3, leaderOnly: false },
+      { href: "/team-workspace", key: "teamWorkspace", icon: UsersRound, leaderOnly: true },
     ],
   },
 ] as const;
@@ -102,7 +103,7 @@ const LABELS = {
     search: "Search", signedIn: "Signed in", signOut: "Sign out", admin: "Admin", profile: "Public profile", accountProfile: "My profile",
     menu: "Menu", switchLanguage: "Switch language", userMenu: "User menu", workspace: "Workspace", market: "Market overview", expiredListings: "Expired listings",
     transactionSupport: "Transaction support", learningGrowth: "Learning & growth", companyPerformance: "Company & performance",
-    peopleManagement: "People", financeManagement: "Finance", systemManagement: "System", teamCompensation: "Team compensation", anonymousFeedback: "Anonymous feedback",
+    peopleManagement: "People", financeManagement: "Finance", systemManagement: "System", teamWorkspace: "Team workspace", anonymousFeedback: "Anonymous feedback",
   },
   zh: {
     overview: "概览", sales: "买卖", rental: "租赁", training: "培训",
@@ -111,7 +112,7 @@ const LABELS = {
     search: "搜索", signedIn: "已登录", signOut: "退出登录", admin: "管理员", profile: "个人主页", accountProfile: "我的档案",
     menu: "菜单", switchLanguage: "切换语言", userMenu: "用户菜单", workspace: "工作台", market: "市场概览", expiredListings: "已过期房源",
     transactionSupport: "交易支持", learningGrowth: "学习成长", companyPerformance: "公司与业绩",
-    peopleManagement: "人员管理", financeManagement: "财务管理", systemManagement: "系统管理", teamCompensation: "团队分佣", anonymousFeedback: "匿名建议",
+    peopleManagement: "人员管理", financeManagement: "财务管理", systemManagement: "系统管理", teamWorkspace: "团队工作台", anonymousFeedback: "匿名建议",
   },
 } as const;
 
@@ -179,10 +180,11 @@ export function Nav() {
   };
 
   const isAdmin = session?.user?.isAdmin || false;
+  const mayUseTeamWorkspace = isAdmin || Boolean(session?.user?.isTeamLeader);
   const primaryItems = navItems.filter((item) => !item.adminOnly);
   const adminItems = navItems.filter((item) => item.adminOnly);
   const toolsSectionActive = workspaceGroups.some((group) =>
-    group.items.some((item) => isActive(item.href)),
+    group.items.some((item) => (!item.leaderOnly || mayUseTeamWorkspace) && isActive(item.href)),
   );
   const adminSectionActive = adminItems.some((item) => isActive(item.href));
   const initials = getInitials(session?.user?.name, session?.user?.email);
@@ -299,7 +301,7 @@ export function Nav() {
                             {t[group.key]}
                           </p>
                           <div className="space-y-1">
-                            {group.items.map((item) => {
+                            {group.items.filter((item) => !item.leaderOnly || mayUseTeamWorkspace).map((item) => {
                               const active = isActive(item.href);
                               const ItemIcon = item.icon;
                               return (
@@ -480,15 +482,17 @@ export function Nav() {
                       >
                         {t.accountProfile}
                       </Link>
-                      <Link
-                        href="/team-compensation"
-                        prefetch={false}
-                        onClick={() => setMenuOpen(false)}
-                        className="block px-4 py-3 text-[13px] hover:bg-[#FAF7F0] transition-colors"
-                        style={{ color: tone.ink70, borderBottom: `1px solid ${tone.lineSoft}` }}
-                      >
-                        {t.teamCompensation}
-                      </Link>
+                      {mayUseTeamWorkspace && (
+                        <Link
+                          href="/team-workspace"
+                          prefetch={false}
+                          onClick={() => setMenuOpen(false)}
+                          className="block px-4 py-3 text-[13px] hover:bg-[#FAF7F0] transition-colors"
+                          style={{ color: tone.ink70, borderBottom: `1px solid ${tone.lineSoft}` }}
+                        >
+                          {t.teamWorkspace}
+                        </Link>
+                      )}
                       <Link
                         href="/feedback"
                         prefetch={false}
@@ -597,7 +601,7 @@ export function Nav() {
                           {t[group.key]}
                         </p>
                         <div className="grid grid-cols-2 gap-1">
-                          {group.items.map((item) => {
+                          {group.items.filter((item) => !item.leaderOnly || mayUseTeamWorkspace).map((item) => {
                             const active = isActive(item.href);
                             const ItemIcon = item.icon;
                             return (

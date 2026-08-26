@@ -24,6 +24,20 @@ export const AGENT_PLANS: AgentPlan[] = [
   "holding",
   "legacy_growth",
 ];
+/** Plans that may be assigned under the current compensation policy. */
+export const CURRENT_AGENT_PLANS = [
+  "solo",
+  "solo_pro",
+  "team_member",
+  "team_leader",
+] as const satisfies readonly AgentPlan[];
+
+/** Team Leader is earned through the team-application lifecycle, not self-selected. */
+export const ONBOARDING_AGENT_PLANS = [
+  "solo",
+  "solo_pro",
+  "team_member",
+] as const satisfies readonly AgentPlan[];
 export const AGENT_PRACTICES: AgentPractice[] = ["rental", "sales", "both"];
 
 /** Commission the agent keeps under each plan — the default when switching. */
@@ -32,7 +46,7 @@ export const PLAN_SPLIT_PCT: Record<AgentPlan, number> = {
   solo_pro: 100,
   team_member: 90,
   team_leader: 100,
-  holding: 100,
+  holding: 85,
   legacy_growth: 92,
 };
 
@@ -46,6 +60,9 @@ export function isAgentPractice(v: unknown): v is AgentPractice {
 
 /** Maps the three legacy values during the additive v3.1 rollout. */
 export function normalizeAgentPlan(v: unknown): AgentPlan {
+  // Holding is no longer a compensation plan. Legacy rows become Solo while
+  // non-producing remains an operational status governed by the agreement.
+  if (v === "holding") return "solo";
   if (isAgentPlan(v)) return v;
   if (v === "elite") return "solo_pro";
   if (v === "growth") return "legacy_growth";
@@ -58,7 +75,7 @@ export const PLAN_LABELS: Record<"en" | "zh", Record<AgentPlan, string>> = {
     solo_pro: "Solo Pro",
     team_member: "Team Member",
     team_leader: "Team Leader",
-    holding: "Holding / Non-Producing",
+    holding: "Legacy Holding (treated as Solo)",
     legacy_growth: "Legacy Growth",
   },
   zh: {
@@ -66,7 +83,7 @@ export const PLAN_LABELS: Record<"en" | "zh", Record<AgentPlan, string>> = {
     solo_pro: "独立经纪人 Pro",
     team_member: "团队成员",
     team_leader: "团队负责人",
-    holding: "执照挂靠 / 暂不展业",
+    holding: "原挂靠方案（按独立经纪人处理）",
     legacy_growth: "原 Growth 方案",
   },
 };

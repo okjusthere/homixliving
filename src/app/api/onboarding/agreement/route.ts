@@ -2,24 +2,30 @@ import { NextResponse } from "next/server";
 import { and, eq, isNull } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { agents, teamCompensationConfigs, teams } from "@/db/schema";
+import {
+  agents,
+  onboardingInvitations,
+  teamCompensationConfigs,
+  teamJoinRequests,
+  teams,
+} from "@/db/schema";
 import {
   createESignEnvelope,
   findOrCreateESignTransaction,
   getESignTemplate,
   isOnboardingESignConfigured,
-  onboardingESignCountersigner,
-  onboardingESignTemplateId,
-  onboardingESignTemplatePin,
+  onboardingESignTemplateConfiguration,
   sendESignEnvelope,
 } from "@/lib/esign";
 import { lockOnboardingAgent } from "@/lib/advisory-locks";
+import { normalizeAgentPlan } from "@/lib/agent-plans";
 import { onboardingPaymentProduct } from "@/lib/onboarding";
 import { syncOnboardingAgreement } from "@/lib/onboarding-agreement";
 import {
   OnboardingESignTemplateError,
   validateOnboardingESignTemplate,
 } from "@/lib/onboarding-esign-policy";
+import { hasPreapprovedTeamRouting } from "@/lib/team-join-requests";
 
 const PREPARATION_STALE_MS = 5 * 60_000;
 
@@ -42,6 +48,35 @@ async function claimAgreementPreparation(agentId: number) {
     }
     if (!fresh.onboardingCompletedAt) {
       throw new AgreementPreparationConflict("Complete the onboarding profile first.");
+    }
+    if (fresh.plan === "team_member") {
+      if (!fresh.teamId || !fresh.teamTermsConfigId) {
+        throw new AgreementPreparationConflict(
+          "Team Leader approval is required before preparing the agreement.",
+        );
+      }
+      const [acceptedRequest] = await tx
+        .select({ id: teamJoinRequests.id })
+        .from(teamJoinRequests)
+        .where(and(
+          eq(teamJoinRequests.agentId, fresh.id),
+          eq(teamJoinRequests.teamId, fresh.teamId),
+          eq(teamJoinRequests.acceptedConfigId, fresh.teamTermsConfigId),
+          eq(teamJoinRequests.status, "accepted"),
+        ))
+        .limit(1);
+      const [invitation] = fresh.onboardingInviteId
+        ? await tx
+            .select()
+            .from(onboardingInvitations)
+            .where(eq(onboardingInvitations.id, fresh.onboardingInviteId))
+            .limit(1)
+        : [];
+      if (!acceptedRequest && !hasPreapprovedTeamRouting(invitation, fresh.teamId)) {
+        throw new AgreementPreparationConflict(
+          "Team Leader approval is required before preparing the agreement.",
+        );
+      }
     }
 
     if (fresh.agreementStatus === "preparing" && !fresh.esignEnvelopeId) {
@@ -83,7 +118,7 @@ export async function GET() {
   try {
     const synced = await syncOnboardingAgreement(agent);
     return NextResponse.json({
-      configured: isOnboardingESignConfigured(),
+      configured: isOnboardingESignConfigured(agent.licensedCompany),
       agreementStatus: synced.agreementStatus,
       onboardingStage: synced.onboardingStage,
       paymentStatus: synced.paymentStatus,
@@ -92,7 +127,7 @@ export async function GET() {
   } catch (error) {
     console.error("Unable to sync onboarding agreement", error);
     return NextResponse.json({
-      configured: isOnboardingESignConfigured(),
+      configured: isOnboardingESignConfigured(agent.licensedCompany),
       agreementStatus: agent.agreementStatus,
       onboardingStage: agent.onboardingStage,
       paymentStatus: agent.paymentStatus,
@@ -105,7 +140,16 @@ export async function GET() {
 export async function POST() {
   const sessionAgent = await currentAgent();
   if (!sessionAgent) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!isOnboardingESignConfigured()) {
+  const sessionTemplateConfiguration = onboardingESignTemplateConfiguration(
+    sessionAgent.licensedCompany,
+  );
+  if (!sessionTemplateConfiguration) {
+    return NextResponse.json(
+      { error: "Select Homix Realty Inc. or Homix Living Inc. before preparing the agreement." },
+      { status: 409 },
+    );
+  }
+  if (!isOnboardingESignConfigured(sessionAgent.licensedCompany)) {
     return NextResponse.json({ error: "eSign onboarding is not configured." }, { status: 503 });
   }
   let agent;
@@ -136,16 +180,29 @@ export async function POST() {
       return NextResponse.json({ success: true, agreementStatus: agent.agreementStatus });
     }
 
-    const templateId = onboardingESignTemplateId();
-    const templatePin = onboardingESignTemplatePin();
+    const templateConfiguration = onboardingESignTemplateConfiguration(agent.licensedCompany);
+    if (!templateConfiguration) {
+      throw new OnboardingESignTemplateError(
+        "The licensed company does not have an approved onboarding agreement.",
+      );
+    }
+    const templateId = templateConfiguration.templateId;
     const template = await getESignTemplate(templateId);
+    const effectivePlan = normalizeAgentPlan(agent.plan);
     const { version, signerRole, countersignerRoles } = validateOnboardingESignTemplate({
       template,
-      expectedVersionId: templatePin.versionId,
-      expectedSchemaHash: templatePin.schemaHash,
-      includeTeamTerms: agent.plan === "team_member",
+      expectedVersionId: templateConfiguration.templateVersionId,
+      expectedSchemaHash: templateConfiguration.templateSchemaHash,
+      includeTeamTerms: effectivePlan === "team_member",
+      entityKey: templateConfiguration.entityKey,
     });
-    const countersigner = countersignerRoles.length ? onboardingESignCountersigner() : null;
+    const countersigner = templateConfiguration.countersignerName &&
+      templateConfiguration.countersignerEmail
+      ? {
+          name: templateConfiguration.countersignerName,
+          email: templateConfiguration.countersignerEmail,
+        }
+      : null;
     if (countersignerRoles.length && !countersigner) {
       throw new OnboardingESignTemplateError(
         "The company countersigner is not configured.",
@@ -164,7 +221,7 @@ export async function POST() {
           .where(eq(teamCompensationConfigs.id, agent.teamTermsConfigId))
           .limit(1)
       : [];
-    if (agent.plan === "team_member" && (!teamTerms || teamTerms.teamId !== agent.teamId)) {
+    if (effectivePlan === "team_member" && (!teamTerms || teamTerms.teamId !== agent.teamId)) {
       throw new OnboardingESignTemplateError(
         "Team compensation terms must be selected before preparing the agreement.",
       );
@@ -188,6 +245,7 @@ export async function POST() {
     const envelope = await createESignEnvelope({
       transactionId: transaction.id,
       templateId,
+      legalEntityName: templateConfiguration.legalEntityName,
       agentId: agent.id,
       recipients,
       mergeData: {
@@ -196,8 +254,8 @@ export async function POST() {
         agent_email: agent.email,
         agent_phone: agent.phone || "",
         license_number: agent.licenseNumber || "",
-        licensed_company: agent.licensedCompany || "",
-        compensation_plan: agent.plan,
+        licensed_company: templateConfiguration.legalEntityName,
+        compensation_plan: effectivePlan,
         split_pct: agent.splitPct,
         team_name: team?.name || "",
         team_split_pct: teamTerms?.defaultTeamSplitPct ?? "",

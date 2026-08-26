@@ -5,10 +5,11 @@ import {
   getESignEnvelope,
   getESignEvidence,
   isOnboardingESignConfigured,
-  onboardingESignTemplatePin,
+  onboardingESignTemplateConfiguration,
   type ESignEnvelope,
 } from "@/lib/esign";
 import { onboardingPaymentProduct } from "@/lib/onboarding";
+import { activateFormingTeamAfterMemberAgreement } from "@/lib/team-leader-agreement";
 
 export function onboardingAgreementState(status: ESignEnvelope["status"]) {
   if (status === "DRAFT" || status === "PREPARED" || status === "READY_TO_SEND") {
@@ -23,10 +24,16 @@ export function onboardingAgreementState(status: ESignEnvelope["status"]) {
 }
 
 export async function syncOnboardingAgreement(agent: typeof agents.$inferSelect) {
-  if (!agent.esignEnvelopeId || !isOnboardingESignConfigured()) return agent;
+  if (!agent.esignEnvelopeId) return agent;
+  if (!isOnboardingESignConfigured(agent.licensedCompany)) {
+    throw new Error("The licensed company does not have a configured onboarding agreement.");
+  }
+  const templateConfiguration = onboardingESignTemplateConfiguration(agent.licensedCompany);
+  if (!templateConfiguration) {
+    throw new Error("The licensed company does not have an approved onboarding agreement.");
+  }
   const envelope = await getESignEnvelope(agent.esignEnvelopeId);
-  const templatePin = onboardingESignTemplatePin();
-  if (envelope.templateVersionId !== templatePin.versionId) {
+  if (envelope.templateVersionId !== templateConfiguration.templateVersionId) {
     throw new Error("The onboarding envelope uses an unapproved template version.");
   }
   const status = onboardingAgreementState(envelope.status);
@@ -59,6 +66,13 @@ export async function syncOnboardingAgreement(agent: typeof agents.$inferSelect)
     completedAt === agent.agreementCompletedAt &&
     teamTermsAcceptedAt === agent.teamTermsAcceptedAt
   ) {
+    if (agent.plan === "team_member" && agent.agreementStatus === "completed") {
+      await activateFormingTeamAfterMemberAgreement({
+        teamId: agent.teamId,
+        memberAgentId: agent.id,
+        memberAgreementStatus: agent.agreementStatus,
+      });
+    }
     return agent;
   }
   const [updated] = await db.update(agents).set({
@@ -70,5 +84,13 @@ export async function syncOnboardingAgreement(agent: typeof agents.$inferSelect)
     teamTermsAcceptedAt: teamTermsAcceptedAt || null,
     updatedAt: new Date().toISOString(),
   }).where(eq(agents.id, agent.id)).returning();
-  return updated || agent;
+  const result = updated || agent;
+  if (result.plan === "team_member" && result.agreementStatus === "completed") {
+    await activateFormingTeamAfterMemberAgreement({
+      teamId: result.teamId,
+      memberAgentId: result.id,
+      memberAgreementStatus: result.agreementStatus,
+    });
+  }
+  return result;
 }

@@ -22,6 +22,7 @@ import {
 } from "@/lib/agent-lifecycle";
 import { hidePublicProfileForOffboarding, publishPublicProfile } from "@/lib/homixweb";
 import { dateOrNull } from "@/lib/db-time";
+import { resolveLicensedCompany } from "@/lib/licensed-companies";
 
 function numberOrNull(value: unknown) {
   if (value === undefined || value === null || value === "") return null;
@@ -50,13 +51,17 @@ function invalidLicenseExpiry(body: Record<string, unknown>): boolean {
 function cleanAdminAgentPayload(body: Record<string, unknown>) {
   const teamId = numberOrNull(body.teamId);
   const plan = normalizeAgentPlan(body.plan);
+  const company = resolveLicensedCompany(
+    stringOrNull(body.licensedCompanyId) || stringOrNull(body.licensedCompany),
+  );
   return {
     name: String(body.name || "").trim(),
     email: normalizeEmail(body.email),
     phone: stringOrNull(body.phone),
     licenseNumber: stringOrNull(body.licenseNumber),
     licenseExpiresAt: stringOrNull(body.licenseExpiresAt),
-    licensedCompany: stringOrNull(body.licensedCompany),
+    licensedCompany: company?.legalName || null,
+    licensedCompanyId: company?.id || null,
     splitPct: PLAN_SPLIT_PCT[plan] ?? DEFAULT_AGENT_SPLIT_PCT,
     teamId,
     accountStatus: normalizeAgentAccountStatus(body.accountStatus, "active"),
@@ -216,6 +221,12 @@ export async function POST(req: NextRequest) {
     if (data.teamId) {
       const team = await db.select().from(teams).where(eq(teams.id, data.teamId)).then((rows) => rows[0]);
       if (!team) return NextResponse.json({ error: "Team not found" }, { status: 404 });
+      if (!data.licensedCompanyId || team.companyId !== data.licensedCompanyId) {
+        return NextResponse.json(
+          { error: "Agent and team must belong to the same licensed company" },
+          { status: 409 },
+        );
+      }
     }
     if (data.plan === "team_member" && !data.teamId) {
       return NextResponse.json({ error: "Team Member plan requires a team" }, { status: 400 });
@@ -288,6 +299,7 @@ export async function PUT(req: NextRequest) {
 
     const restrictedFields = [
       "licensedCompany",
+      "licensedCompanyId",
       "splitPct",
       "teamId",
       "joinedAt",
@@ -311,6 +323,20 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "licenseExpiresAt must be YYYY-MM-DD" }, { status: 400 });
     }
     const cleaned = cleanAdminAgentPayload({ ...existing, ...body, email: existing.email });
+    const companyChanged = cleaned.licensedCompanyId !== existing.licensedCompanyId;
+    if (
+      isAdmin &&
+      companyChanged &&
+      (existing.accountStatus !== "pending" || existing.agreementStatus !== "not_started")
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Licensed company changes require a pending, unsigned onboarding record so the team, MLS requirement, and agreement can be revalidated.",
+        },
+        { status: 409 },
+      );
+    }
     if (isAdmin && existing.accountStatus === "pending" && existing.agreementStatus !== "not_started") {
       const signedFactsChanged =
         cleaned.name !== existing.name ||
@@ -318,6 +344,7 @@ export async function PUT(req: NextRequest) {
         cleaned.phone !== existing.phone ||
         cleaned.licenseNumber !== existing.licenseNumber ||
         cleaned.licensedCompany !== existing.licensedCompany ||
+        cleaned.licensedCompanyId !== existing.licensedCompanyId ||
         cleaned.practice !== existing.practice ||
         cleaned.teamId !== existing.teamId ||
         cleaned.referredByAgentId !== existing.referredByAgentId ||
@@ -341,6 +368,22 @@ export async function PUT(req: NextRequest) {
       }
       cleaned.planEffectiveFrom = today;
     }
+    if (isAdmin && cleaned.teamId) {
+      const [selectedTeam] = await db
+        .select({ id: teams.id, companyId: teams.companyId })
+        .from(teams)
+        .where(eq(teams.id, cleaned.teamId))
+        .limit(1);
+      if (!selectedTeam) {
+        return NextResponse.json({ error: "Team not found" }, { status: 404 });
+      }
+      if (!cleaned.licensedCompanyId || selectedTeam.companyId !== cleaned.licensedCompanyId) {
+        return NextResponse.json(
+          { error: "Agent and team must belong to the same licensed company" },
+          { status: 409 },
+        );
+      }
+    }
     const data = isAdmin
       ? {
           name: cleaned.name,
@@ -348,6 +391,7 @@ export async function PUT(req: NextRequest) {
           licenseNumber: cleaned.licenseNumber,
           licenseExpiresAt: cleaned.licenseExpiresAt,
           licensedCompany: cleaned.licensedCompany,
+          licensedCompanyId: cleaned.licensedCompanyId,
           splitPct: cleaned.splitPct,
           teamId: cleaned.teamId,
           accountStatus:

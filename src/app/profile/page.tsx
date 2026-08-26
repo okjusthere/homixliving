@@ -2,14 +2,24 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { agentPaymentProfiles, agentPayouts, agents } from "@/db/schema";
+import {
+  agentPaymentProfiles,
+  agentPayouts,
+  agents,
+  teamLeaderApplications,
+  teams,
+} from "@/db/schema";
 import { requireActiveAgent } from "@/lib/auth-guards";
 import { PageHeader } from "@/components/homix/page-kit";
 import { getLocale } from "@/lib/i18n";
 import { fetchPublicProfile } from "@/lib/homixweb";
 import { computeOnboarding } from "@/lib/onboarding-progress";
+import { normalizeAgentPlan } from "@/lib/agent-plans";
+import { resolveLicensedCompany } from "@/lib/licensed-companies";
+import { teamLeaderApplicationEligibility } from "@/lib/team-leader-applications";
 import { OnboardingProgressCard } from "@/components/homix/onboarding-progress-card";
 import { ProfileClient } from "./profile-client";
+import { TeamLeaderApplicationCard } from "./team-leader-application-card";
 
 export const metadata: Metadata = { title: "My Profile · Homix" };
 
@@ -49,6 +59,17 @@ export default async function ProfilePage() {
         .from(agentPayouts)
         .where(eq(agentPayouts.agentId, agentId))
         .orderBy(desc(agentPayouts.paidAt), desc(agentPayouts.id))
+    : [];
+  const [leaderApplication] = agentId
+    ? await db
+        .select()
+        .from(teamLeaderApplications)
+        .where(eq(teamLeaderApplications.applicantAgentId, agentId))
+        .orderBy(desc(teamLeaderApplications.createdAt))
+        .limit(1)
+    : [];
+  const [ledTeam] = agentId
+    ? await db.select({ id: teams.id }).from(teams).where(eq(teams.leaderAgentId, agentId)).limit(1)
     : [];
 
   // Strip bank digits before props cross to the client — anything passed here
@@ -122,6 +143,32 @@ export default async function ProfilePage() {
           →
         </span>
       </Link>
+      {agent && (
+        <TeamLeaderApplicationCard
+          locale={locale}
+          eligibility={teamLeaderApplicationEligibility({
+            accountStatus: agent.accountStatus,
+            agentAgreementStatus: agent.agreementStatus,
+            plan: normalizeAgentPlan(agent.plan),
+            licensedCompanySupported: Boolean(
+              resolveLicensedCompany(agent.licensedCompanyId || agent.licensedCompany),
+            ),
+            alreadyLeadsTeam: Boolean(ledTeam),
+            openApplicationStatus: leaderApplication?.status || null,
+          })}
+          application={leaderApplication ? {
+            id: leaderApplication.id,
+            proposedTeamName: leaderApplication.proposedTeamName,
+            expectedMemberCount: leaderApplication.expectedMemberCount,
+            positioning: leaderApplication.positioning,
+            proposedTeamSplitPct: leaderApplication.proposedTeamSplitPct,
+            status: leaderApplication.status,
+            agreementStatus: leaderApplication.agreementStatus,
+            decisionReason: leaderApplication.decisionReason,
+            teamId: leaderApplication.teamId,
+          } : null}
+        />
+      )}
       <ProfileClient agent={safeAgent} profile={safeProfile} payouts={payouts} />
     </div>
   );

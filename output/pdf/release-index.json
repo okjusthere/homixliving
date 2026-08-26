@@ -1,0 +1,32 @@
+{
+  "contracts": [
+    {
+      "file": "Homix_Realty_Agent_Affiliation_Agreement_v4.2-candidate.pdf",
+      "pages": 21,
+      "sha256": "f034f4e2e40e845a93a8f243cc76c38cd3f69fb25103c2047a5b7bf5293fb17a",
+      "entity": "Homix Realty Inc.",
+      "agreement": "agent"
+    },
+    {
+      "file": "Homix_Realty_Team_Leader_Agreement_v2.2-candidate.pdf",
+      "pages": 7,
+      "sha256": "b515683b19d49c7fdc0fa40174894c4afa96befba80f21a2c94519c8e6c501cd",
+      "entity": "Homix Realty Inc.",
+      "agreement": "team_leader"
+    },
+    {
+      "file": "Homix_Living_Agent_Affiliation_Agreement_v4.2-candidate.pdf",
+      "pages": 18,
+      "sha256": "a93c4d5b0389a5a9986484f2cc7ad328b82a25913250f54543975e8bfbc83818",
+      "entity": "Homix Living Inc.",
+      "agreement": "agent"
+    },
+    {
+      "file": "Homix_Living_Team_Leader_Agreement_v2.2-candidate.pdf",
+      "pages": 7,
+      "sha256": "ffd1ec992c86360ec0bdad73dae91ccd030bc9d394a73e99224f63a7098a0176",
+      "entity": "Homix Living Inc.",
+      "agreement": "team_leader"
+    }
+  ]
+}

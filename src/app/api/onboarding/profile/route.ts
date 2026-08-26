@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { and, desc, eq, lte, sql } from "drizzle-orm";
+import { and, desc, eq, lte, or, sql } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { agents, onboardingInvitations, teamCompensationConfigs, teams } from "@/db/schema";
-import { PLAN_SPLIT_PCT, type AgentPlan } from "@/lib/agent-plans";
+import {
+  agents,
+  onboardingEvents,
+  onboardingInvitations,
+  teamCompensationConfigs,
+  teamJoinRequests,
+  teams,
+} from "@/db/schema";
+import { normalizeAgentPlan, PLAN_SPLIT_PCT, type AgentPlan } from "@/lib/agent-plans";
 import { adminAgentIds, notify } from "@/lib/notify";
 import {
   findUsableInvitation,
@@ -15,8 +22,14 @@ import {
   invitationLocks,
 } from "@/lib/onboarding-routing";
 import { lockOnboardingAgent } from "@/lib/advisory-locks";
+import { LICENSED_COMPANIES, resolveLicensedCompany } from "@/lib/licensed-companies";
+import { onboardingEventValues } from "@/lib/onboarding-events";
+import {
+  canReuseAcceptedTeamRouting,
+  requiresTeamJoinApproval,
+} from "@/lib/team-join-requests";
 
-const ONBOARDING_PLANS = new Set<AgentPlan>(["solo", "solo_pro", "team_member", "holding"]);
+const ONBOARDING_PLANS = new Set<AgentPlan>(["solo", "solo_pro", "team_member"]);
 
 class OnboardingProfileConflict extends Error {}
 
@@ -57,8 +70,19 @@ export async function GET() {
   const invitation = await currentInvitation(agent);
   const locks = invitationLocks(invitation);
   const today = new Date().toISOString().slice(0, 10);
-  const [teamRows, sponsorRows, configRows] = await Promise.all([
-    db.select({ id: teams.id, name: teams.name }).from(teams).orderBy(teams.name),
+  const [teamRows, sponsorRows, configRows, latestTeamJoinRequest] = await Promise.all([
+    db
+      .select({
+        id: teams.id,
+        name: teams.name,
+        companyId: teams.companyId,
+        leaderAgentId: teams.leaderAgentId,
+      })
+      .from(teams)
+      .where(invitation?.teamId
+        ? or(eq(teams.status, "active"), eq(teams.id, invitation.teamId))
+        : eq(teams.status, "active"))
+      .orderBy(teams.name),
     db
       .select({ id: agents.id, name: agents.name })
       .from(agents)
@@ -76,17 +100,37 @@ export async function GET() {
       .from(teamCompensationConfigs)
       .where(lte(teamCompensationConfigs.effectiveFrom, today))
       .orderBy(desc(teamCompensationConfigs.effectiveFrom), desc(teamCompensationConfigs.version)),
+    db
+      .select({
+        id: teamJoinRequests.id,
+        teamId: teamJoinRequests.teamId,
+        teamName: teams.name,
+        status: teamJoinRequests.status,
+        requestedAt: teamJoinRequests.requestedAt,
+        decidedAt: teamJoinRequests.decidedAt,
+        decisionReason: teamJoinRequests.decisionReason,
+      })
+      .from(teamJoinRequests)
+      .innerJoin(teams, eq(teams.id, teamJoinRequests.teamId))
+      .where(eq(teamJoinRequests.agentId, agent.id))
+      .orderBy(desc(teamJoinRequests.createdAt))
+      .limit(1)
+      .then((rows) => rows[0] || null),
   ]);
   const currentConfigByTeam = new Map<number, (typeof configRows)[number]>();
   for (const config of configRows) {
     if (!currentConfigByTeam.has(config.teamId)) currentConfigByTeam.set(config.teamId, config);
   }
+  const activeAgentIds = new Set(sponsorRows.map((row) => row.id));
   const frozenTerms = agent.teamTermsConfigId
     ? configRows.find((config) => config.id === agent.teamTermsConfigId) || null
     : null;
+  const invitedTeamTerms = invitation?.teamCompensationConfigId
+    ? configRows.find((config) => config.id === invitation.teamCompensationConfigId) || null
+    : null;
   return NextResponse.json({
     profile: {
-      plan: agent.plan,
+      plan: normalizeAgentPlan(agent.plan),
       teamId: agent.teamId,
       referredByAgentId: agent.referredByAgentId,
       affiliationTermMonths: agent.affiliationTermMonths,
@@ -98,28 +142,45 @@ export async function GET() {
       phone: agent.phone,
       licenseNumber: agent.licenseNumber,
       licensedCompany: agent.licensedCompany,
+      licensedCompanyId: agent.licensedCompanyId,
+      companyRequirementsAcknowledged: Boolean(agent.companyRequirementsAcknowledgedAt),
       practice: agent.practice,
       teamTerms: frozenTerms,
     },
     routing: invitation ? {
-      locked: locks.plan || locks.team || locks.sponsor || locks.term,
+      locked: locks.plan || locks.team || locks.sponsor || locks.term || locks.company,
       locks,
       kind: invitation.kind,
       source: invitation.source,
-      plan: locks.plan ? invitation.plan : agent.plan,
+      plan: normalizeAgentPlan(locks.plan ? invitation.plan : agent.plan),
       teamId: locks.team ? invitation.teamId : agent.teamId,
       referredByAgentId: locks.sponsor ? invitation.sponsorAgentId : agent.referredByAgentId,
       affiliationTermMonths: locks.term
         ? invitation.affiliationTermMonths
         : agent.affiliationTermMonths,
+      licensedCompanyId: locks.company
+        ? invitation.companyId
+        : agent.licensedCompanyId,
     } : {
       locked: false,
       locks,
       kind: null,
       source: agent.onboardingSource,
     },
-    teams: teamRows.map((team) => ({ ...team, compensationConfig: currentConfigByTeam.get(team.id) || null })),
+    teams: teamRows.map((team) => ({
+      ...team,
+      requestable: Boolean(
+        team.leaderAgentId &&
+        activeAgentIds.has(team.leaderAgentId) &&
+        currentConfigByTeam.get(team.id),
+      ),
+      compensationConfig: invitation?.teamId === team.id && invitedTeamTerms
+        ? invitedTeamTerms
+        : currentConfigByTeam.get(team.id) || null,
+    })),
     sponsors: sponsorRows.filter((row) => row.id !== agent.id),
+    companies: LICENSED_COMPANIES,
+    teamJoinRequest: latestTeamJoinRequest,
   });
 }
 
@@ -163,7 +224,7 @@ export async function PUT(req: NextRequest) {
       affiliationTermMonths: requestedTerm,
     },
     invitation ? {
-      plan: invitation.plan,
+      plan: normalizeAgentPlan(invitation.plan),
       teamId: invitation.teamId,
       sponsorAgentId: invitation.sponsorAgentId,
       affiliationTermMonths: invitation.affiliationTermMonths,
@@ -173,36 +234,159 @@ export async function PUT(req: NextRequest) {
       lockTerm: invitation.lockTerm,
     } : null,
   );
-  const { plan, teamId, sponsorAgentId: referredByAgentId, affiliationTermMonths } = routing;
+  const plan = normalizeAgentPlan(routing.plan);
+  const { teamId, sponsorAgentId: referredByAgentId, affiliationTermMonths } = routing;
   if (plan === "team_member" && !Number.isInteger(teamId)) {
     return NextResponse.json({ error: "Team members must select a team" }, { status: 400 });
   }
-  if (teamId) {
-    const [team] = await db.select({ id: teams.id }).from(teams).where(eq(teams.id, teamId)).limit(1);
-    if (!team) return NextResponse.json({ error: "Team not found" }, { status: 404 });
+  const requestedCompany = resolveLicensedCompany(
+    cleanText(body.licensedCompanyId, 40) || cleanText(body.licensedCompany, 120) || agent.licensedCompanyId || agent.licensedCompany,
+  );
+  const licensedCompanyId = invitation?.lockCompany
+    ? invitation.companyId
+    : requestedCompany?.id || null;
+  const licensedEntity = resolveLicensedCompany(licensedCompanyId);
+  if (!licensedEntity) {
+    return NextResponse.json(
+      { error: "Select Homix Realty Inc. or Homix Living Inc." },
+      { status: 400 },
+    );
   }
-  if (referredByAgentId === agent.id) {
+  if (invitation?.lockCompany && requestedCompany && requestedCompany.id !== licensedCompanyId) {
+    return NextResponse.json(
+      { error: "This invitation is locked to a different licensed company." },
+      { status: 409 },
+    );
+  }
+  const acknowledgementAlreadyRecordedBeforeLock =
+    agent.licensedCompanyId === licensedCompanyId && Boolean(agent.companyRequirementsAcknowledgedAt);
+  if (body.companyRequirementsAcknowledged !== true && !acknowledgementAlreadyRecordedBeforeLock) {
+    return NextResponse.json(
+      { error: "Confirm the LIBOR/OneKey company requirement before continuing." },
+      { status: 400 },
+    );
+  }
+  const selectedTeam = teamId
+    ? await db
+        .select({
+          id: teams.id,
+          name: teams.name,
+          companyId: teams.companyId,
+          leaderAgentId: teams.leaderAgentId,
+          status: teams.status,
+        })
+        .from(teams)
+        .where(eq(teams.id, teamId))
+        .limit(1)
+        .then((rows) => rows[0] || null)
+    : null;
+  if (teamId && !selectedTeam) {
+    return NextResponse.json({ error: "Team not found" }, { status: 404 });
+  }
+  if (selectedTeam && selectedTeam.companyId !== licensedCompanyId) {
+    return NextResponse.json(
+      { error: "The selected team belongs to a different licensed company." },
+      { status: 409 },
+    );
+  }
+  const preapprovedFormingTeam = Boolean(
+    selectedTeam?.status === "forming" &&
+    invitation?.kind === "team_recruiting" &&
+    invitation.teamId === selectedTeam.id &&
+    invitation.lockTeam,
+  );
+  if (selectedTeam && selectedTeam.status !== "active" && !preapprovedFormingTeam) {
+    return NextResponse.json({ error: "The selected team is not accepting applications." }, { status: 409 });
+  }
+  const routeRequiresTeamApproval = requiresTeamJoinApproval({ plan, teamId, invitation });
+  const mayReuseAcceptedRouting = canReuseAcceptedTeamRouting({
+    requestedPlan: plan,
+    requestedTeamId: teamId,
+    currentPlan: agent.plan,
+    currentTeamId: agent.teamId,
+    currentConfigId: agent.teamTermsConfigId,
+  });
+  const acceptedTeamApproval = routeRequiresTeamApproval && mayReuseAcceptedRouting
+    ? await db
+        .select({ id: teamJoinRequests.id })
+        .from(teamJoinRequests)
+        .where(and(
+          eq(teamJoinRequests.agentId, agent.id),
+          eq(teamJoinRequests.teamId, teamId!),
+          eq(teamJoinRequests.acceptedConfigId, agent.teamTermsConfigId!),
+          eq(teamJoinRequests.status, "accepted"),
+        ))
+        .limit(1)
+        .then((rows) => rows[0] || null)
+    : null;
+  const needsTeamApproval = routeRequiresTeamApproval && !acceptedTeamApproval;
+  if (needsTeamApproval && !selectedTeam?.leaderAgentId) {
+    return NextResponse.json(
+      { error: "The selected team is not accepting applications yet." },
+      { status: 409 },
+    );
+  }
+  if (needsTeamApproval && selectedTeam?.leaderAgentId) {
+    const [activeLeader] = await db
+      .select({ id: agents.id })
+      .from(agents)
+      .where(and(
+        eq(agents.id, selectedTeam.leaderAgentId),
+        eq(agents.accountStatus, "active"),
+      ))
+      .limit(1);
+    if (!activeLeader) {
+      return NextResponse.json(
+        { error: "The selected team is not accepting applications yet." },
+        { status: 409 },
+      );
+    }
+  }
+  const profileSponsorId = acceptedTeamApproval
+    ? agent.referredByAgentId
+    : referredByAgentId;
+  if (profileSponsorId === agent.id) {
     return NextResponse.json({ error: "An agent cannot sponsor themselves" }, { status: 400 });
   }
-  if (referredByAgentId) {
+  if (profileSponsorId) {
     const [sponsor] = await db
       .select({ id: agents.id })
       .from(agents)
-      .where(eq(agents.id, referredByAgentId))
+      .where(eq(agents.id, profileSponsorId))
       .limit(1);
     if (!sponsor) return NextResponse.json({ error: "Sponsor not found" }, { status: 404 });
   }
   const legalName = cleanText(body.legalName) || agent.legalName || agent.name;
   const phone = cleanText(body.phone, 40) || agent.phone;
   const licenseNumber = cleanText(body.licenseNumber, 80) || agent.licenseNumber;
-  const licensedCompany = cleanText(body.licensedCompany, 120) || agent.licensedCompany;
+  const licensedCompany = licensedEntity.legalName;
   const practice = body.practice === "rental" || body.practice === "sales" || body.practice === "both"
     ? body.practice
     : agent.practice;
   const now = new Date().toISOString();
   const teamTermsEffectiveFrom = now.slice(0, 10);
-  const teamTermsConfig = plan === "team_member" && teamId
-    ? await db
+  let teamTermsConfig: typeof teamCompensationConfigs.$inferSelect | null = null;
+  if (plan === "team_member" && teamId) {
+    if (invitation?.teamCompensationConfigId) {
+      [teamTermsConfig] = await db
+        .select()
+        .from(teamCompensationConfigs)
+        .where(and(
+          eq(teamCompensationConfigs.id, invitation.teamCompensationConfigId),
+          eq(teamCompensationConfigs.teamId, teamId),
+        ))
+        .limit(1);
+    } else if (acceptedTeamApproval && agent.teamTermsConfigId) {
+      [teamTermsConfig] = await db
+        .select()
+        .from(teamCompensationConfigs)
+        .where(and(
+          eq(teamCompensationConfigs.id, agent.teamTermsConfigId),
+          eq(teamCompensationConfigs.teamId, teamId),
+        ))
+        .limit(1);
+    } else {
+      [teamTermsConfig] = await db
         .select()
         .from(teamCompensationConfigs)
         .where(and(
@@ -210,15 +394,20 @@ export async function PUT(req: NextRequest) {
           lte(teamCompensationConfigs.effectiveFrom, teamTermsEffectiveFrom),
         ))
         .orderBy(desc(teamCompensationConfigs.effectiveFrom), desc(teamCompensationConfigs.version))
-        .limit(1)
-        .then((rows) => rows[0] || null)
-    : null;
+        .limit(1);
+    }
+  }
   if (plan === "team_member" && !teamTermsConfig) {
     return NextResponse.json({ error: "The selected team has no active compensation terms." }, { status: 409 });
   }
-  let updated;
+  let outcome: {
+    profile: typeof agents.$inferSelect;
+    teamJoinRequest: typeof teamJoinRequests.$inferSelect | null;
+    requiresTeamApproval: boolean;
+    teamLeaderAgentId: number | null;
+  };
   try {
-    updated = await db.transaction(async (tx) => {
+    outcome = await db.transaction(async (tx) => {
       await lockOnboardingAgent(tx, agent.id);
       const [boundAgent] = await tx
         .select({
@@ -230,6 +419,14 @@ export async function PUT(req: NextRequest) {
           joinedAt: agents.joinedAt,
           onboardingSource: agents.onboardingSource,
           paymentStatus: agents.paymentStatus,
+          licensedCompanyId: agents.licensedCompanyId,
+          companySelectedAt: agents.companySelectedAt,
+          companyRequirementsAcknowledgedAt: agents.companyRequirementsAcknowledgedAt,
+          plan: agents.plan,
+          teamId: agents.teamId,
+          referredByAgentId: agents.referredByAgentId,
+          teamTermsConfigId: agents.teamTermsConfigId,
+          teamTermsEffectiveFrom: agents.teamTermsEffectiveFrom,
         })
         .from(agents)
         .where(eq(agents.id, agent.id))
@@ -243,6 +440,17 @@ export async function PUT(req: NextRequest) {
           "Onboarding facts are frozen after agreement preparation begins.",
         );
       }
+      const acknowledgementAlreadyRecorded =
+        boundAgent.licensedCompanyId === licensedCompanyId &&
+        Boolean(boundAgent.companyRequirementsAcknowledgedAt);
+      if (body.companyRequirementsAcknowledged !== true && !acknowledgementAlreadyRecorded) {
+        throw new OnboardingProfileConflict(
+          "Company selection changed while saving. Confirm the company requirement and try again.",
+        );
+      }
+      const companyRequirementsAcknowledgedAt = acknowledgementAlreadyRecorded
+        ? boundAgent.companyRequirementsAcknowledgedAt
+        : now;
       if (
         boundAgent.onboardingInviteId &&
         boundAgent.onboardingInviteId !== invitation?.id
@@ -264,6 +472,180 @@ export async function PUT(req: NextRequest) {
           throw new OnboardingProfileConflict("Invitation has already been used.");
         }
       }
+      const [pendingRequest] = await tx
+        .select()
+        .from(teamJoinRequests)
+        .where(and(
+          eq(teamJoinRequests.agentId, agent.id),
+          eq(teamJoinRequests.status, "pending"),
+        ))
+        .limit(1);
+      const mayReuseBoundRouting = canReuseAcceptedTeamRouting({
+        requestedPlan: plan,
+        requestedTeamId: selectedTeam?.id || null,
+        currentPlan: boundAgent.plan,
+        currentTeamId: boundAgent.teamId,
+        currentConfigId: boundAgent.teamTermsConfigId,
+      });
+      const [acceptedRequest] = routeRequiresTeamApproval && selectedTeam && mayReuseBoundRouting
+        ? await tx
+            .select()
+            .from(teamJoinRequests)
+            .where(and(
+              eq(teamJoinRequests.agentId, agent.id),
+              eq(teamJoinRequests.teamId, selectedTeam.id),
+              eq(teamJoinRequests.acceptedConfigId, boundAgent.teamTermsConfigId!),
+              eq(teamJoinRequests.status, "accepted"),
+            ))
+            .limit(1)
+        : [];
+      if (acceptedTeamApproval && !acceptedRequest) {
+        throw new OnboardingProfileConflict(
+          "Team approval changed while saving. Reload the page and try again.",
+        );
+      }
+
+      if (routeRequiresTeamApproval && !acceptedRequest && selectedTeam) {
+        let teamJoinRequest: typeof teamJoinRequests.$inferSelect | null = pendingRequest || null;
+        let eventType = "team_join_request_updated";
+        if (pendingRequest && pendingRequest.teamId !== selectedTeam.id) {
+          await tx
+            .update(teamJoinRequests)
+            .set({
+              status: "superseded",
+              decidedByAgentId: agent.id,
+              decisionReason: "Applicant selected a different team.",
+              decidedAt: now,
+              updatedAt: now,
+            })
+            .where(eq(teamJoinRequests.id, pendingRequest.id));
+          await tx.insert(onboardingEvents).values(onboardingEventValues({
+            eventType: "team_join_superseded",
+            actorAgentId: agent.id,
+            actorEmail: agent.email,
+            agentId: agent.id,
+            teamJoinRequestId: pendingRequest.id,
+            invitationId: pendingRequest.sourceInvitationId,
+            teamId: pendingRequest.teamId,
+            detail: { replacementTeamId: selectedTeam.id },
+          }));
+          teamJoinRequest = null;
+        }
+        if (teamJoinRequest) {
+          [teamJoinRequest] = await tx
+            .update(teamJoinRequests)
+            .set({
+              sponsorAgentId: referredByAgentId,
+              sourceInvitationId: invitation?.id || boundAgent.onboardingInviteId,
+              updatedAt: now,
+            })
+            .where(eq(teamJoinRequests.id, teamJoinRequest.id))
+            .returning();
+        } else {
+          eventType = "team_join_requested";
+          [teamJoinRequest] = await tx
+            .insert(teamJoinRequests)
+            .values({
+              agentId: agent.id,
+              teamId: selectedTeam.id,
+              sponsorAgentId: referredByAgentId,
+              sourceInvitationId: invitation?.id || boundAgent.onboardingInviteId,
+              status: "pending",
+              requestedAt: now,
+              createdAt: now,
+              updatedAt: now,
+            })
+            .returning();
+        }
+        const [row] = await tx
+          .update(agents)
+          .set({
+            legalName,
+            phone,
+            licenseNumber,
+            licensedCompany,
+            licensedCompanyId,
+            companySelectedAt:
+              boundAgent.licensedCompanyId === licensedCompanyId
+                ? boundAgent.companySelectedAt || now
+                : now,
+            companyRequirementsAcknowledgedAt:
+              companyRequirementsAcknowledgedAt,
+            practice,
+            plan: "solo",
+            splitPct: PLAN_SPLIT_PCT.solo,
+            teamId: null,
+            referredByAgentId,
+            affiliationTermMonths,
+            planEffectiveFrom: null,
+            teamTermsConfigId: null,
+            teamTermsEffectiveFrom: null,
+            teamTermsAcceptedAt: null,
+            onboardingCompletedAt: null,
+            onboardingStage: "team_review",
+            onboardingSource: invitation?.source || boundAgent.onboardingSource || "direct",
+            onboardingInviteId: invitation?.id || boundAgent.onboardingInviteId,
+            paymentStatus: boundAgent.paymentStatus,
+            updatedAt: now,
+          })
+          .where(eq(agents.id, agent.id))
+          .returning();
+        await tx.insert(onboardingEvents).values(onboardingEventValues({
+          eventType,
+          actorAgentId: agent.id,
+          actorEmail: agent.email,
+          agentId: agent.id,
+          teamJoinRequestId: teamJoinRequest.id,
+          invitationId: invitation?.id || boundAgent.onboardingInviteId,
+          teamId: selectedTeam.id,
+          detail: {
+            sponsorAgentId: referredByAgentId,
+            onboardingSource: invitation?.source || boundAgent.onboardingSource || "direct",
+            previousLicensedCompanyId: boundAgent.licensedCompanyId,
+            licensedCompanyId,
+            companyRequirementsAcknowledgedAt,
+          },
+        }));
+        return {
+          profile: row,
+          teamJoinRequest,
+          requiresTeamApproval: true,
+          teamLeaderAgentId: selectedTeam.leaderAgentId,
+        };
+      }
+      const effectiveReferredByAgentId = acceptedRequest
+        ? boundAgent.referredByAgentId
+        : referredByAgentId;
+      const effectiveTeamConfigId = acceptedRequest?.acceptedConfigId || teamTermsConfig?.id || null;
+
+      if (pendingRequest) {
+        const replacementStatus = plan === "team_member" ? "superseded" : "cancelled";
+        const replacementReason = plan === "team_member"
+          ? "A pre-approved team invitation replaced this request."
+          : "Applicant selected a non-team compensation plan.";
+        await tx
+          .update(teamJoinRequests)
+          .set({
+            status: replacementStatus,
+            decidedByAgentId: agent.id,
+            decisionReason: replacementReason,
+            decidedAt: now,
+            updatedAt: now,
+          })
+          .where(eq(teamJoinRequests.id, pendingRequest.id));
+        await tx.insert(onboardingEvents).values(onboardingEventValues({
+          eventType: replacementStatus === "cancelled"
+            ? "team_join_cancelled"
+            : "team_join_superseded",
+          actorAgentId: agent.id,
+          actorEmail: agent.email,
+          agentId: agent.id,
+          teamJoinRequestId: pendingRequest.id,
+          invitationId: pendingRequest.sourceInvitationId,
+          teamId: pendingRequest.teamId,
+          detail: { reason: replacementReason },
+        }));
+      }
       const [row] = await tx
         .update(agents)
         .set({
@@ -271,16 +653,27 @@ export async function PUT(req: NextRequest) {
           phone,
           licenseNumber,
           licensedCompany,
+          licensedCompanyId,
+          companySelectedAt:
+            boundAgent.licensedCompanyId === licensedCompanyId
+              ? boundAgent.companySelectedAt || now
+              : now,
+          companyRequirementsAcknowledgedAt:
+            companyRequirementsAcknowledgedAt,
           practice,
           plan,
           splitPct: PLAN_SPLIT_PCT[plan],
           teamId: plan === "team_member" ? teamId : null,
-          referredByAgentId,
+          referredByAgentId: effectiveReferredByAgentId,
           affiliationTermMonths,
           planEffectiveFrom: boundAgent.planEffectiveFrom || now.slice(0, 10),
           anniversaryStart: boundAgent.anniversaryStart || boundAgent.joinedAt || now.slice(0, 10),
-          teamTermsConfigId: teamTermsConfig?.id || null,
-          teamTermsEffectiveFrom: teamTermsConfig ? teamTermsEffectiveFrom : null,
+          teamTermsConfigId: effectiveTeamConfigId,
+          teamTermsEffectiveFrom: effectiveTeamConfigId
+            ? acceptedRequest
+              ? boundAgent.teamTermsEffectiveFrom || teamTermsEffectiveFrom
+              : teamTermsEffectiveFrom
+            : null,
           teamTermsAcceptedAt: null,
           onboardingCompletedAt: now,
           onboardingStage: "agreement",
@@ -291,7 +684,29 @@ export async function PUT(req: NextRequest) {
         })
         .where(eq(agents.id, agent.id))
         .returning();
-      return row;
+      await tx.insert(onboardingEvents).values(onboardingEventValues({
+        eventType: "onboarding_profile_completed",
+        actorAgentId: agent.id,
+        actorEmail: agent.email,
+        agentId: agent.id,
+        invitationId: invitation?.id || boundAgent.onboardingInviteId,
+        teamId: plan === "team_member" ? teamId : null,
+        detail: {
+          plan,
+          sponsorAgentId: effectiveReferredByAgentId,
+          teamCompensationConfigId: effectiveTeamConfigId,
+          reusedAcceptedTeamRequestId: acceptedRequest?.id || null,
+          previousLicensedCompanyId: boundAgent.licensedCompanyId,
+          licensedCompanyId,
+          companyRequirementsAcknowledgedAt,
+        },
+      }));
+      return {
+        profile: row,
+        teamJoinRequest: null,
+        requiresTeamApproval: false,
+        teamLeaderAgentId: null,
+      };
     });
   } catch (error) {
     if (error instanceof OnboardingProfileConflict) {
@@ -300,8 +715,28 @@ export async function PUT(req: NextRequest) {
     console.error("Unable to save onboarding profile", error);
     return NextResponse.json({ error: "Unable to save onboarding profile." }, { status: 500 });
   }
-  if (!updated) {
+  if (!outcome.profile) {
     return NextResponse.json({ error: "Unable to save onboarding profile." }, { status: 500 });
+  }
+  if (outcome.requiresTeamApproval && outcome.teamJoinRequest) {
+    try {
+      await notify({
+        recipientAgentIds: outcome.teamLeaderAgentId ? [outcome.teamLeaderAgentId] : [],
+        type: "team_join_requested",
+        title: `团队加入申请：${agent.name}`,
+        body: `${agent.email} 申请加入 ${selectedTeam?.name || "团队"}。介绍人归因不会因团队审批而改变。`,
+        href: `/team-workspace?team=${selectedTeam?.id || ""}`,
+        dedupeKey: `team-join-request:${outcome.teamJoinRequest.id}`,
+        email: true,
+      });
+    } catch (error) {
+      console.error("team join request notification failed", error);
+    }
+    return NextResponse.json({
+      profile: outcome.profile,
+      teamJoinRequest: outcome.teamJoinRequest,
+      requiresTeamApproval: true,
+    }, { status: 202 });
   }
   try {
     await notify({
@@ -315,5 +750,5 @@ export async function PUT(req: NextRequest) {
   } catch (error) {
     console.error("onboarding ready notification failed", error);
   }
-  return NextResponse.json({ profile: updated });
+  return NextResponse.json({ profile: outcome.profile, requiresTeamApproval: false });
 }

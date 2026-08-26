@@ -14,6 +14,7 @@
 /coverage
 /.playwright-mcp/
 /.worktrees/
+/tmp/
 
 # next.js
 /.next/
@@ -25,6 +26,7 @@
 # misc
 .DS_Store
 *.pem
+*.local.json
 .claude/
 
 # debug
