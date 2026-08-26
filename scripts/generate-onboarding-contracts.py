@@ -19,7 +19,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt, RGBColor
-from pypdf import PdfReader
+from pypdf import PdfReader, PdfWriter
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -30,6 +30,9 @@ ENTITIES_PATH = ROOT / "contracts" / "entities.yml"
 MANIFEST_PATH = ROOT / "contracts" / "field-manifests.yml"
 AGENT_MASTER = SOURCE_DIR / "Agent_Affiliation_Agreement.docx"
 TEAM_LEADER_MASTER = SOURCE_DIR / "Team_Leader_Agreement.docx"
+AGENT_BASELINE_PATH = SOURCE_DIR / "agent-affiliation-baseline.json"
+LIBOR_APPLICATION_PATH = ROOT / "contracts" / "appendices" / "LIBOR_REALTOR_Application_Rev_10-25.pdf"
+REALTY_FEE_DISCLOSURE_PATH = ROOT / "contracts" / "appendices" / "Realty_LIBOR_OneKey_Fee_Disclosures_v1.pdf"
 
 INK, MUTED, LINE, PAPER, BRONZE, GREEN = "1D1C19", "6F6A61", "D8D1C5", "F4F1EA", "98623C", "536B3A"
 
@@ -234,6 +237,9 @@ def add_plan_table(doc: Document) -> None:
         for index, value in enumerate(row_data):
             set_run_font(row.cells[index].paragraphs[0].add_run(value), "Arial", 7.5,
                          index == 0, GREEN if index == 0 else INK)
+    for row in table.rows:
+        for cell in row.cells:
+            set_cell_margins(cell, top=45, start=120, bottom=45, end=120)
 
 
 def add_signature_grid(doc: Document, left_label: str, right_label: str) -> None:
@@ -251,6 +257,7 @@ def add_signature_grid(doc: Document, left_label: str, right_label: str) -> None
             if row_index == 0:
                 set_cell_shading(cell, PAPER)
             set_run_font(cell.paragraphs[0].add_run(value), "Arial", 7.5, row_index == 0)
+            set_cell_margins(cell, top=55, start=120, bottom=55, end=120)
 
 
 def add_acknowledgement(doc: Document, text: str) -> None:
@@ -267,12 +274,52 @@ def new_page(doc: Document, title: str, kicker: str) -> None:
     add_heading(doc, title)
 
 
+def add_legal_section(doc: Document, title: str, paragraphs: list[str]) -> None:
+    add_heading(doc, title, 2)
+    for paragraph in paragraphs:
+        add_para(doc, paragraph)
+
+
+def source_legal_text(text: str) -> str:
+    """Entity-parameterize the supplied Realty baseline without rewriting its clauses."""
+    text = re.sub(r"Homix Realty Inc\.?", "{{LEGAL_NAME}}", text, flags=re.IGNORECASE)
+    text = re.sub(
+        r"Si Zhang, CEO, on behalf of \{\{LEGAL_NAME\}\}",
+        "{{BROKER_NAME}}, {{BROKER_TITLE}}, on behalf of {{LEGAL_NAME}}",
+        text,
+        flags=re.IGNORECASE,
+    )
+    return text
+
+
+def add_baseline_sections(doc: Document, baseline: dict, group: str, section_numbers: list[str]) -> None:
+    for number in section_numbers:
+        section = baseline[group][number]
+        add_heading(doc, f"{number}. {section['title']}", 2)
+        for paragraph in section["paragraphs"]:
+            paragraph = source_legal_text(paragraph)
+            if group == "ica" and number == "II" and paragraph.startswith("4)"):
+                paragraph = "[[REALTY_ONLY]]" + paragraph
+            if group == "ica" and number == "III" and paragraph.startswith("C."):
+                paragraph = paragraph.replace(
+                    "(2) fees assessed by OneKey Multiple Listing Service for failure to comply with submission requirements (e.g., photo submission late fees, etc.),",
+                    "(2) {{LISTING_SERVICE_COST_ITEM}},",
+                )
+            add_para(doc, paragraph)
+
+
 def build_agent_master(path: Path) -> None:
+    baseline = load_json_yaml(AGENT_BASELINE_PATH)
     doc = Document()
     configure_document(doc, "AGENT AFFILIATION AGREEMENT | {{LEGAL_NAME}}")
+
     add_title_block(doc, "AGENT AFFILIATION AGREEMENT", "{{LEGAL_NAME}} | Version {{AGENT_VERSION}} | New York")
-    add_para(doc, "LEGAL-REVIEW CANDIDATE - NOT FOR PRODUCTION SIGNING", bold=True, align=WD_ALIGN_PARAGRAPH.CENTER)
-    add_para(doc, "This Agent Affiliation Agreement (Agreement) is entered into by {{LEGAL_NAME}} (Company) and the licensed real estate salesperson or associate broker identified below (Agent). The Company is the only contracting brokerage in this document. The parties intend an independent-contractor relationship subject to New York law, Company supervision, and the terms below.")
+    add_para(
+        doc,
+        "This agreement package combines the Commission Agreement, Commission Reporting Guideline "
+        "Acknowledgement, Independent Contractor Agreement, and Non-Disclosure Agreement used in the "
+        "Company's supplied enrollment package. {{LEGAL_NAME}} is the sole contracting brokerage in this release.",
+    )
     add_key_values(doc, [
         ("Legal company", "{{LEGAL_NAME}}"), ("Company address", "{{ADDRESS}}"),
         ("Agent legal name", "[agent_name]"), ("Portal agent ID", "[agent_id]"),
@@ -281,112 +328,137 @@ def build_agent_master(path: Path) -> None:
         ("Selected plan", "[compensation_plan]"), ("Affiliation term", "[affiliation_term_months] months"),
         ("Sponsor", "[sponsor_name]"), ("Team", "[team_name]"),
     ])
-    add_heading(doc, "1. Agreement structure")
+    add_heading(doc, "Agreement structure")
     add_bullets(doc, [
-        "Page 2 records the locked compensation election and required acknowledgement.",
-        "Pages 3-5 contain the Independent Contractor Agreement and execution page.",
-        "Pages 6-7 contain confidentiality and non-disclosure terms and execution page.",
-        "A company-specific association appendix appears only when required for the selected legal entity.",
+        "Commission Agreement and plan acknowledgement.",
+        "Commission Reporting Guideline Acknowledgement.",
+        "Independent Contractor Agreement, Sections I-XV.",
+        "Non-Disclosure Agreement, Sections I-XXIV.",
+        "Realty membership application and fee disclosures only when the selected legal company requires them.",
     ])
-    add_heading(doc, "2. Effective date and prerequisites")
-    add_para(doc, "This Agreement is not effective until Agent completes all required fields and signatures, Company countersigns after administrator compliance review, required payment is recorded, and Company approves affiliation. Portal-populated company, plan, Sponsor, Team, and term facts are read-only. A material change requires revalidation and, when applicable, a new agreement or addendum.")
-    add_para(doc, "This candidate consolidates the Company's previously reviewed enrollment terms and approved compensation workflow. Company counsel must approve this edition before publication.", small=True)
+    add_heading(doc, "Activation conditions")
+    add_para(
+        doc,
+        "This Agreement becomes effective only after the Agent completes every required acknowledgement and "
+        "signature, the Company countersigns after administrator review, required payment is recorded, and the "
+        "Company approves affiliation. Portal-supplied company, plan, Sponsor, Team, term, and compensation facts "
+        "are read-only. Material corrections require revalidation and, when applicable, a replacement agreement or addendum.",
+    )
+    add_para(
+        doc,
+        "Restricted tax, banking, payment-card, identity, and signing credentials are not collected in this agreement "
+        "and must use an authorized restricted workflow when legally required.",
+        bold=True,
+    )
 
-    new_page(doc, "Compensation election and payment terms", "Page 2 | Required plan acknowledgement")
+    new_page(doc, "Commission Agreement", "Part I | Required plan acknowledgement")
+    add_para(
+        doc,
+        "This Commission Agreement is entered into between {{LEGAL_NAME}} (Company) and the licensed Associate "
+        "identified in this agreement. When Associate performs a service on behalf of Company and Company receives "
+        "compensation, Company shall pay Associate after funds are collected and have cleared into Company's account.",
+    )
     add_para(doc, "Selected compensation plan (read-only): [compensation_plan]", bold=True)
     add_plan_table(doc)
-    add_para(doc, "Non-Producing is an operating status under Solo, not a fourth plan. Legacy Holding elections are treated as Solo. Team Leader is a role requiring a separate Team Leader Agreement and Solo Pro.", small=True)
-    add_heading(doc, "Calculation order", 2)
-    add_para(doc, "Each closing is calculated in this order: Gross Commission; approved outside referral or Homix source economics; Company Dollar or applicable 100% mode Transaction Fee; approved Team Economics; agent-funded rebate or approved rebate program; and final settlement. Team Split is a percentage of Agent Side after Company Dollar. Company Cap and Team Cap are separate ledgers.")
-    add_heading(doc, "Transaction fee in 100% mode", 2)
-    add_key_values(doc, [
-        ("Commission check up to $30,000", "$200"), ("$30,000.01 to $100,000", "$500"),
-        ("Over $100,000", "$1,000"), ("Cap-crossing closing", "No fee on the same closing"),
-    ])
-    add_heading(doc, "Sponsor and Team economics", 2)
-    add_para(doc, "Sponsor Reward and Team Split are distinct obligations. One person may be both Sponsor and Team Leader and, when qualified, receive both separately. Sponsor Reward is calculated from eligible Company-owned revenue under the current Sponsor program; it does not reduce Agent commission or cap credit. No earnings, closing, lead, or continued program availability is guaranteed.")
-    add_acknowledgement(doc, "I reviewed the selected plan, fees, Company Cap, Team terms if applicable, transaction fees, and Sponsor disclosure, and I authorize Portal to freeze these facts for this agreement.")
-    add_para(doc, "Agent plan signature: __________________________________    Date: __________________", bold=True)
-
-    new_page(doc, "Independent Contractor Agreement - core duties", "Page 3 | ICA")
-    clauses = [
-        ("1. Independent contractor relationship", "Agent is an independent contractor and not an employee, partner, franchisee, or joint venturer of Company. Agent controls lawful business activity subject to brokerage supervision, legal requirements, transaction deadlines, and Company policies. Nothing authorizes Agent to bind Company, hold client funds personally, practice law, or make guarantees for Company."),
-        ("2. License and brokerage association", "Agent will maintain an active New York real estate license associated with the Company identified here while performing licensed activity for it. Agent will promptly disclose any suspension, complaint, investigation, criminal charge, license change, or event affecting eligibility. Agent may not operate a legal Team with licensees associated with another brokerage."),
-        ("3. Supervision and compliance", "Agent will follow Article 12-A, 19 NYCRR Part 175, fair housing and anti-discrimination laws, agency disclosures, advertising rules, Company procedures, and Broker instructions. Agent will submit complete transaction files, cooperate with compliance review, use approved forms, and escalate complaints, escrow issues, cybersecurity incidents, and suspected fraud."),
-        ("4. Expenses, taxes, insurance, and benefits", "Unless Company expressly agrees in writing, Agent is responsible for licensing, association and listing-service fees, taxes, insurance, transportation, technology, marketing, assistants, and business expenses. Agent is not eligible for employee wages or benefits. Company may issue tax forms to the legal payee maintained in Portal."),
-        ("5. Compensation and offsets", "Compensation is payable only after Company receives cleared funds and approves the transaction file. Company may offset documented amounts owed by Agent, chargebacks, approved client credits, third-party referrals, and authorized charges. Transaction compensation is frozen from the plan, source, Team configuration, Sponsor, and facts effective for that transaction."),
-    ]
-    for title, text in clauses:
-        add_heading(doc, title, 2); add_para(doc, text)
-
-    new_page(doc, "Independent Contractor Agreement - operations", "Page 4 | ICA")
-    clauses = [
-        ("6. Listings, clients, advertising, and records", "All licensed activity is under Company supervision. Advertising, social media, websites, team branding, and property promotion require accurate brokerage identification and required approval. Agent will protect client information and preserve transaction records in Company systems. Company records, leads, forms, media, software, and training remain Company property unless written policy states otherwise."),
-        ("7. Rental transactions", "Agent will not provide legal advice or negotiate legal provisions beyond authorized standardized practice. Any Company-required attorney review acknowledgement must be obtained. No rental commission is payable until Company receives required documents, cleared funds, and verifies policy closing conditions. Agent must promptly remit any commission received directly."),
-        ("8. Team participation", "A Team is an internal operating organization of one licensed brokerage, not a separate brokerage or legal entity. Team membership, Team Split, Team-sourced Split, Team Cap, and effective date must be in Portal. Company Dollar is calculated before Team Split. Team changes are prospective and may require a new agreement or addendum."),
-        ("9. Term and termination", "Either party may terminate affiliation subject to law and written agreements. Agent must stop representing affiliation, return Company property, relinquish systems, preserve records, and cooperate in orderly handling of pending matters. Earned compensation remains subject to applicable transaction facts, offsets, policies, and agreements."),
-        ("10. General terms", "This Agreement, compensation election, NDA, Team terms, written policies, and signed addenda are the entire agreement on these subjects. Amendments require an authorized written process. New York law governs. If a provision is unenforceable, the rest remains effective. Notices may be delivered through Portal, email, personal delivery, or another lawful written method."),
-    ]
-    for title, text in clauses:
-        add_heading(doc, title, 2); add_para(doc, text)
-
-    new_page(doc, "Independent Contractor Agreement - execution", "Page 5 | Required signatures")
-    add_para(doc, "By signing, Agent confirms: the legal company below is the sole contracting brokerage; Portal facts were reviewed; no oral statement changes plan, Team, Sponsor, cap, fee, or term; Agent could seek independent legal and tax advice; and Agent will comply with law and Company supervision.")
-    add_key_values(doc, [
-        ("Contracting company", "{{LEGAL_NAME}}"), ("Company address", "{{ADDRESS}}"),
-        ("Agent", "[agent_name]"), ("License", "[license_number]"),
-        ("Plan", "[compensation_plan]"), ("Team", "[team_name]"),
-    ])
-    add_para(doc, "Company countersigns manually only after administrator compliance review. A Broker serving more than one licensed company does not combine those companies into one contracting party.", bold=True)
-    add_signature_grid(doc, "AGENT - ICA EXECUTION", "COMPANY - ICA COUNTERSIGNATURE")
-    add_para(doc, "Countersigner: {{BROKER_NAME}}, {{BROKER_TITLE}} | {{BROKER_EMAIL}} | {{LEGAL_NAME}}", small=True)
-
-    new_page(doc, "Confidentiality and non-disclosure agreement", "Page 6 | NDA")
-    clauses = [
-        ("1. Confidential Information", "Confidential Information includes non-public client and prospect data; transaction and financial information; credentials; source code, workflows, prompts, models, software, and platform data; marketing plans; pricing and commission administration; internal training; employee, contractor, and family information; and other reasonably confidential information. It excludes information lawfully public, independently developed, rightfully received without duty, or legally required to be disclosed."),
-        ("2. Protection and permitted use", "Agent will use Confidential Information only for authorized Company business; apply reasonable security; not share credentials; not copy, record, screenshot, redistribute, republish, or repackage restricted materials; and promptly report suspected unauthorized access or disclosure. Disclosure to an approved assistant requires Company authorization and equivalent obligations."),
-        ("3. Return, deletion, access, and remedies", "On request or termination, Agent will return or securely delete Company information and relinquish accounts and devices as directed, subject to legal retention. Unauthorized use may cause irreparable harm and Company may seek lawful injunctive relief, damages, fees, and other remedies. Prior-package liquidated damages are not carried forward unless counsel expressly approves them in this edition."),
-        ("4. Duration and protected disclosures", "Confidentiality survives termination for the period stated by law or policy and, for trade secrets, while protected. Nothing prohibits lawful reporting to government officials or an attorney, participation in an investigation, or disclosure protected by the Defend Trade Secrets Act or other whistleblower law."),
-    ]
-    for title, text in clauses:
-        add_heading(doc, title, 2); add_para(doc, text)
-
-    new_page(doc, "NDA execution and final acknowledgement", "Page 7 | Required signature")
-    add_para(doc, "Agent acknowledges the confidentiality terms, understands that Company systems may contain sensitive information, and agrees not to place SSN, full bank-account information, payment-card data, or signing credentials into contract merge fields, ordinary Portal notes, or support messages.")
-    add_heading(doc, "Continuing obligations", 2)
+    add_heading(doc, "Plan terms", 2)
     add_bullets(doc, [
-        "Protect Company, client, Agent, and vendor information using reasonable safeguards.",
-        "Use Company information only for authorized business and comply with retention instructions.",
-        "Return access and information promptly on request or termination.",
-        "Report suspected loss, unauthorized disclosure, or compromised credentials immediately.",
-        "Preserve lawful whistleblower, regulatory, and attorney communications.",
+        "Solo: 85% Agent / 15% Company; $288 for 12 months or $500 for 24 months; $12,000 annual Company Dollar cap.",
+        "Solo Pro: 100% commission mode; $3,650 annual plan fee; transaction fee of $200 for a commission check between $10,000 and $30,000, $500 between $30,000 and $100,000, and $1,000 above $100,000.",
+        "Team Member: 90% Agent Side / 10% Company; $288 for 12 months or $500 for 24 months; $10,000 annual Company Dollar cap. Team Split and Team Cap are governed separately by the accepted Team Compensation Configuration.",
+        "The selected plan applies to sales and rental transactions. There is no separate rental split plan.",
+        "Sponsor Reward and Team Split are separate obligations. If the same person is both Sponsor and Team Leader, each amount is calculated and recorded separately; Sponsor Reward is calculated only from eligible Company-owned revenue under the Sponsor program.",
+        "Annual or term fees are due at signing or renewal, are non-refundable, and are paid through secure Portal checkout or a Company-verified offline payment record. The selected plan remains locked for its term unless Company approves a prospective written change.",
+        "If pending transactions remain when affiliation ends, the original enrollment rule applies: a 15% fee is charged on each such pending transaction, subject to applicable law and the frozen transaction facts.",
     ])
-    add_key_values(doc, [
-        ("Owner / Company", "{{LEGAL_NAME}}"), ("Recipient / Agent", "[agent_name]"),
-        ("Company address", "{{ADDRESS}}"), ("Agent email", "[agent_email]"),
-    ])
-    add_para(doc, "Agent NDA signature: __________________________________    Date: __________________", bold=True)
-    add_para(doc, "The NDA signature is separate from the ICA execution signature and must be completed independently.", small=True)
+    add_acknowledgement(doc, "I understand and accept the selected plan, fee, Company Cap, Team terms, Sponsor treatment, and payment conditions.")
+    add_signature_grid(doc, "AGENT SIGNATURE", "COMPANY COUNTERSIGNATURE")
+    add_para(doc, "Agent anniversary / plan reset date: ________________________________", small=True)
 
-    doc.add_paragraph("[[IF_REALTY]]")
-    new_page(doc, "LIBOR / OneKey membership appendix", "Page 8 | {{LEGAL_NAME}} only")
-    add_para(doc, "This appendix applies only to an Agent affiliating with {{LEGAL_NAME}} and is part of this entity-specific Agreement.", bold=True)
-    add_acknowledgement(doc, "I understand that {{LEGAL_NAME}} requires completion and maintenance of applicable LIBOR / OneKey membership and payment of related fees. I will provide accurate information and complete required association or listing-service forms outside this contract.")
+    new_page(doc, "Commission Reporting Guideline Acknowledgement", "Part II | Required reporting acknowledgement")
+    add_para(doc, source_legal_text(baseline["reporting_guideline"]))
+    add_acknowledgement(doc, "I have read and agree to the Commission Reporting Guideline.")
+    add_signature_grid(doc, "LICENSED SALESPERSON", "{{LEGAL_NAME}}")
+    add_para(
+        doc,
+        "Company countersigner: {{BROKER_NAME}}, {{BROKER_TITLE}} | {{BROKER_EMAIL}}",
+        small=True,
+    )
+
+    new_page(doc, "Independent Contractor Agreement", "Part III | Source-preserved Sections I-XV")
     add_key_values(doc, [
-        ("Agent legal name", "________________________________"), ("NY license number", "________________________________"),
-        ("Home address", "________________________________"), ("Phone", "________________________________"),
-        ("Email", "________________________________"), ("Initials", "____________"),
+        ("Agent name", "[agent_name]"), ("Agent address", "[agent_address]"),
+        ("License number / UID", "[license_number]"), ("Effective date", "[ica_effective_date]"),
+        ("Brokerage name", "{{LEGAL_NAME}}"), ("Brokerage address", "{{ADDRESS}}"),
     ])
-    add_heading(doc, "Membership and data handling", 2)
-    add_para(doc, "Agent is responsible for maintaining eligibility and paying association, listing-service, access, key, education, and other required charges unless Company confirms otherwise in writing. Timing, approval, and third-party fees are controlled by the association or service and are not guaranteed by Company.")
-    add_para(doc, "SSN, full bank information, payment-card data, and identity credentials must not be entered here or in ordinary Portal notes. If a third party requires sensitive information, Agent will submit it through that party's authorized secure process or another Company-approved restricted workflow.")
-    add_para(doc, "Agent appendix signature: ______________________________    Date: __________________", bold=True)
-    add_para(doc, "Agent initials: __________", bold=True)
-    doc.add_paragraph("[[END_IF_REALTY]]")
+    add_baseline_sections(doc, baseline, "ica", ["I"])
+
+    for title, numbers in [
+        ("Independent Contractor Agreement | Section II", ["II"]),
+        ("Independent Contractor Agreement | Sections III-IV", ["III", "IV"]),
+        ("Independent Contractor Agreement | Sections V-VI", ["V", "VI"]),
+        ("Independent Contractor Agreement | Section VII", ["VII"]),
+        ("Independent Contractor Agreement | Sections VIII-IX", ["VIII", "IX"]),
+        ("Independent Contractor Agreement | Sections X-XI", ["X", "XI"]),
+        ("Independent Contractor Agreement | Sections XII-XIV", ["XII", "XIII", "XIV"]),
+    ]:
+        new_page(doc, title, "Part III | Original enrollment language")
+        add_baseline_sections(doc, baseline, "ica", numbers)
+
+    new_page(doc, "Independent Contractor Agreement | Section XV and Execution", "Part III | Execution")
+    add_baseline_sections(doc, baseline, "ica", ["XV"])
+    add_heading(doc, "Portal attribution and version record", 2)
+    add_para(
+        doc,
+        "For each transaction, Portal preserves the effective legal company, compensation plan, plan term, "
+        "participant shares, Company Dollar and cap status, Team Compensation Configuration, Team source, "
+        "Team Split, Sponsor attribution, and Sponsor Reward as separate frozen facts. Corrections require "
+        "an auditable Company process and do not silently rewrite an executed agreement or settled transaction.",
+    )
+    add_acknowledgement(doc, "I accept the complete Independent Contractor Agreement, including the Portal attribution and version record.")
+    add_signature_grid(doc, "AGENT SIGNATURE", "BROKERAGE SIGNATURE")
+
+    new_page(doc, "Non-Disclosure Agreement", "Part IV | Source-preserved Sections I-XXIV")
+    add_para(
+        doc,
+        "This Confidentiality and Non-Disclosure Agreement (the \"Agreement\") is entered into by and between "
+        "the undersigned individual (\"Recipient\") and {{LEGAL_NAME}} (\"Owner\") as of the date of signing "
+        "(the \"Effective Date\").",
+    )
+    add_para(
+        doc,
+        "The purpose of this Agreement is to protect all confidential, proprietary, and sensitive information "
+        "of the Owner, including but not limited to internal training content, media, customer data, "
+        "communications, and technology assets.",
+    )
+    add_para(
+        doc,
+        "FOR GOOD CONSIDERATION, and in consideration of Recipient's receiving confidential information from "
+        "the Owner (as defined herein), Recipient hereby agrees and acknowledges:",
+    )
+    add_baseline_sections(doc, baseline, "nda", ["I"])
+
+    for title, numbers in [
+        ("Non-Disclosure Agreement | Sections II-III", ["II", "III"]),
+        ("Non-Disclosure Agreement | Sections IV-VIII", ["IV", "V", "VI", "VII", "VIII"]),
+        ("Non-Disclosure Agreement | Sections IX-XIII", ["IX", "X", "XI", "XII", "XIII"]),
+        ("Non-Disclosure Agreement | Sections XIV-XIX", ["XIV", "XV", "XVI", "XVII", "XVIII", "XIX"]),
+    ]:
+        new_page(doc, title, "Part IV | Original enrollment language")
+        add_baseline_sections(doc, baseline, "nda", numbers)
+
+    new_page(doc, "Non-Disclosure Agreement | Sections XX-XXIV and Execution", "Part IV | Execution")
+    add_baseline_sections(doc, baseline, "nda", ["XX", "XXI", "XXII", "XXIII", "XXIV"])
+    add_acknowledgement(doc, "I accept the complete Non-Disclosure Agreement.")
+    add_signature_grid(doc, "RECIPIENT SIGNATURE", "AUTHORIZED COMPANY SIGNATURE")
+
+
     doc.core_properties.title = "Agent Affiliation Agreement master"
-    doc.core_properties.subject = "Homix Agent affiliation master with conditional Realty appendix"
+    doc.core_properties.subject = "Source-preserved two-entity Homix Agent agreement master"
     doc.core_properties.author = "Homix"
-    doc.core_properties.comments = "Legal-review candidate. Entity releases must be immutable."
+    doc.core_properties.comments = (
+        "ICA Sections I-XV and NDA Sections I-XXIV derive from the supplied Realty enrollment package. "
+        "Only the redlines documented in contracts/LEGAL_REVIEW_CHANGELOG.md are intentional."
+    )
     path.parent.mkdir(parents=True, exist_ok=True)
     doc.save(path)
 
@@ -395,22 +467,24 @@ def build_team_leader_master(path: Path) -> None:
     doc = Document()
     configure_document(doc, "TEAM LEADER AGREEMENT | {{LEGAL_NAME}}")
     add_title_block(doc, "TEAM LEADER AGREEMENT", "{{LEGAL_NAME}} | Version {{TEAM_LEADER_VERSION}} | New York")
-    add_para(doc, "LEGAL-REVIEW CANDIDATE - NOT FOR PRODUCTION SIGNING", bold=True, align=WD_ALIGN_PARAGRAPH.CENTER)
-    add_para(doc, "This Team Leader Agreement supplements Team Leader's completed Agent Affiliation Agreement with {{LEGAL_NAME}} and does not create a separate brokerage, employment relationship, partnership, franchise, or authority to bind Company. The Team and every licensed Team Member must be associated with the same licensed brokerage.")
+    add_para(doc, "This Team Leader Agreement supplements Team Leader's completed Agent Affiliation Agreement with {{LEGAL_NAME}}. It establishes an internal leadership role, not a separate brokerage, employment relationship, partnership, franchise, ownership interest, or authority to bind Company. The Team and every licensed Team Member must be associated with the same licensed brokerage.")
     add_key_values(doc, [
         ("Legal company", "{{LEGAL_NAME}}"), ("Company address", "{{ADDRESS}}"),
         ("Team Leader", "[agent_name]"), ("License number", "[license_number]"),
         ("Team name", "[team_name]"), ("Expected members", "[expected_member_count]"),
         ("Team positioning", "[team_positioning]"), ("Required plan", "[compensation_plan]"),
     ])
-    add_heading(doc, "1. Eligibility and appointment")
-    add_para(doc, "Appointment requires an Active Agent account, completed onboarding with the same Company, Solo Pro, Company approval of the application, completion of this Agreement, and Company countersignature. Portal records the Team in forming status until activation conditions are complete.")
-    add_heading(doc, "2. Legal Team boundary")
-    add_para(doc, "Team Leader.companyId, Team.companyId, and every Team Member.companyId must match. The Team may not recruit or hold out a licensee associated with another brokerage as a member. Shared branding may use a non-legal internal team_group with separate entity-specific Teams and agreements.")
-    add_heading(doc, "3. Activation")
-    add_para(doc, "After this Agreement, Portal may permit entity-locked invitations. The Team becomes Active only after the first approved Team Member completes the applicable Agent Agreement and all Company activation conditions. Company may pause or deny activation for compliance, licensing, payment, or operational reasons.")
+    add_legal_section(doc, "I. Eligibility, appointment, and activation", [
+        "Appointment requires an Active Agent account, completed onboarding with the same Company, Solo Pro, an approved Team Leader application, completion of this Agreement, and Company countersignature. Company may review experience, license standing, proposed recruiting, Team positioning, expected members, supervision capacity, payment standing, compliance history, and business readiness.",
+        "Portal records the Team in forming status until all activation conditions are satisfied. After Company countersigns, Portal may permit entity-locked recruiting links. The Team becomes Active only after at least one approved Team Member completes the applicable Agent Agreement and Company verifies every activation condition. Company may pause, deny, or revoke activation for compliance, licensing, payment, inactivity, risk, or operational reasons.",
+        "Team Leader's authority is limited to the internal role described here. Only Broker and authorized Company administrators may approve affiliation, sponsorship, legal status, advertising, commission policy, exceptions, final transaction compliance, or Company obligations.",
+    ])
+    add_legal_section(doc, "II. Legal Team boundary", [
+        "Team Leader.companyId, Team.companyId, and every Team Member.companyId must match. The Team may not recruit, advertise, or hold out a licensee associated with another brokerage as a legal Team Member. A recruiting link locks the licensed company and does not permit the candidate to select another company.",
+        "Shared branding across Homix licensed companies may use a non-legal internal team_group only when each legal Team, agreement, compensation configuration, member roster, and transaction remains separate under the correct licensed company. A shared Broker does not merge the companies or permit cross-company supervision or compensation records to be treated as one legal Team.",
+    ])
 
-    new_page(doc, "Team compensation configuration", "Page 2 | Required acknowledgement")
+    new_page(doc, "Team Compensation Configuration", "Part II | Required acknowledgement")
     add_para(doc, "Team Leader personal-production plan (read-only): [compensation_plan]", bold=True)
     add_key_values(doc, [
         ("Team name", "[team_name]"), ("Terms effective", "[team_terms_effective_from]"),
@@ -418,59 +492,107 @@ def build_team_leader_master(path: Path) -> None:
         ("Team-sourced Split", "[team_sourced_split_pct]% of Agent Side"),
         ("Annual Team Cap", "[team_cap_usd]"), ("Configuration version", "[team_config_version]"),
     ])
-    add_heading(doc, "Calculation and versioning", 2)
-    add_para(doc, "For Team Members, source economics are calculated first, Company Dollar next, and Team Split from Agent Side. Company Cap and Team Cap are separate ledgers. Sponsor Reward and Team Split are separately calculated and reported even when Team Leader is Sponsor.")
-    add_para(doc, "The configuration is effective-dated and prospective. An executed, effective, or transaction-used version may not be edited in place. Changes require a new Portal version, date, audit history, policy validation, and required acceptance or addendum. Team Leader may propose permitted Split and Cap values; Company retains final approval and emergency suspension authority.")
-    add_heading(doc, "Recruiting and Sponsor attribution", 2)
-    add_para(doc, "A Team recruiting link locks Company, Team, Team Member plan, current configuration, and Sponsor. Sponsor defaults to Team Leader but may be another Active Agent on the same Team who recruited the candidate. A personal referral Sponsor remains separate when the candidate later joins this Team. Team Leader acceptance does not replace final Company approval.")
+    add_legal_section(doc, "Calculation order", [
+        "For Team Member transactions, approved outside referral or source economics are applied first, Company Dollar next, and Team Split from Agent Side after Company Dollar. Company Cap and Team Cap are separate ledgers and may be reached at different times. Agent shares and source facts are applied before a Team distribution.",
+        "Sponsor Reward and Team Split are separate financial obligations. If Team Leader is also the qualifying Sponsor, Portal records and reports both independently. Sponsor Reward is calculated from eligible Company-owned revenue under the current Sponsor program and does not reduce Agent commission or Company Cap credit. Team Split is calculated under the frozen Team Compensation Configuration.",
+        "No Team Split, Sponsor Reward, cap credit, lead, commission, Team growth, or continued program availability is guaranteed. Payments remain subject to closed transactions, cleared funds, compliance approval, frozen facts, offsets, and applicable policy.",
+    ])
+    add_legal_section(doc, "Versioning and change control", [
+        "The configuration is effective-dated and prospective. An accepted, executed, effective, or transaction-used version may not be edited in place. A change requires a new Portal version, effective date, audit history, policy validation, Company approval, and any acceptance or addendum required for affected members.",
+        "Team Leader may propose Team Split and Team Cap values within the ranges made available in Portal. Company retains final approval because these terms affect Company financial administration, Agent agreements, compliance, and future payment obligations. Company may reject, modify before publication, pause, or prospectively replace a proposal. Company will not silently rewrite an accepted version.",
+    ])
     add_acknowledgement(doc, "I accept the locked Team configuration, understand that my personal plan is Solo Pro, and understand that Sponsor Reward and Team Split are independent obligations.")
     add_para(doc, "Team Leader initials: __________", bold=True)
 
-    new_page(doc, "Team Leader duties and Company oversight", "Page 3 | Operations and compliance")
-    clauses = [
-        ("1. Recruiting, onboarding, and supervision", "Team Leader will provide commercially reasonable recruiting support, onboarding guidance, workflow supervision, training, transaction escalation, and coaching consistent with Company policy. Team Leader will not promise affiliation, guaranteed income, guaranteed leads, an unapproved compensation arrangement, or a Sponsor reward outside the Company program."),
-        ("2. Compliance and advertising", "Team Leader will support accurate records, transaction-file submission, fair housing, agency disclosure, advertising compliance, cybersecurity, and approved forms and systems. Team names and advertising must identify the brokerage as required by 19 NYCRR 175.25. Only Company and Broker exercise final supervision and approval."),
-        ("3. Escalation", "Team Leader will promptly escalate licensing issues, complaints, claims, fair housing concerns, escrow or funds issues, advertising violations, defective files, conflicts, suspected fraud, privacy incidents, and matters requiring brokerage oversight. Team Leader will not provide legal or tax advice unless separately qualified and authorized."),
-        ("4. Data access and confidentiality", "Access is limited to information reasonably needed to manage the Team. Team Leader may not access W-9 forms, ACH or bank details, payment-card data, administrator notes, evidence packages, SSN, or restricted personal data except through an authorized role and documented purpose. Confidentiality, security, and retention requirements continue after the role ends."),
-        ("5. Broker authority", "Broker retains final authority over licensing sponsorship, compliance, advertising, transactions, Company compensation policy, Team configuration ranges, Team status, access, and discipline. Company may pause recruiting, suspend privileges, require corrective action, or deactivate the Team for compliance, risk, nonpayment, inactivity, policy breach, or protection of clients and Company."),
-    ]
-    for title, text in clauses:
-        add_heading(doc, title, 2); add_para(doc, text)
+    new_page(doc, "Recruiting, Sponsor Attribution, and Onboarding", "Part III | Team growth")
+    add_legal_section(doc, "I. Recruiting links and representations", [
+        "A Team recruiting link locks Company, Team, Team Member plan, current compensation configuration, and Sponsor. Sponsor defaults to Team Leader but may be another Active Agent on the same Team who actually recruited the candidate. Team Leader may not select an outside person, another Team's Agent, or an inactive Agent as Sponsor.",
+        "Team Leader will not promise affiliation, license sponsorship, approval, guaranteed income, guaranteed leads, a closing, a cap result, unapproved compensation, a private referral payment, or a Sponsor reward outside the Company program. Recruiting materials must accurately identify {{LEGAL_NAME}}, the Team, plan, fees, requirements, and the conditional nature of approval.",
+        "A personally referred candidate may request this Team while retaining the original Sponsor. Team Leader's acceptance of the Team request does not replace Sponsor attribution and does not substitute for Company approval. If Team Leader declines the request, the candidate returns to plan selection and Sponsor remains unchanged.",
+    ])
+    add_legal_section(doc, "II. Candidate review and Team consent", [
+        "Team Leader may review only the candidate information and onboarding status reasonably necessary to decide a Team request and support onboarding. Team Leader may accept or decline membership but may not activate the Company account, countersign Company agreements, waive payment, change the legal company, edit license records, or approve a compliance exception.",
+        "An accepted Team request freezes the current Team Compensation Configuration for candidate acceptance. Candidate must separately accept Team terms and sign the same-entity Agent Agreement. Material corrections before eSign require an auditable event showing the old value, new value, operator, reason, and authorization. After eSign preparation, company, plan, Team, Sponsor, term, or compensation changes require cancellation and a new agreement or authorized addendum.",
+    ])
+    add_legal_section(doc, "III. Onboarding support", [
+        "Team Leader will provide commercially reasonable orientation, systems guidance, training direction, role expectations, transaction-file instruction, and escalation support. Team Leader will monitor progress but will not request SSN, full bank data, card information, W-9 contents, identity credentials, or other restricted information outside approved workflows.",
+        "Team activation and membership remain subject to completed agreement signatures, required payments or verified offline-payment evidence, license and company checks, required association steps, Company review, and final approval. Company may deny or condition approval notwithstanding Team Leader acceptance.",
+    ])
 
-    new_page(doc, "Term, changes, and execution", "Page 4 | Required signatures")
-    add_heading(doc, "1. Team changes and termination", 2)
-    add_para(doc, "Membership changes, transfers, Team Leader replacement, merger, closure, and material compensation changes are prospective and require Portal records, Company approval, and any required agreement or addendum. Ending Team Leader role does not itself terminate Agent affiliation. Historical transactions remain governed by frozen facts and versions.")
-    add_heading(doc, "2. Entire agreement and governing law", 2)
-    add_para(doc, "This Agreement, Agent Affiliation Agreement, locked Team Compensation Configuration, Team Member agreements, written policies, and signed addenda govern the role. No oral statement modifies them. New York law governs. If a provision is unenforceable, the remainder remains effective.")
-    add_heading(doc, "3. Final acknowledgement", 2)
+    new_page(doc, "Leadership, Supervision, and Compliance", "Part IV | Operating duties")
+    add_legal_section(doc, "I. Leadership and member support", [
+        "Team Leader will provide commercially reasonable coaching, workflow supervision, transaction escalation, training, accountability, and operational support consistent with Company policy. Team Leader will maintain accurate member status, avoid unauthorized compensation promises, and promptly tell Company when a member leaves, becomes inactive, changes company, or presents a material risk.",
+        "Team Leader will not create an employment relationship with a Team Member on Company's behalf, hold client funds, issue Company checks, sign Company contracts, modify Company records outside granted permissions, or represent that the Team is an independent brokerage or separate legal entity.",
+    ])
+    add_legal_section(doc, "II. Brokerage supervision and escalation", [
+        "Broker retains final authority over licensing sponsorship, legal supervision, compliance, advertising, transactions, Company compensation policy, Team configuration ranges, Team status, access, discipline, and client-protection decisions. Team Leader's day-to-day coaching assists but never replaces Broker supervision.",
+        "Team Leader will promptly escalate license issues, complaints, claims, fair housing concerns, agency conflicts, escrow or funds issues, advertising violations, incomplete or inaccurate files, suspected fraud, privacy or cybersecurity incidents, threats, discrimination, unauthorized practice of law, and any matter requiring brokerage oversight.",
+        "Team Leader will not give legal or tax advice unless independently qualified and expressly authorized. Team Leader will direct legal questions to counsel and compliance questions to Broker or an authorized Company administrator.",
+    ])
+    add_legal_section(doc, "III. Advertising and Team identity", [
+        "Team names, websites, domains, social accounts, listing marketing, signs, and advertisements require accurate brokerage identification and Company approval where required. Team Leader will ensure compliance with Article 12-A, 19 NYCRR Part 175, fair housing, intellectual-property law, Company brand standards, and applicable professional rules.",
+        "The HOMIX name and approved Team branding are licensed only during the authorized role. On suspension, termination, dissolution, or Company request, Team Leader will stop affected use, preserve records, and transfer or relinquish Company-controlled domains, handles, files, and access as directed.",
+    ])
+
+    new_page(doc, "Data, Records, and Risk Allocation", "Part V | Security and accountability")
+    add_legal_section(doc, "I. Data access and confidentiality", [
+        "Team Leader access is limited to information reasonably needed to manage the Team. Team Leader may not access W-9 forms, ACH or bank details, payment-card data, administrator notes, sensitive evidence, Social Security numbers, restricted identity information, or unrelated Agent records except through an authorized role, documented purpose, and approved workflow.",
+        "Team Leader will protect candidate, member, client, transaction, compensation, training, and Company information under the Agent NDA and Company security policies. Team Leader will not export a Team roster, share credentials, place protected data into unapproved systems, or use Team information for an outside business. Duties continue after the role ends.",
+    ])
+    add_legal_section(doc, "II. Records and audit cooperation", [
+        "Team Leader will keep recruiting, Team consent, coaching, compensation proposal, advertising, complaint, and escalation records in approved Company systems. Team Leader will cooperate with Company audits, investigations, payment reconciliation, transaction review, legal holds, and regulator requests and will not delete, alter, or conceal required records.",
+        "Sponsor attribution, Team Split, Company Dollar, Sponsor Reward, Company Cap, Team Cap, and Agent net must remain distinct ledger entries. Team Leader will promptly report a suspected duplicate, wrong Sponsor, wrong Team, wrong plan, or calculation error and will not resolve it through an off-platform payment or undocumented side agreement.",
+    ])
+    add_legal_section(doc, "III. Insurance, indemnity, and expenses", [
+        "The insurance, indemnification, legal-cost, tax, and independent-contractor provisions of Team Leader's Agent Affiliation Agreement apply to Team Leader activity. Team Leader is responsible for expenses voluntarily incurred for the Team unless Company approves reimbursement in writing and may not incur an obligation in Company's name.",
+        "To the extent permitted by law, Team Leader is responsible for attributable loss caused by intentional misconduct, fraud, knowing legal violation, unauthorized promise, misuse of funds or data, or material breach of this Agreement. Nothing shifts Company's non-delegable brokerage duties or liability that cannot lawfully be shifted.",
+    ])
+
+    new_page(doc, "Term, Team Changes, and Dissolution", "Part VI | Continuity")
+    add_legal_section(doc, "I. Term and role changes", [
+        "This Agreement begins only after all required signatures, Company approval, and Portal verification. It continues until Team Leader resigns, Company removes Team Leader, the Team dissolves, the underlying Agent affiliation ends, or another event stated in policy occurs. Ending Team Leader status does not by itself terminate Agent affiliation, but ending Agent affiliation immediately ends Team Leader authority.",
+        "Membership changes, transfers, Team Leader replacement, Team merger, Team closure, legal-company change, and material compensation changes are prospective and require Portal records, Company approval, and any agreement or addendum required for affected people. Historical transactions remain governed by frozen facts and versions.",
+    ])
+    add_legal_section(doc, "II. Suspension and termination", [
+        "Company may suspend recruiting, access, proposed compensation changes, or Team operations while reviewing compliance, licensing, payment, inactivity, security, client-protection, or operational concerns. Company may require corrective action, training, records, or supervision before restoring privileges.",
+        "On resignation, removal, or termination, Team Leader will stop representing the leadership role, return Company property and access, preserve records, cooperate in member and client transition, and avoid interfering with Company supervision. Pending compensation and Sponsor rewards remain subject to frozen transaction facts, this Agreement, the Agent Agreement, and lawful offsets.",
+    ])
+    add_legal_section(doc, "III. Team dissolution and successor", [
+        "A Team is not owned separately from the brokerage relationship and cannot continue as a legal Company Team without an approved Active Team Leader. Company may appoint an interim or successor leader, move members to Solo or another accepted Team prospectively, or dissolve the Team after notice and required consents. Client choice and legal obligations control all client and transaction transitions.",
+        "Team branding, domains, social accounts, shared files, lead records, templates, and Company-provided systems will be handled under Company ownership, licenses, written policy, and applicable law. No dissolution changes an Agent's separate lawful Agent Data rights or guarantees transfer of a client agreement.",
+    ])
+    add_legal_section(doc, "IV. Survival and general terms", [
+        "Confidentiality, data security, record retention, payment reconciliation, intellectual property, indemnity, transition, and provisions that by their nature survive remain effective. This Agreement, Agent Affiliation Agreement, frozen Team Compensation Configuration, Team Member agreements, written policies, and signed addenda govern the role. New York law governs, severability applies, and no oral statement modifies these terms.",
+    ])
+
+    new_page(doc, "Team Leader Agreement - Execution", "Part VII | Required signatures")
+    add_heading(doc, "Final acknowledgement", 2)
     add_para(doc, "Team Leader confirms that the legal Company, required Solo Pro plan, Team configuration, Sponsor rules, activation conditions, role boundaries, data restrictions, and Company oversight were disclosed. Company countersigns manually only after administrator review. Recruiting privileges are not effective until Portal verifies all signatures and Company approval.")
+    add_acknowledgement(doc, "I reviewed and accept the complete Team Leader Agreement and the locked Team Compensation Configuration.")
     add_key_values(doc, [
         ("Contracting company", "{{LEGAL_NAME}}"), ("Company address", "{{ADDRESS}}"),
-        ("Team Leader", "[agent_name]"), ("Team", "[team_name]"),
+        ("Team Leader", "[agent_name]"), ("License", "[license_number]"),
+        ("Team", "[team_name]"), ("Configuration", "[team_config_version]"),
     ])
     add_signature_grid(doc, "TEAM LEADER SIGNATURE", "COMPANY COUNTERSIGNATURE")
     add_para(doc, "Countersigner: {{BROKER_NAME}}, {{BROKER_TITLE}} | {{BROKER_EMAIL}} | {{LEGAL_NAME}}", small=True)
     doc.core_properties.title = "Team Leader Agreement master"
     doc.core_properties.subject = "Two-entity Homix Team Leader agreement master"
     doc.core_properties.author = "Homix"
-    doc.core_properties.comments = "Legal-review candidate. Team Leader must be Solo Pro and in the Team company."
+    doc.core_properties.comments = "Team Leader must be Solo Pro and associated with the Team's licensed company."
     path.parent.mkdir(parents=True, exist_ok=True)
     doc.save(path)
 
 
-def body_text(element) -> str:
-    return "".join(node.text or "" for node in element.iter() if node.tag == qn("w:t"))
-
-
-def apply_realty_condition(doc: Document, include: bool) -> None:
-    body, children = doc.element.body, list(doc.element.body)
-    start = next(i for i, child in enumerate(children) if "[[IF_REALTY]]" in body_text(child))
-    end = next(i for i, child in enumerate(children) if "[[END_IF_REALTY]]" in body_text(child))
-    if include:
-        body.remove(children[end]); body.remove(children[start])
-    else:
-        for child in children[start:end + 1]:
-            body.remove(child)
+def apply_realty_paragraphs(doc: Document, include: bool) -> None:
+    for paragraph in list(doc.paragraphs):
+        if "[[REALTY_ONLY]]" not in paragraph.text:
+            continue
+        if include:
+            for run in paragraph.runs:
+                run.text = run.text.replace("[[REALTY_ONLY]]", "")
+        else:
+            paragraph._element.getparent().remove(paragraph._element)
 
 
 def iter_paragraphs(parent):
@@ -499,12 +621,18 @@ def replace_placeholders(doc: Document, replacements: dict[str, str]) -> None:
 def generate_entity_docx(master: Path, destination: Path, entity: dict, is_agent: bool) -> None:
     doc = Document(master)
     if is_agent:
-        apply_realty_condition(doc, bool(entity["requires_libor_onekey"]))
+        apply_realty_paragraphs(doc, bool(entity["requires_libor_onekey"]))
     replace_placeholders(doc, {
         "LEGAL_NAME": entity["legal_name"], "ADDRESS": entity["address"],
         "BROKER_NAME": entity["broker_name"], "BROKER_TITLE": entity["broker_title"],
         "BROKER_EMAIL": entity["broker_email"], "AGENT_VERSION": entity["agent_version"],
         "TEAM_LEADER_VERSION": entity["team_leader_version"],
+        "LISTING_SERVICE_COST_ITEM": (
+            "fees assessed by OneKey Multiple Listing Service for failure to comply with submission "
+            "requirements (e.g., photo submission late fees, etc.)"
+            if entity["requires_libor_onekey"]
+            else "third-party listing-service or association fees applicable to Agent's practice"
+        ),
     })
     doc.core_properties.title = f"{entity['legal_name']} {'Agent Affiliation' if is_agent else 'Team Leader'} Agreement"
     doc.core_properties.author = entity["legal_name"]
@@ -542,9 +670,107 @@ def convert_to_pdf(docx_path: Path) -> Path:
     return path
 
 
+def insert_realty_appendices(path: Path) -> None:
+    if not LIBOR_APPLICATION_PATH.exists():
+        raise RuntimeError(f"Missing official LIBOR application attachment: {LIBOR_APPLICATION_PATH}")
+    if not REALTY_FEE_DISCLOSURE_PATH.exists():
+        raise RuntimeError(f"Missing Realty fee disclosure attachment: {REALTY_FEE_DISCLOSURE_PATH}")
+    source = PdfReader(str(path))
+    application = PdfReader(str(LIBOR_APPLICATION_PATH))
+    disclosures = PdfReader(str(REALTY_FEE_DISCLOSURE_PATH))
+    if len(application.pages) != 1:
+        raise RuntimeError("The official LIBOR application attachment must contain exactly one page.")
+    if len(disclosures.pages) != 2:
+        raise RuntimeError("The Realty fee disclosure attachment must contain exactly two pages.")
+    writer = PdfWriter()
+    for page in source.pages:
+        writer.add_page(page)
+    writer.add_page(application.pages[0])
+    for page in disclosures.pages:
+        writer.add_page(page)
+    temp_path = path.with_suffix(".merged.pdf")
+    with temp_path.open("wb") as handle:
+        writer.write(handle)
+    temp_path.replace(path)
+
+
+def canonicalize_static_pdf(path: Path, title: str, author: str) -> None:
+    """Remove converter timestamps so unchanged source produces an identical PDF hash."""
+    source = PdfReader(str(path))
+    writer = PdfWriter()
+    for page in source.pages:
+        writer.add_page(page)
+    writer.add_metadata({
+        "/Title": title,
+        "/Author": author,
+        "/Creator": "Homix contract generator",
+        "/Producer": "pypdf",
+    })
+    temp_path = path.with_suffix(".canonical.pdf")
+    with temp_path.open("wb") as handle:
+        writer.write(handle)
+    temp_path.replace(path)
+
+
+def normalized_contract_words(text: str) -> list[str]:
+    return re.findall(
+        r"[a-z0-9]+",
+        text.lower().replace("’", "'").replace("“", '"').replace("”", '"'),
+    )
+
+
+def assert_source_legal_fidelity(text: str, entity: dict) -> None:
+    baseline = load_json_yaml(AGENT_BASELINE_PATH)
+    actual = " ".join(normalized_contract_words(text))
+    missing: list[str] = []
+    checked = 0
+    for group in ("ica", "nda"):
+        for number, section in baseline[group].items():
+            for paragraph in section["paragraphs"]:
+                if (
+                    group == "ica"
+                    and number == "II"
+                    and paragraph.startswith("4)")
+                    and not entity["requires_libor_onekey"]
+                ):
+                    continue
+                expected = source_legal_text(paragraph)
+                expected = expected.replace("{{LEGAL_NAME}}", entity["legal_name"])
+                expected = expected.replace("{{BROKER_NAME}}", entity["broker_name"])
+                expected = expected.replace("{{BROKER_TITLE}}", entity["broker_title"])
+                if group == "ica" and number == "III" and paragraph.startswith("C."):
+                    expected = expected.replace(
+                        "(2) fees assessed by OneKey Multiple Listing Service for failure to comply with "
+                        "submission requirements (e.g., photo submission late fees, etc.),",
+                        "(2) "
+                        + (
+                            "fees assessed by OneKey Multiple Listing Service for failure to comply with "
+                            "submission requirements (e.g., photo submission late fees, etc.)"
+                            if entity["requires_libor_onekey"]
+                            else "third-party listing-service or association fees applicable to Agent's practice"
+                        )
+                        + ",",
+                    )
+                words = normalized_contract_words(expected)
+                if not words:
+                    continue
+                checked += 1
+                sample_size = min(12, len(words))
+                head = " ".join(words[:sample_size])
+                tail = " ".join(words[-sample_size:])
+                if head not in actual or tail not in actual:
+                    missing.append(f"{group.upper()} {number}: {head}")
+    if missing:
+        preview = "; ".join(missing[:8])
+        raise RuntimeError(
+            f"Source legal fidelity failed for {entity['legal_name']} "
+            f"({len(missing)}/{checked} clauses): {preview}"
+        )
+
+
 def assert_clean_pdf(path: Path, entity: dict, is_agent: bool) -> dict:
     reader = PdfReader(str(path))
-    expected = 8 if is_agent and entity["requires_libor_onekey"] else 7 if is_agent else 4
+    expected = 21 if is_agent and entity["requires_libor_onekey"] else 18 if is_agent else 7
     if len(reader.pages) != expected:
         raise RuntimeError(f"{path.name} has {len(reader.pages)} pages; expected {expected}.")
     if reader.is_encrypted or reader.get_fields():
@@ -564,6 +790,21 @@ def assert_clean_pdf(path: Path, entity: dict, is_agent: bool) -> dict:
         raise RuntimeError(f"{path.name} is missing the selected entity or address.")
     if not entity["requires_libor_onekey"] and any(term in normalized_text for term in ("libor", "onekey", "mls")):
         raise RuntimeError(f"Living release {path.name} contains Realty-only language.")
+    if is_agent:
+        assert_source_legal_fidelity(text, entity)
+        if any(term in normalized_text for term in ("legal-review candidate", "credit card authorization", "card number:", "cvv:")):
+            raise RuntimeError(f"{path.name} contains internal-review or prohibited payment-card content.")
+        if entity["requires_libor_onekey"]:
+            official = PdfReader(str(LIBOR_APPLICATION_PATH)).pages[0].get_contents().get_data()
+            inserted = reader.pages[18].get_contents().get_data()
+            if hashlib.sha256(inserted).digest() != hashlib.sha256(official).digest():
+                raise RuntimeError(f"{path.name} is missing the official LIBOR Rev 10/25 application page.")
+            disclosures = PdfReader(str(REALTY_FEE_DISCLOSURE_PATH))
+            for offset, disclosure in enumerate(disclosures.pages, start=19):
+                expected_content = disclosure.get_contents().get_data()
+                actual_content = reader.pages[offset].get_contents().get_data()
+                if hashlib.sha256(actual_content).digest() != hashlib.sha256(expected_content).digest():
+                    raise RuntimeError(f"{path.name} is missing Realty disclosure page {offset - 18}.")
     return {"file": path.name, "pages": len(reader.pages),
             "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
             "entity": entity["legal_name"], "agreement": "agent" if is_agent else "team_leader"}
@@ -573,7 +814,7 @@ def write_release_index(records: list[dict]) -> None:
     (PDF_DIR / "release-index.json").write_text(json.dumps({"contracts": records}, indent=2) + "\n", encoding="utf-8")
     lines = ["# Homix onboarding contract release candidates", "",
              "Generated from two legal-reviewable DOCX masters and `contracts/entities.yml`.",
-             "These files remain candidates until Company counsel approves both masters and the Realty appendix.", "",
+             "These files remain candidates until Company counsel approves both masters, the official Realty application attachment, and the versioned Realty fee disclosure.", "",
              "| File | Entity | Agreement | Pages | SHA-256 |", "| --- | --- | --- | ---: | --- |"]
     for record in records:
         lines.append(f"| `{record['file']}` | {record['entity']} | {record['agreement']} | {record['pages']} | `{record['sha256']}` |")
@@ -598,8 +839,22 @@ def main() -> None:
         leader_docx = GENERATED_DIR / f"{entity['team_leader_filename']}.docx"
         generate_entity_docx(AGENT_MASTER, agent_docx, entity, True)
         generate_entity_docx(TEAM_LEADER_MASTER, leader_docx, entity, False)
-        records.append(assert_clean_pdf(convert_to_pdf(agent_docx), entity, True))
-        records.append(assert_clean_pdf(convert_to_pdf(leader_docx), entity, False))
+        agent_pdf = convert_to_pdf(agent_docx)
+        if entity["requires_libor_onekey"]:
+            insert_realty_appendices(agent_pdf)
+        canonicalize_static_pdf(
+            agent_pdf,
+            f"{entity['legal_name']} Agent Affiliation Agreement {entity['agent_version']}",
+            entity["legal_name"],
+        )
+        records.append(assert_clean_pdf(agent_pdf, entity, True))
+        leader_pdf = convert_to_pdf(leader_docx)
+        canonicalize_static_pdf(
+            leader_pdf,
+            f"{entity['legal_name']} Team Leader Agreement {entity['team_leader_version']}",
+            entity["legal_name"],
+        )
+        records.append(assert_clean_pdf(leader_pdf, entity, False))
     write_release_index(records)
     for record in records:
         print(f"{record['file']}: {record['pages']} pages {record['sha256']}")

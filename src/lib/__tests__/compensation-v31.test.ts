@@ -58,6 +58,23 @@ assert.equal(team.sponsorAmount, 100);
 assert.equal(team.agentNetTotal, 8_100);
 assert.equal(team.homixRetained, 900);
 
+const defaultTeamTerms = computeCompensationV31({
+  dealType: "rental",
+  grossCommission: 10_000,
+  source: "self",
+  participants: [{
+    agentId: 1,
+    sharePct: 100,
+    plan: "team_member",
+    companyCapUsed: 0,
+    teamId: 7,
+    teamLeaderAgentId: 2,
+  }],
+});
+assert.equal(defaultTeamTerms.teamAllocation, 900);
+assert.equal(defaultTeamTerms.allocations[0].teamCapAmount, undefined);
+assert.equal(defaultTeamTerms.agentNetTotal, 8_100);
+
 const noTeamSplit = computeCompensationV31({
   dealType: "rental",
   grossCommission: 10_000,

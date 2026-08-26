@@ -19,54 +19,69 @@ separate pinned templates. Each envelope has one agent/leader signer and exactly
 one company countersigner; a Team Leader is never silently added as a recipient
 to a Team Member agreement.
 
-## Two masters and four release candidates
+## Two masters and four approved release artifacts
 
-The business-supplied, previously reviewed enrollment packages were used as
-legal source material, but these new documents remain **legal-review candidates**.
-Counsel must approve the two editable masters and the Realty appendix before any
-production publication. The canonical sources are:
+The business-supplied, previously reviewed enrollment packages are the legal
+baseline. Homix approved the regenerated documents for production publication
+on 2026-08-26. The Agent
+master preserves the original Commission Agreement structure, Commission
+Reporting Guideline, all 15 ICA sections, all 24 NDA sections, and their separate
+execution points. It is not the earlier abbreviated rewrite. Living and Realty
+share that complete 18-page Agent body. Entity name, address, version, and
+countersigner are applied from `contracts/entities.yml`. The Realty Agent release
+then appends the static official LIBOR Rev 10/25 application and the versioned
+two-page Realty fee disclosure. The machine-readable source baseline and
+paragraph fingerprints are stored in
+`contracts/source/agent-affiliation-baseline.json`; generation fails if an
+applicable source ICA or NDA paragraph is omitted.
+The Team Leader master is a new approved internal agreement; it was not present
+in the supplied enrollment packages. The canonical sources are:
 
 - `contracts/source/Agent_Affiliation_Agreement.docx`
 - `contracts/source/Team_Leader_Agreement.docx`
+- `contracts/source/agent-affiliation-baseline.json`
+- `contracts/appendices/LIBOR_REALTOR_Application_Rev_10-25.pdf`
+- `contracts/appendices/Realty_LIBOR_OneKey_Fee_Disclosures_v1.md`
 - `contracts/entities.yml`
 - `contracts/field-manifests.yml`
 
-Run `scripts/generate-onboarding-contracts.py --author-masters` to regenerate
+Run `scripts/generate-realty-fee-disclosure.py` first, then run
+`scripts/generate-onboarding-contracts.py --author-masters` to regenerate
 the two masters, four entity DOCX files, four PDFs, hashes, and the release
-index. The generated release candidates are:
+index. The approved source artifacts retain their existing `-candidate` filenames
+so the already-published PDF hashes remain stable:
 
-- `output/pdf/Homix_Realty_Agent_Affiliation_Agreement_v4.0-candidate.pdf`
-- `output/pdf/Homix_Living_Agent_Affiliation_Agreement_v4.0-candidate.pdf`
-- `output/pdf/Homix_Realty_Team_Leader_Agreement_v2.0-candidate.pdf`
-- `output/pdf/Homix_Living_Team_Leader_Agreement_v2.0-candidate.pdf`
+- `output/pdf/Homix_Realty_Agent_Affiliation_Agreement_v4.2-candidate.pdf`
+- `output/pdf/Homix_Living_Agent_Affiliation_Agreement_v4.2-candidate.pdf`
+- `output/pdf/Homix_Realty_Team_Leader_Agreement_v2.2-candidate.pdf`
+- `output/pdf/Homix_Living_Team_Leader_Agreement_v2.2-candidate.pdf`
 
 The generator fails closed on wrong page counts, cross-entity names, a missing
 legal address, Living LIBOR/OneKey/MLS language, interactive form fields,
-annotations, JavaScript, or document actions. Generated PDFs are release
-candidates, not checked-in production signatures.
+annotations, JavaScript, or document actions. Generated PDFs are approved source
+artifacts, not completed production signatures.
 
 Each Agent agreement offers only Solo, Solo Pro, and Team Member. A
 non-producing agent remains on Solo; non-producing is an operating status, not
-a fourth compensation plan. Legacy Holding is normalized to Solo. Team Leader
-is a role that requires completed Agent onboarding, Solo Pro, and a separate
-same-entity Team Leader Agreement.
+a fourth compensation plan. No Holding plan is offered. Team Leader is a role
+that requires completed Agent onboarding, Solo Pro, and a separate same-entity
+Team Leader Agreement.
 
 The production matrix is four immutable templates:
 
 | Purpose | Homix Realty Inc. | Homix Living Inc. |
 | --- | --- | --- |
-| Agent affiliation / Team Member | Candidate generated; final company review required | Candidate generated; final company review required |
-| Team Leader agreement | Candidate generated; final company review required | Candidate generated; final company review required |
+| Agent affiliation / Team Member | Approved and published | Approved and published |
+| Team Leader agreement | Approved and published | Approved and published |
 
 The confirmed company countersigner for both entities is Si Zhang, Broker,
 `sunnyz@homixny.com`. Countersigning is required and occurs manually after the
 administrator's compliance approval. Portal and eSign may not auto-apply the
 company signature.
 
-Before production publication, Si Zhang or company counsel must approve the new
-compensation schedule, Team Leader terms, edition/effective date, and the
-continued use of the retained legal pages. Portal and eSign can place fields,
-but they cannot provide that legal approval.
+The business approval covers the compensation schedule, shared Agent and Team
+Leader terms, Realty appendix, and current edition/effective date. A later PDF
+edit requires a new review and immutable template version.
 
 Do not upload a real agreement to development. Production templates and completed
 records belong only in the approved production eSign environment.
@@ -102,18 +117,25 @@ use the stable `fieldKey`, page, type, role, required flag, and fixed/read-only
 value in `contracts/field-manifests.yml`. Portal rejects a published version
 whose exact manifest does not match:
 
-- Agent page 2: plan checkbox, plan signature/date, read-only plan.
-- Agent page 5: ICA signature/date and company countersignature/date.
-- Agent page 7: separate NDA signature/date.
-- Realty Agent page 8: LIBOR acknowledgement, required membership details,
-  initials, signature, and date.
-- Team Leader page 2: configuration checkbox/initials and read-only `solo_pro`.
-- Team Leader page 4: Team Leader signature/date and company
+- Agent page 2: plan checkbox, Agent signature/date, company countersignature/date,
+  and read-only plan.
+- Agent page 3: reporting checkbox, Agent signature/date, and company
   countersignature/date.
+- Agent page 4: ICA address and effective date.
+- Agent page 12: ICA signature/date and company countersignature/date.
+- Agent page 18: separate NDA signature/date and company countersignature/date.
+- Realty Agent page 19: all required fields on the official LIBOR application,
+  including application signature/date.
+- Realty Agent page 21: fee acknowledgement/initials, Agent signature/date, and
+  company countersignature/date. Page 20 is disclosure text and has no eSign field.
+- Team Leader page 2: configuration checkbox/initials and read-only `solo_pro`.
+- Team Leader page 7: execution acknowledgement, Team Leader signature/date,
+  and company countersignature/date.
 
-Living templates have seven Agent pages and no Realty appendix fields. Realty
-templates have eight Agent pages. Both Team Leader templates have four pages.
-Missing any required signature or acknowledgement blocks completion.
+Living templates have 18 Agent pages and no Realty appendix fields. Realty
+templates have 21 Agent pages. Both Team Leader templates have seven pages.
+Missing any required signature, date, acknowledgement, or required membership
+field blocks completion.
 
 Production signing stays at `https://esign.kevv.ai`. Synthetic recipients may
 only use `okjusthere@gmail.com`, `kertweller@gmail.com`,
@@ -173,6 +195,23 @@ activation. Do not hide materially different terms with conditional merge values
 
 ## Publish and pin
 
+Production status on 2026-08-26:
+
+- all four approved PDFs are published as immutable production templates
+- `npm run esign:verify-production` validates every live version, hash, page,
+  role, and field against the Portal manifest
+- Vercel Production has the dedicated HR application credential, all four
+  template pins, and both countersigner identities
+- `ONBOARDING_V2_ENFORCED=0` remains explicit
+- the production database has the additive lifecycle migrations
+- the rollback-only production smoke passes Solo, Team Member with the Team
+  Leader as Sponsor, Team Member with a different Sponsor, default 10% Team
+  Split with no Team Cap, and administrator-verified offline payment
+
+Remaining cutover gates are the `esign.kevv.ai` production-domain binding and a
+manual signer/countersigner/evidence cycle using only the approved synthetic
+recipient list.
+
 1. Upload the approved PDF to the matching production eSign workspace.
 2. Add recipient roles and fields, then publish the immutable version.
 3. Record the template ID, published version ID, and schema hash.
@@ -188,10 +227,11 @@ activation. Do not hide materially different terms with conditional merge values
 8. Keep `ONBOARDING_V2_ENFORCED=0` until the business explicitly approves cutover.
 
 Deploy the additive migrations in this order before deploying code that reads
-the new lifecycle: `20260825-team-leader-workspace.sql`,
-`20260825-team-join-approval.sql`, `20260825-team-leader-applications.sql`,
-`20260825-holding-to-solo.sql`, then
-`20260825-licensed-company-boundaries.sql`. Assign a licensed company to every
+the new lifecycle: `20260825-team-leader-applications.sql`,
+`20260825-licensed-company-boundaries.sql`,
+`20260825-team-join-approval.sql`,
+`20260825-team-leader-workspace.sql`, then
+`20260825-holding-to-solo.sql`. Assign a licensed company to every
 legacy Team before enabling company-bound workflows. Do not enable the
 enforcement flag as part of a migration or deployment.
 

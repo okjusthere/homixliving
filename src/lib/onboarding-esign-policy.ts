@@ -95,7 +95,7 @@ export function validateOnboardingESignTemplate(input: {
       "The onboarding template must not require preparer approval.",
     );
   }
-  validateSingleDocument(version, entityKey === "homix_realty" ? 8 : 7);
+  validateSingleDocument(version, entityKey === "homix_realty" ? 21 : 18);
 
   const signerRoles = version.roles.filter((role) => role.kind === "signer");
   if (signerRoles.length !== 1) {
@@ -176,7 +176,7 @@ export function validateTeamLeaderESignTemplate(input: {
   if (version.businessDomain !== "HR" || version.jurisdiction !== "NY" || version.approvalRequired) {
     throw new OnboardingESignTemplateError("The Team Leader template must be a directly sendable NY HR template.");
   }
-  validateSingleDocument(version, 4);
+  validateSingleDocument(version, 7);
   const signerRoles = version.roles.filter((role) => role.kind === "signer");
   const countersignerRoles = version.roles.filter((role) => role.kind === "countersigner");
   const unsupportedRoles = version.roles.filter(
