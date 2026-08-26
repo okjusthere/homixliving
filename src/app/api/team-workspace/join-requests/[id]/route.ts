@@ -113,6 +113,11 @@ export async function PATCH(
           "The applicant is no longer eligible for a team decision.",
         );
       }
+      if (!freshTeam.companyId || candidate.licensedCompanyId !== freshTeam.companyId) {
+        throw new TeamJoinDecisionConflict(
+          "The applicant and team must belong to the same licensed company.",
+        );
+      }
 
       const now = new Date().toISOString();
       const today = now.slice(0, 10);

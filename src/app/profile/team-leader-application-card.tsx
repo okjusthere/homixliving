@@ -10,6 +10,7 @@ import { TEAM_SPLIT_PRESETS } from "@/lib/team-compensation-policy";
 
 type Eligibility =
   | "account_not_active"
+  | "agent_agreement_required"
   | "solo_pro_required"
   | "licensed_company_required"
   | "already_team_leader"
@@ -42,6 +43,7 @@ const M = {
     failed: "Could not submit the application.",
     soloPro: "Upgrade to Solo Pro before applying to lead a team.",
     licensedCompany: "Select Homix Realty Inc. or Homix Living Inc. in your company record before applying.",
+    agentAgreement: "Complete your Agent Affiliation Agreement before applying to lead a team.",
     status: "Application status",
     submitted: "Under office review",
     approved: "Approved · agreement required",
@@ -65,6 +67,7 @@ const M = {
     failed: "申请提交失败，请重试。",
     soloPro: "需先使用 Solo Pro 方案，才能申请组建团队。",
     licensedCompany: "申请前需先在公司档案中选择 Homix Realty Inc. 或 Homix Living Inc.。",
+    agentAgreement: "申请组建团队前，需先完成经纪人入职协议。",
     status: "申请状态",
     submitted: "等待管理员审核",
     approved: "已批准 · 待签 Team Leader 协议",
@@ -160,6 +163,9 @@ export function TeamLeaderApplicationCard({
         )}
         {!current && eligibility === "licensed_company_required" && (
           <p className="text-[13px]" style={{ color: tone.ink70 }}>{t.licensedCompany}</p>
+        )}
+        {!current && eligibility === "agent_agreement_required" && (
+          <p className="text-[13px]" style={{ color: tone.ink70 }}>{t.agentAgreement}</p>
         )}
         {canApply && !open && (
           <Btn variant="outline" onClick={() => setOpen(true)}>{t.apply}</Btn>

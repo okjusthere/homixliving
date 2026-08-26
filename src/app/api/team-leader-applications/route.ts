@@ -11,7 +11,7 @@ import { requireActiveAgentApi } from "@/lib/auth-guards";
 import { lockOnboardingAgent } from "@/lib/advisory-locks";
 import { normalizeAgentPlan } from "@/lib/agent-plans";
 import { logAudit } from "@/lib/audit";
-import { resolveOnboardingESignEntity } from "@/lib/esign";
+import { resolveLicensedCompany } from "@/lib/licensed-companies";
 import { adminAgentIds, notify } from "@/lib/notify";
 import { onboardingEventValues } from "@/lib/onboarding-events";
 import {
@@ -80,9 +80,10 @@ export async function POST(request: NextRequest) {
           inArray(teamLeaderApplications.status, [...OPEN_STATUSES]),
         ))
         .limit(1);
-      const licensedCompany = resolveOnboardingESignEntity(agent.licensedCompany);
+      const licensedCompany = resolveLicensedCompany(agent.licensedCompanyId || agent.licensedCompany);
       const ineligible = teamLeaderApplicationEligibility({
         accountStatus: agent.accountStatus,
+        agentAgreementStatus: agent.agreementStatus,
         plan: normalizeAgentPlan(agent.plan),
         licensedCompanySupported: Boolean(licensedCompany),
         alreadyLeadsTeam: Boolean(leadership),
@@ -92,6 +93,7 @@ export async function POST(request: NextRequest) {
       const [created] = await tx.insert(teamLeaderApplications).values({
         applicantAgentId: agentId,
         licensedCompany: licensedCompany!.legalName,
+        companyId: licensedCompany!.id,
         ...input,
       }).returning();
       await tx.insert(onboardingEvents).values(onboardingEventValues({
@@ -131,6 +133,7 @@ export async function POST(request: NextRequest) {
     const messages: Record<string, string> = {
       AGENT_NOT_FOUND: "Agent not found.",
       account_not_active: "Only active agents may apply.",
+      agent_agreement_required: "Complete your Agent Affiliation Agreement before applying.",
       solo_pro_required: "The Solo Pro plan is required before applying.",
       licensed_company_required: "Select Homix Realty Inc. or Homix Living Inc. before applying.",
       already_team_leader: "You already lead a team.",

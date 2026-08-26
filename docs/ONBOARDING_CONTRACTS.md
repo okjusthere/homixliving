@@ -1,8 +1,8 @@
 # Onboarding contract handoff
 
-`ONBOARDING_V2_ENFORCED` stays `0` until both legal-entity templates and both
-payment smoke tests pass. A missing contract or template pin must not block the
-existing approval flow during preparation.
+`ONBOARDING_V2_ENFORCED` stays `0` until all four entity-specific templates,
+both payment paths, and all six onboarding scenarios pass. A missing contract
+or template pin must not block the existing approval flow during preparation.
 
 ## Team consent implemented in Portal
 
@@ -19,21 +19,37 @@ separate pinned templates. Each envelope has one agent/leader signer and exactly
 one company countersigner; a Team Leader is never silently added as a recipient
 to a Team Member agreement.
 
-## Candidate contract package generated
+## Two masters and four release candidates
 
-The law-reviewed enrollment packages supplied by the business were used as the
-base legal text. The old 92/8 middle tier, card-authorization pages, and manual
-fee receipts were removed. The regenerated candidate package is:
+The business-supplied, previously reviewed enrollment packages were used as
+legal source material, but these new documents remain **legal-review candidates**.
+Counsel must approve the two editable masters and the Realty appendix before any
+production publication. The canonical sources are:
 
-- `output/pdf/Homix_Realty_Agent_Affiliation_Agreement_v3.1.pdf`
-- `output/pdf/Homix_Living_Agent_Affiliation_Agreement_v3.1.pdf`
-- `output/pdf/Homix_Realty_Team_Leader_Agreement_v1.0.pdf`
-- `output/pdf/Homix_Living_Team_Leader_Agreement_v1.0.pdf`
+- `contracts/source/Agent_Affiliation_Agreement.docx`
+- `contracts/source/Team_Leader_Agreement.docx`
+- `contracts/entities.yml`
+- `contracts/field-manifests.yml`
 
-Each Agent agreement now offers only Solo, Solo Pro, and Team Member. A
-non-producing agent remains on Solo; non-producing is an operational status, not
-a fourth compensation plan. Team Leader is granted through the approved Team
-Leader lifecycle and uses its own agreement.
+Run `scripts/generate-onboarding-contracts.py --author-masters` to regenerate
+the two masters, four entity DOCX files, four PDFs, hashes, and the release
+index. The generated release candidates are:
+
+- `output/pdf/Homix_Realty_Agent_Affiliation_Agreement_v4.0-candidate.pdf`
+- `output/pdf/Homix_Living_Agent_Affiliation_Agreement_v4.0-candidate.pdf`
+- `output/pdf/Homix_Realty_Team_Leader_Agreement_v2.0-candidate.pdf`
+- `output/pdf/Homix_Living_Team_Leader_Agreement_v2.0-candidate.pdf`
+
+The generator fails closed on wrong page counts, cross-entity names, a missing
+legal address, Living LIBOR/OneKey/MLS language, interactive form fields,
+annotations, JavaScript, or document actions. Generated PDFs are release
+candidates, not checked-in production signatures.
+
+Each Agent agreement offers only Solo, Solo Pro, and Team Member. A
+non-producing agent remains on Solo; non-producing is an operating status, not
+a fourth compensation plan. Legacy Holding is normalized to Solo. Team Leader
+is a role that requires completed Agent onboarding, Solo Pro, and a separate
+same-entity Team Leader Agreement.
 
 The production matrix is four immutable templates:
 
@@ -55,6 +71,20 @@ but they cannot provide that legal approval.
 Do not upload a real agreement to development. Production templates and completed
 records belong only in the approved production eSign environment.
 
+## Company-first and Team boundary
+
+The candidate chooses the licensed company before plan or Team and accepts the
+LIBOR/OneKey disclosure. A Team recruiting link locks the company and does not
+offer another company choice. Portal must enforce:
+
+`Team Leader.companyId = Team.companyId = Team Member.companyId`
+
+A company change is not an ordinary profile edit. It requires Team, plan,
+template, MLS disclosure, payment, and signing-state revalidation. A legal Team
+cannot span the two brokerages; shared branding requires separate entity Teams
+under a non-legal internal group. The Team Leader must be Active, fully
+onboarded with that company, and on Solo Pro before agreement preparation.
+
 ## Template policy
 
 Create a separate template for each legal entity, even when the current wording
@@ -67,10 +97,23 @@ is similar. Every template must use:
 - exactly one `countersigner` role for the company
 - no approver, viewer, or copy roles
 
-The PDF must contain a required agent `signature` field and a required
-`signed_date` field assigned to the agent role, plus a required company signature
-and signed date assigned to the countersigner role. Required
-acknowledgements may use agent-owned checkbox or initials fields.
+Do not validate a template by role or merge-key counts alone. Every field must
+use the stable `fieldKey`, page, type, role, required flag, and fixed/read-only
+value in `contracts/field-manifests.yml`. Portal rejects a published version
+whose exact manifest does not match:
+
+- Agent page 2: plan checkbox, plan signature/date, read-only plan.
+- Agent page 5: ICA signature/date and company countersignature/date.
+- Agent page 7: separate NDA signature/date.
+- Realty Agent page 8: LIBOR acknowledgement, required membership details,
+  initials, signature, and date.
+- Team Leader page 2: configuration checkbox/initials and read-only `solo_pro`.
+- Team Leader page 4: Team Leader signature/date and company
+  countersignature/date.
+
+Living templates have seven Agent pages and no Realty appendix fields. Realty
+templates have eight Agent pages. Both Team Leader templates have four pages.
+Missing any required signature or acknowledgement blocks completion.
 
 Production signing stays at `https://esign.kevv.ai`. Synthetic recipients may
 only use `okjusthere@gmail.com`, `kertweller@gmail.com`,
@@ -115,7 +158,7 @@ read-only merge fields exactly once:
 | `agent_phone` | Portal profile |
 | `license_number` | Portal profile |
 | `licensed_company` | Canonical contracting entity frozen on the Team Leader application |
-| `compensation_plan` | `team_leader` |
+| `compensation_plan` | `solo_pro` (fixed and read-only) |
 | `team_name` | Admin-approved team name |
 | `expected_member_count` | Submitted application |
 | `team_positioning` | Submitted application |
@@ -146,9 +189,17 @@ activation. Do not hide materially different terms with conditional merge values
 
 Deploy the additive migrations in this order before deploying code that reads
 the new lifecycle: `20260825-team-leader-workspace.sql`,
-`20260825-team-join-approval.sql`, `20260825-team-leader-applications.sql`, then
-`20260825-holding-to-solo.sql`. Do not enable the enforcement flag as part of a
-migration or deployment.
+`20260825-team-join-approval.sql`, `20260825-team-leader-applications.sql`,
+`20260825-holding-to-solo.sql`, then
+`20260825-licensed-company-boundaries.sql`. Assign a licensed company to every
+legacy Team before enabling company-bound workflows. Do not enable the
+enforcement flag as part of a migration or deployment.
+
+The six required agreement smokes are Realty Solo, Living Solo, Realty Team
+Member, Living Team Member, Realty Team Leader, and Living Team Leader. Run
+online payment and administrator-verified offline payment where applicable.
+Verify that SSN, full bank account details, and payment-card data never enter
+merge fields, ordinary database columns, application logs, or evidence text.
 
 Any PDF edit creates a new template version and schema hash. Review and repin it;
 never silently replace a published agreement under an existing pin.

@@ -3,6 +3,12 @@ import type {
   ESignTemplateField,
   ESignTemplateVersion,
 } from "@/lib/esign";
+import type { OnboardingESignEntityKey } from "@/lib/esign";
+import {
+  agentAgreementFieldManifest,
+  teamLeaderAgreementFieldManifest,
+  validateStableFieldManifest,
+} from "@/lib/onboarding-field-manifests";
 
 const BASE_MERGE_KEYS = [
   "agent_id",
@@ -49,13 +55,22 @@ export class OnboardingESignTemplateError extends Error {
   }
 }
 
+function validateSingleDocument(version: ESignTemplateVersion, expectedPageCount: number) {
+  if (version.documents.length !== 1 || version.documents[0].pageCount !== expectedPageCount) {
+    throw new OnboardingESignTemplateError(
+      `The template must contain one ${expectedPageCount}-page PDF.`,
+    );
+  }
+}
+
 export function validateOnboardingESignTemplate(input: {
   template: ESignTemplate;
   expectedVersionId: string;
   expectedSchemaHash: string;
   includeTeamTerms: boolean;
+  entityKey: OnboardingESignEntityKey;
 }) {
-  const { template, expectedVersionId, expectedSchemaHash, includeTeamTerms } = input;
+  const { template, expectedVersionId, expectedSchemaHash, includeTeamTerms, entityKey } = input;
   if (template.activeVersionId !== expectedVersionId) {
     throw new OnboardingESignTemplateError(
       "The active onboarding template version has not been approved for Portal.",
@@ -80,6 +95,7 @@ export function validateOnboardingESignTemplate(input: {
       "The onboarding template must not require preparer approval.",
     );
   }
+  validateSingleDocument(version, entityKey === "homix_realty" ? 8 : 7);
 
   const signerRoles = version.roles.filter((role) => role.kind === "signer");
   if (signerRoles.length !== 1) {
@@ -120,6 +136,17 @@ export function validateOnboardingESignTemplate(input: {
       );
     }
   }
+  try {
+    validateStableFieldManifest({
+      version,
+      requirements: agentAgreementFieldManifest(entityKey),
+      forbidRealtyFields: entityKey === "homix_living",
+    });
+  } catch (error) {
+    throw new OnboardingESignTemplateError(
+      error instanceof Error ? error.message : "The onboarding field manifest is invalid.",
+    );
+  }
 
   return {
     version,
@@ -136,6 +163,7 @@ export function validateTeamLeaderESignTemplate(input: {
   template: ESignTemplate;
   expectedVersionId: string;
   expectedSchemaHash: string;
+  entityKey: OnboardingESignEntityKey;
 }) {
   const { template, expectedVersionId, expectedSchemaHash } = input;
   if (template.activeVersionId !== expectedVersionId) {
@@ -148,6 +176,7 @@ export function validateTeamLeaderESignTemplate(input: {
   if (version.businessDomain !== "HR" || version.jurisdiction !== "NY" || version.approvalRequired) {
     throw new OnboardingESignTemplateError("The Team Leader template must be a directly sendable NY HR template.");
   }
+  validateSingleDocument(version, 4);
   const signerRoles = version.roles.filter((role) => role.kind === "signer");
   const countersignerRoles = version.roles.filter((role) => role.kind === "countersigner");
   const unsupportedRoles = version.roles.filter(
@@ -170,6 +199,17 @@ export function validateTeamLeaderESignTemplate(input: {
         `The Team Leader template must contain one read-only ${key} merge field.`,
       );
     }
+  }
+  try {
+    validateStableFieldManifest({
+      version,
+      requirements: teamLeaderAgreementFieldManifest(),
+      forbidRealtyFields: input.entityKey === "homix_living",
+    });
+  } catch (error) {
+    throw new OnboardingESignTemplateError(
+      error instanceof Error ? error.message : "The Team Leader field manifest is invalid.",
+    );
   }
   return { version, signerRole: signerRoles[0], countersignerRoles };
 }

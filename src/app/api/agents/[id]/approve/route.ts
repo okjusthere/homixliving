@@ -140,8 +140,18 @@ export async function POST(
     if (!Number.isInteger(teamId) || teamId <= 0) {
       return NextResponse.json({ error: "Invalid team" }, { status: 400 });
     }
-    const [team] = await db.select({ id: teams.id }).from(teams).where(eq(teams.id, teamId)).limit(1);
+    const [team] = await db
+      .select({ id: teams.id, companyId: teams.companyId })
+      .from(teams)
+      .where(eq(teams.id, teamId))
+      .limit(1);
     if (!team) return NextResponse.json({ error: "Team not found" }, { status: 404 });
+    if (!existing.licensedCompanyId || team.companyId !== existing.licensedCompanyId) {
+      return NextResponse.json(
+        { error: "Agent and team must belong to the same licensed company." },
+        { status: 409 },
+      );
+    }
     if (agreementFactsFrozen && teamId !== existing.teamId) {
       return NextResponse.json(
         { error: "Team cannot change after the affiliation agreement is sent." },
@@ -151,13 +161,32 @@ export async function POST(
   }
 
   const effectiveTeamId = teamId !== undefined ? teamId : existing.teamId;
+  if (effectiveTeamId) {
+    const [effectiveTeam] = await db
+      .select({ companyId: teams.companyId })
+      .from(teams)
+      .where(eq(teams.id, effectiveTeamId))
+      .limit(1);
+    if (!effectiveTeam) {
+      return NextResponse.json({ error: "Team not found" }, { status: 404 });
+    }
+    if (
+      !existing.licensedCompanyId ||
+      effectiveTeam.companyId !== existing.licensedCompanyId
+    ) {
+      return NextResponse.json(
+        { error: "Agent and team must belong to the same licensed company." },
+        { status: 409 },
+      );
+    }
+  }
   const isTeamLeader = await db
     .select({ id: teams.id })
     .from(teams)
     .where(eq(teams.leaderAgentId, parsedId))
     .limit(1)
     .then((rows) => rows.length > 0);
-  const effectivePlan = isTeamLeader ? "team_leader" : normalizeAgentPlan(existing.plan);
+  const effectivePlan = isTeamLeader ? "solo_pro" : normalizeAgentPlan(existing.plan);
   if (effectivePlan === "team_member" && !effectiveTeamId) {
     return NextResponse.json(
       { error: "Team Member onboarding must select a team before approval." },

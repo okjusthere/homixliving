@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "agent_common": [
+    {"fieldKey": "agent.plan_acknowledgement", "page": 2, "type": "checkbox", "role": "signer", "required": true},
+    {"fieldKey": "agent.plan_signature", "page": 2, "type": "signature", "role": "signer", "required": true},
+    {"fieldKey": "agent.plan_signed_date", "page": 2, "type": "date", "role": "signer", "required": true},
+    {"fieldKey": "agent.compensation_plan", "page": 2, "type": "merge", "role": null, "required": true, "readOnly": true, "mergeKey": "compensation_plan"},
+    {"fieldKey": "agent.ica_signature", "page": 5, "type": "signature", "role": "signer", "required": true},
+    {"fieldKey": "agent.ica_signed_date", "page": 5, "type": "date", "role": "signer", "required": true},
+    {"fieldKey": "company.ica_countersignature", "page": 5, "type": "signature", "role": "countersigner", "required": true},
+    {"fieldKey": "company.ica_countersigned_date", "page": 5, "type": "date", "role": "countersigner", "required": true},
+    {"fieldKey": "agent.nda_signature", "page": 7, "type": "signature", "role": "signer", "required": true},
+    {"fieldKey": "agent.nda_signed_date", "page": 7, "type": "date", "role": "signer", "required": true}
+  ],
+  "realty_agent_appendix": [
+    {"fieldKey": "realty.libor_acknowledgement", "page": 8, "type": "checkbox", "role": "signer", "required": true},
+    {"fieldKey": "realty.libor_legal_name", "page": 8, "type": "text", "role": "signer", "required": true},
+    {"fieldKey": "realty.libor_license_number", "page": 8, "type": "text", "role": "signer", "required": true},
+    {"fieldKey": "realty.libor_home_address", "page": 8, "type": "text", "role": "signer", "required": true},
+    {"fieldKey": "realty.libor_phone", "page": 8, "type": "text", "role": "signer", "required": true},
+    {"fieldKey": "realty.libor_email", "page": 8, "type": "text", "role": "signer", "required": true},
+    {"fieldKey": "realty.libor_initials", "page": 8, "type": "initials", "role": "signer", "required": true},
+    {"fieldKey": "realty.libor_signature", "page": 8, "type": "signature", "role": "signer", "required": true},
+    {"fieldKey": "realty.libor_signed_date", "page": 8, "type": "date", "role": "signer", "required": true}
+  ],
+  "team_leader_common": [
+    {"fieldKey": "team.config_acknowledgement", "page": 2, "type": "checkbox", "role": "signer", "required": true},
+    {"fieldKey": "team.config_initials", "page": 2, "type": "initials", "role": "signer", "required": true},
+    {"fieldKey": "team.compensation_plan", "page": 2, "type": "merge", "role": null, "required": true, "readOnly": true, "mergeKey": "compensation_plan", "fixedValue": "solo_pro"},
+    {"fieldKey": "team.leader_signature", "page": 4, "type": "signature", "role": "signer", "required": true},
+    {"fieldKey": "team.leader_signed_date", "page": 4, "type": "date", "role": "signer", "required": true},
+    {"fieldKey": "company.team_leader_countersignature", "page": 4, "type": "signature", "role": "countersigner", "required": true},
+    {"fieldKey": "company.team_leader_countersigned_date", "page": 4, "type": "date", "role": "countersigner", "required": true}
+  ]
+}

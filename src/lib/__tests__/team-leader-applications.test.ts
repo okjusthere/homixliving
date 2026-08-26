@@ -8,18 +8,21 @@ import {
 
 assert.equal(teamLeaderApplicationEligibility({
   accountStatus: "active",
+  agentAgreementStatus: "completed",
   plan: "solo_pro",
   licensedCompanySupported: true,
   alreadyLeadsTeam: false,
 }), null);
 assert.equal(teamLeaderApplicationEligibility({
   accountStatus: "active",
+  agentAgreementStatus: "completed",
   plan: "solo",
   licensedCompanySupported: true,
   alreadyLeadsTeam: false,
 }), "solo_pro_required");
 assert.equal(teamLeaderApplicationEligibility({
   accountStatus: "active",
+  agentAgreementStatus: "completed",
   plan: "solo_pro",
   licensedCompanySupported: true,
   alreadyLeadsTeam: false,
@@ -27,10 +30,18 @@ assert.equal(teamLeaderApplicationEligibility({
 }), "application_already_open");
 assert.equal(teamLeaderApplicationEligibility({
   accountStatus: "active",
+  agentAgreementStatus: "completed",
   plan: "solo_pro",
   licensedCompanySupported: false,
   alreadyLeadsTeam: false,
 }), "licensed_company_required");
+assert.equal(teamLeaderApplicationEligibility({
+  accountStatus: "active",
+  agentAgreementStatus: "sent",
+  plan: "solo_pro",
+  licensedCompanySupported: true,
+  alreadyLeadsTeam: false,
+}), "agent_agreement_required");
 
 assert.deepEqual(validateTeamLeaderApplicationInput({
   proposedTeamName: "  Queens Growth Team ",

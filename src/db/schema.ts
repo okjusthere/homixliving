@@ -94,11 +94,27 @@ export const settings = portal.table("settings", {
   value: text("value").notNull(),
 });
 
+export type LicensedCompanyId = "homix_realty" | "homix_living";
+
+export const licensedCompanies = portal.table("licensed_companies", {
+  id: text("id").$type<LicensedCompanyId>().primaryKey(),
+  legalName: text("legal_name").notNull().unique(),
+  address: text("address").notNull(),
+  brokerName: text("broker_name").notNull(),
+  brokerTitle: text("broker_title").notNull(),
+  brokerEmail: text("broker_email").notNull(),
+  requiresLiborOneKey: boolean("requires_libor_onekey").notNull().default(false),
+  isActive: boolean("is_active").notNull().default(true),
+});
+
 export type TeamLifecycleStatus = "forming" | "active" | "inactive";
 
 export const teams = portal.table("teams", {
   id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
   name: text("name").notNull(),
+  companyId: text("company_id")
+    .$type<LicensedCompanyId>()
+    .references(() => licensedCompanies.id, { onDelete: "restrict" }),
   leaderAgentId: integer("leader_agent_id").references((): AnyPgColumn => agents.id),
   status: text("status").$type<TeamLifecycleStatus>().notNull().default("active"),
   notes: text("notes"),
@@ -157,6 +173,11 @@ export const agents = portal.table("agents", {
   // NY licenses expire every 2 years — the reminder cron watches this date.
   licenseExpiresAt: dateCol("license_expires_at"),
   licensedCompany: text("licensed_company"),
+  licensedCompanyId: text("licensed_company_id")
+    .$type<LicensedCompanyId>()
+    .references(() => licensedCompanies.id, { onDelete: "restrict" }),
+  companySelectedAt: timestamptz("company_selected_at"),
+  companyRequirementsAcknowledgedAt: timestamptz("company_requirements_acknowledged_at"),
   splitPct: integer("split_pct").notNull().default(80),
   teamId: integer("team_id").references((): AnyPgColumn => teams.id, { onDelete: "set null" }),
   isAdmin: boolean("is_admin").notNull().default(false),
@@ -227,6 +248,9 @@ export const onboardingInvitations = portal.table(
     email: text("email"),
     kind: text("kind").$type<OnboardingInvitationKind>().notNull().default("admin"),
     source: text("source").notNull().default("direct"),
+    companyId: text("company_id")
+      .$type<LicensedCompanyId>()
+      .references(() => licensedCompanies.id, { onDelete: "restrict" }),
     teamId: integer("team_id").references(() => teams.id, { onDelete: "set null" }),
     teamCompensationConfigId: integer("team_compensation_config_id").references(
       () => teamCompensationConfigs.id,
@@ -241,6 +265,7 @@ export const onboardingInvitations = portal.table(
     lockTeam: boolean("lock_team").notNull().default(true),
     lockSponsor: boolean("lock_sponsor").notNull().default(true),
     lockTerm: boolean("lock_term").notNull().default(true),
+    lockCompany: boolean("lock_company").notNull().default(false),
     expiresAt: timestamptz("expires_at").notNull(),
     maxUses: integer("max_uses").notNull().default(1),
     useCount: integer("use_count").notNull().default(0),
@@ -279,6 +304,9 @@ export const teamLeaderApplications = portal.table(
       .notNull()
       .references(() => agents.id, { onDelete: "restrict" }),
     licensedCompany: text("licensed_company").notNull(),
+    companyId: text("company_id")
+      .$type<LicensedCompanyId>()
+      .references(() => licensedCompanies.id, { onDelete: "restrict" }),
     proposedTeamName: text("proposed_team_name").notNull(),
     expectedMemberCount: integer("expected_member_count").notNull(),
     positioning: text("positioning").notNull(),

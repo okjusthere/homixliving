@@ -24,6 +24,7 @@ import {
 import { canAssignInvitationSponsor } from "@/lib/onboarding-invitation-policy";
 import { onboardingEventValues } from "@/lib/onboarding-events";
 import { canCreateTeamRecruitingInvitation } from "@/lib/team-leader-applications";
+import { resolveLicensedCompany } from "@/lib/licensed-companies";
 
 const INVITE_PLANS = new Set<AgentPlan>(["solo", "solo_pro", "team_member"]);
 
@@ -112,13 +113,26 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Personal referral links cannot assign a team." }, { status: 400 });
   }
   let selectedTeamLeaderId: number | null = null;
+  let selectedTeamCompanyId: "homix_realty" | "homix_living" | null = null;
   if (requestedTeamId) {
     const [team] = await db
-      .select({ id: teams.id, leaderAgentId: teams.leaderAgentId, status: teams.status })
+      .select({
+        id: teams.id,
+        companyId: teams.companyId,
+        leaderAgentId: teams.leaderAgentId,
+        status: teams.status,
+      })
       .from(teams)
       .where(eq(teams.id, requestedTeamId))
       .limit(1);
     if (!team) return NextResponse.json({ error: "Team not found" }, { status: 404 });
+    if (!team.companyId) {
+      return NextResponse.json(
+        { error: "Assign a licensed company to this team before inviting members." },
+        { status: 409 },
+      );
+    }
+    selectedTeamCompanyId = team.companyId;
     selectedTeamLeaderId = team.leaderAgentId;
     if (kind === "team_recruiting") {
       const [leaderApplication] = team.status === "forming"
@@ -140,6 +154,23 @@ export async function POST(request: NextRequest) {
         );
       }
     }
+  }
+
+  const requestedCompany = resolveLicensedCompany(body.licensedCompanyId || body.licensedCompany);
+  const companyId = kind === "team_recruiting"
+    ? selectedTeamCompanyId
+    : requestedCompany?.id || null;
+  if (kind === "admin" && !companyId) {
+    return NextResponse.json(
+      { error: "Company invitations must select Homix Realty Inc. or Homix Living Inc." },
+      { status: 400 },
+    );
+  }
+  if (selectedTeamCompanyId && companyId !== selectedTeamCompanyId) {
+    return NextResponse.json(
+      { error: "Invitation company must match the selected team." },
+      { status: 409 },
+    );
   }
 
   if (body.plan !== undefined && !INVITE_PLANS.has(String(body.plan) as AgentPlan)) {
@@ -211,7 +242,11 @@ export async function POST(request: NextRequest) {
     : null;
   const maxUses = email ? 1 : Math.min(500, Math.max(1, Number(body.maxUses) || 100));
   const days = Math.min(90, Math.max(1, Number(body.expiresInDays) || 30));
-  const defaults = defaultInvitationLocks(kind, { teamId: requestedTeamId, sponsorAgentId });
+  const defaults = defaultInvitationLocks(kind, {
+    teamId: requestedTeamId,
+    sponsorAgentId,
+    companyId,
+  });
   const requestedLocks = body.locks && typeof body.locks === "object" ? body.locks : null;
   const locks = kind === "admin" && requestedLocks
     ? {
@@ -219,6 +254,9 @@ export async function POST(request: NextRequest) {
         team: requestedLocks.team === undefined ? defaults.team : Boolean(requestedLocks.team),
         sponsor: requestedLocks.sponsor === undefined ? defaults.sponsor : Boolean(requestedLocks.sponsor),
         term: requestedLocks.term === undefined ? defaults.term : Boolean(requestedLocks.term),
+        company: requestedLocks.company === undefined
+          ? defaults.company
+          : Boolean(requestedLocks.company),
       }
     : defaults;
   const token = createInviteToken();
@@ -229,6 +267,7 @@ export async function POST(request: NextRequest) {
       email,
       kind,
       source,
+      companyId,
       teamId: kind === "personal_referral" ? null : requestedTeamId,
       teamCompensationConfigId: teamCompensationConfig?.id || null,
       sponsorAgentId,
@@ -238,6 +277,7 @@ export async function POST(request: NextRequest) {
       lockTeam: locks.team,
       lockSponsor: locks.sponsor,
       lockTerm: locks.term,
+      lockCompany: kind === "team_recruiting" ? true : locks.company,
       expiresAt: new Date(Date.now() + days * 86_400_000).toISOString(),
       maxUses,
       createdByAgentId: authority.agentId,
@@ -254,6 +294,7 @@ export async function POST(request: NextRequest) {
         sponsorAgentId,
         plan,
         teamCompensationConfigId: teamCompensationConfig?.id || null,
+        companyId,
         maxUses,
       },
     }));

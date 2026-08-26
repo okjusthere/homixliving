@@ -16,6 +16,7 @@ assert.deepEqual(defaultInvitationLocks("personal_referral"), {
   team: false,
   sponsor: true,
   term: false,
+  company: false,
 });
 
 assert.deepEqual(defaultInvitationLocks("admin", { sponsorAgentId: null }), {
@@ -23,6 +24,15 @@ assert.deepEqual(defaultInvitationLocks("admin", { sponsorAgentId: null }), {
   team: false,
   sponsor: true,
   term: true,
+  company: false,
+});
+
+assert.deepEqual(defaultInvitationLocks("team_recruiting"), {
+  plan: true,
+  team: true,
+  sponsor: true,
+  term: true,
+  company: true,
 });
 
 assert.deepEqual(

@@ -144,11 +144,47 @@ export async function activateFormingTeamAfterMemberAgreement(input: {
         eq(teamLeaderApplications.status, "approved"),
       ))
       .limit(1);
-    if (!application || !shouldActivateFormingTeam({
+    const [leader] = await tx
+      .select({
+        accountStatus: agents.accountStatus,
+        agreementStatus: agents.agreementStatus,
+        licensedCompanyId: agents.licensedCompanyId,
+        plan: agents.plan,
+      })
+      .from(agents)
+      .where(eq(agents.id, team.leaderAgentId))
+      .limit(1);
+    const [member] = await tx
+      .select({
+        agreementStatus: agents.agreementStatus,
+        licensedCompanyId: agents.licensedCompanyId,
+        plan: agents.plan,
+        teamId: agents.teamId,
+      })
+      .from(agents)
+      .where(eq(agents.id, input.memberAgentId))
+      .limit(1);
+    if (
+      !application ||
+      !team.companyId ||
+      application.applicantAgentId !== team.leaderAgentId ||
+      application.companyId !== team.companyId ||
+      !leader ||
+      leader.accountStatus !== "active" ||
+      leader.agreementStatus !== "completed" ||
+      leader.plan !== "solo_pro" ||
+      leader.licensedCompanyId !== team.companyId ||
+      !member ||
+      member.agreementStatus !== "completed" ||
+      member.plan !== "team_member" ||
+      member.teamId !== team.id ||
+      member.licensedCompanyId !== team.companyId ||
+      !shouldActivateFormingTeam({
       teamStatus: team.status,
       leaderAgreementStatus: application.agreementStatus,
-      memberAgreementStatus: input.memberAgreementStatus,
-    })) return null;
+      memberAgreementStatus: member.agreementStatus,
+    })
+    ) return null;
     const now = new Date().toISOString();
     const today = now.slice(0, 10);
     const [activatedTeam] = await tx.update(teams).set({ status: "active" }).where(and(
@@ -162,7 +198,7 @@ export async function activateFormingTeamAfterMemberAgreement(input: {
       updatedAt: now,
     }).where(eq(teamLeaderApplications.id, application.id));
     await tx.update(agents).set({
-      plan: "team_leader",
+      plan: "solo_pro",
       splitPct: 100,
       planEffectiveFrom: today,
       updatedAt: now,
@@ -184,7 +220,7 @@ export async function activateFormingTeamAfterMemberAgreement(input: {
     recipientAgentIds: [result.leaderAgentId],
     type: "team_activated",
     title: "Your Homix team is active",
-    body: "The first Team Member agreement is complete. Your Team Leader plan and team are now active.",
+    body: "The first Team Member agreement is complete. Your Solo Pro plan and team are now active.",
     href: `/team-workspace?team=${result.teamId}`,
     dedupeKey: `team-activated:${result.teamId}`,
     email: true,

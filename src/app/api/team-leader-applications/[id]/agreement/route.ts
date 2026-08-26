@@ -106,6 +106,15 @@ export async function POST(
       if (!fresh || fresh.application.status !== "approved" || !fresh.application.teamId || !fresh.application.teamCompensationConfigId) {
         throw new Error("APPLICATION_NOT_READY");
       }
+      if (
+        !fresh.application.companyId ||
+        fresh.agent.accountStatus !== "active" ||
+        fresh.agent.agreementStatus !== "completed" ||
+        fresh.agent.licensedCompanyId !== fresh.application.companyId ||
+        fresh.agent.plan !== "solo_pro"
+      ) {
+        throw new Error("COMPANY_OR_PLAN_CHANGED");
+      }
       if (fresh.application.agreementStatus === "preparing" && !fresh.application.esignEnvelopeId) {
         const updatedAt = new Date(fresh.application.updatedAt).getTime();
         if (Number.isFinite(updatedAt) && Date.now() - updatedAt < PREPARATION_STALE_MS) {
@@ -123,6 +132,12 @@ export async function POST(
   } catch (error) {
     const code = error instanceof Error ? error.message : "";
     if (code === "APPLICATION_NOT_READY") return NextResponse.json({ error: "Application is not ready for signing." }, { status: 409 });
+    if (code === "COMPANY_OR_PLAN_CHANGED") {
+      return NextResponse.json(
+        { error: "Agent onboarding, licensed company, or Solo Pro eligibility changed. Re-submit the Team Leader application." },
+        { status: 409 },
+      );
+    }
     if (code === "PREPARING") return NextResponse.json({ error: "Agreement preparation is already in progress." }, { status: 409 });
     console.error("Unable to claim Team Leader agreement preparation", error);
     return NextResponse.json({ error: "Unable to freeze Team Leader agreement facts." }, { status: 500 });
@@ -150,7 +165,13 @@ export async function POST(
       teamCompensationConfigs.id,
       row.application.teamCompensationConfigId!,
     )).limit(1);
-    if (!team || team.status !== "forming" || !terms || terms.teamId !== team.id) {
+    if (
+      !team ||
+      team.status !== "forming" ||
+      team.companyId !== row.application.companyId ||
+      !terms ||
+      terms.teamId !== team.id
+    ) {
       throw new OnboardingESignTemplateError("The forming team terms are no longer valid.");
     }
     const template = await getESignTemplate(templateConfiguration.templateId);
@@ -158,6 +179,7 @@ export async function POST(
       template,
       expectedVersionId: templateConfiguration.templateVersionId,
       expectedSchemaHash: templateConfiguration.templateSchemaHash,
+      entityKey: templateConfiguration.entityKey,
     });
     const countersigner = templateConfiguration.countersignerName && templateConfiguration.countersignerEmail
       ? { name: templateConfiguration.countersignerName, email: templateConfiguration.countersignerEmail }
@@ -189,7 +211,7 @@ export async function POST(
         agent_phone: row.agent.phone || "",
         license_number: row.agent.licenseNumber || "",
         licensed_company: templateConfiguration.legalEntityName,
-        compensation_plan: "team_leader",
+        compensation_plan: "solo_pro",
         team_name: team.name,
         expected_member_count: row.application.expectedMemberCount,
         team_positioning: row.application.positioning,

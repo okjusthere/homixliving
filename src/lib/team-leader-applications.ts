@@ -41,14 +41,16 @@ export function validateTeamLeaderApplicationInput(input: {
 
 export function teamLeaderApplicationEligibility(input: {
   accountStatus: AgentAccountStatus;
+  agentAgreementStatus: OnboardingAgreementStatus;
   plan: AgentPlan;
   licensedCompanySupported: boolean;
   alreadyLeadsTeam: boolean;
   openApplicationStatus?: TeamLeaderApplicationStatus | null;
 }) {
   if (input.accountStatus !== "active") return "account_not_active" as const;
-  if (input.plan !== "solo_pro") return "solo_pro_required" as const;
   if (!input.licensedCompanySupported) return "licensed_company_required" as const;
+  if (input.agentAgreementStatus !== "completed") return "agent_agreement_required" as const;
+  if (input.plan !== "solo_pro") return "solo_pro_required" as const;
   if (input.alreadyLeadsTeam) return "already_team_leader" as const;
   if (input.openApplicationStatus === "submitted" || input.openApplicationStatus === "approved") {
     return "application_already_open" as const;

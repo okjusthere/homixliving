@@ -22,7 +22,7 @@ import {
   invitationLocks,
 } from "@/lib/onboarding-routing";
 import { lockOnboardingAgent } from "@/lib/advisory-locks";
-import { resolveOnboardingESignEntity } from "@/lib/esign";
+import { LICENSED_COMPANIES, resolveLicensedCompany } from "@/lib/licensed-companies";
 import { onboardingEventValues } from "@/lib/onboarding-events";
 import {
   canReuseAcceptedTeamRouting,
@@ -72,7 +72,12 @@ export async function GET() {
   const today = new Date().toISOString().slice(0, 10);
   const [teamRows, sponsorRows, configRows, latestTeamJoinRequest] = await Promise.all([
     db
-      .select({ id: teams.id, name: teams.name, leaderAgentId: teams.leaderAgentId })
+      .select({
+        id: teams.id,
+        name: teams.name,
+        companyId: teams.companyId,
+        leaderAgentId: teams.leaderAgentId,
+      })
       .from(teams)
       .where(invitation?.teamId
         ? or(eq(teams.status, "active"), eq(teams.id, invitation.teamId))
@@ -137,11 +142,13 @@ export async function GET() {
       phone: agent.phone,
       licenseNumber: agent.licenseNumber,
       licensedCompany: agent.licensedCompany,
+      licensedCompanyId: agent.licensedCompanyId,
+      companyRequirementsAcknowledged: Boolean(agent.companyRequirementsAcknowledgedAt),
       practice: agent.practice,
       teamTerms: frozenTerms,
     },
     routing: invitation ? {
-      locked: locks.plan || locks.team || locks.sponsor || locks.term,
+      locked: locks.plan || locks.team || locks.sponsor || locks.term || locks.company,
       locks,
       kind: invitation.kind,
       source: invitation.source,
@@ -151,6 +158,9 @@ export async function GET() {
       affiliationTermMonths: locks.term
         ? invitation.affiliationTermMonths
         : agent.affiliationTermMonths,
+      licensedCompanyId: locks.company
+        ? invitation.companyId
+        : agent.licensedCompanyId,
     } : {
       locked: false,
       locks,
@@ -169,6 +179,7 @@ export async function GET() {
         : currentConfigByTeam.get(team.id) || null,
     })),
     sponsors: sponsorRows.filter((row) => row.id !== agent.id),
+    companies: LICENSED_COMPANIES,
     teamJoinRequest: latestTeamJoinRequest,
   });
 }
@@ -228,9 +239,42 @@ export async function PUT(req: NextRequest) {
   if (plan === "team_member" && !Number.isInteger(teamId)) {
     return NextResponse.json({ error: "Team members must select a team" }, { status: 400 });
   }
+  const requestedCompany = resolveLicensedCompany(
+    cleanText(body.licensedCompanyId, 40) || cleanText(body.licensedCompany, 120) || agent.licensedCompanyId || agent.licensedCompany,
+  );
+  const licensedCompanyId = invitation?.lockCompany
+    ? invitation.companyId
+    : requestedCompany?.id || null;
+  const licensedEntity = resolveLicensedCompany(licensedCompanyId);
+  if (!licensedEntity) {
+    return NextResponse.json(
+      { error: "Select Homix Realty Inc. or Homix Living Inc." },
+      { status: 400 },
+    );
+  }
+  if (invitation?.lockCompany && requestedCompany && requestedCompany.id !== licensedCompanyId) {
+    return NextResponse.json(
+      { error: "This invitation is locked to a different licensed company." },
+      { status: 409 },
+    );
+  }
+  const acknowledgementAlreadyRecordedBeforeLock =
+    agent.licensedCompanyId === licensedCompanyId && Boolean(agent.companyRequirementsAcknowledgedAt);
+  if (body.companyRequirementsAcknowledged !== true && !acknowledgementAlreadyRecordedBeforeLock) {
+    return NextResponse.json(
+      { error: "Confirm the LIBOR/OneKey company requirement before continuing." },
+      { status: 400 },
+    );
+  }
   const selectedTeam = teamId
     ? await db
-        .select({ id: teams.id, name: teams.name, leaderAgentId: teams.leaderAgentId, status: teams.status })
+        .select({
+          id: teams.id,
+          name: teams.name,
+          companyId: teams.companyId,
+          leaderAgentId: teams.leaderAgentId,
+          status: teams.status,
+        })
         .from(teams)
         .where(eq(teams.id, teamId))
         .limit(1)
@@ -238,6 +282,12 @@ export async function PUT(req: NextRequest) {
     : null;
   if (teamId && !selectedTeam) {
     return NextResponse.json({ error: "Team not found" }, { status: 404 });
+  }
+  if (selectedTeam && selectedTeam.companyId !== licensedCompanyId) {
+    return NextResponse.json(
+      { error: "The selected team belongs to a different licensed company." },
+      { status: 409 },
+    );
   }
   const preapprovedFormingTeam = Boolean(
     selectedTeam?.status === "forming" &&
@@ -309,14 +359,6 @@ export async function PUT(req: NextRequest) {
   const legalName = cleanText(body.legalName) || agent.legalName || agent.name;
   const phone = cleanText(body.phone, 40) || agent.phone;
   const licenseNumber = cleanText(body.licenseNumber, 80) || agent.licenseNumber;
-  const requestedLicensedCompany = cleanText(body.licensedCompany, 120) || agent.licensedCompany;
-  const licensedEntity = resolveOnboardingESignEntity(requestedLicensedCompany);
-  if (!licensedEntity) {
-    return NextResponse.json(
-      { error: "Select Homix Realty Inc. or Homix Living Inc." },
-      { status: 400 },
-    );
-  }
   const licensedCompany = licensedEntity.legalName;
   const practice = body.practice === "rental" || body.practice === "sales" || body.practice === "both"
     ? body.practice
@@ -377,6 +419,9 @@ export async function PUT(req: NextRequest) {
           joinedAt: agents.joinedAt,
           onboardingSource: agents.onboardingSource,
           paymentStatus: agents.paymentStatus,
+          licensedCompanyId: agents.licensedCompanyId,
+          companySelectedAt: agents.companySelectedAt,
+          companyRequirementsAcknowledgedAt: agents.companyRequirementsAcknowledgedAt,
           plan: agents.plan,
           teamId: agents.teamId,
           referredByAgentId: agents.referredByAgentId,
@@ -395,6 +440,17 @@ export async function PUT(req: NextRequest) {
           "Onboarding facts are frozen after agreement preparation begins.",
         );
       }
+      const acknowledgementAlreadyRecorded =
+        boundAgent.licensedCompanyId === licensedCompanyId &&
+        Boolean(boundAgent.companyRequirementsAcknowledgedAt);
+      if (body.companyRequirementsAcknowledged !== true && !acknowledgementAlreadyRecorded) {
+        throw new OnboardingProfileConflict(
+          "Company selection changed while saving. Confirm the company requirement and try again.",
+        );
+      }
+      const companyRequirementsAcknowledgedAt = acknowledgementAlreadyRecorded
+        ? boundAgent.companyRequirementsAcknowledgedAt
+        : now;
       if (
         boundAgent.onboardingInviteId &&
         boundAgent.onboardingInviteId !== invitation?.id
@@ -508,6 +564,13 @@ export async function PUT(req: NextRequest) {
             phone,
             licenseNumber,
             licensedCompany,
+            licensedCompanyId,
+            companySelectedAt:
+              boundAgent.licensedCompanyId === licensedCompanyId
+                ? boundAgent.companySelectedAt || now
+                : now,
+            companyRequirementsAcknowledgedAt:
+              companyRequirementsAcknowledgedAt,
             practice,
             plan: "solo",
             splitPct: PLAN_SPLIT_PCT.solo,
@@ -538,6 +601,9 @@ export async function PUT(req: NextRequest) {
           detail: {
             sponsorAgentId: referredByAgentId,
             onboardingSource: invitation?.source || boundAgent.onboardingSource || "direct",
+            previousLicensedCompanyId: boundAgent.licensedCompanyId,
+            licensedCompanyId,
+            companyRequirementsAcknowledgedAt,
           },
         }));
         return {
@@ -587,6 +653,13 @@ export async function PUT(req: NextRequest) {
           phone,
           licenseNumber,
           licensedCompany,
+          licensedCompanyId,
+          companySelectedAt:
+            boundAgent.licensedCompanyId === licensedCompanyId
+              ? boundAgent.companySelectedAt || now
+              : now,
+          companyRequirementsAcknowledgedAt:
+            companyRequirementsAcknowledgedAt,
           practice,
           plan,
           splitPct: PLAN_SPLIT_PCT[plan],
@@ -623,6 +696,9 @@ export async function PUT(req: NextRequest) {
           sponsorAgentId: effectiveReferredByAgentId,
           teamCompensationConfigId: effectiveTeamConfigId,
           reusedAcceptedTeamRequestId: acceptedRequest?.id || null,
+          previousLicensedCompanyId: boundAgent.licensedCompanyId,
+          licensedCompanyId,
+          companyRequirementsAcknowledgedAt,
         },
       }));
       return {

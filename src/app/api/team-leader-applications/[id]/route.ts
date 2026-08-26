@@ -12,7 +12,7 @@ import { normalizeAgentPlan } from "@/lib/agent-plans";
 import { lockOnboardingAgent } from "@/lib/advisory-locks";
 import { requireAdminApi } from "@/lib/auth-guards";
 import { logAudit } from "@/lib/audit";
-import { resolveOnboardingESignEntity } from "@/lib/esign";
+import { resolveLicensedCompany } from "@/lib/licensed-companies";
 import { notify } from "@/lib/notify";
 import { onboardingEventValues } from "@/lib/onboarding-events";
 import {
@@ -123,27 +123,36 @@ export async function PATCH(
       const [applicant] = await tx
         .select({
           accountStatus: agents.accountStatus,
+          agreementStatus: agents.agreementStatus,
           plan: agents.plan,
           licensedCompany: agents.licensedCompany,
+          licensedCompanyId: agents.licensedCompanyId,
         })
         .from(agents)
         .where(eq(agents.id, fresh.applicantAgentId))
         .limit(1);
       if (!applicant) throw new Error("NOT_FOUND");
-      const licensedCompany = resolveOnboardingESignEntity(applicant.licensedCompany);
+      const licensedCompany = resolveLicensedCompany(
+        applicant.licensedCompanyId || applicant.licensedCompany,
+      );
       const eligibility = teamLeaderApplicationEligibility({
         accountStatus: applicant.accountStatus,
+        agentAgreementStatus: applicant.agreementStatus,
         plan: normalizeAgentPlan(applicant.plan),
         licensedCompanySupported: Boolean(licensedCompany),
         alreadyLeadsTeam: Boolean(existingLeadership),
       });
       if (eligibility) throw new Error("APPLICANT_NOT_ELIGIBLE");
-      if (licensedCompany!.legalName !== fresh.licensedCompany) {
+      if (
+        licensedCompany!.legalName !== fresh.licensedCompany ||
+        (fresh.companyId && licensedCompany!.id !== fresh.companyId)
+      ) {
         throw new Error("LICENSED_COMPANY_CHANGED");
       }
       const today = now.slice(0, 10);
       const [team] = await tx.insert(teams).values({
         name: input.teamName,
+        companyId: licensedCompany!.id,
         leaderAgentId: fresh.applicantAgentId,
         status: "forming",
         notes: fresh.positioning,
@@ -215,7 +224,7 @@ export async function PATCH(
       ALREADY_DECIDED: ["This application has already been decided.", 409],
       TEAM_NAME_EXISTS: ["A team with this name already exists.", 409],
       ALREADY_TEAM_LEADER: ["This applicant already leads a team.", 409],
-      APPLICANT_NOT_ELIGIBLE: ["The applicant must still be an active Solo Pro agent with a supported licensed company.", 409],
+      APPLICANT_NOT_ELIGIBLE: ["The applicant must still be an active, fully signed Solo Pro agent with a supported licensed company.", 409],
       LICENSED_COMPANY_CHANGED: ["The applicant's licensed company changed after submission. Decline this application and ask them to apply again.", 409],
     };
     if (mapped[code]) {

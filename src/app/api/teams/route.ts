@@ -25,6 +25,7 @@ import {
   isTeamSplitPreset,
 } from "@/lib/team-compensation-policy";
 import { teamDeletionBlocker } from "@/lib/team-join-requests";
+import { resolveLicensedCompany } from "@/lib/licensed-companies";
 
 function parseId(value: unknown) {
   const parsed = parseInt(String(value), 10);
@@ -137,12 +138,24 @@ export async function POST(req: NextRequest) {
     const name = String(body.name || "").trim();
     if (!name) return NextResponse.json({ error: "Name is required" }, { status: 400 });
     const leaderAgentId = body.leaderAgentId ? parseId(body.leaderAgentId) : null;
+    const company = resolveLicensedCompany(body.companyId || body.licensedCompany);
+    if (!company) {
+      return NextResponse.json({ error: "Licensed company is required" }, { status: 400 });
+    }
+    if (leaderAgentId) {
+      return NextResponse.json(
+        { error: "Approve a Team Leader application and complete its agreement before assigning a team leader." },
+        { status: 409 },
+      );
+    }
     const today = new Date().toISOString().slice(0, 10);
     const [created] = await db
       .transaction(async (tx) => {
         const [team] = await tx.insert(teams).values({
           name,
-          leaderAgentId,
+          companyId: company.id,
+          leaderAgentId: null,
+          status: "inactive",
           notes: body.notes ? String(body.notes) : null,
         }).returning();
         await tx.insert(teamCompensationConfigs).values({
@@ -154,13 +167,6 @@ export async function POST(req: NextRequest) {
           teamCapCents: null,
           createdByEmail: authResult.session.user.email || null,
         });
-        if (leaderAgentId) {
-          await tx.update(agents).set({
-            plan: "team_leader",
-            splitPct: 100,
-            planEffectiveFrom: today,
-          }).where(eq(agents.id, leaderAgentId));
-        }
         return [team];
       });
     await logAudit(authResult.session, "create", "team", created.id, `新建团队 ${created.name}`);
@@ -205,6 +211,41 @@ export async function PUT(req: NextRequest) {
     }
     const [currentTeam] = await db.select().from(teams).where(eq(teams.id, id)).limit(1);
     if (!currentTeam) return NextResponse.json({ error: "Team not found" }, { status: 404 });
+    const requestedCompany = resolveLicensedCompany(body.companyId || currentTeam.companyId);
+    if (!currentTeam.companyId || !requestedCompany || requestedCompany.id !== currentTeam.companyId) {
+      return NextResponse.json(
+        { error: "A team's licensed company cannot be changed in place" },
+        { status: 409 },
+      );
+    }
+    if (leaderAgentId !== null && leaderAgentId !== currentTeam.leaderAgentId) {
+      return NextResponse.json(
+        { error: "Team leadership must be assigned through an approved Team Leader application." },
+        { status: 409 },
+      );
+    }
+    if (leaderAgentId) {
+      const [leader] = await db
+        .select({
+          accountStatus: agents.accountStatus,
+          plan: agents.plan,
+          licensedCompanyId: agents.licensedCompanyId,
+        })
+        .from(agents)
+        .where(eq(agents.id, leaderAgentId))
+        .limit(1);
+      if (
+        !leader ||
+        leader.accountStatus !== "active" ||
+        leader.plan !== "solo_pro" ||
+        leader.licensedCompanyId !== currentTeam.companyId
+      ) {
+        return NextResponse.json(
+          { error: "Team Leader must be an active Solo Pro agent in this team's company" },
+          { status: 409 },
+        );
+      }
+    }
     if (currentTeam.status === "forming") {
       return NextResponse.json(
         { error: "Forming team leadership and v1 terms are locked until onboarding is complete." },
@@ -220,7 +261,9 @@ export async function PUT(req: NextRequest) {
     const [updated] = await db.transaction(async (tx) => {
       const [team] = await tx.update(teams).set({
         name,
+        companyId: currentTeam.companyId,
         leaderAgentId,
+        status: leaderAgentId ? currentTeam.status : "inactive",
         notes: body.notes ? String(body.notes) : null,
       }).where(eq(teams.id, id)).returning();
       const [latest] = await tx
@@ -257,7 +300,7 @@ export async function PUT(req: NextRequest) {
       }
       if (leaderAgentId && currentTeam.status === "active") {
         await tx.update(agents).set({
-          plan: "team_leader",
+          plan: "solo_pro",
           splitPct: 100,
           planEffectiveFrom: today,
         }).where(eq(agents.id, leaderAgentId));

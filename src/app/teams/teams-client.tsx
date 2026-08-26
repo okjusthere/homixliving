@@ -42,6 +42,7 @@ const M = {
     nameField: "Name *",
     namePlaceholder: "e.g. Manhattan",
     leaderField: "Leader",
+    companyField: "Licensed company",
     notesField: "Notes",
     defaultSplit: "Default team split",
     leadSplit: "Team-generated lead split",
@@ -55,6 +56,7 @@ const M = {
     invite: "Create company invitation",
     inviteTitle: "Create company invitation",
     inviteSource: "Source",
+    inviteCompany: "Licensed company",
     inviteEmail: "Email (optional)",
     invitePlan: "Commission plan",
     inviteTerm: "Affiliation term",
@@ -106,6 +108,7 @@ const M = {
     nameField: "名称 *",
     namePlaceholder: "例如 Manhattan",
     leaderField: "负责人",
+    companyField: "持牌公司",
     notesField: "备注",
     defaultSplit: "默认团队分成",
     leadSplit: "团队客源分成",
@@ -119,6 +122,7 @@ const M = {
     invite: "创建公司邀请",
     inviteTitle: "创建公司邀请",
     inviteSource: "来源",
+    inviteCompany: "持牌公司",
     inviteEmail: "限定邮箱（可选）",
     invitePlan: "佣金方案",
     inviteTerm: "合作期限",
@@ -172,6 +176,7 @@ type ApplicationRow = {
 
 const emptyTeam: TeamEdit = {
   name: "",
+  companyId: null,
   leaderAgentId: null,
   notes: "",
   defaultTeamSplitPct: 10,
@@ -190,6 +195,7 @@ export default function TeamsConsole() {
   const [inviteSaving, setInviteSaving] = useState(false);
   const [inviteUrl, setInviteUrl] = useState("");
   const [inviteSource, setInviteSource] = useState("direct");
+  const [inviteCompanyId, setInviteCompanyId] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteTeamId, setInviteTeamId] = useState("");
   const [inviteSponsorId, setInviteSponsorId] = useState("");
@@ -322,6 +328,7 @@ export default function TeamsConsole() {
         body: JSON.stringify({
           kind: "admin",
           source: inviteSource,
+          licensedCompanyId: inviteCompanyId,
           email: inviteEmail || null,
           teamId: invitePlan === "team_member" ? inviteTeamId || null : null,
           sponsorAgentId: inviteSponsorId || null,
@@ -520,6 +527,18 @@ export default function TeamsConsole() {
                   ))}
                 </select>
               </LabeledField>
+              <LabeledField label={t.companyField}>
+                <select
+                  value={editTeam.companyId || ""}
+                  onChange={(event) => updateField("companyId", event.target.value)}
+                  disabled={Boolean(editTeam.id)}
+                  className="h-11 w-full rounded-lg border border-line bg-white px-3 text-[13px] disabled:opacity-50"
+                >
+                  <option value="">{t.unassigned}</option>
+                  <option value="homix_realty">Homix Realty Inc.</option>
+                  <option value="homix_living">Homix Living Inc.</option>
+                </select>
+              </LabeledField>
               <LabeledField label={t.notesField}>
                 <textarea
                   value={editTeam.notes || ""}
@@ -634,6 +653,20 @@ export default function TeamsConsole() {
                   <option value="other">Other</option>
                 </select>
               </LabeledField>
+              <LabeledField label={t.inviteCompany}>
+                <select
+                  value={inviteCompanyId}
+                  onChange={(event) => {
+                    setInviteCompanyId(event.target.value);
+                    setInviteTeamId("");
+                  }}
+                  className="h-11 w-full rounded-lg border border-line bg-white px-3 text-[13px]"
+                >
+                  <option value="">{t.unassigned}</option>
+                  <option value="homix_realty">Homix Realty Inc.</option>
+                  <option value="homix_living">Homix Living Inc.</option>
+                </select>
+              </LabeledField>
               <LabeledField label={t.inviteEmail}>
                 <EditorialInput value={inviteEmail} onChange={setInviteEmail} type="email" />
               </LabeledField>
@@ -654,9 +687,15 @@ export default function TeamsConsole() {
                 </select>
               </LabeledField>
               <LabeledField label={t.inviteTeam}>
-                <select value={inviteTeamId} onChange={(event) => setInviteTeamId(event.target.value)} disabled={invitePlan !== "team_member"} className="h-11 w-full rounded-lg border border-line bg-white px-3 text-[13px] disabled:opacity-50">
+                <select value={inviteTeamId} onChange={(event) => {
+                  setInviteTeamId(event.target.value);
+                  const selected = teams.find((row) => String(row.team.id) === event.target.value);
+                  if (selected?.team.companyId) setInviteCompanyId(selected.team.companyId);
+                }} disabled={invitePlan !== "team_member"} className="h-11 w-full rounded-lg border border-line bg-white px-3 text-[13px] disabled:opacity-50">
                   <option value="">{t.unassigned}</option>
-                  {teams.map((row) => <option key={row.team.id} value={row.team.id}>{row.team.name}</option>)}
+                  {teams
+                    .filter((row) => !inviteCompanyId || row.team.companyId === inviteCompanyId)
+                    .map((row) => <option key={row.team.id} value={row.team.id}>{row.team.name}</option>)}
                 </select>
               </LabeledField>
               <LabeledField label={t.inviteSponsor}>
@@ -670,7 +709,8 @@ export default function TeamsConsole() {
             </div>
             <div className="mt-5 rounded-lg bg-paper p-3 text-[12.5px] leading-6" style={{ color: tone.ink70 }}>
               <div className="text-[10px] font-semibold uppercase tracking-[0.1em]" style={{ color: tone.ink50 }}>{t.inviteSummary}</div>
-              <div>{inviteEmail || t.general} · {invitePlan.replaceAll("_", " ")} · {inviteTerm} {locale === "zh" ? "个月" : "months"}</div>
+              <div>{inviteEmail || t.general} · {inviteCompanyId === "homix_realty" ? "Homix Realty Inc." : inviteCompanyId === "homix_living" ? "Homix Living Inc." : t.unassigned}</div>
+              <div>{invitePlan.replaceAll("_", " ")} · {inviteTerm} {locale === "zh" ? "个月" : "months"}</div>
               <div>{invitePlan === "team_member" ? teams.find((row) => String(row.team.id) === inviteTeamId)?.team.name || t.unassigned : t.unassigned} · {sponsorAgents.find((agent) => String(agent.id) === inviteSponsorId)?.name || t.unassigned}</div>
             </div>
             {inviteUrl && (
@@ -681,7 +721,7 @@ export default function TeamsConsole() {
             )}
             <div className="mt-5 flex justify-end gap-2">
               <Btn variant="outline" onClick={() => setInviteOpen(false)}>{t.cancel}</Btn>
-              <Btn variant="primary" onClick={() => void createInvitation()} disabled={inviteSaving || (invitePlan === "team_member" && !inviteTeamId)}>{inviteSaving ? t.saving : t.createInvite}</Btn>
+              <Btn variant="primary" onClick={() => void createInvitation()} disabled={inviteSaving || !inviteCompanyId || (invitePlan === "team_member" && !inviteTeamId)}>{inviteSaving ? t.saving : t.createInvite}</Btn>
             </div>
           </div>
         </div>

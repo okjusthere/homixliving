@@ -6,7 +6,11 @@ type ESignRole = {
 
 export type ESignTemplateField = {
   id: string;
+  fieldKey?: string;
+  page: number;
   type: string;
+  roleId: string | null;
+  label: string;
   readOnly: boolean;
   required: boolean;
   mergeKey?: string;
@@ -18,6 +22,7 @@ export type ESignTemplateVersion = {
   businessDomain: "HR" | "REAL_ESTATE";
   jurisdiction: string;
   approvalRequired: boolean;
+  documents: Array<{ id: string; pageCount: number }>;
   roles: ESignRole[];
   fields: ESignTemplateField[];
   schemaHash?: string;

@@ -43,6 +43,12 @@ const M = {
     license: "License number",
     company: "Licensed company",
     selectCompany: "Select licensed company",
+    companyFirst: "1. Choose your licensed company",
+    companyFirstHint: "This choice determines the legal agreement, MLS obligations, and available teams.",
+    realtyRequirement: "Requires LIBOR/OneKey membership and the related fees.",
+    livingRequirement: "Does not require LIBOR/OneKey membership.",
+    companyAcknowledgement: "I understand that Homix Realty Inc. requires LIBOR/OneKey membership and related fees; Homix Living Inc. does not require LIBOR/OneKey.",
+    companyAcknowledgementRequired: "Confirm the company and LIBOR/OneKey requirement before continuing.",
     practice: "Practice",
     rental: "Rental",
     sales: "Sales",
@@ -99,6 +105,12 @@ const M = {
     license: "执照号码",
     company: "持牌公司",
     selectCompany: "请选择持牌公司",
+    companyFirst: "1. 选择持牌公司",
+    companyFirstHint: "公司选择决定合同主体、MLS 要求和可加入的团队。",
+    realtyRequirement: "需要办理 LIBOR/OneKey 会员并承担相关费用。",
+    livingRequirement: "不要求办理 LIBOR/OneKey 会员。",
+    companyAcknowledgement: "我理解 Homix Realty Inc. 要求办理 LIBOR/OneKey 会员及相关费用；Homix Living Inc. 不要求 LIBOR/OneKey。",
+    companyAcknowledgementRequired: "请先选择公司并确认 LIBOR/OneKey 要求。",
     practice: "业务范围",
     rental: "租赁",
     sales: "买卖",
@@ -133,8 +145,16 @@ type TeamTerms = {
 type TeamOption = {
   id: number;
   name: string;
+  companyId: "homix_realty" | "homix_living" | null;
   requestable: boolean;
   compensationConfig: TeamTerms | null;
+};
+
+type CompanyOption = {
+  id: "homix_realty" | "homix_living";
+  legalName: string;
+  address: string;
+  requiresLiborOneKey: boolean;
 };
 
 type TeamJoinRequest = {
@@ -166,12 +186,14 @@ export function PendingApprovalClient({
   const [phone, setPhone] = useState("");
   const [licenseNumber, setLicenseNumber] = useState("");
   const [licensedCompany, setLicensedCompany] = useState("");
+  const [companyRequirementsAcknowledged, setCompanyRequirementsAcknowledged] = useState(false);
   const [practice, setPractice] = useState("both");
   const [routingLocks, setRoutingLocks] = useState({
     plan: false,
     team: false,
     sponsor: false,
     term: false,
+    company: false,
   });
   const [onboardingSource, setOnboardingSource] = useState("direct");
   const [agreementStatus, setAgreementStatus] = useState("not_started");
@@ -180,6 +202,7 @@ export function PendingApprovalClient({
   const [esignConfigured, setEsignConfigured] = useState(false);
   const [agreementLoading, setAgreementLoading] = useState(false);
   const [teams, setTeams] = useState<TeamOption[]>([]);
+  const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [frozenTeamTerms, setFrozenTeamTerms] = useState<TeamTerms | null>(null);
   const [teamJoinRequest, setTeamJoinRequest] = useState<TeamJoinRequest | null>(null);
   const [sponsors, setSponsors] = useState<Array<{ id: number; name: string }>>([]);
@@ -195,6 +218,11 @@ export function PendingApprovalClient({
       const data = await response.json();
       const request = (data.teamJoinRequest || null) as TeamJoinRequest | null;
       setTeamJoinRequest(request);
+        const profileCompanyId = data.profile?.licensedCompanyId || "";
+        const routedCompanyId = data.routing?.locks?.company
+          ? data.routing?.licensedCompanyId || ""
+          : "";
+        const effectiveCompanyId = routedCompanyId || profileCompanyId;
         setPlan(data.profile?.plan || "solo");
         setTeamId(data.profile?.teamId ? String(data.profile.teamId) : "");
         setSponsorId(data.profile?.referredByAgentId ? String(data.profile.referredByAgentId) : "");
@@ -202,7 +230,11 @@ export function PendingApprovalClient({
         setLegalName(data.profile?.legalName || "");
         setPhone(data.profile?.phone || "");
         setLicenseNumber(data.profile?.licenseNumber || "");
-        setLicensedCompany(data.profile?.licensedCompany || "");
+        setLicensedCompany(effectiveCompanyId);
+        setCompanyRequirementsAcknowledged(Boolean(
+          data.profile?.companyRequirementsAcknowledged &&
+          profileCompanyId === effectiveCompanyId,
+        ));
         setPractice(data.profile?.practice || "both");
         setFrozenTeamTerms(data.profile?.teamTerms || null);
         setRoutingLocks({
@@ -210,6 +242,7 @@ export function PendingApprovalClient({
           team: Boolean(data.routing?.locks?.team),
           sponsor: Boolean(data.routing?.locks?.sponsor),
           term: Boolean(data.routing?.locks?.term),
+          company: Boolean(data.routing?.locks?.company),
         });
         setOnboardingSource(data.routing?.source || "direct");
         if (data.routing?.locked) {
@@ -221,6 +254,7 @@ export function PendingApprovalClient({
         setAgreementStatus(data.profile?.agreementStatus || "not_started");
         setPaymentStatus(data.profile?.paymentStatus || "pending");
         setTeams(data.teams || []);
+        setCompanies(data.companies || []);
         setSponsors(data.sponsors || []);
       if (request?.status === "pending") {
         setPlan("team_member");
@@ -252,6 +286,10 @@ export function PendingApprovalClient({
   }, [refreshProfile, teamJoinRequest?.status]);
 
   const saveSetup = async () => {
+    if (!licensedCompany || !companyRequirementsAcknowledged) {
+      setSetupMessage(t.companyAcknowledgementRequired);
+      return;
+    }
     if (plan === "team_member" && !teamId) {
       setSetupMessage(t.selectTeam);
       return;
@@ -270,7 +308,8 @@ export function PendingApprovalClient({
           legalName,
           phone,
           licenseNumber,
-          licensedCompany,
+          licensedCompanyId: licensedCompany,
+          companyRequirementsAcknowledged,
           practice,
         }),
       });
@@ -406,6 +445,8 @@ export function PendingApprovalClient({
   const selectedTeamTerms = frozenTeamTerms
     || teams.find((team) => String(team.id) === teamId)?.compensationConfig
     || null;
+  const availableTeams = teams.filter((team) => team.companyId === licensedCompany);
+  const selectedCompany = companies.find((company) => company.id === licensedCompany) || null;
 
   return (
     <div className="min-h-screen flex items-center justify-center px-6">
@@ -452,7 +493,7 @@ export function PendingApprovalClient({
             <div className="mt-6 rounded-xl p-4 text-left sm:p-5" style={{ background: tone.paper, border: `1px solid ${tone.line}` }}>
               <h2 className="font-serif text-[22px]" style={{ color: tone.ink }}>{t.setupTitle}</h2>
               <p className="mt-1 text-[12px]" style={{ color: tone.ink50 }}>{t.setupHint}</p>
-              {(routingLocks.plan || routingLocks.team || routingLocks.sponsor || routingLocks.term) && (
+              {(routingLocks.plan || routingLocks.team || routingLocks.sponsor || routingLocks.term || routingLocks.company) && (
                 <p className="mt-3 rounded-lg px-3 py-2 text-[12px]" style={{ background: tone.paperDeep, color: tone.green }}>
                   {t.invitedRoute(onboardingSource)}
                 </p>
@@ -461,6 +502,44 @@ export function PendingApprovalClient({
                 <p className="mt-5 text-[13px]" style={{ color: tone.ink50 }}>{t.checking}</p>
               ) : (
                 <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                  <div className="grid gap-3 rounded-lg p-4 sm:col-span-2" style={{ background: tone.paperDeep, border: `1px solid ${tone.line}` }}>
+                    <div>
+                      <div className="text-[13px] font-medium" style={{ color: tone.ink }}>{t.companyFirst}</div>
+                      <p className="mt-1 text-[11px] leading-5" style={{ color: tone.ink50 }}>{t.companyFirstHint}</p>
+                    </div>
+                    <select
+                      value={licensedCompany}
+                      onChange={(event) => {
+                        setLicensedCompany(event.target.value);
+                        setTeamId("");
+                        setCompanyRequirementsAcknowledged(false);
+                      }}
+                      disabled={routingLocks.company || agreementStatus !== "not_started"}
+                      className="h-11 rounded-lg bg-white px-3 text-[13px] disabled:opacity-60"
+                      style={{ border: `1px solid ${tone.line}`, color: tone.ink }}
+                    >
+                      <option value="">{t.selectCompany}</option>
+                      {companies.map((company) => (
+                        <option key={company.id} value={company.id}>{company.legalName}</option>
+                      ))}
+                    </select>
+                    {selectedCompany && (
+                      <p className="text-[12px] leading-5" style={{ color: selectedCompany.requiresLiborOneKey ? tone.amber : tone.green }}>
+                        {selectedCompany.requiresLiborOneKey ? t.realtyRequirement : t.livingRequirement}
+                        <br />{selectedCompany.address}
+                      </p>
+                    )}
+                    <label className="flex items-start gap-3 text-[12px] leading-5" style={{ color: tone.ink70 }}>
+                      <input
+                        type="checkbox"
+                        className="mt-1"
+                        checked={companyRequirementsAcknowledged}
+                        onChange={(event) => setCompanyRequirementsAcknowledged(event.target.checked)}
+                        disabled={!licensedCompany || agreementStatus !== "not_started"}
+                      />
+                      <span>{t.companyAcknowledgement}</span>
+                    </label>
+                  </div>
                   <label className="grid gap-1 text-[12px]" style={{ color: tone.ink70 }}>
                     {t.legalName}
                     <input value={legalName} onChange={(event) => setLegalName(event.target.value)} disabled={agreementStatus !== "not_started"} className="h-11 rounded-lg bg-white px-3 text-[13px] disabled:opacity-60" style={{ border: `1px solid ${tone.line}`, color: tone.ink }} />
@@ -472,14 +551,6 @@ export function PendingApprovalClient({
                   <label className="grid gap-1 text-[12px]" style={{ color: tone.ink70 }}>
                     {t.license}
                     <input value={licenseNumber} onChange={(event) => setLicenseNumber(event.target.value)} disabled={agreementStatus !== "not_started"} className="h-11 rounded-lg bg-white px-3 text-[13px] disabled:opacity-60" style={{ border: `1px solid ${tone.line}`, color: tone.ink }} />
-                  </label>
-                  <label className="grid gap-1 text-[12px]" style={{ color: tone.ink70 }}>
-                    {t.company}
-                    <select value={licensedCompany} onChange={(event) => setLicensedCompany(event.target.value)} disabled={agreementStatus !== "not_started"} className="h-11 rounded-lg bg-white px-3 text-[13px] disabled:opacity-60" style={{ border: `1px solid ${tone.line}`, color: tone.ink }}>
-                      <option value="">{t.selectCompany}</option>
-                      <option value="Homix Realty Inc.">Homix Realty Inc.</option>
-                      <option value="Homix Living Inc.">Homix Living Inc.</option>
-                    </select>
                   </label>
                   <label className="grid gap-1 text-[12px] sm:col-span-2" style={{ color: tone.ink70 }}>
                     {t.practice}
@@ -502,7 +573,7 @@ export function PendingApprovalClient({
                       {t.team}
                       <select value={teamId} onChange={(event) => setTeamId(event.target.value)} disabled={routingLocks.team || agreementStatus !== "not_started"} className="h-11 rounded-lg bg-white px-3 text-[13px] disabled:opacity-60" style={{ border: `1px solid ${tone.line}`, color: tone.ink }}>
                         <option value="">{t.selectTeam}</option>
-                        {teams.map((team) => (
+                        {availableTeams.map((team) => (
                           <option
                             key={team.id}
                             value={team.id}

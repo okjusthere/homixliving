@@ -15,7 +15,7 @@ import { getLocale } from "@/lib/i18n";
 import { fetchPublicProfile } from "@/lib/homixweb";
 import { computeOnboarding } from "@/lib/onboarding-progress";
 import { normalizeAgentPlan } from "@/lib/agent-plans";
-import { resolveOnboardingESignEntity } from "@/lib/esign";
+import { resolveLicensedCompany } from "@/lib/licensed-companies";
 import { teamLeaderApplicationEligibility } from "@/lib/team-leader-applications";
 import { OnboardingProgressCard } from "@/components/homix/onboarding-progress-card";
 import { ProfileClient } from "./profile-client";
@@ -148,8 +148,11 @@ export default async function ProfilePage() {
           locale={locale}
           eligibility={teamLeaderApplicationEligibility({
             accountStatus: agent.accountStatus,
+            agentAgreementStatus: agent.agreementStatus,
             plan: normalizeAgentPlan(agent.plan),
-            licensedCompanySupported: Boolean(resolveOnboardingESignEntity(agent.licensedCompany)),
+            licensedCompanySupported: Boolean(
+              resolveLicensedCompany(agent.licensedCompanyId || agent.licensedCompany),
+            ),
             alreadyLeadsTeam: Boolean(ledTeam),
             openApplicationStatus: leaderApplication?.status || null,
           })}

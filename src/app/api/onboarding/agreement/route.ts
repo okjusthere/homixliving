@@ -194,6 +194,7 @@ export async function POST() {
       expectedVersionId: templateConfiguration.templateVersionId,
       expectedSchemaHash: templateConfiguration.templateSchemaHash,
       includeTeamTerms: effectivePlan === "team_member",
+      entityKey: templateConfiguration.entityKey,
     });
     const countersigner = templateConfiguration.countersignerName &&
       templateConfiguration.countersignerEmail

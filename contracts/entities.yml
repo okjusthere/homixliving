@@ -1,0 +1,26 @@
+{
+  "homix_realty": {
+    "legal_name": "Homix Realty Inc.",
+    "address": "37-20 Prince St, STE 3H, Flushing, NY 11354",
+    "broker_name": "Si Zhang",
+    "broker_title": "Broker",
+    "broker_email": "sunnyz@homixny.com",
+    "requires_libor_onekey": true,
+    "agent_version": "4.0-candidate",
+    "team_leader_version": "2.0-candidate",
+    "agent_filename": "Homix_Realty_Agent_Affiliation_Agreement_v4.0-candidate",
+    "team_leader_filename": "Homix_Realty_Team_Leader_Agreement_v2.0-candidate"
+  },
+  "homix_living": {
+    "legal_name": "Homix Living Inc.",
+    "address": "110 Charlton St #A, New York, NY 10014",
+    "broker_name": "Si Zhang",
+    "broker_title": "Broker",
+    "broker_email": "sunnyz@homixny.com",
+    "requires_libor_onekey": false,
+    "agent_version": "4.0-candidate",
+    "team_leader_version": "2.0-candidate",
+    "agent_filename": "Homix_Living_Agent_Affiliation_Agreement_v4.0-candidate",
+    "team_leader_filename": "Homix_Living_Team_Leader_Agreement_v2.0-candidate"
+  }
+}
