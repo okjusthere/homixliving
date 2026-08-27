@@ -86,9 +86,9 @@ const STABLE_FIELD_RECTS: Record<string, Rect> = {
 
   "realty.fees_acknowledgement": points(88, 382, 18, 18),
   "realty.fees_initials": points(154, 405, 113, 24),
-  "realty.fees_signature": points(143, 425, 225, 24),
+  "realty.fees_signature": points(143, 425, 185, 24),
   "realty.fees_signed_date": points(338, 425, 166, 24),
-  "company.realty_fees_countersignature": points(187, 445, 184, 24),
+  "company.realty_fees_countersignature": points(187, 445, 150, 24),
   "company.realty_fees_countersigned_date": points(342, 445, 166, 24),
 
   "team.config_acknowledgement": points(69, 414, 16, 18),
