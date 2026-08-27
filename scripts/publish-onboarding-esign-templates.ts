@@ -1,9 +1,14 @@
 import { createHash, randomUUID } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import {
+  assertValidGeometry,
+  mergePlacements,
+  stableFieldRect,
+  type Rect,
+} from "./onboarding-esign-geometry";
 
 type RoleKind = "signer" | "countersigner";
-type Rect = { x: number; y: number; width: number; height: number; rotation: 0 };
 type ManifestField = {
   fieldKey: string;
   page: number;
@@ -270,41 +275,48 @@ function buildFields(
       readOnly: field.readOnly ?? false,
       sensitive: field.fieldKey === "realty.libor_date_of_birth",
       tabIndex: fieldsTabIndex(field.page, index),
-      rect: rectFor(field.fieldKey, field.type, field.page, index),
+      rect: stableFieldRect(field.fieldKey),
       ...(field.mergeKey ? { mergeKey: field.mergeKey } : {}),
     };
   });
-  const mergeKeys = contract.agreement === "team_leader"
+  const requiredMergeKeys = contract.agreement === "team_leader"
     ? [
         "agent_id", "agent_name", "agent_email", "agent_phone", "license_number",
         "licensed_company", "compensation_plan", "team_name", "expected_member_count",
         "team_positioning", "team_split_pct", "team_sourced_split_pct", "team_cap_usd",
-        "team_terms_effective_from",
+        "team_terms_effective_from", "team_config_version",
       ]
     : [
         "agent_id", "agent_name", "agent_email", "agent_phone", "license_number",
-        "licensed_company", "compensation_plan", "split_pct", "sponsor_name",
+        "licensed_company", "practice", "compensation_plan", "split_pct", "sponsor_name",
         "affiliation_term_months", "team_name", "team_split_pct",
         "team_sourced_split_pct", "team_cap_usd", "team_terms_effective_from",
       ];
-  const existingMergeKeys = new Set(stable.flatMap((field) => field.mergeKey ? [field.mergeKey] : []));
-  for (const [index, mergeKey] of mergeKeys.entries()) {
-    if (existingMergeKeys.has(mergeKey)) continue;
+  for (const [index, placement] of mergePlacements(contract.agreement).entries()) {
     fields.push({
       id: randomUUID(),
       documentId,
-      page: contract.agreement === "team_leader" ? (index < 7 ? 1 : 2) : (index < 7 ? 1 : 2),
+      page: placement.page,
       type: "merge",
       roleId: null,
-      label: labelFor(mergeKey),
+      label: placement.label,
       required: true,
       readOnly: true,
       sensitive: false,
       tabIndex: 900 + index,
-      rect: mergeRect(index),
-      mergeKey,
+      rect: placement.rect,
+      mergeKey: placement.mergeKey,
     });
   }
+  const publishedMergeKeys = new Set(
+    fields.flatMap((field) => field.mergeKey ? [field.mergeKey] : []),
+  );
+  for (const mergeKey of requiredMergeKeys) {
+    if (!publishedMergeKeys.has(mergeKey)) {
+      throw new Error(`${contract.file} has no approved placement for ${mergeKey}.`);
+    }
+  }
+  assertValidGeometry(fields);
   return fields;
 }
 
@@ -319,68 +331,4 @@ function eSignFieldType(field: ManifestField) {
 
 function fieldsTabIndex(page: number, index: number) {
   return page * 100 + index;
-}
-
-function mergeRect(index: number): Rect {
-  const local = index % 7;
-  return {
-    x: index < 7 ? 0.12 : 0.54,
-    y: 0.55 + local * 0.045,
-    width: 0.34,
-    height: 0.026,
-    rotation: 0,
-  };
-}
-
-function rectFor(fieldKey: string, type: string, page: number, index: number): Rect {
-  const explicit: Record<string, Rect> = {
-    "agent.plan_acknowledgement": rect(0.10, 0.55, 0.03, 0.025),
-    "agent.plan_signature": rect(0.10, 0.62, 0.31, 0.04),
-    "agent.plan_signed_date": rect(0.39, 0.62, 0.14, 0.035),
-    "company.plan_countersignature": rect(0.56, 0.62, 0.27, 0.04),
-    "company.plan_countersigned_date": rect(0.82, 0.62, 0.13, 0.035),
-    "agent.compensation_plan": rect(0.37, 0.18, 0.24, 0.028),
-    "agent.reporting_acknowledgement": rect(0.10, 0.17, 0.03, 0.025),
-    "agent.reporting_signature": rect(0.10, 0.24, 0.31, 0.04),
-    "agent.reporting_signed_date": rect(0.39, 0.24, 0.14, 0.035),
-    "company.reporting_countersignature": rect(0.56, 0.24, 0.27, 0.04),
-    "company.reporting_countersigned_date": rect(0.82, 0.24, 0.13, 0.035),
-    "agent.ica_address": rect(0.18, 0.13, 0.52, 0.03),
-    "agent.ica_effective_date": rect(0.70, 0.13, 0.19, 0.03),
-    "agent.ica_signature": rect(0.10, 0.48, 0.31, 0.04),
-    "agent.ica_signed_date": rect(0.39, 0.48, 0.14, 0.035),
-    "company.ica_countersignature": rect(0.56, 0.48, 0.27, 0.04),
-    "company.ica_countersigned_date": rect(0.82, 0.48, 0.13, 0.035),
-    "agent.nda_signature": rect(0.10, 0.56, 0.31, 0.04),
-    "agent.nda_signed_date": rect(0.39, 0.56, 0.14, 0.035),
-    "company.nda_countersignature": rect(0.56, 0.56, 0.27, 0.04),
-    "company.nda_countersigned_date": rect(0.82, 0.56, 0.13, 0.035),
-    "realty.libor_application_signature": rect(0.12, 0.88, 0.48, 0.035),
-    "realty.libor_application_signed_date": rect(0.70, 0.88, 0.18, 0.03),
-    "realty.fees_acknowledgement": rect(0.10, 0.51, 0.03, 0.025),
-    "realty.fees_initials": rect(0.15, 0.51, 0.12, 0.03),
-    "realty.fees_signature": rect(0.10, 0.59, 0.31, 0.04),
-    "realty.fees_signed_date": rect(0.39, 0.59, 0.14, 0.035),
-    "company.realty_fees_countersignature": rect(0.56, 0.59, 0.27, 0.04),
-    "company.realty_fees_countersigned_date": rect(0.82, 0.59, 0.13, 0.035),
-    "team.config_acknowledgement": rect(0.10, 0.53, 0.03, 0.025),
-    "team.config_initials": rect(0.15, 0.53, 0.12, 0.03),
-    "team.compensation_plan": rect(0.39, 0.18, 0.22, 0.028),
-    "team.execution_acknowledgement": rect(0.10, 0.20, 0.03, 0.025),
-    "team.leader_signature": rect(0.10, 0.29, 0.31, 0.04),
-    "team.leader_signed_date": rect(0.39, 0.29, 0.14, 0.035),
-    "company.team_leader_countersignature": rect(0.56, 0.29, 0.27, 0.04),
-    "company.team_leader_countersigned_date": rect(0.82, 0.29, 0.13, 0.035),
-  };
-  if (explicit[fieldKey]) return explicit[fieldKey];
-  if (page === 19) {
-    const column = index % 2;
-    const row = Math.floor(index / 2);
-    return rect(0.12 + column * 0.45, 0.36 + row * 0.035, type === "date" ? 0.22 : 0.35, 0.024);
-  }
-  return rect(0.12, Math.min(0.90, 0.20 + index * 0.04), type === "checkbox" ? 0.03 : 0.35, 0.028);
-}
-
-function rect(x: number, y: number, width: number, height: number): Rect {
-  return { x, y, width, height, rotation: 0 };
 }

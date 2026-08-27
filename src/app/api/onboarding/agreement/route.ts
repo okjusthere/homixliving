@@ -255,13 +255,18 @@ export async function POST() {
         agent_phone: agent.phone || "",
         license_number: agent.licenseNumber || "",
         licensed_company: templateConfiguration.legalEntityName,
+        practice: agent.practice || "",
         compensation_plan: effectivePlan,
-        split_pct: agent.splitPct,
+        split_pct: `${agent.splitPct}%`,
         team_name: team?.name || "",
-        team_split_pct: teamTerms?.defaultTeamSplitPct ?? "",
-        team_sourced_split_pct: teamTerms?.teamLeadSplitPct ?? "",
-        team_cap_usd: teamTerms?.teamCapCents == null ? "No cap" : teamTerms.teamCapCents / 100,
-        team_terms_effective_from: agent.teamTermsEffectiveFrom || "",
+        team_split_pct: teamTerms ? `${teamTerms.defaultTeamSplitPct}%` : "",
+        team_sourced_split_pct: teamTerms ? `${teamTerms.teamLeadSplitPct}%` : "",
+        team_cap_usd: teamTerms
+          ? teamTerms.teamCapCents == null
+            ? "No cap"
+            : `$${(teamTerms.teamCapCents / 100).toLocaleString("en-US")}`
+          : "",
+        team_terms_effective_from: teamTerms ? agent.teamTermsEffectiveFrom || "" : "",
         sponsor_name: sponsor?.name || "",
         affiliation_term_months: agent.affiliationTermMonths || 12,
       },

@@ -17,6 +17,7 @@ const BASE_MERGE_KEYS = [
   "agent_phone",
   "license_number",
   "licensed_company",
+  "practice",
   "compensation_plan",
   "split_pct",
   "sponsor_name",
@@ -46,6 +47,7 @@ const TEAM_LEADER_MERGE_KEYS = [
   "team_sourced_split_pct",
   "team_cap_usd",
   "team_terms_effective_from",
+  "team_config_version",
 ] as const;
 
 export class OnboardingESignTemplateError extends Error {
@@ -130,9 +132,9 @@ export function validateOnboardingESignTemplate(input: {
   }
   for (const key of requiredKeys) {
     const fields = mergeFields.get(key) || [];
-    if (fields.length !== 1 || !fields[0].readOnly) {
+    if (fields.length === 0 || fields.some((field) => !field.readOnly)) {
       throw new OnboardingESignTemplateError(
-        `The onboarding template must contain one read-only ${key} merge field.`,
+        `The onboarding template must contain read-only ${key} merge fields.`,
       );
     }
   }
@@ -194,9 +196,9 @@ export function validateTeamLeaderESignTemplate(input: {
   }
   for (const key of TEAM_LEADER_MERGE_KEYS) {
     const fields = mergeFields.get(key) || [];
-    if (fields.length !== 1 || !fields[0].readOnly) {
+    if (fields.length === 0 || fields.some((field) => !field.readOnly)) {
       throw new OnboardingESignTemplateError(
-        `The Team Leader template must contain one read-only ${key} merge field.`,
+        `The Team Leader template must contain read-only ${key} merge fields.`,
       );
     }
   }
