@@ -207,7 +207,7 @@ creation. Do not hide materially different terms with conditional merge values.
 
 ## Publish and pin
 
-Production status on 2026-08-27:
+Production status on 2026-08-28:
 
 - all eight approved PDFs are published as eleven immutable production templates
   (six Realty Agent routes, three Living Agent plans, and two Team Leader releases)
@@ -222,9 +222,16 @@ Production status on 2026-08-27:
   Leader as Sponsor, Team Member with a different Sponsor, default 10% Team
   Split with no Team Cap, and administrator-verified offline payment
 
-The `esign.kevv.ai` production domain is healthy. The remaining cutover gate is
-a manual signer/countersigner/sealed-PDF/evidence cycle using only the approved
-synthetic recipient list, followed by the four Portal onboarding smokes.
+The `esign.kevv.ai` production domain is healthy. The production acceptance
+cycle completed on 2026-08-28 with an approved synthetic recipient: the agent
+and Si Zhang both signed, finalization produced the sealed PDF, and evidence
+retrieval verified the PDF, audit, and manifest hashes. The evidence package is
+retained through 2033-08-28. The four Portal onboarding smokes also passed in a
+production transaction that was rolled back without leaving test records.
+
+The technical production gates are therefore complete. Business cutover remains
+intentional and separate: keep `ONBOARDING_V2_ENFORCED=0` until Homix explicitly
+chooses to route real candidates through the new workflow.
 
 1. Upload the approved PDF to the matching production eSign workspace.
 2. Add recipient roles and fields, then publish the immutable version.
