@@ -652,6 +652,20 @@ def replace_placeholders(doc: Document, replacements: dict[str, str]) -> None:
                     run.text = updated
 
 
+def clear_esign_placeholders(doc: Document) -> None:
+    """Keep merge keys in the masters, but leave publishable PDF fields blank."""
+    pattern = re.compile(
+        r"\[[a-z][a-z0-9_]*\](?:% of Agent Side| months)?",
+        flags=re.IGNORECASE,
+    )
+    for paragraph in iter_paragraphs(doc):
+        for run in paragraph.runs:
+            original = run.text
+            updated = pattern.sub("", original)
+            if updated != original:
+                run.text = updated
+
+
 def generate_entity_docx(
     master: Path,
     destination: Path,
@@ -686,6 +700,7 @@ def generate_entity_docx(
             "PLAN_TERMS": plan["terms"],
         })
     replace_placeholders(doc, replacements)
+    clear_esign_placeholders(doc)
     plan_title = f" {AGENT_PLANS[plan_key]['label']}" if is_agent and plan_key else ""
     doc.core_properties.title = (
         f"{entity['legal_name']}{plan_title} "
@@ -844,6 +859,8 @@ def assert_clean_pdf(
             raise RuntimeError(f"Unexpected annotations on {path.name}, page {index}")
     text = "\n".join(page.extract_text() or "" for page in reader.pages)
     normalized_text = re.sub(r"\s+", " ", text).strip().lower()
+    if re.search(r"\[[a-z][a-z0-9_]*\]", normalized_text):
+        raise RuntimeError(f"{path.name} contains a printed eSign placeholder.")
     other = "Homix Living Inc." if entity["legal_name"] == "Homix Realty Inc." else "Homix Realty Inc."
     if other.lower() in normalized_text:
         raise RuntimeError(f"{path.name} contains the other contracting entity.")
@@ -881,7 +898,7 @@ def write_release_index(records: list[dict]) -> None:
     (PDF_DIR / "release-index.json").write_text(json.dumps({"contracts": records}, indent=2) + "\n", encoding="utf-8")
     lines = ["# Homix onboarding contract release candidates", "",
              "Generated from two legal-reviewable DOCX masters and `contracts/entities.yml`.",
-             "These files remain candidates until Company counsel approves both masters, the official Realty application attachment, and the versioned Realty fee disclosure.", "",
+             "Homix approved this release set. The `-candidate` suffix is retained only for release naming compatibility; the files below are the approved sources for immutable production eSign releases.", "",
              "| File | Entity | Agreement | Plan | Pages | SHA-256 |", "| --- | --- | --- | --- | ---: | --- |"]
     for record in records:
         lines.append(

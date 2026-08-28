@@ -74,6 +74,7 @@ def main() -> None:
         Paragraph("本人明白并同意在收到 LIBOR 或 OneKey MLS 账单后，按照账单规定的期限通过第三方官方渠道支付所有应付费用。如公司为避免账户停用而根据可核实账单代付已到期费用，本人同意公司可依据本协议和适用法律，从应付佣金中扣回实际代付净额，并在 Portal 中保存账单、代付和扣回记录。", body),
         Paragraph("I understand and agree to pay all LIBOR or OneKey MLS dues by the deadline stated on the applicable invoice through an authorized third-party payment channel. If the Company pays a verified, past-due amount to prevent account suspension, I authorize the Company, subject to this Agreement and applicable law, to recover the actual net amount from commissions otherwise payable to me and to retain an audit record in Portal.", body),
         Spacer(1, 6),
+        Paragraph("[&nbsp;&nbsp;] I understand and accept the LIBOR / OneKey MLS payment disclosure.", body),
         Paragraph("Agent initials: ____________________", body),
         Paragraph("Agent signature: ____________________________________&nbsp;&nbsp;&nbsp;&nbsp;Date: __________________", body),
         Paragraph("Company countersignature: ___________________________&nbsp;&nbsp;&nbsp;&nbsp;Date: __________________", body),
