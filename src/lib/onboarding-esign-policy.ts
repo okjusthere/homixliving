@@ -4,6 +4,7 @@ import type {
   ESignTemplateVersion,
 } from "@/lib/esign";
 import type { OnboardingESignEntityKey } from "@/lib/esign";
+import type { LiborMembershipStatus } from "@/lib/licensed-companies";
 import {
   agentAgreementFieldManifest,
   teamLeaderAgreementFieldManifest,
@@ -71,8 +72,16 @@ export function validateOnboardingESignTemplate(input: {
   expectedSchemaHash: string;
   includeTeamTerms: boolean;
   entityKey: OnboardingESignEntityKey;
+  liborMembershipStatus: LiborMembershipStatus | null;
 }) {
-  const { template, expectedVersionId, expectedSchemaHash, includeTeamTerms, entityKey } = input;
+  const {
+    template,
+    expectedVersionId,
+    expectedSchemaHash,
+    includeTeamTerms,
+    entityKey,
+    liborMembershipStatus,
+  } = input;
   if (template.activeVersionId !== expectedVersionId) {
     throw new OnboardingESignTemplateError(
       "The active onboarding template version has not been approved for Portal.",
@@ -120,9 +129,10 @@ export function validateOnboardingESignTemplate(input: {
     );
   }
 
-  const requiredKeys = includeTeamTerms
+  const requiredKeys: string[] = includeTeamTerms
     ? [...BASE_MERGE_KEYS, ...TEAM_MERGE_KEYS]
     : [...BASE_MERGE_KEYS];
+  if (entityKey === "homix_realty") requiredKeys.push("libor_membership_status");
   const mergeFields = new Map<string, ESignTemplateField[]>();
   for (const field of version.fields) {
     if (!field.mergeKey) continue;
@@ -141,7 +151,7 @@ export function validateOnboardingESignTemplate(input: {
   try {
     validateStableFieldManifest({
       version,
-      requirements: agentAgreementFieldManifest(entityKey),
+      requirements: agentAgreementFieldManifest(entityKey, liborMembershipStatus),
       forbidRealtyFields: entityKey === "homix_living",
     });
   } catch (error) {

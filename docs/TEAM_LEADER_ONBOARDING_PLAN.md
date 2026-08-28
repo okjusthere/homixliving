@@ -336,8 +336,8 @@ Sponsor：李四
 - [x] 管理员批准时原子创建 `forming` Team 和 v1 Compensation Config。
 - [x] Team Leader agreement 完成前，后端拒绝创建团队招聘链接。
 - [x] 首名 Team Member agreement evidence 验证完成后，Team 与 Team Leader 自动启用。
-- [ ] 法务提供并批准两家公司适用的正式 Team Leader agreement PDF。
-- [ ] 生产 eSign 发布模板并在 Vercel 配置精确 template/version/schema pins。
+- [x] 法务提供并批准两家公司适用的正式 Team Leader agreement PDF。
+- [x] 生产 eSign 发布模板并在 Vercel 配置精确 template/version/schema pins。
 
 - [ ] 普通 Agent 可生成个人推荐链接。
 - [ ] 个人推荐链接只锁定 Sponsor，不强制 Team。
@@ -353,7 +353,7 @@ Sponsor：李四
 - [ ] Sponsor Reward 与 Team Split 分开入账。
 - [ ] 管理员只在所有强制条件完成后批准。
 - [ ] 批准后用户无需退出登录即可进入 Portal。
-- [ ] 生产 eSign 模板、凭证、版本和 schema hash 已固定。
+- [x] 生产 eSign 模板、凭证、版本和 schema hash 已固定。
 - [ ] 所有生产烟测通过后才启用 `ONBOARDING_V2_ENFORCED=1`。
 
 ## 12. 非目标

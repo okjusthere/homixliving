@@ -10,14 +10,14 @@ import {
 const ENV_KEYS = [
   "ESIGN_API_URL",
   "ESIGN_APPLICATION_KEY",
-  "ESIGN_ONBOARDING_HOMIX_REALTY_TEMPLATE_ID",
-  "ESIGN_ONBOARDING_HOMIX_REALTY_TEMPLATE_VERSION_ID",
-  "ESIGN_ONBOARDING_HOMIX_REALTY_TEMPLATE_SCHEMA_HASH",
+  "ESIGN_ONBOARDING_HOMIX_REALTY_SOLO_APPLY_NEW_TEMPLATE_ID",
+  "ESIGN_ONBOARDING_HOMIX_REALTY_SOLO_APPLY_NEW_TEMPLATE_VERSION_ID",
+  "ESIGN_ONBOARDING_HOMIX_REALTY_SOLO_APPLY_NEW_TEMPLATE_SCHEMA_HASH",
   "ESIGN_ONBOARDING_HOMIX_REALTY_COUNTERSIGNER_NAME",
   "ESIGN_ONBOARDING_HOMIX_REALTY_COUNTERSIGNER_EMAIL",
-  "ESIGN_ONBOARDING_HOMIX_LIVING_TEMPLATE_ID",
-  "ESIGN_ONBOARDING_HOMIX_LIVING_TEMPLATE_VERSION_ID",
-  "ESIGN_ONBOARDING_HOMIX_LIVING_TEMPLATE_SCHEMA_HASH",
+  "ESIGN_ONBOARDING_HOMIX_LIVING_SOLO_TEMPLATE_ID",
+  "ESIGN_ONBOARDING_HOMIX_LIVING_SOLO_TEMPLATE_VERSION_ID",
+  "ESIGN_ONBOARDING_HOMIX_LIVING_SOLO_TEMPLATE_SCHEMA_HASH",
   "ESIGN_TEAM_LEADER_HOMIX_REALTY_TEMPLATE_ID",
   "ESIGN_TEAM_LEADER_HOMIX_REALTY_TEMPLATE_VERSION_ID",
   "ESIGN_TEAM_LEADER_HOMIX_REALTY_TEMPLATE_SCHEMA_HASH",
@@ -36,15 +36,16 @@ try {
 
   process.env.ESIGN_API_URL = "https://esign.example.com/";
   process.env.ESIGN_APPLICATION_KEY = "test-key";
-  process.env.ESIGN_ONBOARDING_HOMIX_REALTY_TEMPLATE_ID = "realty-template";
-  process.env.ESIGN_ONBOARDING_HOMIX_REALTY_TEMPLATE_VERSION_ID = "realty-version";
-  process.env.ESIGN_ONBOARDING_HOMIX_REALTY_TEMPLATE_SCHEMA_HASH = "realty-hash";
+  process.env.ESIGN_ONBOARDING_HOMIX_REALTY_SOLO_APPLY_NEW_TEMPLATE_ID = "realty-template";
+  process.env.ESIGN_ONBOARDING_HOMIX_REALTY_SOLO_APPLY_NEW_TEMPLATE_VERSION_ID = "realty-version";
+  process.env.ESIGN_ONBOARDING_HOMIX_REALTY_SOLO_APPLY_NEW_TEMPLATE_SCHEMA_HASH = "realty-hash";
   process.env.ESIGN_ONBOARDING_HOMIX_REALTY_COUNTERSIGNER_NAME = "Realty Broker";
   process.env.ESIGN_ONBOARDING_HOMIX_REALTY_COUNTERSIGNER_EMAIL = "broker@example.com";
 
-  assert.equal(isOnboardingESignConfigured("Homix Realty Inc."), true);
-  assert.equal(isOnboardingESignConfigured("Homix Living Inc."), false);
-  assert.equal(isOnboardingESignConfigured("Unknown Company"), false);
+  assert.equal(isOnboardingESignConfigured("Homix Realty Inc.", "solo", "apply_new"), true);
+  assert.equal(isOnboardingESignConfigured("Homix Realty Inc.", "solo", "existing_member"), false);
+  assert.equal(isOnboardingESignConfigured("Homix Living Inc.", "solo", null), false);
+  assert.equal(isOnboardingESignConfigured("Unknown Company", "solo", null), false);
   assert.equal(isTeamLeaderESignConfigured("Homix Realty Inc."), false);
 
   process.env.ESIGN_TEAM_LEADER_HOMIX_REALTY_TEMPLATE_ID = "leader-template";
@@ -56,10 +57,12 @@ try {
   assert.equal(isTeamLeaderESignConfigured("Homix Realty Inc."), true);
   assert.equal(teamLeaderESignTemplateConfiguration("Homix Realty Inc.")?.templateId, "leader-template");
 
-  const realty = onboardingESignTemplateConfiguration("homix realty");
+  const realty = onboardingESignTemplateConfiguration("homix realty", "solo", "apply_new");
   assert.deepEqual(realty, {
     entityKey: "homix_realty",
     legalEntityName: "Homix Realty Inc.",
+    plan: "solo",
+    liborMembershipStatus: "apply_new",
     templateId: "realty-template",
     templateVersionId: "realty-version",
     templateSchemaHash: "realty-hash",

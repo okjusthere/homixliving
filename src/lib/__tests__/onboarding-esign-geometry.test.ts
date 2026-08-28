@@ -49,6 +49,7 @@ for (const key of [
   "team_sourced_split_pct",
   "team_cap_usd",
   "team_terms_effective_from",
+  "libor_membership_status",
 ]) {
   const stableProvidesKey = key === "compensation_plan";
   assert.equal(

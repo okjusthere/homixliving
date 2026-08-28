@@ -47,6 +47,12 @@ const M = {
     companyFirstHint: "This choice determines the legal agreement, MLS obligations, and available teams.",
     realtyRequirement: "Requires LIBOR/OneKey membership and the related fees.",
     livingRequirement: "Does not require LIBOR/OneKey membership.",
+    liborStatus: "LIBOR membership status",
+    liborStatusHint: "Existing members skip the new-member LIBOR application. Homix Realty information is prefilled for new applications.",
+    selectLiborStatus: "Select your LIBOR status",
+    applyNewLibor: "I need to apply for LIBOR membership",
+    existingLiborMember: "I am already a LIBOR member",
+    liborStatusRequired: "Choose whether you need a new LIBOR application.",
     companyAcknowledgement: "I understand that Homix Realty Inc. requires LIBOR/OneKey membership and related fees; Homix Living Inc. does not require LIBOR/OneKey.",
     companyAcknowledgementRequired: "Confirm the company and LIBOR/OneKey requirement before continuing.",
     practice: "Practice",
@@ -109,6 +115,12 @@ const M = {
     companyFirstHint: "公司选择决定合同主体、MLS 要求和可加入的团队。",
     realtyRequirement: "需要办理 LIBOR/OneKey 会员并承担相关费用。",
     livingRequirement: "不要求办理 LIBOR/OneKey 会员。",
+    liborStatus: "LIBOR 会员状态",
+    liborStatusHint: "已有会员无需重复填写入会申请；新申请时系统会预填 Homix Realty 公司资料。",
+    selectLiborStatus: "请选择 LIBOR 会员状态",
+    applyNewLibor: "我需要申请 LIBOR 会员",
+    existingLiborMember: "我已经是 LIBOR 会员",
+    liborStatusRequired: "请选择是否需要新办 LIBOR 会员。",
     companyAcknowledgement: "我理解 Homix Realty Inc. 要求办理 LIBOR/OneKey 会员及相关费用；Homix Living Inc. 不要求 LIBOR/OneKey。",
     companyAcknowledgementRequired: "请先选择公司并确认 LIBOR/OneKey 要求。",
     practice: "业务范围",
@@ -186,6 +198,7 @@ export function PendingApprovalClient({
   const [phone, setPhone] = useState("");
   const [licenseNumber, setLicenseNumber] = useState("");
   const [licensedCompany, setLicensedCompany] = useState("");
+  const [liborMembershipStatus, setLiborMembershipStatus] = useState<"apply_new" | "existing_member" | "">("");
   const [companyRequirementsAcknowledged, setCompanyRequirementsAcknowledged] = useState(false);
   const [practice, setPractice] = useState("both");
   const [routingLocks, setRoutingLocks] = useState({
@@ -231,6 +244,7 @@ export function PendingApprovalClient({
         setPhone(data.profile?.phone || "");
         setLicenseNumber(data.profile?.licenseNumber || "");
         setLicensedCompany(effectiveCompanyId);
+        setLiborMembershipStatus(data.profile?.liborMembershipStatus || "");
         setCompanyRequirementsAcknowledged(Boolean(
           data.profile?.companyRequirementsAcknowledged &&
           profileCompanyId === effectiveCompanyId,
@@ -290,6 +304,10 @@ export function PendingApprovalClient({
       setSetupMessage(t.companyAcknowledgementRequired);
       return;
     }
+    if (licensedCompany === "homix_realty" && !liborMembershipStatus) {
+      setSetupMessage(t.liborStatusRequired);
+      return;
+    }
     if (plan === "team_member" && !teamId) {
       setSetupMessage(t.selectTeam);
       return;
@@ -309,6 +327,7 @@ export function PendingApprovalClient({
           phone,
           licenseNumber,
           licensedCompanyId: licensedCompany,
+          liborMembershipStatus: licensedCompany === "homix_realty" ? liborMembershipStatus : null,
           companyRequirementsAcknowledged,
           practice,
         }),
@@ -512,6 +531,7 @@ export function PendingApprovalClient({
                       onChange={(event) => {
                         setLicensedCompany(event.target.value);
                         setTeamId("");
+                        setLiborMembershipStatus("");
                         setCompanyRequirementsAcknowledged(false);
                       }}
                       disabled={routingLocks.company || agreementStatus !== "not_started"}
@@ -528,6 +548,25 @@ export function PendingApprovalClient({
                         {selectedCompany.requiresLiborOneKey ? t.realtyRequirement : t.livingRequirement}
                         <br />{selectedCompany.address}
                       </p>
+                    )}
+                    {selectedCompany?.requiresLiborOneKey && (
+                      <label className="grid gap-1 text-[12px]" style={{ color: tone.ink70 }}>
+                        {t.liborStatus}
+                        <select
+                          value={liborMembershipStatus}
+                          onChange={(event) => setLiborMembershipStatus(event.target.value as "apply_new" | "existing_member" | "")}
+                          disabled={agreementStatus !== "not_started"}
+                          className="h-11 rounded-lg bg-white px-3 text-[13px] disabled:opacity-60"
+                          style={{ border: `1px solid ${tone.line}`, color: tone.ink }}
+                        >
+                          <option value="">{t.selectLiborStatus}</option>
+                          <option value="apply_new">{t.applyNewLibor}</option>
+                          <option value="existing_member">{t.existingLiborMember}</option>
+                        </select>
+                        <span className="text-[11px] leading-5" style={{ color: tone.ink50 }}>
+                          {t.liborStatusHint}
+                        </span>
+                      </label>
                     )}
                     <label className="flex items-start gap-3 text-[12px] leading-5" style={{ color: tone.ink70 }}>
                       <input

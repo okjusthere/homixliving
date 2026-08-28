@@ -160,6 +160,7 @@ export type OnboardingAgreementStatus =
   | "failed";
 export type OnboardingPaymentStatus = "pending" | "paid" | "not_required";
 export type OnboardingInvitationKind = "personal_referral" | "team_recruiting" | "admin";
+export type LiborMembershipStatus = "apply_new" | "existing_member";
 
 export const agents = portal.table("agents", {
   id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
@@ -178,6 +179,7 @@ export const agents = portal.table("agents", {
     .references(() => licensedCompanies.id, { onDelete: "restrict" }),
   companySelectedAt: timestamptz("company_selected_at"),
   companyRequirementsAcknowledgedAt: timestamptz("company_requirements_acknowledged_at"),
+  liborMembershipStatus: text("libor_membership_status").$type<LiborMembershipStatus>(),
   splitPct: integer("split_pct").notNull().default(80),
   teamId: integer("team_id").references((): AnyPgColumn => teams.id, { onDelete: "set null" }),
   isAdmin: boolean("is_admin").notNull().default(false),

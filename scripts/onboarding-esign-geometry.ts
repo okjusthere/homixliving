@@ -44,11 +44,13 @@ const STABLE_FIELD_RECTS: Record<string, Rect> = {
 
   "agent.ica_address": points(389, 95, 174, 19),
   "agent.ica_effective_date": points(389, 113, 174, 19),
+  "agent.ica_acknowledgement": points(69, 330, 16, 18),
   "agent.ica_signature": points(112, 363, 174, 24),
   "agent.ica_signed_date": points(95, 401, 191, 22),
   "company.ica_countersignature": points(346, 363, 207, 24),
   "company.ica_countersigned_date": points(330, 401, 223, 22),
 
+  "agent.nda_acknowledgement": points(69, 405, 16, 18),
   "agent.nda_signature": points(112, 438, 174, 24),
   "agent.nda_signed_date": points(95, 476, 191, 22),
   "company.nda_countersignature": points(346, 438, 207, 24),
@@ -120,6 +122,7 @@ const AGENT_MERGE_PLACEMENTS: MergePlacement[] = [
   { mergeKey: "team_sourced_split_pct", page: 1, rect: points(78, 518, 456, 19), label: "Summary: Team-sourced split" },
   { mergeKey: "team_cap_usd", page: 1, rect: points(78, 538, 456, 19), label: "Summary: Team cap" },
   { mergeKey: "team_terms_effective_from", page: 1, rect: points(78, 558, 456, 19), label: "Summary: Team terms effective" },
+  { mergeKey: "libor_membership_status", page: 1, rect: points(78, 578, 456, 19), label: "Summary: LIBOR status" },
 ];
 
 const TEAM_LEADER_MERGE_PLACEMENTS: MergePlacement[] = [

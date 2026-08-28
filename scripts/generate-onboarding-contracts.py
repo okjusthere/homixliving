@@ -36,6 +36,44 @@ REALTY_FEE_DISCLOSURE_PATH = ROOT / "contracts" / "appendices" / "Realty_LIBOR_O
 
 INK, MUTED, LINE, PAPER, BRONZE, GREEN = "1D1C19", "6F6A61", "D8D1C5", "F4F1EA", "98623C", "536B3A"
 
+AGENT_PLANS = {
+    "solo": {
+        "label": "Solo",
+        "filename": "Solo",
+        "economics": "85% Agent / 15% Company",
+        "fee": "$288 / 12 months or $500 / 24 months",
+        "cap_rule": "$12,000 annual Company Dollar cap",
+        "terms": (
+            "Solo: 85% Agent / 15% Company; $288 for 12 months or $500 for 24 months; "
+            "$12,000 annual Company Dollar cap."
+        ),
+    },
+    "solo_pro": {
+        "label": "Solo Pro",
+        "filename": "Solo_Pro",
+        "economics": "100% Agent / 0% Company split",
+        "fee": "$3,650 annual plan fee",
+        "cap_rule": "Transaction fee schedule; no split cap",
+        "terms": (
+            "Solo Pro: 100% commission mode; $3,650 annual plan fee; transaction fee of $200 "
+            "for a commission check between $10,000 and $30,000, $500 between $30,000 and "
+            "$100,000, and $1,000 above $100,000."
+        ),
+    },
+    "team_member": {
+        "label": "Team Member",
+        "filename": "Team_Member",
+        "economics": "90% Agent Side / 10% Company",
+        "fee": "$288 / 12 months or $500 / 24 months",
+        "cap_rule": "$10,000 Company cap; Team terms separate",
+        "terms": (
+            "Team Member: 90% Agent Side / 10% Company; $288 for 12 months or $500 for "
+            "24 months; $10,000 annual Company Dollar cap. Team Split and Team Cap are "
+            "governed separately by the accepted Team Compensation Configuration."
+        ),
+    },
+}
+
 
 def load_json_yaml(path: Path) -> dict:
     # JSON is valid YAML 1.2 and avoids a runtime PyYAML dependency.
@@ -223,9 +261,7 @@ def add_key_values(doc: Document, items: list[tuple[str, str]]) -> None:
 
 def add_plan_table(doc: Document) -> None:
     rows = [
-        ("SOLO", "85% Agent / 15% Company", "$288 / 12 months or $500 / 24 months", "$12,000 annual Company Dollar cap"),
-        ("SOLO PRO", "100% commission mode", "$3,650 annual plan fee", "Transaction fee from first closing; no split cap"),
-        ("TEAM MEMBER", "90% Agent Side / 10% Company", "$288 / 12 months or $500 / 24 months", "$10,000 Company cap; Team terms separate"),
+        ("{{PLAN_LABEL}}", "{{PLAN_ECONOMICS}}", "{{PLAN_FEE}}", "{{PLAN_CAP_RULE}}"),
     ]
     table = doc.add_table(rows=1, cols=4)
     set_table_geometry(table, [1500, 2420, 2560, 2880])
@@ -362,9 +398,7 @@ def build_agent_master(path: Path) -> None:
     add_plan_table(doc)
     add_heading(doc, "Plan terms", 2)
     add_bullets(doc, [
-        "Solo: 85% Agent / 15% Company; $288 for 12 months or $500 for 24 months; $12,000 annual Company Dollar cap.",
-        "Solo Pro: 100% commission mode; $3,650 annual plan fee; transaction fee of $200 for a commission check between $10,000 and $30,000, $500 between $30,000 and $100,000, and $1,000 above $100,000.",
-        "Team Member: 90% Agent Side / 10% Company; $288 for 12 months or $500 for 24 months; $10,000 annual Company Dollar cap. Team Split and Team Cap are governed separately by the accepted Team Compensation Configuration.",
+        "{{PLAN_TERMS}}",
         "The selected plan applies to sales and rental transactions. There is no separate rental split plan.",
         "Sponsor Reward and Team Split are separate obligations. If the same person is both Sponsor and Team Leader, each amount is calculated and recorded separately; Sponsor Reward is calculated only from eligible Company-owned revenue under the Sponsor program.",
         "Annual or term fees are due at signing or renewal, are non-refundable, and are paid through secure Portal checkout or a Company-verified offline payment record. The selected plan remains locked for its term unless Company approves a prospective written change.",
@@ -467,7 +501,7 @@ def build_team_leader_master(path: Path) -> None:
     doc = Document()
     configure_document(doc, "TEAM LEADER AGREEMENT | {{LEGAL_NAME}}")
     add_title_block(doc, "TEAM LEADER AGREEMENT", "{{LEGAL_NAME}} | Version {{TEAM_LEADER_VERSION}} | New York")
-    add_para(doc, "This Team Leader Agreement supplements Team Leader's completed Agent Affiliation Agreement with {{LEGAL_NAME}}. It establishes an internal leadership role, not a separate brokerage, employment relationship, partnership, franchise, ownership interest, or authority to bind Company. The Team and every licensed Team Member must be associated with the same licensed brokerage.")
+    add_para(doc, "This Team Leader Agreement supplements Team Leader's completed Agent Affiliation Agreement for {{LEGAL_NAME}} and establishes an internal leadership role, not a separate brokerage, employment relationship, partnership, franchise, ownership interest, or authority to bind Company. The Team and every licensed Team Member must be associated with the same licensed brokerage.")
     add_key_values(doc, [
         ("Legal company", "{{LEGAL_NAME}}"), ("Company address", "{{ADDRESS}}"),
         ("Team Leader", "[agent_name]"), ("License number", "[license_number]"),
@@ -618,11 +652,17 @@ def replace_placeholders(doc: Document, replacements: dict[str, str]) -> None:
                     run.text = updated
 
 
-def generate_entity_docx(master: Path, destination: Path, entity: dict, is_agent: bool) -> None:
+def generate_entity_docx(
+    master: Path,
+    destination: Path,
+    entity: dict,
+    is_agent: bool,
+    plan_key: str | None = None,
+) -> None:
     doc = Document(master)
     if is_agent:
         apply_realty_paragraphs(doc, bool(entity["requires_libor_onekey"]))
-    replace_placeholders(doc, {
+    replacements = {
         "LEGAL_NAME": entity["legal_name"], "ADDRESS": entity["address"],
         "BROKER_NAME": entity["broker_name"], "BROKER_TITLE": entity["broker_title"],
         "BROKER_EMAIL": entity["broker_email"], "AGENT_VERSION": entity["agent_version"],
@@ -633,8 +673,24 @@ def generate_entity_docx(master: Path, destination: Path, entity: dict, is_agent
             if entity["requires_libor_onekey"]
             else "third-party listing-service or association fees applicable to Agent's practice"
         ),
-    })
-    doc.core_properties.title = f"{entity['legal_name']} {'Agent Affiliation' if is_agent else 'Team Leader'} Agreement"
+    }
+    if is_agent:
+        if plan_key not in AGENT_PLANS:
+            raise ValueError(f"Unknown Agent plan: {plan_key}")
+        plan = AGENT_PLANS[plan_key]
+        replacements.update({
+            "PLAN_LABEL": plan["label"],
+            "PLAN_ECONOMICS": plan["economics"],
+            "PLAN_FEE": plan["fee"],
+            "PLAN_CAP_RULE": plan["cap_rule"],
+            "PLAN_TERMS": plan["terms"],
+        })
+    replace_placeholders(doc, replacements)
+    plan_title = f" {AGENT_PLANS[plan_key]['label']}" if is_agent and plan_key else ""
+    doc.core_properties.title = (
+        f"{entity['legal_name']}{plan_title} "
+        f"{'Agent Affiliation' if is_agent else 'Team Leader'} Agreement"
+    )
     doc.core_properties.author = entity["legal_name"]
     destination.parent.mkdir(parents=True, exist_ok=True)
     doc.save(destination)
@@ -768,7 +824,12 @@ def assert_source_legal_fidelity(text: str, entity: dict) -> None:
         )
 
 
-def assert_clean_pdf(path: Path, entity: dict, is_agent: bool) -> dict:
+def assert_clean_pdf(
+    path: Path,
+    entity: dict,
+    is_agent: bool,
+    plan_key: str | None = None,
+) -> dict:
     reader = PdfReader(str(path))
     expected = 21 if is_agent and entity["requires_libor_onekey"] else 18 if is_agent else 7
     if len(reader.pages) != expected:
@@ -791,6 +852,11 @@ def assert_clean_pdf(path: Path, entity: dict, is_agent: bool) -> dict:
     if not entity["requires_libor_onekey"] and any(term in normalized_text for term in ("libor", "onekey", "mls")):
         raise RuntimeError(f"Living release {path.name} contains Realty-only language.")
     if is_agent:
+        if plan_key not in AGENT_PLANS:
+            raise RuntimeError(f"{path.name} has no frozen Agent plan.")
+        plan = AGENT_PLANS[plan_key]
+        if plan["terms"].lower() not in normalized_text:
+            raise RuntimeError(f"{path.name} is missing the frozen {plan['label']} terms.")
         assert_source_legal_fidelity(text, entity)
         if any(term in normalized_text for term in ("legal-review candidate", "credit card authorization", "card number:", "cvv:")):
             raise RuntimeError(f"{path.name} contains internal-review or prohibited payment-card content.")
@@ -807,7 +873,8 @@ def assert_clean_pdf(path: Path, entity: dict, is_agent: bool) -> dict:
                     raise RuntimeError(f"{path.name} is missing Realty disclosure page {offset - 18}.")
     return {"file": path.name, "pages": len(reader.pages),
             "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
-            "entity": entity["legal_name"], "agreement": "agent" if is_agent else "team_leader"}
+            "entity": entity["legal_name"], "agreement": "agent" if is_agent else "team_leader",
+            "plan": plan_key if is_agent else None}
 
 
 def write_release_index(records: list[dict]) -> None:
@@ -815,9 +882,12 @@ def write_release_index(records: list[dict]) -> None:
     lines = ["# Homix onboarding contract release candidates", "",
              "Generated from two legal-reviewable DOCX masters and `contracts/entities.yml`.",
              "These files remain candidates until Company counsel approves both masters, the official Realty application attachment, and the versioned Realty fee disclosure.", "",
-             "| File | Entity | Agreement | Pages | SHA-256 |", "| --- | --- | --- | ---: | --- |"]
+             "| File | Entity | Agreement | Plan | Pages | SHA-256 |", "| --- | --- | --- | --- | ---: | --- |"]
     for record in records:
-        lines.append(f"| `{record['file']}` | {record['entity']} | {record['agreement']} | {record['pages']} | `{record['sha256']}` |")
+        lines.append(
+            f"| `{record['file']}` | {record['entity']} | {record['agreement']} | "
+            f"{record.get('plan') or '—'} | {record['pages']} | `{record['sha256']}` |"
+        )
     lines += ["", "Do not overwrite a published eSign version. Any PDF or field-manifest change requires a new immutable template version, schema hash, Portal pin, and smoke test.", ""]
     (PDF_DIR / "README.md").write_text("\n".join(lines), encoding="utf-8")
 
@@ -834,20 +904,27 @@ def main() -> None:
     if not MANIFEST_PATH.exists():
         raise SystemExit(f"Missing field manifest: {MANIFEST_PATH}")
     records = []
-    for entity in load_json_yaml(ENTITIES_PATH).values():
-        agent_docx = GENERATED_DIR / f"{entity['agent_filename']}.docx"
+    for entity_key, entity in load_json_yaml(ENTITIES_PATH).items():
+        entity_filename = "Homix_Realty" if entity_key == "homix_realty" else "Homix_Living"
         leader_docx = GENERATED_DIR / f"{entity['team_leader_filename']}.docx"
-        generate_entity_docx(AGENT_MASTER, agent_docx, entity, True)
         generate_entity_docx(TEAM_LEADER_MASTER, leader_docx, entity, False)
-        agent_pdf = convert_to_pdf(agent_docx)
-        if entity["requires_libor_onekey"]:
-            insert_realty_appendices(agent_pdf)
-        canonicalize_static_pdf(
-            agent_pdf,
-            f"{entity['legal_name']} Agent Affiliation Agreement {entity['agent_version']}",
-            entity["legal_name"],
-        )
-        records.append(assert_clean_pdf(agent_pdf, entity, True))
+        for plan_key, plan in AGENT_PLANS.items():
+            agent_filename = (
+                f"{entity_filename}_{plan['filename']}_Agent_Affiliation_Agreement_"
+                f"v{entity['agent_version']}"
+            )
+            agent_docx = GENERATED_DIR / f"{agent_filename}.docx"
+            generate_entity_docx(AGENT_MASTER, agent_docx, entity, True, plan_key)
+            agent_pdf = convert_to_pdf(agent_docx)
+            if entity["requires_libor_onekey"]:
+                insert_realty_appendices(agent_pdf)
+            canonicalize_static_pdf(
+                agent_pdf,
+                f"{entity['legal_name']} {plan['label']} Agent Affiliation Agreement "
+                f"{entity['agent_version']}",
+                entity["legal_name"],
+            )
+            records.append(assert_clean_pdf(agent_pdf, entity, True, plan_key))
         leader_pdf = convert_to_pdf(leader_docx)
         canonicalize_static_pdf(
             leader_pdf,

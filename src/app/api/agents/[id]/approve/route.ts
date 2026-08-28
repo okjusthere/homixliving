@@ -59,7 +59,11 @@ export async function POST(
   }
   if (existing.accountStatus === "pending" && isOnboardingV2Enforced()) {
     if (existing.esignEnvelopeId) {
-      if (!isOnboardingESignConfigured(existing.licensedCompany)) {
+      if (!isOnboardingESignConfigured(
+        existing.licensedCompany,
+        existing.plan,
+        existing.liborMembershipStatus,
+      )) {
         return NextResponse.json(
           { error: "The agent's licensed company does not have a configured onboarding agreement." },
           { status: 503 },

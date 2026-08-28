@@ -22,7 +22,11 @@ import {
   invitationLocks,
 } from "@/lib/onboarding-routing";
 import { lockOnboardingAgent } from "@/lib/advisory-locks";
-import { LICENSED_COMPANIES, resolveLicensedCompany } from "@/lib/licensed-companies";
+import {
+  LICENSED_COMPANIES,
+  resolveLicensedCompany,
+  type LiborMembershipStatus,
+} from "@/lib/licensed-companies";
 import { onboardingEventValues } from "@/lib/onboarding-events";
 import {
   canReuseAcceptedTeamRouting,
@@ -143,6 +147,7 @@ export async function GET() {
       licenseNumber: agent.licenseNumber,
       licensedCompany: agent.licensedCompany,
       licensedCompanyId: agent.licensedCompanyId,
+      liborMembershipStatus: agent.liborMembershipStatus,
       companyRequirementsAcknowledged: Boolean(agent.companyRequirementsAcknowledgedAt),
       practice: agent.practice,
       teamTerms: frozenTerms,
@@ -256,6 +261,24 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json(
       { error: "This invitation is locked to a different licensed company." },
       { status: 409 },
+    );
+  }
+  const requestedLiborMembershipStatus = body.liborMembershipStatus === "apply_new" ||
+    body.liborMembershipStatus === "existing_member"
+    ? body.liborMembershipStatus as LiborMembershipStatus
+    : null;
+  if (body.liborMembershipStatus != null && !requestedLiborMembershipStatus) {
+    return NextResponse.json({ error: "Invalid LIBOR membership status." }, { status: 400 });
+  }
+  const liborMembershipStatus = licensedCompanyId === "homix_realty"
+    ? requestedLiborMembershipStatus || (
+        agent.licensedCompanyId === licensedCompanyId ? agent.liborMembershipStatus : null
+      )
+    : null;
+  if (licensedCompanyId === "homix_realty" && !liborMembershipStatus) {
+    return NextResponse.json(
+      { error: "Choose whether you need a new LIBOR application." },
+      { status: 400 },
     );
   }
   const acknowledgementAlreadyRecordedBeforeLock =
@@ -420,6 +443,7 @@ export async function PUT(req: NextRequest) {
           onboardingSource: agents.onboardingSource,
           paymentStatus: agents.paymentStatus,
           licensedCompanyId: agents.licensedCompanyId,
+          liborMembershipStatus: agents.liborMembershipStatus,
           companySelectedAt: agents.companySelectedAt,
           companyRequirementsAcknowledgedAt: agents.companyRequirementsAcknowledgedAt,
           plan: agents.plan,
@@ -565,6 +589,7 @@ export async function PUT(req: NextRequest) {
             licenseNumber,
             licensedCompany,
             licensedCompanyId,
+            liborMembershipStatus,
             companySelectedAt:
               boundAgent.licensedCompanyId === licensedCompanyId
                 ? boundAgent.companySelectedAt || now
@@ -603,6 +628,7 @@ export async function PUT(req: NextRequest) {
             onboardingSource: invitation?.source || boundAgent.onboardingSource || "direct",
             previousLicensedCompanyId: boundAgent.licensedCompanyId,
             licensedCompanyId,
+            liborMembershipStatus,
             companyRequirementsAcknowledgedAt,
           },
         }));
@@ -654,6 +680,7 @@ export async function PUT(req: NextRequest) {
           licenseNumber,
           licensedCompany,
           licensedCompanyId,
+          liborMembershipStatus,
           companySelectedAt:
             boundAgent.licensedCompanyId === licensedCompanyId
               ? boundAgent.companySelectedAt || now
@@ -698,6 +725,7 @@ export async function PUT(req: NextRequest) {
           reusedAcceptedTeamRequestId: acceptedRequest?.id || null,
           previousLicensedCompanyId: boundAgent.licensedCompanyId,
           licensedCompanyId,
+          liborMembershipStatus,
           companyRequirementsAcknowledgedAt,
         },
       }));

@@ -331,6 +331,7 @@ export async function ensureSchema(sql: Sql) {
       licensed_company_id TEXT REFERENCES portal.licensed_companies(id) ON DELETE RESTRICT,
       company_selected_at TIMESTAMPTZ,
       company_requirements_acknowledged_at TIMESTAMPTZ,
+      libor_membership_status TEXT,
       split_pct INTEGER NOT NULL DEFAULT 80,
       team_id INTEGER REFERENCES portal.teams(id) ON DELETE SET NULL,
       is_admin BOOLEAN NOT NULL DEFAULT FALSE,
@@ -359,7 +360,15 @@ export async function ensureSchema(sql: Sql) {
     ALTER TABLE portal.agents
       ADD COLUMN IF NOT EXISTS licensed_company_id TEXT,
       ADD COLUMN IF NOT EXISTS company_selected_at TIMESTAMPTZ,
-      ADD COLUMN IF NOT EXISTS company_requirements_acknowledged_at TIMESTAMPTZ`);
+      ADD COLUMN IF NOT EXISTS company_requirements_acknowledged_at TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS libor_membership_status TEXT`);
+  await run(`
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'agents_libor_membership_status_check') THEN
+        ALTER TABLE portal.agents ADD CONSTRAINT agents_libor_membership_status_check
+          CHECK (libor_membership_status IS NULL OR libor_membership_status IN ('apply_new', 'existing_member'));
+      END IF;
+    END $$`);
 
   // Login-email changes are staged until Google verifies the new address.
   await run(`

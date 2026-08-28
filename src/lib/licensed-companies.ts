@@ -1,4 +1,5 @@
 import type { LicensedCompanyId } from "@/db/schema";
+export type { LiborMembershipStatus } from "@/db/schema";
 
 export type LicensedCompanyDefinition = {
   id: LicensedCompanyId;
