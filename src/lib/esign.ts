@@ -121,18 +121,33 @@ function apiConfig() {
 
 export function onboardingESignTemplateConfiguration(
   licensedCompany: string | null | undefined,
+  plan: AgentPlan | string | null | undefined,
+  liborMembershipStatus: LiborMembershipStatus | null | undefined,
 ) {
   const entity = resolveOnboardingESignEntity(licensedCompany);
   if (!entity) return null;
-  const read = (suffix: string) => process.env[`${entity.envPrefix}_${suffix}`]?.trim() || "";
+  const normalizedPlan = normalizeAgentPlan(plan);
+  if (normalizedPlan !== "solo" && normalizedPlan !== "solo_pro" && normalizedPlan !== "team_member") {
+    return null;
+  }
+  if (entity.key === "homix_realty" && !liborMembershipStatus) return null;
+  const planSegment = normalizedPlan.toUpperCase();
+  const liborSegment = entity.key === "homix_realty"
+    ? `_${liborMembershipStatus === "existing_member" ? "EXISTING_MEMBER" : "APPLY_NEW"}`
+    : "";
+  const templatePrefix = `${entity.envPrefix}_${planSegment}${liborSegment}`;
+  const readTemplate = (suffix: string) => process.env[`${templatePrefix}_${suffix}`]?.trim() || "";
+  const readEntity = (suffix: string) => process.env[`${entity.envPrefix}_${suffix}`]?.trim() || "";
   return {
     entityKey: entity.key,
     legalEntityName: entity.legalName,
-    templateId: read("TEMPLATE_ID"),
-    templateVersionId: read("TEMPLATE_VERSION_ID"),
-    templateSchemaHash: read("TEMPLATE_SCHEMA_HASH"),
-    countersignerName: read("COUNTERSIGNER_NAME"),
-    countersignerEmail: read("COUNTERSIGNER_EMAIL"),
+    plan: normalizedPlan,
+    liborMembershipStatus: entity.key === "homix_realty" ? liborMembershipStatus : null,
+    templateId: readTemplate("TEMPLATE_ID"),
+    templateVersionId: readTemplate("TEMPLATE_VERSION_ID"),
+    templateSchemaHash: readTemplate("TEMPLATE_SCHEMA_HASH"),
+    countersignerName: readEntity("COUNTERSIGNER_NAME"),
+    countersignerEmail: readEntity("COUNTERSIGNER_EMAIL"),
   };
 }
 
@@ -165,9 +180,15 @@ class ESignApiError extends Error {
 
 export function isOnboardingESignConfigured(
   licensedCompany: string | null | undefined,
+  plan: AgentPlan | string | null | undefined,
+  liborMembershipStatus: LiborMembershipStatus | null | undefined,
 ) {
   const api = apiConfig();
-  const value = onboardingESignTemplateConfiguration(licensedCompany);
+  const value = onboardingESignTemplateConfiguration(
+    licensedCompany,
+    plan,
+    liborMembershipStatus,
+  );
   return Boolean(
     value &&
       api.baseUrl &&
@@ -315,3 +336,5 @@ export function sendESignEnvelope(envelopeId: string, agentId: number, idempoten
     },
   );
 }
+import { normalizeAgentPlan, type AgentPlan } from "@/lib/agent-plans";
+import type { LiborMembershipStatus } from "@/lib/licensed-companies";

@@ -4,6 +4,7 @@ import type {
   ESignTemplateVersion,
 } from "@/lib/esign";
 import type { OnboardingESignEntityKey } from "@/lib/esign";
+import type { LiborMembershipStatus } from "@/lib/licensed-companies";
 import {
   agentAgreementFieldManifest,
   teamLeaderAgreementFieldManifest,
@@ -17,6 +18,7 @@ const BASE_MERGE_KEYS = [
   "agent_phone",
   "license_number",
   "licensed_company",
+  "practice",
   "compensation_plan",
   "split_pct",
   "sponsor_name",
@@ -46,6 +48,7 @@ const TEAM_LEADER_MERGE_KEYS = [
   "team_sourced_split_pct",
   "team_cap_usd",
   "team_terms_effective_from",
+  "team_config_version",
 ] as const;
 
 export class OnboardingESignTemplateError extends Error {
@@ -69,8 +72,16 @@ export function validateOnboardingESignTemplate(input: {
   expectedSchemaHash: string;
   includeTeamTerms: boolean;
   entityKey: OnboardingESignEntityKey;
+  liborMembershipStatus: LiborMembershipStatus | null;
 }) {
-  const { template, expectedVersionId, expectedSchemaHash, includeTeamTerms, entityKey } = input;
+  const {
+    template,
+    expectedVersionId,
+    expectedSchemaHash,
+    includeTeamTerms,
+    entityKey,
+    liborMembershipStatus,
+  } = input;
   if (template.activeVersionId !== expectedVersionId) {
     throw new OnboardingESignTemplateError(
       "The active onboarding template version has not been approved for Portal.",
@@ -118,9 +129,10 @@ export function validateOnboardingESignTemplate(input: {
     );
   }
 
-  const requiredKeys = includeTeamTerms
+  const requiredKeys: string[] = includeTeamTerms
     ? [...BASE_MERGE_KEYS, ...TEAM_MERGE_KEYS]
     : [...BASE_MERGE_KEYS];
+  if (entityKey === "homix_realty") requiredKeys.push("libor_membership_status");
   const mergeFields = new Map<string, ESignTemplateField[]>();
   for (const field of version.fields) {
     if (!field.mergeKey) continue;
@@ -130,16 +142,16 @@ export function validateOnboardingESignTemplate(input: {
   }
   for (const key of requiredKeys) {
     const fields = mergeFields.get(key) || [];
-    if (fields.length !== 1 || !fields[0].readOnly) {
+    if (fields.length === 0 || fields.some((field) => !field.readOnly)) {
       throw new OnboardingESignTemplateError(
-        `The onboarding template must contain one read-only ${key} merge field.`,
+        `The onboarding template must contain read-only ${key} merge fields.`,
       );
     }
   }
   try {
     validateStableFieldManifest({
       version,
-      requirements: agentAgreementFieldManifest(entityKey),
+      requirements: agentAgreementFieldManifest(entityKey, liborMembershipStatus),
       forbidRealtyFields: entityKey === "homix_living",
     });
   } catch (error) {
@@ -194,9 +206,9 @@ export function validateTeamLeaderESignTemplate(input: {
   }
   for (const key of TEAM_LEADER_MERGE_KEYS) {
     const fields = mergeFields.get(key) || [];
-    if (fields.length !== 1 || !fields[0].readOnly) {
+    if (fields.length === 0 || fields.some((field) => !field.readOnly)) {
       throw new OnboardingESignTemplateError(
-        `The Team Leader template must contain one read-only ${key} merge field.`,
+        `The Team Leader template must contain read-only ${key} merge fields.`,
       );
     }
   }

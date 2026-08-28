@@ -219,6 +219,7 @@ export async function POST(
         team_sourced_split_pct: terms.teamLeadSplitPct,
         team_cap_usd: terms.teamCapCents == null ? "No cap" : terms.teamCapCents / 100,
         team_terms_effective_from: terms.effectiveFrom,
+        team_config_version: terms.version,
       },
       expectedTemplateVersionId: version.id,
       expectedTemplateSchemaHash: version.schemaHash!,

@@ -1,32 +1,68 @@
 {
   "contracts": [
     {
-      "file": "Homix_Realty_Agent_Affiliation_Agreement_v4.2-candidate.pdf",
+      "file": "Homix_Realty_Solo_Agent_Affiliation_Agreement_v4.2-candidate.pdf",
       "pages": 21,
-      "sha256": "f034f4e2e40e845a93a8f243cc76c38cd3f69fb25103c2047a5b7bf5293fb17a",
+      "sha256": "f7b37bf2846745ba249fc3015ffa40c9948522ce3c712fd5518bd9ac4ec7a903",
       "entity": "Homix Realty Inc.",
-      "agreement": "agent"
+      "agreement": "agent",
+      "plan": "solo"
+    },
+    {
+      "file": "Homix_Realty_Solo_Pro_Agent_Affiliation_Agreement_v4.2-candidate.pdf",
+      "pages": 21,
+      "sha256": "c2e1c72b5fa61edb8c8bcfd87d80f7379d688c2c74e52a71233c86ea45a41246",
+      "entity": "Homix Realty Inc.",
+      "agreement": "agent",
+      "plan": "solo_pro"
+    },
+    {
+      "file": "Homix_Realty_Team_Member_Agent_Affiliation_Agreement_v4.2-candidate.pdf",
+      "pages": 21,
+      "sha256": "c2b9b9818c0a57dc03c068839a390c293be5c8189528255d7b0fa21569ff31f1",
+      "entity": "Homix Realty Inc.",
+      "agreement": "agent",
+      "plan": "team_member"
     },
     {
       "file": "Homix_Realty_Team_Leader_Agreement_v2.2-candidate.pdf",
       "pages": 7,
-      "sha256": "b515683b19d49c7fdc0fa40174894c4afa96befba80f21a2c94519c8e6c501cd",
+      "sha256": "8855b9e55e2699f8f8ea4e1be3f33e4409e9df55d8462be2014bc3379b36d1c4",
       "entity": "Homix Realty Inc.",
-      "agreement": "team_leader"
+      "agreement": "team_leader",
+      "plan": null
     },
     {
-      "file": "Homix_Living_Agent_Affiliation_Agreement_v4.2-candidate.pdf",
+      "file": "Homix_Living_Solo_Agent_Affiliation_Agreement_v4.2-candidate.pdf",
       "pages": 18,
-      "sha256": "a93c4d5b0389a5a9986484f2cc7ad328b82a25913250f54543975e8bfbc83818",
+      "sha256": "10fe9f2720f95926771758a8da99a5809b20c9fbd4225e0c830137212645164a",
       "entity": "Homix Living Inc.",
-      "agreement": "agent"
+      "agreement": "agent",
+      "plan": "solo"
+    },
+    {
+      "file": "Homix_Living_Solo_Pro_Agent_Affiliation_Agreement_v4.2-candidate.pdf",
+      "pages": 18,
+      "sha256": "eda1ebc23ae03615c1eafa117fa716796fe3c3abd77e6ad8b6b6236ca94156d7",
+      "entity": "Homix Living Inc.",
+      "agreement": "agent",
+      "plan": "solo_pro"
+    },
+    {
+      "file": "Homix_Living_Team_Member_Agent_Affiliation_Agreement_v4.2-candidate.pdf",
+      "pages": 18,
+      "sha256": "716b5420fc0f9eb79c1b2966a32a11cc5ed26fa3cdd091afb6bb2b258a3f6e6f",
+      "entity": "Homix Living Inc.",
+      "agreement": "agent",
+      "plan": "team_member"
     },
     {
       "file": "Homix_Living_Team_Leader_Agreement_v2.2-candidate.pdf",
       "pages": 7,
-      "sha256": "ffd1ec992c86360ec0bdad73dae91ccd030bc9d394a73e99224f63a7098a0176",
+      "sha256": "d4a26f7fa43641d9c852604a17c792ef3cc28b9bdf61b9c47c6b3c0376ae7bfa",
       "entity": "Homix Living Inc.",
-      "agreement": "team_leader"
+      "agreement": "team_leader",
+      "plan": null
     }
   ]
 }

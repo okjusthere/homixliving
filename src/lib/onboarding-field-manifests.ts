@@ -1,4 +1,5 @@
 import type { OnboardingESignEntityKey, ESignTemplateVersion } from "@/lib/esign";
+import type { LiborMembershipStatus } from "@/lib/licensed-companies";
 
 type RoleKind = ESignTemplateVersion["roles"][number]["kind"] | "none";
 
@@ -9,6 +10,7 @@ type FieldRequirement = {
   roleKind: RoleKind;
   readOnly?: boolean;
   mergeKey?: string;
+  required?: boolean;
 };
 
 const AGENT_COMMON: readonly FieldRequirement[] = [
@@ -24,10 +26,12 @@ const AGENT_COMMON: readonly FieldRequirement[] = [
   { fieldKey: "company.reporting_countersigned_date", page: 3, type: "signed_date", roleKind: "countersigner" },
   { fieldKey: "agent.ica_address", page: 4, type: "text", roleKind: "signer" },
   { fieldKey: "agent.ica_effective_date", page: 4, type: "signed_date", roleKind: "signer" },
+  { fieldKey: "agent.ica_acknowledgement", page: 12, type: "checkbox", roleKind: "signer" },
   { fieldKey: "agent.ica_signature", page: 12, type: "signature", roleKind: "signer" },
   { fieldKey: "agent.ica_signed_date", page: 12, type: "signed_date", roleKind: "signer" },
   { fieldKey: "company.ica_countersignature", page: 12, type: "signature", roleKind: "countersigner" },
   { fieldKey: "company.ica_countersigned_date", page: 12, type: "signed_date", roleKind: "countersigner" },
+  { fieldKey: "agent.nda_acknowledgement", page: 18, type: "checkbox", roleKind: "signer" },
   { fieldKey: "agent.nda_signature", page: 18, type: "signature", roleKind: "signer" },
   { fieldKey: "agent.nda_signed_date", page: 18, type: "signed_date", roleKind: "signer" },
   { fieldKey: "company.nda_countersignature", page: 18, type: "signature", roleKind: "countersigner" },
@@ -44,15 +48,15 @@ const AGENT_COMMON: readonly FieldRequirement[] = [
 
 const REALTY_AGENT_APPENDIX: readonly FieldRequirement[] = [
   { fieldKey: "realty.libor_legal_name", page: 19, type: "text", roleKind: "signer" },
-  { fieldKey: "realty.libor_office_name", page: 19, type: "text", roleKind: "signer" },
-  { fieldKey: "realty.libor_office_address", page: 19, type: "text", roleKind: "signer" },
-  { fieldKey: "realty.libor_office_town", page: 19, type: "text", roleKind: "signer" },
-  { fieldKey: "realty.libor_office_state", page: 19, type: "text", roleKind: "signer" },
-  { fieldKey: "realty.libor_office_zip", page: 19, type: "text", roleKind: "signer" },
-  { fieldKey: "realty.libor_office_phone", page: 19, type: "text", roleKind: "signer" },
-  { fieldKey: "realty.libor_fax", page: 19, type: "text", roleKind: "signer" },
-  { fieldKey: "realty.libor_email", page: 19, type: "text", roleKind: "signer" },
-  { fieldKey: "realty.libor_web_address", page: 19, type: "text", roleKind: "signer" },
+  { fieldKey: "realty.libor_office_name", page: 19, type: "merge", roleKind: "none", readOnly: true, mergeKey: "libor_office_name" },
+  { fieldKey: "realty.libor_office_address", page: 19, type: "merge", roleKind: "none", readOnly: true, mergeKey: "libor_office_address" },
+  { fieldKey: "realty.libor_office_town", page: 19, type: "merge", roleKind: "none", readOnly: true, mergeKey: "libor_office_town" },
+  { fieldKey: "realty.libor_office_state", page: 19, type: "merge", roleKind: "none", readOnly: true, mergeKey: "libor_office_state" },
+  { fieldKey: "realty.libor_office_zip", page: 19, type: "merge", roleKind: "none", readOnly: true, mergeKey: "libor_office_zip" },
+  { fieldKey: "realty.libor_office_phone", page: 19, type: "merge", roleKind: "none", readOnly: true, mergeKey: "libor_office_phone" },
+  { fieldKey: "realty.libor_fax", page: 19, type: "merge", roleKind: "none", readOnly: true, required: false, mergeKey: "libor_office_fax" },
+  { fieldKey: "realty.libor_email", page: 19, type: "merge", roleKind: "none", readOnly: true, mergeKey: "libor_office_email" },
+  { fieldKey: "realty.libor_web_address", page: 19, type: "merge", roleKind: "none", readOnly: true, mergeKey: "libor_office_web" },
   { fieldKey: "realty.libor_date_of_birth", page: 19, type: "text", roleKind: "signer" },
   { fieldKey: "realty.libor_preferred_mailing", page: 19, type: "text", roleKind: "signer" },
   { fieldKey: "realty.libor_residence_address", page: 19, type: "text", roleKind: "signer" },
@@ -98,10 +102,17 @@ const TEAM_LEADER_COMMON: readonly FieldRequirement[] = [
   },
 ];
 
-export function agentAgreementFieldManifest(entityKey: OnboardingESignEntityKey) {
-  return entityKey === "homix_realty"
-    ? [...AGENT_COMMON, ...REALTY_AGENT_APPENDIX]
-    : [...AGENT_COMMON];
+export function agentAgreementFieldManifest(
+  entityKey: OnboardingESignEntityKey,
+  liborMembershipStatus: LiborMembershipStatus | null,
+) {
+  if (entityKey !== "homix_realty") return [...AGENT_COMMON];
+  return [
+    ...AGENT_COMMON,
+    ...REALTY_AGENT_APPENDIX.filter(
+      (field) => liborMembershipStatus === "apply_new" || !field.fieldKey.startsWith("realty.libor_"),
+    ),
+  ];
 }
 
 export function teamLeaderAgreementFieldManifest() {
@@ -135,8 +146,9 @@ export function validateStableFieldManifest(input: {
     }
     const field = fields[0];
     const roleKind = field.roleId ? roles.get(field.roleId)?.kind : "none";
+    const expectedRequired = requirement.required ?? true;
     if (
-      !field.required ||
+      field.required !== expectedRequired ||
       field.page !== requirement.page ||
       field.type !== requirement.type ||
       roleKind !== requirement.roleKind ||

@@ -18,7 +18,7 @@ import {
   sendESignEnvelope,
 } from "@/lib/esign";
 import { lockOnboardingAgent } from "@/lib/advisory-locks";
-import { normalizeAgentPlan } from "@/lib/agent-plans";
+import { normalizeAgentPlan, PLAN_LABELS, PLAN_SPLIT_PCT } from "@/lib/agent-plans";
 import { onboardingPaymentProduct } from "@/lib/onboarding";
 import { syncOnboardingAgreement } from "@/lib/onboarding-agreement";
 import {
@@ -118,7 +118,11 @@ export async function GET() {
   try {
     const synced = await syncOnboardingAgreement(agent);
     return NextResponse.json({
-      configured: isOnboardingESignConfigured(agent.licensedCompany),
+      configured: isOnboardingESignConfigured(
+        agent.licensedCompany,
+        agent.plan,
+        agent.liborMembershipStatus,
+      ),
       agreementStatus: synced.agreementStatus,
       onboardingStage: synced.onboardingStage,
       paymentStatus: synced.paymentStatus,
@@ -127,7 +131,11 @@ export async function GET() {
   } catch (error) {
     console.error("Unable to sync onboarding agreement", error);
     return NextResponse.json({
-      configured: isOnboardingESignConfigured(agent.licensedCompany),
+      configured: isOnboardingESignConfigured(
+        agent.licensedCompany,
+        agent.plan,
+        agent.liborMembershipStatus,
+      ),
       agreementStatus: agent.agreementStatus,
       onboardingStage: agent.onboardingStage,
       paymentStatus: agent.paymentStatus,
@@ -142,14 +150,24 @@ export async function POST() {
   if (!sessionAgent) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const sessionTemplateConfiguration = onboardingESignTemplateConfiguration(
     sessionAgent.licensedCompany,
+    sessionAgent.plan,
+    sessionAgent.liborMembershipStatus,
   );
   if (!sessionTemplateConfiguration) {
+    const error = sessionAgent.licensedCompany === "homix_realty" &&
+      !sessionAgent.liborMembershipStatus
+      ? "Confirm whether you need a new LIBOR membership before preparing the agreement."
+      : "Select a licensed company and compensation plan before preparing the agreement.";
     return NextResponse.json(
-      { error: "Select Homix Realty Inc. or Homix Living Inc. before preparing the agreement." },
+      { error },
       { status: 409 },
     );
   }
-  if (!isOnboardingESignConfigured(sessionAgent.licensedCompany)) {
+  if (!isOnboardingESignConfigured(
+    sessionAgent.licensedCompany,
+    sessionAgent.plan,
+    sessionAgent.liborMembershipStatus,
+  )) {
     return NextResponse.json({ error: "eSign onboarding is not configured." }, { status: 503 });
   }
   let agent;
@@ -166,7 +184,11 @@ export async function POST() {
     if (agent.esignEnvelopeId) {
       const synced = await syncOnboardingAgreement(agent);
       if (synced.agreementStatus === "preparing") {
-        await sendESignEnvelope(agent.esignEnvelopeId, agent.id);
+        await sendESignEnvelope(
+          agent.esignEnvelopeId,
+          agent.id,
+          `homix-onboarding-send-${agent.esignEnvelopeId}`,
+        );
         await db.update(agents).set({
           agreementStatus: "sent",
           onboardingStage: "agreement",
@@ -180,7 +202,11 @@ export async function POST() {
       return NextResponse.json({ success: true, agreementStatus: agent.agreementStatus });
     }
 
-    const templateConfiguration = onboardingESignTemplateConfiguration(agent.licensedCompany);
+    const templateConfiguration = onboardingESignTemplateConfiguration(
+      agent.licensedCompany,
+      agent.plan,
+      agent.liborMembershipStatus,
+    );
     if (!templateConfiguration) {
       throw new OnboardingESignTemplateError(
         "The licensed company does not have an approved onboarding agreement.",
@@ -195,6 +221,7 @@ export async function POST() {
       expectedSchemaHash: templateConfiguration.templateSchemaHash,
       includeTeamTerms: effectivePlan === "team_member",
       entityKey: templateConfiguration.entityKey,
+      liborMembershipStatus: agent.liborMembershipStatus,
     });
     const countersigner = templateConfiguration.countersignerName &&
       templateConfiguration.countersignerEmail
@@ -228,7 +255,7 @@ export async function POST() {
     }
     const transaction = await findOrCreateESignTransaction({
       name: `${agent.legalName || agent.name} onboarding`,
-      externalReference: `homix-agent-${agent.id}`,
+      externalReference: `homix-agent-${agent.id}-template-${version.id}`,
     });
     await db.update(agents).set({
       esignTransactionId: transaction.id,
@@ -255,18 +282,38 @@ export async function POST() {
         agent_phone: agent.phone || "",
         license_number: agent.licenseNumber || "",
         licensed_company: templateConfiguration.legalEntityName,
-        compensation_plan: effectivePlan,
-        split_pct: agent.splitPct,
+        practice: agent.practice || "",
+        compensation_plan: PLAN_LABELS.en[effectivePlan],
+        split_pct: `${PLAN_SPLIT_PCT[effectivePlan]}%`,
         team_name: team?.name || "",
-        team_split_pct: teamTerms?.defaultTeamSplitPct ?? "",
-        team_sourced_split_pct: teamTerms?.teamLeadSplitPct ?? "",
-        team_cap_usd: teamTerms?.teamCapCents == null ? "No cap" : teamTerms.teamCapCents / 100,
-        team_terms_effective_from: agent.teamTermsEffectiveFrom || "",
+        team_split_pct: teamTerms ? `${teamTerms.defaultTeamSplitPct}%` : "",
+        team_sourced_split_pct: teamTerms ? `${teamTerms.teamLeadSplitPct}%` : "",
+        team_cap_usd: teamTerms
+          ? teamTerms.teamCapCents == null
+            ? "No cap"
+            : `$${(teamTerms.teamCapCents / 100).toLocaleString("en-US")}`
+          : "",
+        team_terms_effective_from: teamTerms ? agent.teamTermsEffectiveFrom || "" : "",
         sponsor_name: sponsor?.name || "",
         affiliation_term_months: agent.affiliationTermMonths || 12,
+        ...(templateConfiguration.entityKey === "homix_realty" ? {
+          libor_membership_status: agent.liborMembershipStatus === "existing_member"
+            ? "Existing LIBOR member - new membership application not required"
+            : "New LIBOR membership application required",
+          libor_office_name: "Homix Realty Inc.",
+          libor_office_address: "37-20 Prince St, STE 3H",
+          libor_office_town: "Flushing",
+          libor_office_state: "NY",
+          libor_office_zip: "11354",
+          libor_office_phone: "(929) 666-9886",
+          libor_office_fax: "",
+          libor_office_email: "sunnyz@homixny.com",
+          libor_office_web: "www.homixny.com",
+        } : {}),
       },
       expectedTemplateVersionId: version.id,
       expectedTemplateSchemaHash: version.schemaHash!,
+      externalReference: `homix-onboarding-agent-${agent.id}-template-${version.id}`,
     });
     if (envelope.templateVersionId !== version.id) {
       throw new OnboardingESignTemplateError(
@@ -281,7 +328,11 @@ export async function POST() {
       onboardingStage: "agreement",
       updatedAt: new Date().toISOString(),
     }).where(eq(agents.id, agent.id));
-    await sendESignEnvelope(envelope.id, agent.id);
+    await sendESignEnvelope(
+      envelope.id,
+      agent.id,
+      `homix-onboarding-send-${envelope.id}`,
+    );
     await db.update(agents).set({
       agreementStatus: "sent",
       updatedAt: new Date().toISOString(),

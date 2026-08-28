@@ -25,10 +25,18 @@ export function onboardingAgreementState(status: ESignEnvelope["status"]) {
 
 export async function syncOnboardingAgreement(agent: typeof agents.$inferSelect) {
   if (!agent.esignEnvelopeId) return agent;
-  if (!isOnboardingESignConfigured(agent.licensedCompany)) {
+  if (!isOnboardingESignConfigured(
+    agent.licensedCompany,
+    agent.plan,
+    agent.liborMembershipStatus,
+  )) {
     throw new Error("The licensed company does not have a configured onboarding agreement.");
   }
-  const templateConfiguration = onboardingESignTemplateConfiguration(agent.licensedCompany);
+  const templateConfiguration = onboardingESignTemplateConfiguration(
+    agent.licensedCompany,
+    agent.plan,
+    agent.liborMembershipStatus,
+  );
   if (!templateConfiguration) {
     throw new Error("The licensed company does not have an approved onboarding agreement.");
   }

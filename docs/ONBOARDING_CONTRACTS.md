@@ -1,6 +1,6 @@
 # Onboarding contract handoff
 
-`ONBOARDING_V2_ENFORCED` stays `0` until all four entity-specific templates,
+`ONBOARDING_V2_ENFORCED` stays `0` until all eleven immutable template releases,
 both payment paths, and all six onboarding scenarios pass. A missing contract
 or template pin must not block the existing approval flow during preparation.
 
@@ -19,7 +19,7 @@ separate pinned templates. Each envelope has one agent/leader signer and exactly
 one company countersigner; a Team Leader is never silently added as a recipient
 to a Team Member agreement.
 
-## Two masters and four approved release artifacts
+## Two masters and eight approved release artifacts
 
 The business-supplied, previously reviewed enrollment packages are the legal
 baseline. Homix approved the regenerated documents for production publication
@@ -47,12 +47,16 @@ in the supplied enrollment packages. The canonical sources are:
 
 Run `scripts/generate-realty-fee-disclosure.py` first, then run
 `scripts/generate-onboarding-contracts.py --author-masters` to regenerate
-the two masters, four entity DOCX files, four PDFs, hashes, and the release
-index. The approved source artifacts retain their existing `-candidate` filenames
-so the already-published PDF hashes remain stable:
+the two masters, eight release DOCX files, eight PDFs, hashes, and the release
+index. Agent releases are immutable by legal entity and plan; Team Leader
+releases are immutable by legal entity:
 
-- `output/pdf/Homix_Realty_Agent_Affiliation_Agreement_v4.2-candidate.pdf`
-- `output/pdf/Homix_Living_Agent_Affiliation_Agreement_v4.2-candidate.pdf`
+- `output/pdf/Homix_Realty_Solo_Agent_Affiliation_Agreement_v4.2-candidate.pdf`
+- `output/pdf/Homix_Realty_Solo_Pro_Agent_Affiliation_Agreement_v4.2-candidate.pdf`
+- `output/pdf/Homix_Realty_Team_Member_Agent_Affiliation_Agreement_v4.2-candidate.pdf`
+- `output/pdf/Homix_Living_Solo_Agent_Affiliation_Agreement_v4.2-candidate.pdf`
+- `output/pdf/Homix_Living_Solo_Pro_Agent_Affiliation_Agreement_v4.2-candidate.pdf`
+- `output/pdf/Homix_Living_Team_Member_Agent_Affiliation_Agreement_v4.2-candidate.pdf`
 - `output/pdf/Homix_Realty_Team_Leader_Agreement_v2.2-candidate.pdf`
 - `output/pdf/Homix_Living_Team_Leader_Agreement_v2.2-candidate.pdf`
 
@@ -67,12 +71,19 @@ a fourth compensation plan. No Holding plan is offered. Team Leader is a role
 that requires completed Agent onboarding, Solo Pro, and a separate same-entity
 Team Leader Agreement.
 
-The production matrix is four immutable templates:
+The production matrix is eleven immutable templates:
 
 | Purpose | Homix Realty Inc. | Homix Living Inc. |
 | --- | --- | --- |
-| Agent affiliation / Team Member | Approved and published | Approved and published |
+| Solo Agent | New-LIBOR and existing-member releases | One release |
+| Solo Pro Agent | New-LIBOR and existing-member releases | One release |
+| Team Member Agent | New-LIBOR and existing-member releases | One release |
 | Team Leader agreement | Approved and published | Approved and published |
+
+Realty candidates must choose `apply_new` or `existing_member` before agreement
+preparation. Existing LIBOR members use the release without the application
+fields. New applicants use the release with the official application and
+read-only Homix Realty office values. Living never contains LIBOR fields.
 
 The confirmed company countersigner for both entities is Si Zhang, Broker,
 `sunnyz@homixny.com`. Countersigning is required and occurs manually after the
@@ -134,8 +145,9 @@ whose exact manifest does not match:
 
 Living templates have 18 Agent pages and no Realty appendix fields. Realty
 templates have 21 Agent pages. Both Team Leader templates have seven pages.
-Missing any required signature, date, acknowledgement, or required membership
-field blocks completion.
+All signer and countersigner execution dates use the eSign `signed_date` field,
+which fills the current date with one click. Missing any required signature,
+date, acknowledgement, or required membership field blocks completion.
 
 Production signing stays at `https://esign.kevv.ai`. Synthetic recipients may
 only use `okjusthere@gmail.com`, `kertweller@gmail.com`,
@@ -189,33 +201,43 @@ read-only merge fields exactly once:
 | `team_cap_usd` | Admin-published v1 cap, or `No cap` |
 | `team_terms_effective_from` | v1 effective date |
 
-If the legal PDF has different language or fields for Solo and Team plans, publish
-separate legal templates and extend Portal's plan-to-template selection before
-activation. Do not hide materially different terms with conditional merge values.
+Solo, Solo Pro, and Team Member always use separate immutable releases. Portal
+selects the exact legal entity, plan, and (for Realty) LIBOR route before envelope
+creation. Do not hide materially different terms with conditional merge values.
 
 ## Publish and pin
 
-Production status on 2026-08-26:
+Production status on 2026-08-28:
 
-- all four approved PDFs are published as immutable production templates
+- all eight approved PDFs are published as eleven immutable production templates
+  (six Realty Agent routes, three Living Agent plans, and two Team Leader releases)
 - `npm run esign:verify-production` validates every live version, hash, page,
   role, and field against the Portal manifest
-- Vercel Production has the dedicated HR application credential, all four
+- Vercel Production has the dedicated HR application credential, all eleven
   template pins, and both countersigner identities
-- `ONBOARDING_V2_ENFORCED=0` remains explicit
+- `ONBOARDING_V2_ENFORCED` remains an empty value, which is equivalent to off;
+  only the exact value `1` enables enforcement
 - the production database has the additive lifecycle migrations
 - the rollback-only production smoke passes Solo, Team Member with the Team
   Leader as Sponsor, Team Member with a different Sponsor, default 10% Team
   Split with no Team Cap, and administrator-verified offline payment
 
-Remaining cutover gates are the `esign.kevv.ai` production-domain binding and a
-manual signer/countersigner/evidence cycle using only the approved synthetic
-recipient list.
+The `esign.kevv.ai` production domain is healthy. The production acceptance
+cycle completed on 2026-08-28 with an approved synthetic recipient: the agent
+and Si Zhang both signed, finalization produced the sealed PDF, and evidence
+retrieval verified the PDF, audit, and manifest hashes. The evidence package is
+retained through 2033-08-28. The four Portal onboarding smokes also passed in a
+production transaction that was rolled back without leaving test records.
+
+The technical production gates are therefore complete. Business cutover remains
+intentional and separate: keep `ONBOARDING_V2_ENFORCED=0` until Homix explicitly
+chooses to route real candidates through the new workflow.
 
 1. Upload the approved PDF to the matching production eSign workspace.
 2. Add recipient roles and fields, then publish the immutable version.
 3. Record the template ID, published version ID, and schema hash.
-4. Configure the matching `ESIGN_ONBOARDING_HOMIX_REALTY_*` or
+4. Configure the matching plan- and LIBOR-specific
+   `ESIGN_ONBOARDING_HOMIX_REALTY_*` or
    `ESIGN_ONBOARDING_HOMIX_LIVING_*` variables in Vercel Production.
    Configure Team Leader pins separately under
    `ESIGN_TEAM_LEADER_HOMIX_REALTY_*` and

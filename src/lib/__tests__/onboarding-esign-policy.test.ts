@@ -15,6 +15,7 @@ const BASE_KEYS = [
   "agent_phone",
   "license_number",
   "licensed_company",
+  "practice",
   "compensation_plan",
   "split_pct",
   "sponsor_name",
@@ -31,7 +32,7 @@ const TEAM_LEADER_KEYS = [
   "agent_id", "agent_name", "agent_email", "agent_phone", "license_number",
   "licensed_company", "compensation_plan", "team_name", "expected_member_count",
   "team_positioning", "team_split_pct", "team_sourced_split_pct", "team_cap_usd",
-  "team_terms_effective_from",
+  "team_terms_effective_from", "team_config_version",
 ];
 
 function field(mergeKey: string, overrides: Partial<ESignTemplateField> = {}): ESignTemplateField {
@@ -82,10 +83,12 @@ function agentStableFields(realty = false) {
     stableField("company.reporting_countersigned_date", 3, "signed_date", "company-role"),
     stableField("agent.ica_address", 4, "text", "agent-role"),
     stableField("agent.ica_effective_date", 4, "signed_date", "agent-role"),
+    stableField("agent.ica_acknowledgement", 12, "checkbox", "agent-role"),
     stableField("agent.ica_signature", 12, "signature", "agent-role"),
     stableField("agent.ica_signed_date", 12, "signed_date", "agent-role"),
     stableField("company.ica_countersignature", 12, "signature", "company-role"),
     stableField("company.ica_countersigned_date", 12, "signed_date", "company-role"),
+    stableField("agent.nda_acknowledgement", 18, "checkbox", "agent-role"),
     stableField("agent.nda_signature", 18, "signature", "agent-role"),
     stableField("agent.nda_signed_date", 18, "signed_date", "agent-role"),
     stableField("company.nda_countersignature", 18, "signature", "company-role"),
@@ -93,15 +96,15 @@ function agentStableFields(realty = false) {
   ];
   const realtyFields = [
     stableField("realty.libor_legal_name", 19, "text", "agent-role"),
-    stableField("realty.libor_office_name", 19, "text", "agent-role"),
-    stableField("realty.libor_office_address", 19, "text", "agent-role"),
-    stableField("realty.libor_office_town", 19, "text", "agent-role"),
-    stableField("realty.libor_office_state", 19, "text", "agent-role"),
-    stableField("realty.libor_office_zip", 19, "text", "agent-role"),
-    stableField("realty.libor_office_phone", 19, "text", "agent-role"),
-    stableField("realty.libor_fax", 19, "text", "agent-role"),
-    stableField("realty.libor_email", 19, "text", "agent-role"),
-    stableField("realty.libor_web_address", 19, "text", "agent-role"),
+    stableField("realty.libor_office_name", 19, "merge", null, { readOnly: true, mergeKey: "libor_office_name" }),
+    stableField("realty.libor_office_address", 19, "merge", null, { readOnly: true, mergeKey: "libor_office_address" }),
+    stableField("realty.libor_office_town", 19, "merge", null, { readOnly: true, mergeKey: "libor_office_town" }),
+    stableField("realty.libor_office_state", 19, "merge", null, { readOnly: true, mergeKey: "libor_office_state" }),
+    stableField("realty.libor_office_zip", 19, "merge", null, { readOnly: true, mergeKey: "libor_office_zip" }),
+    stableField("realty.libor_office_phone", 19, "merge", null, { readOnly: true, mergeKey: "libor_office_phone" }),
+    stableField("realty.libor_fax", 19, "merge", null, { readOnly: true, required: false, mergeKey: "libor_office_fax" }),
+    stableField("realty.libor_email", 19, "merge", null, { readOnly: true, mergeKey: "libor_office_email" }),
+    stableField("realty.libor_web_address", 19, "merge", null, { readOnly: true, mergeKey: "libor_office_web" }),
     stableField("realty.libor_date_of_birth", 19, "text", "agent-role"),
     stableField("realty.libor_preferred_mailing", 19, "text", "agent-role"),
     stableField("realty.libor_residence_address", 19, "text", "agent-role"),
@@ -182,12 +185,19 @@ function validate(value: ESignTemplate, includeTeamTerms = false) {
     expectedSchemaHash: SCHEMA_HASH,
     includeTeamTerms,
     entityKey: "homix_living",
+    liborMembershipStatus: null,
   });
 }
 
 assert.equal(validate(template()).signerRole.id, "agent-role");
 assert.equal(validate(template()).countersignerRoles[0].id, "company-role");
 assert.equal(validate(template(), true).version.schemaHash, SCHEMA_HASH);
+assert.equal(validate(template({
+  fields: [
+    ...template().versions[0].fields,
+    field("agent_name", { id: "field-agent-name-second", page: 4 }),
+  ],
+})).version.schemaHash, SCHEMA_HASH);
 assert.equal(validateOnboardingESignTemplate({
   template: template({
     documents: [{ id: "document-onboarding-realty", pageCount: 21 }],
@@ -200,6 +210,7 @@ assert.equal(validateOnboardingESignTemplate({
             required: true,
           }
         : {})),
+      field("libor_membership_status"),
       ...agentStableFields(true),
     ],
   }),
@@ -207,6 +218,31 @@ assert.equal(validateOnboardingESignTemplate({
   expectedSchemaHash: SCHEMA_HASH,
   includeTeamTerms: true,
   entityKey: "homix_realty",
+  liborMembershipStatus: "apply_new",
+}).version.documents[0].pageCount, 21);
+assert.equal(validateOnboardingESignTemplate({
+  template: template({
+    documents: [{ id: "document-onboarding-realty-existing-member", pageCount: 21 }],
+    fields: [
+      ...[...BASE_KEYS, ...TEAM_KEYS].map((key) => field(key, key === "compensation_plan"
+        ? {
+            fieldKey: "agent.compensation_plan",
+            page: 2,
+            type: "merge",
+            required: true,
+          }
+        : {})),
+      field("libor_membership_status"),
+      ...agentStableFields(true).filter(
+        (candidate) => !candidate.fieldKey?.startsWith("realty.libor_"),
+      ),
+    ],
+  }),
+  expectedVersionId: VERSION_ID,
+  expectedSchemaHash: SCHEMA_HASH,
+  includeTeamTerms: false,
+  entityKey: "homix_realty",
+  liborMembershipStatus: "existing_member",
 }).version.documents[0].pageCount, 21);
 
 assert.throws(
