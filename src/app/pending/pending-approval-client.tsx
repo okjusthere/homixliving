@@ -7,6 +7,7 @@ import { Btn } from "@/components/homix/primitives";
 import { HomixMark } from "@/components/homix/brand-mark";
 import { tone } from "@/components/homix/tokens";
 import { useLocale } from "@/lib/i18n-client";
+import { refreshApprovalSession } from "./approval-session";
 
 const M = {
   en: {
@@ -408,7 +409,7 @@ export function PendingApprovalClient({
     checkInFlight.current = true;
     if (showProgress) setChecking(true);
     try {
-      const refreshed = await update();
+      const refreshed = await refreshApprovalSession(update);
       redirectIfApproved(refreshed || session);
     } catch (error) {
       console.error("Unable to refresh approval status", error);
@@ -468,27 +469,26 @@ export function PendingApprovalClient({
   const selectedCompany = companies.find((company) => company.id === licensedCompany) || null;
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-6">
+    <div className="flex min-h-[100svh] items-start justify-center px-3 py-4 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:min-h-screen sm:items-center sm:px-6 sm:py-8 sm:pb-8">
       <div className="w-full max-w-2xl">
-        <div className="flex justify-center mb-8">
+        <div className="mb-5 flex justify-center sm:mb-8">
           <HomixMark size={36} />
         </div>
 
         <div
-          className="rounded-2xl p-8 text-center"
+          className="rounded-xl p-4 text-center sm:rounded-2xl sm:p-8"
           style={{ background: tone.card, border: `1px solid ${tone.line}` }}
         >
           <div
-            className="text-[40px] mb-3"
+            className="mb-3 text-[32px] sm:text-[40px]"
             style={{ lineHeight: 1 }}
             aria-hidden
           >
             {effectiveStatus === "inactive" ? "–" : "⏳"}
           </div>
           <h1
-            className="font-serif"
+            className="font-serif text-[27px] sm:text-[30px]"
             style={{
-              fontSize: 30,
               lineHeight: 1,
               letterSpacing: "-0.02em",
               color: tone.ink,
@@ -509,7 +509,7 @@ export function PendingApprovalClient({
           </p>
 
           {effectiveStatus === "pending" && (
-            <div className="mt-6 rounded-xl p-4 text-left sm:p-5" style={{ background: tone.paper, border: `1px solid ${tone.line}` }}>
+            <div className="mt-5 min-w-0 rounded-none border-0 bg-transparent p-0 text-left sm:mt-6 sm:rounded-xl sm:border sm:border-line sm:bg-paper sm:p-5">
               <h2 className="font-serif text-[22px]" style={{ color: tone.ink }}>{t.setupTitle}</h2>
               <p className="mt-1 text-[12px]" style={{ color: tone.ink50 }}>{t.setupHint}</p>
               {(routingLocks.plan || routingLocks.team || routingLocks.sponsor || routingLocks.term || routingLocks.company) && (
@@ -520,8 +520,8 @@ export function PendingApprovalClient({
               {setupLoading ? (
                 <p className="mt-5 text-[13px]" style={{ color: tone.ink50 }}>{t.checking}</p>
               ) : (
-                <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                  <div className="grid gap-3 rounded-lg p-4 sm:col-span-2" style={{ background: tone.paperDeep, border: `1px solid ${tone.line}` }}>
+                <div className="mt-4 grid min-w-0 gap-3 sm:mt-5 sm:grid-cols-2 sm:gap-4">
+                  <div className="grid min-w-0 gap-3 rounded-lg p-3 sm:col-span-2 sm:p-4" style={{ background: tone.paperDeep, border: `1px solid ${tone.line}` }}>
                     <div>
                       <div className="text-[13px] font-medium" style={{ color: tone.ink }}>{t.companyFirst}</div>
                       <p className="mt-1 text-[11px] leading-5" style={{ color: tone.ink50 }}>{t.companyFirstHint}</p>
@@ -535,7 +535,7 @@ export function PendingApprovalClient({
                         setCompanyRequirementsAcknowledged(false);
                       }}
                       disabled={routingLocks.company || agreementStatus !== "not_started"}
-                      className="h-11 rounded-lg bg-white px-3 text-[13px] disabled:opacity-60"
+                      className="h-11 w-full min-w-0 rounded-lg bg-white px-3 text-base disabled:opacity-60"
                       style={{ border: `1px solid ${tone.line}`, color: tone.ink }}
                     >
                       <option value="">{t.selectCompany}</option>
@@ -556,7 +556,7 @@ export function PendingApprovalClient({
                           value={liborMembershipStatus}
                           onChange={(event) => setLiborMembershipStatus(event.target.value as "apply_new" | "existing_member" | "")}
                           disabled={agreementStatus !== "not_started"}
-                          className="h-11 rounded-lg bg-white px-3 text-[13px] disabled:opacity-60"
+                          className="h-11 w-full min-w-0 rounded-lg bg-white px-3 text-base disabled:opacity-60"
                           style={{ border: `1px solid ${tone.line}`, color: tone.ink }}
                         >
                           <option value="">{t.selectLiborStatus}</option>
@@ -568,7 +568,7 @@ export function PendingApprovalClient({
                         </span>
                       </label>
                     )}
-                    <label className="flex items-start gap-3 text-[12px] leading-5" style={{ color: tone.ink70 }}>
+                    <label className="flex min-w-0 items-start gap-3 text-[12px] leading-5" style={{ color: tone.ink70 }}>
                       <input
                         type="checkbox"
                         className="mt-1"
@@ -576,24 +576,24 @@ export function PendingApprovalClient({
                         onChange={(event) => setCompanyRequirementsAcknowledged(event.target.checked)}
                         disabled={!licensedCompany || agreementStatus !== "not_started"}
                       />
-                      <span>{t.companyAcknowledgement}</span>
+                      <span className="min-w-0">{t.companyAcknowledgement}</span>
                     </label>
                   </div>
                   <label className="grid gap-1 text-[12px]" style={{ color: tone.ink70 }}>
                     {t.legalName}
-                    <input value={legalName} onChange={(event) => setLegalName(event.target.value)} disabled={agreementStatus !== "not_started"} className="h-11 rounded-lg bg-white px-3 text-[13px] disabled:opacity-60" style={{ border: `1px solid ${tone.line}`, color: tone.ink }} />
+                    <input value={legalName} onChange={(event) => setLegalName(event.target.value)} disabled={agreementStatus !== "not_started"} className="h-11 w-full min-w-0 rounded-lg bg-white px-3 text-base disabled:opacity-60" style={{ border: `1px solid ${tone.line}`, color: tone.ink }} />
                   </label>
                   <label className="grid gap-1 text-[12px]" style={{ color: tone.ink70 }}>
                     {t.phone}
-                    <input value={phone} onChange={(event) => setPhone(event.target.value)} disabled={agreementStatus !== "not_started"} inputMode="tel" className="h-11 rounded-lg bg-white px-3 text-[13px] disabled:opacity-60" style={{ border: `1px solid ${tone.line}`, color: tone.ink }} />
+                    <input value={phone} onChange={(event) => setPhone(event.target.value)} disabled={agreementStatus !== "not_started"} inputMode="tel" className="h-11 w-full min-w-0 rounded-lg bg-white px-3 text-base disabled:opacity-60" style={{ border: `1px solid ${tone.line}`, color: tone.ink }} />
                   </label>
                   <label className="grid gap-1 text-[12px]" style={{ color: tone.ink70 }}>
                     {t.license}
-                    <input value={licenseNumber} onChange={(event) => setLicenseNumber(event.target.value)} disabled={agreementStatus !== "not_started"} className="h-11 rounded-lg bg-white px-3 text-[13px] disabled:opacity-60" style={{ border: `1px solid ${tone.line}`, color: tone.ink }} />
+                    <input value={licenseNumber} onChange={(event) => setLicenseNumber(event.target.value)} disabled={agreementStatus !== "not_started"} className="h-11 w-full min-w-0 rounded-lg bg-white px-3 text-base disabled:opacity-60" style={{ border: `1px solid ${tone.line}`, color: tone.ink }} />
                   </label>
                   <label className="grid gap-1 text-[12px] sm:col-span-2" style={{ color: tone.ink70 }}>
                     {t.practice}
-                    <select value={practice} onChange={(event) => setPractice(event.target.value)} disabled={agreementStatus !== "not_started"} className="h-11 rounded-lg bg-white px-3 text-[13px] disabled:opacity-60" style={{ border: `1px solid ${tone.line}`, color: tone.ink }}>
+                    <select value={practice} onChange={(event) => setPractice(event.target.value)} disabled={agreementStatus !== "not_started"} className="h-11 w-full min-w-0 rounded-lg bg-white px-3 text-base disabled:opacity-60" style={{ border: `1px solid ${tone.line}`, color: tone.ink }}>
                       <option value="rental">{t.rental}</option>
                       <option value="sales">{t.sales}</option>
                       <option value="both">{t.both}</option>
@@ -601,7 +601,7 @@ export function PendingApprovalClient({
                   </label>
                   <label className="grid gap-1 text-[12px]" style={{ color: tone.ink70 }}>
                     {t.track}
-                    <select value={plan} onChange={(event) => setPlan(event.target.value)} disabled={routingLocks.plan || agreementStatus !== "not_started"} className="h-11 rounded-lg bg-white px-3 text-[13px] disabled:opacity-60" style={{ border: `1px solid ${tone.line}`, color: tone.ink }}>
+                    <select value={plan} onChange={(event) => setPlan(event.target.value)} disabled={routingLocks.plan || agreementStatus !== "not_started"} className="h-11 w-full min-w-0 rounded-lg bg-white px-3 text-base disabled:opacity-60" style={{ border: `1px solid ${tone.line}`, color: tone.ink }}>
                       <option value="solo">{t.solo}</option>
                       <option value="solo_pro">{t.soloPro}</option>
                       <option value="team_member">{t.teamMember}</option>
@@ -610,7 +610,7 @@ export function PendingApprovalClient({
                   {plan === "team_member" ? (
                     <label className="grid gap-1 text-[12px]" style={{ color: tone.ink70 }}>
                       {t.team}
-                      <select value={teamId} onChange={(event) => setTeamId(event.target.value)} disabled={routingLocks.team || agreementStatus !== "not_started"} className="h-11 rounded-lg bg-white px-3 text-[13px] disabled:opacity-60" style={{ border: `1px solid ${tone.line}`, color: tone.ink }}>
+                      <select value={teamId} onChange={(event) => setTeamId(event.target.value)} disabled={routingLocks.team || agreementStatus !== "not_started"} className="h-11 w-full min-w-0 rounded-lg bg-white px-3 text-base disabled:opacity-60" style={{ border: `1px solid ${tone.line}`, color: tone.ink }}>
                         <option value="">{t.selectTeam}</option>
                         {availableTeams.map((team) => (
                           <option
@@ -626,7 +626,7 @@ export function PendingApprovalClient({
                   ) : (
                     <label className="grid gap-1 text-[12px]" style={{ color: tone.ink70 }}>
                       {t.term}
-                      <select value={plan === "solo_pro" ? "12" : termMonths} onChange={(event) => setTermMonths(event.target.value)} disabled={plan === "solo_pro" || routingLocks.term || agreementStatus !== "not_started"} className="h-11 rounded-lg bg-white px-3 text-[13px] disabled:opacity-60" style={{ border: `1px solid ${tone.line}`, color: tone.ink }}>
+                      <select value={plan === "solo_pro" ? "12" : termMonths} onChange={(event) => setTermMonths(event.target.value)} disabled={plan === "solo_pro" || routingLocks.term || agreementStatus !== "not_started"} className="h-11 w-full min-w-0 rounded-lg bg-white px-3 text-base disabled:opacity-60" style={{ border: `1px solid ${tone.line}`, color: tone.ink }}>
                         <option value="12">{plan === "solo_pro" ? "$3,650 · 1 year" : t.oneYear}</option>
                         {plan !== "solo_pro" && <option value="24">{t.twoYears}</option>}
                       </select>
@@ -669,7 +669,7 @@ export function PendingApprovalClient({
                   )}
                   <label className="grid gap-1 text-[12px] sm:col-span-2" style={{ color: tone.ink70 }}>
                     {t.sponsor}
-                    <select value={sponsorId} onChange={(event) => setSponsorId(event.target.value)} disabled={routingLocks.sponsor || agreementStatus !== "not_started"} className="h-11 rounded-lg bg-white px-3 text-[13px] disabled:opacity-60" style={{ border: `1px solid ${tone.line}`, color: tone.ink }}>
+                    <select value={sponsorId} onChange={(event) => setSponsorId(event.target.value)} disabled={routingLocks.sponsor || agreementStatus !== "not_started"} className="h-11 w-full min-w-0 rounded-lg bg-white px-3 text-base disabled:opacity-60" style={{ border: `1px solid ${tone.line}`, color: tone.ink }}>
                       <option value="">{t.noSponsor}</option>
                       {sponsors.map((sponsor) => <option key={sponsor.id} value={sponsor.id}>{sponsor.name}</option>)}
                     </select>
