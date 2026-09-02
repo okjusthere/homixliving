@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-09-02
+
+- Pending users now pick up administrator approval on refresh and during the page's automatic checks, without signing out and signing in again.
+- The pending approval page now fits narrow mobile screens without horizontal overflow and leaves space for iPhone browser controls and safe areas.
+
 ## 2026-07-13
 
 - Resource library imports the "HOMIX 常用做单表格" Google Sheet: 60 deal forms
