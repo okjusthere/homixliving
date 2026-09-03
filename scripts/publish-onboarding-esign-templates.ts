@@ -179,7 +179,7 @@ async function createStaffSession() {
     body: JSON.stringify({
       actor: {
         subject: "homix-contract-release",
-        email: "sunnyz@homixny.com",
+        email: "hr@homixny.com",
         displayName: "Si Zhang",
         role: "preparer",
       },

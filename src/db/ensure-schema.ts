@@ -292,9 +292,9 @@ export async function ensureSchema(sql: Sql) {
       requires_libor_onekey, is_active
     ) VALUES
       ('homix_realty', 'Homix Realty Inc.', '37-20 Prince St, STE 3H, Flushing, NY 11354',
-       'Si Zhang', 'Broker', 'sunnyz@homixny.com', TRUE, TRUE),
+       'Si Zhang', 'Broker', 'hr@homixny.com', TRUE, TRUE),
       ('homix_living', 'Homix Living Inc.', '110 Charlton St #A, New York, NY 10014',
-       'Si Zhang', 'Broker', 'sunnyz@homixny.com', FALSE, TRUE)
+       'Si Zhang', 'Broker', 'hr@homixny.com', FALSE, TRUE)
     ON CONFLICT (id) DO UPDATE SET
       legal_name = EXCLUDED.legal_name,
       address = EXCLUDED.address,

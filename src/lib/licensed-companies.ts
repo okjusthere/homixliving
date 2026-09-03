@@ -18,7 +18,7 @@ export const LICENSED_COMPANIES: readonly LicensedCompanyDefinition[] = [
     address: "37-20 Prince St, STE 3H, Flushing, NY 11354",
     brokerName: "Si Zhang",
     brokerTitle: "Broker",
-    brokerEmail: "sunnyz@homixny.com",
+    brokerEmail: "hr@homixny.com",
     requiresLiborOneKey: true,
   },
   {
@@ -27,7 +27,7 @@ export const LICENSED_COMPANIES: readonly LicensedCompanyDefinition[] = [
     address: "110 Charlton St #A, New York, NY 10014",
     brokerName: "Si Zhang",
     brokerTitle: "Broker",
-    brokerEmail: "sunnyz@homixny.com",
+    brokerEmail: "hr@homixny.com",
     requiresLiborOneKey: false,
   },
 ] as const;
