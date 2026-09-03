@@ -86,9 +86,9 @@ fields. New applicants use the release with the official application and
 read-only Homix Realty office values. Living never contains LIBOR fields.
 
 The confirmed company countersigner for both entities is Si Zhang, Broker,
-`sunnyz@homixny.com`. Countersigning is required and occurs manually after the
-administrator's compliance approval. Portal and eSign may not auto-apply the
-company signature.
+using the shared signing mailbox `hr@homixny.com`. Countersigning is required
+and occurs manually after the administrator's compliance approval. Portal and
+eSign may not auto-apply the company signature.
 
 The business approval covers the compensation schedule, shared Agent and Team
 Leader terms, Realty appendix, and current edition/effective date. A later PDF
@@ -207,31 +207,32 @@ creation. Do not hide materially different terms with conditional merge values.
 
 ## Publish and pin
 
-Production status on 2026-08-28:
+Production status on 2026-09-03:
 
-- all eight approved PDFs are published as eleven immutable production templates
-  (six Realty Agent routes, three Living Agent plans, and two Team Leader releases)
+- all eight approved PDFs were regenerated with the HR signing mailbox and
+  published as eleven new immutable production templates (six Realty Agent
+  routes, three Living Agent plans, and two Team Leader releases)
 - `npm run esign:verify-production` validates every live version, hash, page,
   role, and field against the Portal manifest
 - Vercel Production has the dedicated HR application credential, all eleven
-  template pins, and both countersigner identities
+  new template pins, and `hr@homixny.com` for all four Agent and Team Leader
+  countersigner routes
 - `ONBOARDING_V2_ENFORCED` remains an empty value, which is equivalent to off;
   only the exact value `1` enables enforcement
-- the production database has the additive lifecycle migrations
+- the production database stores `Si Zhang, Broker` with the shared HR signing
+  mailbox for both licensed companies
 - the rollback-only production smoke passes Solo, Team Member with the Team
   Leader as Sponsor, Team Member with a different Sponsor, default 10% Team
   Split with no Team Cap, and administrator-verified offline payment
 
-The `esign.kevv.ai` production domain is healthy. The production acceptance
-cycle completed on 2026-08-28 with an approved synthetic recipient: the agent
-and Si Zhang both signed, finalization produced the sealed PDF, and evidence
-retrieval verified the PDF, audit, and manifest hashes. The evidence package is
-retained through 2033-08-28. The four Portal onboarding smokes also passed in a
-production transaction that was rolled back without leaving test records.
-
-The technical production gates are therefore complete. Business cutover remains
-intentional and separate: keep `ONBOARDING_V2_ENFORCED=0` until Homix explicitly
-chooses to route real candidates through the new workflow.
+The `esign.kevv.ai` production domain is healthy. The prior production
+acceptance cycle completed on 2026-08-28 and proved signer routing,
+countersigning, sealed-PDF finalization, and evidence retrieval. Because the
+countersigner mailbox and immutable template releases changed on 2026-09-03,
+one fresh manual cycle must now confirm delivery to `hr@homixny.com`, signing as
+Si Zhang, and retrieval of the new sealed PDF and evidence package. Keep
+`ONBOARDING_V2_ENFORCED=0` until that cycle passes and Homix explicitly approves
+business cutover.
 
 1. Upload the approved PDF to the matching production eSign workspace.
 2. Add recipient roles and fields, then publish the immutable version.
@@ -253,7 +254,9 @@ the new lifecycle: `20260825-team-leader-applications.sql`,
 `20260825-licensed-company-boundaries.sql`,
 `20260825-team-join-approval.sql`,
 `20260825-team-leader-workspace.sql`, then
-`20260825-holding-to-solo.sql`. Assign a licensed company to every
+`20260825-holding-to-solo.sql`. Apply
+`20260903-countersigner-email.sql` before validating the HR countersigner route.
+Assign a licensed company to every
 legacy Team before enabling company-bound workflows. Do not enable the
 enforcement flag as part of a migration or deployment.
 
