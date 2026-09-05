@@ -3,7 +3,7 @@ import Google from "next-auth/providers/google";
 import { after } from "next/server";
 import { cookies } from "next/headers";
 import { db } from "@/db";
-import { agents, invoices, teams, trainingVideoViews } from "@/db/schema";
+import { agents, invoices, onboardingEvents, teams, trainingVideoViews } from "@/db/schema";
 import { and, eq, sql } from "drizzle-orm";
 import { authConfig } from "./auth.config";
 import { DEFAULT_AGENT_SPLIT_PCT } from "@/lib/splits";
@@ -18,6 +18,16 @@ import {
   EMAIL_CHANGE_COOKIE,
   emailChangeTokenMatches,
 } from "@/lib/email-change-token";
+import { PLAN_SPLIT_PCT } from "@/lib/agent-plans";
+import {
+  findUsableInvitation,
+  ONBOARDING_INVITE_COOKIE,
+} from "@/lib/onboarding-invites";
+import {
+  ONBOARDING_ENTRY_COOKIE,
+  onboardingEntryForSignIn,
+} from "@/lib/onboarding-entry";
+import { onboardingEventValues } from "@/lib/onboarding-events";
 
 const googleEnabled =
   !!process.env.AUTH_GOOGLE_ID && !!process.env.AUTH_GOOGLE_SECRET;
@@ -159,6 +169,16 @@ async function upsertAgentFromGoogle(user: {
 
   const admin = isConfiguredAdminEmail(email);
   const now = new Date().toISOString();
+  const cookieStore = await cookies();
+  const inviteToken = cookieStore.get(ONBOARDING_INVITE_COOKIE)?.value;
+  const hasInvitationContext = inviteToken
+    ? Boolean(await findUsableInvitation(inviteToken))
+    : false;
+  const entryContext = onboardingEntryForSignIn(
+    cookieStore.get(ONBOARDING_ENTRY_COOKIE)?.value,
+    hasInvitationContext,
+  );
+  const initialPlan = !admin && entryContext?.plan ? entryContext.plan : "solo";
 
   const [existing] = await db
     .select()
@@ -188,8 +208,9 @@ async function upsertAgentFromGoogle(user: {
       name: user.name || email.split("@")[0],
       isAdmin: admin,
       accountStatus: admin ? "active" : "pending",
-      splitPct: DEFAULT_AGENT_SPLIT_PCT,
-      plan: "solo",
+      splitPct: PLAN_SPLIT_PCT[initialPlan] ?? DEFAULT_AGENT_SPLIT_PCT,
+      plan: initialPlan,
+      onboardingSource: !admin ? entryContext?.source || "direct" : "direct",
       planEffectiveFrom: now.slice(0, 10),
       anniversaryStart: now.slice(0, 10),
       joinedAt: now.slice(0, 10),
@@ -203,11 +224,28 @@ async function upsertAgentFromGoogle(user: {
     // Admin notification is not part of the OAuth critical path.
     after(async () => {
       try {
+        await db.insert(onboardingEvents).values(onboardingEventValues({
+          eventType: "application_account_created",
+          agentId: created.id,
+          actorAgentId: created.id,
+          actorEmail: created.email,
+          detail: {
+            source: entryContext?.source || "direct",
+            locale: entryContext?.locale || null,
+            campaign: entryContext?.campaign || null,
+            planHint: entryContext?.plan || null,
+            invitationContext: hasInvitationContext,
+          },
+        }));
+      } catch (error) {
+        console.error("application_account_created event failed", error);
+      }
+      try {
         await notify({
           recipientAgentIds: await adminAgentIds(),
           type: "agent_pending",
           title: `新经纪人待审批：${user.name || email}`,
-          body: `${email} 刚通过 Google 登录注册，等待开通。`,
+          body: `${email} 刚通过 Google 登录注册，等待开通。来源：${entryContext?.source === "website" ? "Homix 官网" : hasInvitationContext ? "邀请链接" : "直接注册"}。`,
           href: "/agents",
           dedupeKey: `agent-pending:${email}`,
           email: true,

@@ -14,13 +14,39 @@ building management), and tracks everything an admin needs to run the brokerage:
 - **Notifications** — in-app bell + optional email fan-out (approvals, renewals, deal events)
 - **Audit log** — append-only trail on every money/roster mutation, browsable at `/audit`
 - **Commerce** — authenticated `/pay` center for plan fees, memberships and services via Stripe Checkout, with every order bound to an agent and Google Workspace provisioning for company-email orders
-- **Onboarding** — invitation links lock team, sponsor and plan; eSign and annual-fee completion are tracked before activation
+- **Onboarding** — public website applications and invitation links converge on one pending workflow; invitations can lock team, sponsor and plan, while eSign and annual-fee completion are tracked before activation
 - **Global search** — ⌘K palette over deals, invoices, buildings, agents
 - Bilingual UI (中文 / English) via a cookie-based locale toggle
 
 **Auth is Google-only.** Any Google account can sign in; new accounts land in a pending
 state until an admin approves them. Emails listed in `ADMIN_EMAILS` are auto-approved
 as admins. There are no passwords or magic links.
+
+### Public agent applications
+
+`/join` is the public, bilingual application handoff used by
+`www.homixny.com/join` and the website commission-plan page. It explains the
+application steps, then `/join/start` validates the allowlisted `source`,
+`lang`, optional `plan`, and campaign values before writing a short-lived
+HttpOnly application-context cookie and continuing to Google login.
+
+New accounts created from the website receive `onboarding_source = 'website'`;
+the pending-agent console shows that source alongside agreement and payment
+status. A valid `/join/[token]` invitation always takes precedence over public
+website attribution and remains the only way to lock Sponsor, Team, plan, or
+term. Never put a reusable invitation token in public website code.
+
+Production smoke checks:
+
+```bash
+curl -I "https://agents.homixny.com/join?source=homix-web&lang=zh"
+curl -I "https://agents.homixny.com/join/start?source=homix-web&lang=en"
+```
+
+The first request must return the public page. The second must redirect to
+`/login?apply=1...` and set `homix_onboarding_entry` with `HttpOnly`, `Secure`,
+`SameSite=Lax`, and a 30-minute lifetime. Do not follow the second smoke test
+through Google OAuth from automation.
 
 ## Stack
 

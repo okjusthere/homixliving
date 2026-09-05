@@ -24,6 +24,10 @@ const M = {
     accessDenied: "Access denied. Your account may be pending activation.",
     genericError: "Sign-in failed. Please try again.",
     continueGoogle: "Continue with Google",
+    applySignIn: "Agent application",
+    applyTitle: "Start or continue your Homix application.",
+    applyLead: "Use Google to securely create your application or return to the step where you left off.",
+    applyGoogle: "Continue application with Google",
     verifySignIn: "Verify email",
     verifyTitle: "Choose your new Google account.",
     verifyLead:
@@ -47,6 +51,10 @@ const M = {
     accessDenied: "无法访问，你的账号可能仍在等待管理员批准。",
     genericError: "登录失败，请重试。",
     continueGoogle: "使用 Google 继续",
+    applySignIn: "经纪人申请",
+    applyTitle: "开始或继续您的 Homix 入职申请。",
+    applyLead: "使用 Google 安全创建申请；如果已经开始，系统会自动回到上次的进度。",
+    applyGoogle: "使用 Google 继续申请",
     verifySignIn: "验证邮箱",
     verifyTitle: "选择新的 Google 账号。",
     verifyLead: "请使用刚申请的新邮箱登录，Google 验证成功后会自动关联回原有 Homix 档案。",
@@ -152,6 +160,7 @@ function LoginInner() {
   const params = useSearchParams();
   const error = params.get("error");
   const switchAccount = params.get("switchAccount") === "1";
+  const applicationMode = params.get("apply") === "1" && !switchAccount;
   const [submittingGoogle, setSubmittingGoogle] = useState(false);
   const [providers, setProviders] = useState<Providers>(null);
   const [inAppBrowser, setInAppBrowser] = useState<InAppBrowserWarning | null>(null);
@@ -183,7 +192,7 @@ function LoginInner() {
     try {
       await signIn(
         "google",
-        { redirect: true, redirectTo: switchAccount ? "/profile" : "/" },
+        { redirect: true, redirectTo: switchAccount ? "/profile" : applicationMode ? "/pending" : "/" },
         switchAccount ? { prompt: "select_account" } : undefined,
       );
     } catch {
@@ -194,7 +203,16 @@ function LoginInner() {
 
   const copyLoginLink = async () => {
     try {
-      await navigator.clipboard.writeText(window.location.href);
+      let loginLink = window.location.href;
+      if (applicationMode) {
+        const startUrl = new URL("/join/start", window.location.origin);
+        for (const key of ["source", "lang", "plan", "campaign"]) {
+          const value = params.get(key);
+          if (value) startUrl.searchParams.set(key, value);
+        }
+        loginLink = startUrl.toString();
+      }
+      await navigator.clipboard.writeText(loginLink);
       toast.success(t.copied);
     } catch {
       toast.error(t.copyFailed);
@@ -216,7 +234,7 @@ function LoginInner() {
             className="text-[11px] uppercase tracking-[0.16em] mb-2"
             style={{ color: tone.ink50 }}
           >
-            {switchAccount ? t.verifySignIn : t.signIn}
+            {switchAccount ? t.verifySignIn : applicationMode ? t.applySignIn : t.signIn}
           </div>
           <h1
             className="font-serif"
@@ -228,10 +246,10 @@ function LoginInner() {
               marginBottom: 8,
             }}
           >
-            {switchAccount ? t.verifyTitle : t.title}
+            {switchAccount ? t.verifyTitle : applicationMode ? t.applyTitle : t.title}
           </h1>
           <p className="text-[13.5px]" style={{ color: tone.ink70 }}>
-            {switchAccount ? t.verifyLead : t.lead}
+            {switchAccount ? t.verifyLead : applicationMode ? t.applyLead : t.lead}
           </p>
 
           {inAppBrowser && (
@@ -325,7 +343,9 @@ function LoginInner() {
                     ? t.redirecting
                     : switchAccount
                       ? t.verifyGoogle
-                      : t.continueGoogle}
+                      : applicationMode
+                        ? t.applyGoogle
+                        : t.continueGoogle}
                 </span>
               </button>
             </div>

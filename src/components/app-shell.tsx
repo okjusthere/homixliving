@@ -7,7 +7,7 @@ import { Nav } from "@/components/nav";
 import Link from "next/link";
 import { useLocale } from "@/lib/i18n-client";
 
-const NAV_FREE_PREFIXES = ["/login", "/pending", "/pay"];
+const NAV_FREE_PREFIXES = ["/login", "/pending", "/join", "/pay"];
 
 function isPathOrChild(pathname: string, prefix: string) {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);

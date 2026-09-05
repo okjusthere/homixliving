@@ -111,6 +111,8 @@ const M = {
     syncWarning: "The Portal record was saved, but the public website did not finish syncing. Retry from the website roster.",
     agreement: "Agreement",
     payment: "Payment",
+    source: "Source",
+    websiteSource: "Homix website",
     recordOffline: "Record offline payment",
     offlineTitle: "Verify offline onboarding payment",
     offlineLead: "Use only after the signed fee was actually received. This creates the same finance and sponsor-reward records as Stripe.",
@@ -211,6 +213,8 @@ const M = {
     syncWarning: "Portal 档案已保存，但官网同步未完成；请稍后在官网名册中重试。",
     agreement: "协议",
     payment: "付款",
+    source: "来源",
+    websiteSource: "Homix 官网",
     recordOffline: "登记线下付款",
     offlineTitle: "核验线下入职付款",
     offlineLead: "仅在公司确实收到签约费用后登记；系统会像 Stripe 一样更新财务台账和 10% 推荐奖励。",
@@ -721,6 +725,8 @@ export default function AgentsConsole({ initialView }: { initialView: AdminView 
                     <span>{t.agreement}: {agreementStatusLabel(agent.agreementStatus)}</span>
                     <span>·</span>
                     <span>{t.payment}: {paymentStatusLabel(agent.paymentStatus)}</span>
+                    <span>·</span>
+                    <span>{t.source}: {agent.onboardingSource === "website" ? t.websiteSource : agent.onboardingSource}</span>
                   </div>
                 </div>
                 <div className="col-span-full flex min-w-0 flex-wrap items-center gap-2 sm:col-span-1 sm:justify-end">
