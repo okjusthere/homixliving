@@ -3,7 +3,7 @@ import Stripe from "stripe";
 import { commerceProducts } from "../src/lib/commerce/catalog";
 import { ensureStripeProductPrice } from "../src/lib/commerce/stripe-products";
 
-loadEnvConfig(process.cwd());
+loadEnvConfig(process.cwd(), process.env.NODE_ENV !== "production");
 
 const secretKey = process.env.STRIPE_SECRET_KEY?.trim();
 const onlyProductKey = process.env.STRIPE_ONLY_PRODUCT_KEY?.trim();
@@ -11,6 +11,13 @@ const onlyProductKey = process.env.STRIPE_ONLY_PRODUCT_KEY?.trim();
 if (!secretKey) {
   console.error("STRIPE_SECRET_KEY is required. Add sk_test_... or sk_live_... to .env.local.");
   process.exit(1);
+}
+
+if (secretKey.startsWith("sk_live_") || secretKey.startsWith("rk_live_")) {
+  if (process.env.STRIPE_ALLOW_LIVE_SETUP !== "1") {
+    console.error("Refusing live-mode Stripe setup without STRIPE_ALLOW_LIVE_SETUP=1.");
+    process.exit(1);
+  }
 }
 
 const stripe = new Stripe(secretKey);

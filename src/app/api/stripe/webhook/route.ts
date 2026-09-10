@@ -12,16 +12,15 @@ import { settledCheckoutAmountCents } from "@/lib/commerce/settlement";
 import { getStripe, getStripeWebhookSecret, stripeId } from "@/lib/stripe";
 import { provisionWorkspaceForOrder, suspendWorkspaceForOrder } from "@/lib/google-workspace";
 import { settlePlanPayment } from "@/lib/plan-payments";
+import { syncAgentStripeCustomer } from "@/lib/commerce/stripe-customer";
+import {
+  invoiceSubscriptionMetadata,
+  shouldHandleStripeScope,
+  stripeMetadataScope,
+} from "@/lib/commerce/stripe-app";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-function eventOrderId(event: Stripe.Event): number | null {
-  const data = event.data.object as { metadata?: Record<string, string> | null };
-  const raw = data.metadata?.orderId;
-  const parsed = raw ? Number(raw) : NaN;
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
-}
 
 function invoiceSubscriptionId(invoice: Stripe.Invoice): string | null {
   const source = invoice as unknown as {
@@ -61,6 +60,48 @@ async function findOrderBySubscription(subscriptionId: string): Promise<Commerce
   return order ?? null;
 }
 
+/**
+ * Reject traffic owned by another app before claiming or mutating local state.
+ * Objects created before app metadata was introduced remain supported only
+ * when they can be tied to a local order.
+ */
+async function isHomixStripeEvent(event: Stripe.Event): Promise<boolean> {
+  if (event.type === "checkout.session.completed" || event.type === "checkout.session.expired") {
+    const session = event.data.object as Stripe.Checkout.Session;
+    const scope = stripeMetadataScope(session.metadata);
+    if (scope !== "legacy") return shouldHandleStripeScope(scope, false);
+    // A numeric orderId alone is not a sufficient legacy ownership signal in a
+    // shared Stripe account: another app could use the same local integer.
+    return shouldHandleStripeScope(
+      scope,
+      Boolean(await findOrderBySession(session.id)),
+    );
+  }
+
+  if (event.type === "customer.subscription.updated" || event.type === "customer.subscription.deleted") {
+    const subscription = event.data.object as Stripe.Subscription;
+    const scope = stripeMetadataScope(subscription.metadata);
+    if (scope !== "legacy") return shouldHandleStripeScope(scope, false);
+    return shouldHandleStripeScope(
+      scope,
+      Boolean(await findOrderBySubscription(subscription.id)),
+    );
+  }
+
+  if (event.type === "invoice.payment_succeeded" || event.type === "invoice.payment_failed") {
+    const invoice = event.data.object as Stripe.Invoice;
+    const scope = stripeMetadataScope(invoiceSubscriptionMetadata(invoice));
+    if (scope !== "legacy") return shouldHandleStripeScope(scope, false);
+    const subscriptionId = invoiceSubscriptionId(invoice);
+    return shouldHandleStripeScope(
+      scope,
+      Boolean(subscriptionId && await findOrderBySubscription(subscriptionId)),
+    );
+  }
+
+  return false;
+}
+
 async function maybeProvisionWorkspace(order: CommerceOrder) {
   if (order.productKey !== "company_domain_email") return;
   await provisionWorkspaceForOrder(order);
@@ -71,12 +112,17 @@ async function maybeSuspendWorkspace(order: CommerceOrder) {
   await suspendWorkspaceForOrder(order);
 }
 
-async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promise<number | null> {
+async function handleCheckoutCompleted(
+  session: Stripe.Checkout.Session,
+  eventId: string,
+): Promise<number | null> {
   const metadataOrderId = session.metadata?.orderId ? Number(session.metadata.orderId) : NaN;
-  const order =
+  const sessionOrder = await findOrderBySession(session.id);
+  const order = sessionOrder || (
     Number.isInteger(metadataOrderId) && metadataOrderId > 0
       ? await findOrderById(metadataOrderId)
-      : await findOrderBySession(session.id);
+      : null
+  );
 
   if (!order) return null;
 
@@ -119,6 +165,36 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
     })
     .where(eq(commerceOrders.id, order.id));
 
+  const checkoutCustomerId = stripeId(session.customer);
+  if (order.agentId && checkoutCustomerId) {
+    try {
+      const syncResult = await syncAgentStripeCustomer({
+        agentId: order.agentId,
+        customerId: checkoutCustomerId,
+      });
+      if (syncResult.status === "conflict") {
+        console.warn("Stripe Customer mismatch during checkout reconciliation", {
+          eventId,
+          eventCustomerId: checkoutCustomerId,
+          storedCustomerId: syncResult.customerId,
+          agentId: order.agentId,
+          orderId: order.id,
+          checkoutSessionId: session.id,
+        });
+      }
+    } catch (error) {
+      // Billing identity repair must not block fulfillment of a verified paid
+      // Checkout Session. The mismatch remains visible for manual review.
+      console.error("Stripe Customer synchronization failed", {
+        eventId,
+        agentId: order.agentId,
+        orderId: order.id,
+        checkoutSessionId: session.id,
+        error,
+      });
+    }
+  }
+
   if (isPaid) {
     // Checkout owns the initial payment for both one-time and subscription
     // products. Stripe does not guarantee delivery order between
@@ -139,9 +215,13 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
 }
 
 async function handleCheckoutExpired(session: Stripe.Checkout.Session): Promise<number | null> {
-  const order = session.metadata?.orderId
-    ? await findOrderById(Number(session.metadata.orderId))
-    : await findOrderBySession(session.id);
+  const sessionOrder = await findOrderBySession(session.id);
+  const metadataOrderId = session.metadata?.orderId ? Number(session.metadata.orderId) : NaN;
+  const order = sessionOrder || (
+    Number.isInteger(metadataOrderId) && metadataOrderId > 0
+      ? await findOrderById(metadataOrderId)
+      : null
+  );
   if (!order) return null;
 
   await db
@@ -290,7 +370,10 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription): Pro
 async function processStripeEvent(event: Stripe.Event): Promise<number | null> {
   switch (event.type) {
     case "checkout.session.completed":
-      return handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session);
+      return handleCheckoutCompleted(
+        event.data.object as Stripe.Checkout.Session,
+        event.id,
+      );
     case "checkout.session.expired":
       return handleCheckoutExpired(event.data.object as Stripe.Checkout.Session);
     case "invoice.payment_succeeded":
@@ -302,7 +385,7 @@ async function processStripeEvent(event: Stripe.Event): Promise<number | null> {
     case "customer.subscription.deleted":
       return handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
     default:
-      return eventOrderId(event);
+      return null;
   }
 }
 
@@ -330,6 +413,14 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Stripe webhook signature verification failed", error);
     return NextResponse.json({ error: "Invalid Stripe signature." }, { status: 400 });
+  }
+
+  if (!(await isHomixStripeEvent(event))) {
+    console.info("Ignoring Stripe event outside Homix scope", {
+      eventId: event.id,
+      eventType: event.type,
+    });
+    return NextResponse.json({ received: true, ignored: true });
   }
 
   // Claim the event atomically BEFORE processing. Stripe delivers at-least-once
