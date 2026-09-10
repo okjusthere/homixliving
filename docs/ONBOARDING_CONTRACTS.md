@@ -1,8 +1,8 @@
 # Onboarding contract handoff
 
-`ONBOARDING_V2_ENFORCED` stays `0` until all eleven immutable template releases,
-both payment paths, and all six onboarding scenarios pass. A missing contract
-or template pin must not block the existing approval flow during preparation.
+`ONBOARDING_V2_ENFORCED` is the production rollback switch. Keep it at `0`
+while preparing templates or payment configuration, and set it to `1` only
+after Homix approves the cutover and the production smoke suite passes.
 
 ## Team consent implemented in Portal
 
@@ -230,7 +230,7 @@ voided, expired, or failed envelopes cannot start a new payment.
 
 ## Publish and pin
 
-Production status on 2026-09-03:
+Production status on 2026-09-10:
 
 - all eight approved PDFs were regenerated with the HR signing mailbox and
   published as eleven new immutable production templates (six Realty Agent
@@ -240,21 +240,19 @@ Production status on 2026-09-03:
 - Vercel Production has the dedicated HR application credential, all eleven
   new template pins, and `hr@homixny.com` for all four Agent and Team Leader
   countersigner routes
-- `ONBOARDING_V2_ENFORCED` remains an empty value, which is equivalent to off;
-  only the exact value `1` enables enforcement
+- `ONBOARDING_V2_ENFORCED=1` is deployed in Production following explicit Homix
+  cutover approval; setting it back to `0` disables automatic online activation
+  and restores the legacy administrator approval gate
 - the production database stores `Si Zhang, Broker` with the shared HR signing
   mailbox for both licensed companies
 - the rollback-only production smoke passes Solo, Team Member with the Team
   Leader as Sponsor, Team Member with a different Sponsor, default 10% Team
   Split with no Team Cap, and administrator-verified offline payment
 
-The `esign.kevv.ai` production domain is healthy. The prior production
-acceptance cycle completed on 2026-08-28 and proved signer routing,
-countersigning, sealed-PDF finalization, and evidence retrieval. Because the
-countersigner mailbox and immutable template releases changed on 2026-09-03,
-one fresh manual cycle must now confirm delivery to `hr@homixny.com`, signing as
-Si Zhang, and retrieval of the new sealed PDF and evidence package. Keep
-`ONBOARDING_V2_ENFORCED=0` until that cycle passes and Homix explicitly approves
+The `esign.kevv.ai` production domain is healthy. Production acceptance proved
+signer routing, countersigning, sealed-PDF finalization, and evidence retrieval.
+The 2026-09-10 rollback-only smoke also passed online activation, offline pending
+approval, Team Split, and Sponsor reward scenarios before Homix approved the
 business cutover.
 
 1. Upload the approved PDF to the matching production eSign workspace.
@@ -270,7 +268,7 @@ business cutover.
    development smoke credential.
 6. Run synthetic online-payment and administrator-verified offline-payment tests.
 7. Review evidence, receipts, sponsor rewards, team split, and final activation.
-8. Keep `ONBOARDING_V2_ENFORCED=0` until the business explicitly approves cutover.
+8. Set `ONBOARDING_V2_ENFORCED=1` only after the business explicitly approves cutover.
 
 Deploy the additive migrations in this order before deploying code that reads
 the new lifecycle: `20260825-team-leader-applications.sql`,
@@ -280,10 +278,13 @@ the new lifecycle: `20260825-team-leader-applications.sql`,
 `20260825-holding-to-solo.sql`. Apply
 `20260903-countersigner-email.sql` before validating the HR countersigner route,
 then `20260910-onboarding-auto-activation.sql` before deploying the split
-signature/payment milestone code.
+signature/payment milestone code. Apply
+`20260910-stripe-customer-billing.sql` before code reads the canonical Agent
+Stripe Customer ID.
 Assign a licensed company to every
-legacy Team before enabling company-bound workflows. Do not enable the
-enforcement flag as part of a migration or deployment.
+legacy Team before enabling company-bound workflows. Treat the enforcement
+flag as an explicit business cutover step and verify its value before rebuilding
+Production.
 
 The six required agreement smokes are Realty Solo, Living Solo, Realty Team
 Member, Living Team Member, Realty Team Leader, and Living Team Leader. Run

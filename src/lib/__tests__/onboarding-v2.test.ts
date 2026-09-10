@@ -62,6 +62,8 @@ function onboardingAgent(overrides: Partial<Agent> = {}) {
 assert.equal(onboardingAgreementAllowsPayment(onboardingAgent()), true);
 assert.equal(onboardingAgreementAllowsPayment(onboardingAgent({ agreementAgentSignedAt: null })), false);
 assert.equal(onboardingAgreementAllowsPayment(onboardingAgent({ agreementStatus: "declined" })), false);
+const originalEnforcementFlag = process.env.ONBOARDING_V2_ENFORCED;
+process.env.ONBOARDING_V2_ENFORCED = "1";
 assert.equal(
   shouldAutomaticallyActivatePaidOnboarding(onboardingAgent(), "stripe"),
   true,
@@ -101,6 +103,16 @@ assert.equal(
   ),
   true,
 );
+process.env.ONBOARDING_V2_ENFORCED = "0";
+assert.equal(
+  shouldAutomaticallyActivatePaidOnboarding(onboardingAgent(), "stripe"),
+  false,
+);
+if (originalEnforcementFlag === undefined) {
+  delete process.env.ONBOARDING_V2_ENFORCED;
+} else {
+  process.env.ONBOARDING_V2_ENFORCED = originalEnforcementFlag;
+}
 
 const signatureProgress = onboardingEnvelopeSignatureProgress({
   id: "env_1",
