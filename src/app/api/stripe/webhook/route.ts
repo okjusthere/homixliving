@@ -12,6 +12,7 @@ import { settledCheckoutAmountCents } from "@/lib/commerce/settlement";
 import { getStripe, getStripeWebhookSecret, stripeId } from "@/lib/stripe";
 import { provisionWorkspaceForOrder, suspendWorkspaceForOrder } from "@/lib/google-workspace";
 import { settlePlanPayment } from "@/lib/plan-payments";
+import { finalizeAutomaticOnboardingActivation } from "@/lib/onboarding-activation";
 import { syncAgentStripeCustomer } from "@/lib/commerce/stripe-customer";
 import {
   invoiceSubscriptionMetadata,
@@ -199,7 +200,7 @@ async function handleCheckoutCompleted(
     // Checkout owns the initial payment for both one-time and subscription
     // products. Stripe does not guarantee delivery order between
     // checkout.session.completed and the subscription's first invoice event.
-    await settlePlanPayment(db, {
+    const settlement = await settlePlanPayment(db, {
       order: updatedOrder,
       sourceKey: `checkout:${session.id}`,
       amountCents,
@@ -208,6 +209,16 @@ async function handleCheckoutCompleted(
         : amountCents,
       earnedAt: now,
     });
+    if (
+      settlement &&
+      order.paymentChannel === "stripe" &&
+      order.licenseTransferFeeCents > 0
+    ) {
+      await finalizeAutomaticOnboardingActivation({
+        agentId: settlement.agentId,
+        orderId: order.id,
+      });
+    }
     await maybeProvisionWorkspace(updatedOrder);
   }
 

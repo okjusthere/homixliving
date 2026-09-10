@@ -23,6 +23,32 @@ export function onboardingAgreementState(status: ESignEnvelope["status"]) {
   return "sent" as const;
 }
 
+function completedRecipientTimestamp(
+  recipients: NonNullable<ESignEnvelope["recipients"]>,
+  fallback?: string,
+) {
+  if (recipients.length === 0) return fallback || null;
+  if (recipients.some((recipient) => recipient.status !== "COMPLETED")) {
+    return null;
+  }
+  const timestamps = recipients
+    .map((recipient) => recipient.completedAt)
+    .filter((value): value is string => Boolean(value))
+    .sort();
+  return timestamps.at(-1) || fallback || null;
+}
+
+export function onboardingEnvelopeSignatureProgress(envelope: ESignEnvelope) {
+  const recipients = envelope.recipients || [];
+  const signers = recipients.filter((recipient) => recipient.kind === "signer");
+  const countersigners = recipients.filter((recipient) => recipient.kind === "countersigner");
+  const completedFallback = envelope.status === "COMPLETED" ? envelope.completedAt : undefined;
+  return {
+    agentSignedAt: completedRecipientTimestamp(signers, completedFallback),
+    countersignedAt: completedRecipientTimestamp(countersigners, completedFallback),
+  };
+}
+
 export async function syncOnboardingAgreement(agent: typeof agents.$inferSelect) {
   if (!agent.esignEnvelopeId) return agent;
   if (!isOnboardingESignConfigured(
@@ -45,10 +71,21 @@ export async function syncOnboardingAgreement(agent: typeof agents.$inferSelect)
     throw new Error("The onboarding envelope uses an unapproved template version.");
   }
   const status = onboardingAgreementState(envelope.status);
+  const signatures = onboardingEnvelopeSignatureProgress(envelope);
+  const agentSignedAt = signatures.agentSignedAt || agent.agreementAgentSignedAt;
+  const countersignedAt = signatures.countersignedAt || agent.agreementCountersignedAt;
   const paymentRequired = onboardingPaymentProduct(agent.plan, agent.affiliationTermMonths);
-  const onboardingStage = status === "completed"
-    ? paymentRequired && agent.paymentStatus !== "paid" ? "payment" : "review"
-    : "agreement";
+  const signatureCanAdvance = agentSignedAt && ![
+    "declined",
+    "voided",
+    "expired",
+    "failed",
+  ].includes(status);
+  const onboardingStage = agent.accountStatus === "active"
+    ? "complete"
+    : signatureCanAdvance
+      ? paymentRequired && agent.paymentStatus !== "paid" ? "payment" : "review"
+      : "agreement";
   let evidencePackageId = agent.esignEvidencePackageId;
   if (status === "completed") {
     const evidence = await getESignEvidence(envelope.id);
@@ -63,14 +100,16 @@ export async function syncOnboardingAgreement(agent: typeof agents.$inferSelect)
   const completedAt = status === "completed"
     ? envelope.completedAt || agent.agreementCompletedAt || new Date().toISOString()
     : agent.agreementCompletedAt;
-  const teamTermsAcceptedAt = status === "completed" && agent.teamTermsConfigId
-    ? completedAt
+  const teamTermsAcceptedAt = agentSignedAt && agent.teamTermsConfigId
+    ? agentSignedAt
     : agent.teamTermsAcceptedAt;
   if (
     status === agent.agreementStatus &&
     onboardingStage === agent.onboardingStage &&
     envelope.templateVersionId === agent.esignTemplateVersionId &&
     evidencePackageId === agent.esignEvidencePackageId &&
+    agentSignedAt === agent.agreementAgentSignedAt &&
+    countersignedAt === agent.agreementCountersignedAt &&
     completedAt === agent.agreementCompletedAt &&
     teamTermsAcceptedAt === agent.teamTermsAcceptedAt
   ) {
@@ -88,6 +127,8 @@ export async function syncOnboardingAgreement(agent: typeof agents.$inferSelect)
     onboardingStage,
     esignTemplateVersionId: envelope.templateVersionId,
     esignEvidencePackageId: evidencePackageId || null,
+    agreementAgentSignedAt: agentSignedAt || null,
+    agreementCountersignedAt: countersignedAt || null,
     agreementCompletedAt: completedAt || null,
     teamTermsAcceptedAt: teamTermsAcceptedAt || null,
     updatedAt: new Date().toISOString(),

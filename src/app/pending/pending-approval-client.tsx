@@ -69,10 +69,11 @@ const M = {
     agreementPreparing: "Preparing your approved agreement…",
     agreementSent: "Agreement sent. Open the secure link in your email, then return here.",
     agreementCompleted: "Agreement signed",
+    agentSignatureCompleted: "Your signature is complete. Company countersign can continue while you pay.",
     agreementUnavailable: "eSign is not configured yet. An administrator can continue the current manual process.",
     payAnnualFee: "Pay affiliation fee",
     paymentReceived: "Payment received",
-    finalReview: "Agreement and payment are complete. Homix will finish license and account activation.",
+    finalReview: "Payment received. Your Portal access is activating automatically.",
     teamTermsTitle: "Team terms included in your agreement",
     standardTeamSplit: "Standard team split",
     sourcedTeamSplit: "Team-sourced split",
@@ -139,10 +140,11 @@ const M = {
     agreementPreparing: "正在生成已审核版本的协议…",
     agreementSent: "协议已发送，请打开邮箱中的安全链接签署，然后返回本页。",
     agreementCompleted: "协议已签署",
+    agentSignatureCompleted: "你已完成签署；公司会签可继续进行，现在即可付款。",
     agreementUnavailable: "eSign 尚未配置，管理员仍可按现有人工流程处理。",
     payAnnualFee: "支付挂靠费用",
     paymentReceived: "费用已支付",
-    finalReview: "协议和付款均已完成，Homix 将完成执照及账号激活。",
+    finalReview: "费用已收到，系统正在自动开通 Portal 权限。",
     teamTermsTitle: "协议中的团队分佣条款",
     standardTeamSplit: "一般团队分成",
     sourcedTeamSplit: "TL 提供客源分成",
@@ -213,6 +215,7 @@ export function PendingApprovalClient({
   });
   const [onboardingSource, setOnboardingSource] = useState("direct");
   const [agreementStatus, setAgreementStatus] = useState("not_started");
+  const [agreementAgentSignedAt, setAgreementAgentSignedAt] = useState<string | null>(null);
   const [paymentStatus, setPaymentStatus] = useState("pending");
   const [paymentProduct, setPaymentProduct] = useState<string | null>(null);
   const [esignConfigured, setEsignConfigured] = useState(false);
@@ -274,6 +277,7 @@ export function PendingApprovalClient({
           setTermMonths(String(data.routing.affiliationTermMonths || 12));
         }
         setAgreementStatus(data.profile?.agreementStatus || "not_started");
+        setAgreementAgentSignedAt(data.profile?.agreementAgentSignedAt || null);
         setPaymentStatus(data.profile?.paymentStatus || "pending");
         setTeams(data.teams || []);
         setCompanies(data.companies || []);
@@ -370,6 +374,7 @@ export function PendingApprovalClient({
       const data = await response.json();
       setEsignConfigured(Boolean(data.configured));
       setAgreementStatus(data.agreementStatus || "not_started");
+      setAgreementAgentSignedAt(data.agreementAgentSignedAt || null);
       setPaymentStatus(data.paymentStatus || "pending");
       setPaymentProduct(data.paymentProduct || null);
     } catch (error) {
@@ -431,7 +436,7 @@ export function PendingApprovalClient({
   useEffect(() => {
     if (
       accountStatus !== "pending" ||
-      agreementStatus !== "completed" ||
+      !agreementAgentSignedAt ||
       paymentStatus === "paid" ||
       !paymentProduct ||
       paymentRedirectStarted.current
@@ -440,7 +445,7 @@ export function PendingApprovalClient({
     }
     paymentRedirectStarted.current = true;
     router.replace(`/pay?product=${encodeURIComponent(paymentProduct)}&onboarding=1`);
-  }, [accountStatus, agreementStatus, paymentProduct, paymentStatus, router]);
+  }, [accountStatus, agreementAgentSignedAt, paymentProduct, paymentStatus, router]);
 
   const redirectIfApproved = useCallback(
     (effectiveSession: typeof session) => {
@@ -751,6 +756,8 @@ export function PendingApprovalClient({
                     <p className="mt-3 text-[12px]" style={{ color: tone.amber }}>{t.agreementUnavailable}</p>
                   ) : agreementStatus === "completed" ? (
                     <p className="mt-3 text-[13px]" style={{ color: tone.green }}>{t.agreementCompleted}</p>
+                  ) : agreementAgentSignedAt ? (
+                    <p className="mt-3 text-[13px]" style={{ color: tone.green }}>{t.agentSignatureCompleted}</p>
                   ) : agreementStatus === "preparing" ? (
                     <p className="mt-3 text-[12px]" style={{ color: tone.amber }}>{t.agreementPreparing}</p>
                   ) : agreementStatus === "sent" ? (
@@ -771,7 +778,7 @@ export function PendingApprovalClient({
                       )}
                     </div>
                   )}
-                  {agreementStatus === "completed" && paymentProduct && paymentStatus !== "paid" && (
+                  {agreementAgentSignedAt && paymentProduct && paymentStatus !== "paid" && (
                     <Btn variant="primary" className="mt-4 w-full justify-center" onClick={() => router.push(`/pay?product=${encodeURIComponent(paymentProduct)}&onboarding=1`)}>
                       {t.payAnnualFee}
                     </Btn>
@@ -779,7 +786,7 @@ export function PendingApprovalClient({
                   {paymentStatus === "paid" && (
                     <p className="mt-3 text-[13px]" style={{ color: tone.green }}>{t.paymentReceived}</p>
                   )}
-                  {agreementStatus === "completed" && (paymentStatus === "paid" || !paymentProduct) && (
+                  {agreementAgentSignedAt && (paymentStatus === "paid" || !paymentProduct) && (
                     <p className="mt-3 text-[12px]" style={{ color: tone.ink70 }}>{t.finalReview}</p>
                   )}
                 </div>

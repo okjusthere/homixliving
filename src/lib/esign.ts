@@ -53,6 +53,22 @@ export type ESignEnvelope = {
     | "EXPIRED"
     | "FAILED_FINALIZATION";
   completedAt?: string;
+  recipients?: Array<{
+    id: string;
+    roleId: string;
+    name: string;
+    email: string;
+    kind: ESignRole["kind"];
+    status:
+      | "PENDING"
+      | "ACTIVE"
+      | "VIEWED"
+      | "IN_PROGRESS"
+      | "COMPLETED"
+      | "DECLINED"
+      | "REVOKED";
+    completedAt?: string;
+  }>;
 };
 
 export type ESignEvidence = {

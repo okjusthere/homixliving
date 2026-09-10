@@ -6,6 +6,8 @@ import { requireAdminApi } from "@/lib/auth-guards";
 import { getCommerceProduct } from "@/lib/commerce/catalog";
 import { logAudit } from "@/lib/audit";
 import { onboardingPaymentProduct } from "@/lib/onboarding";
+import { onboardingAgreementAllowsPayment } from "@/lib/onboarding";
+import { syncOnboardingAgreement } from "@/lib/onboarding-agreement";
 import {
   onboardingLicenseTransferFeeCents,
   settlePlanPayment,
@@ -50,8 +52,15 @@ export async function POST(req: NextRequest) {
   }
   const externalPaymentKey = `offline:${idempotencyKey}`;
 
-  const [agent] = await db.select().from(agents).where(eq(agents.id, agentId)).limit(1);
+  let [agent] = await db.select().from(agents).where(eq(agents.id, agentId)).limit(1);
   if (!agent) return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+  if (agent.esignEnvelopeId && !onboardingAgreementAllowsPayment(agent)) {
+    try {
+      agent = await syncOnboardingAgreement(agent);
+    } catch (error) {
+      console.error("Unable to verify agent signature before offline payment", error);
+    }
+  }
   const [existingOrder] = await db
     .select()
     .from(commerceOrders)
@@ -72,7 +81,7 @@ export async function POST(req: NextRequest) {
   if (!agent.onboardingCompletedAt) {
     return NextResponse.json({ error: "The agent must complete their onboarding profile first" }, { status: 409 });
   }
-  if (agent.agreementStatus !== "completed") {
+  if (!onboardingAgreementAllowsPayment(agent)) {
     return NextResponse.json({ error: "The affiliation agreement must be signed before payment" }, { status: 409 });
   }
   if (agent.plan === "team_member" && (!agent.teamTermsConfigId || !agent.teamTermsAcceptedAt)) {

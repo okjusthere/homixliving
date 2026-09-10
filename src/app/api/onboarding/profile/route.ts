@@ -134,6 +134,7 @@ export async function GET() {
     : null;
   return NextResponse.json({
     profile: {
+      accountStatus: agent.accountStatus,
       plan: normalizeAgentPlan(agent.plan),
       teamId: agent.teamId,
       referredByAgentId: agent.referredByAgentId,
@@ -141,6 +142,8 @@ export async function GET() {
       onboardingCompletedAt: agent.onboardingCompletedAt,
       onboardingStage: agent.onboardingStage,
       agreementStatus: agent.agreementStatus,
+      agreementAgentSignedAt: agent.agreementAgentSignedAt,
+      agreementCountersignedAt: agent.agreementCountersignedAt,
       paymentStatus: agent.paymentStatus,
       legalName: agent.legalName,
       phone: agent.phone,

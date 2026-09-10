@@ -87,8 +87,9 @@ read-only Homix Realty office values. Living never contains LIBOR fields.
 
 The confirmed company countersigner for both entities is Si Zhang, Broker,
 using the shared signing mailbox `hr@homixny.com`. Countersigning is required
-and occurs manually after the administrator's compliance approval. Portal and
-eSign may not auto-apply the company signature.
+and remains a manual company compliance action. It no longer blocks the Agent's
+payment or online Portal activation after the Agent has signed. Portal and eSign
+may not auto-apply the company signature.
 
 The business approval covers the compensation schedule, shared Agent and Team
 Leader terms, Realty appendix, and current edition/effective date. A later PDF
@@ -205,6 +206,28 @@ Solo, Solo Pro, and Team Member always use separate immutable releases. Portal
 selects the exact legal entity, plan, and (for Realty) LIBOR route before envelope
 creation. Do not hide materially different terms with conditional merge values.
 
+## Signing, payment, and activation milestones
+
+The Agent signature and the company countersignature are separate milestones:
+
+1. The candidate completes every required Agent field, acknowledgement,
+   signature, and signed-date field. Portal records `agreement_agent_signed_at`
+   and immediately permits the signed plan payment.
+2. A verified Stripe webhook settles the online onboarding order, records the
+   $20 license-transfer fee, accrues any Sponsor reward, and activates Portal
+   access. The browser success URL never activates an account.
+3. A verified offline payment remains `pending` after finance records it. An
+   administrator reviews the receipt/reference and performs the only manual
+   onboarding approval path.
+4. `hr@homixny.com` countersigns as Si Zhang. When eSign seals the final PDF and
+   evidence package, Portal records `agreement_countersigned_at` and
+   `agreement_completed_at`. A bounded daily reconciliation recovers envelopes
+   completed after the Agent already entered Portal.
+
+An online Agent does not wait for company countersign to use Portal, but the
+agreement remains legally incomplete until eSign reaches `COMPLETED`. Declined,
+voided, expired, or failed envelopes cannot start a new payment.
+
 ## Publish and pin
 
 Production status on 2026-09-03:
@@ -255,7 +278,9 @@ the new lifecycle: `20260825-team-leader-applications.sql`,
 `20260825-team-join-approval.sql`,
 `20260825-team-leader-workspace.sql`, then
 `20260825-holding-to-solo.sql`. Apply
-`20260903-countersigner-email.sql` before validating the HR countersigner route.
+`20260903-countersigner-email.sql` before validating the HR countersigner route,
+then `20260910-onboarding-auto-activation.sql` before deploying the split
+signature/payment milestone code.
 Assign a licensed company to every
 legacy Team before enabling company-bound workflows. Do not enable the
 enforcement flag as part of a migration or deployment.

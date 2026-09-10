@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { agents, teamJoinRequests, teams } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { agents, commerceOrders, teamJoinRequests, teams } from "@/db/schema";
+import { and, desc, eq, gt, inArray } from "drizzle-orm";
 import { requireAdminApi } from "@/lib/auth-guards";
 import { notify } from "@/lib/notify";
 import { logAudit } from "@/lib/audit";
@@ -15,7 +15,10 @@ import {
   type PublicProfile,
 } from "@/lib/homixweb";
 import { normalizeAgentPlan, PLAN_SPLIT_PCT } from "@/lib/agent-plans";
-import { isOnboardingV2Enforced, onboardingPaymentProduct } from "@/lib/onboarding";
+import {
+  hasAgentSignedOnboardingAgreement,
+  onboardingPaymentProduct,
+} from "@/lib/onboarding";
 import { isOnboardingESignConfigured } from "@/lib/esign";
 import { syncOnboardingAgreement } from "@/lib/onboarding-agreement";
 import { syncPublicAgentProfile } from "@/lib/sync-public-profile";
@@ -57,7 +60,7 @@ export async function POST(
       { status: 409 },
     );
   }
-  if (existing.accountStatus === "pending" && isOnboardingV2Enforced()) {
+  if (existing.accountStatus === "pending") {
     if (existing.esignEnvelopeId) {
       if (!isOnboardingESignConfigured(
         existing.licensedCompany,
@@ -86,8 +89,8 @@ export async function POST(
     if (!existing.onboardingCompletedAt) {
       return NextResponse.json({ error: "The agent has not completed their onboarding profile." }, { status: 409 });
     }
-    if (existing.agreementStatus !== "completed") {
-      return NextResponse.json({ error: "The affiliation agreement has not been signed." }, { status: 409 });
+    if (!hasAgentSignedOnboardingAgreement(existing)) {
+      return NextResponse.json({ error: "The agent has not signed the affiliation agreement." }, { status: 409 });
     }
     if (
       normalizeAgentPlan(existing.plan) === "team_member" &&
@@ -100,6 +103,28 @@ export async function POST(
     }
     if (paymentRequired && existing.paymentStatus !== "paid") {
       return NextResponse.json({ error: "The required affiliation fee has not been paid." }, { status: 409 });
+    }
+    const [settledOnboardingOrder] = await db
+      .select({ paymentChannel: commerceOrders.paymentChannel })
+      .from(commerceOrders)
+      .where(and(
+        eq(commerceOrders.agentId, existing.id),
+        gt(commerceOrders.licenseTransferFeeCents, 0),
+        inArray(commerceOrders.status, ["paid", "active"]),
+      ))
+      .orderBy(desc(commerceOrders.paidAt), desc(commerceOrders.id))
+      .limit(1);
+    if (!settledOnboardingOrder) {
+      return NextResponse.json(
+        { error: "A verified offline onboarding payment is required before admin approval." },
+        { status: 409 },
+      );
+    }
+    if (settledOnboardingOrder.paymentChannel !== "offline") {
+      return NextResponse.json(
+        { error: "Stripe onboarding payments activate automatically. Refresh the agent list." },
+        { status: 409 },
+      );
     }
   }
 

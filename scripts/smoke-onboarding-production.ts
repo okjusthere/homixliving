@@ -188,6 +188,8 @@ try {
       onboardingCompletedAt: now,
       onboardingStage: "payment",
       agreementStatus: "completed",
+      agreementAgentSignedAt: now,
+      agreementCountersignedAt: now,
       agreementCompletedAt: now,
       paymentStatus: "pending",
       affiliationTermMonths: 12,
@@ -228,7 +230,61 @@ try {
     )).limit(1);
     assert.equal(paidAgent.paymentStatus, "paid");
     assert.equal(paidAgent.onboardingStage, "review");
+    assert.equal(paidAgent.accountStatus, "pending");
     assert.equal(reward.amountCents, 2_880);
+
+    const [onlineAgent] = await tx.insert(agents).values({
+      name: `${runId} Stripe Payment`,
+      legalName: `${runId} Stripe Payment`,
+      email: `${runId}-stripe@example.invalid`,
+      licensedCompany: company.legalName,
+      licensedCompanyId: company.id,
+      companySelectedAt: now,
+      companyRequirementsAcknowledgedAt: now,
+      accountStatus: "pending",
+      plan: "solo",
+      splitPct: 85,
+      onboardingCompletedAt: now,
+      onboardingStage: "payment",
+      agreementStatus: "sent",
+      agreementAgentSignedAt: now,
+      paymentStatus: "pending",
+      affiliationTermMonths: 12,
+    }).returning();
+    const [onlineOrder] = await tx.insert(commerceOrders).values({
+      agentId: onlineAgent.id,
+      productKey: "one_year_membership",
+      productName: "One-year membership",
+      billingMode: "payment",
+      amountCents: 30_800,
+      licenseTransferFeeCents: 2_000,
+      currency: "usd",
+      status: "paid",
+      paymentChannel: "stripe",
+      stripeCheckoutSessionId: `${runId}-checkout`,
+      customerName: onlineAgent.legalName,
+      customerEmail: onlineAgent.email,
+      referralHasAgent: "no",
+      workspaceStatus: "not_required",
+      paidAt: now,
+      createdAt: now,
+      updatedAt: now,
+    }).returning();
+    const onlineSettlement = await settlePlanPayment(tx, {
+      order: onlineOrder,
+      sourceKey: `checkout:${onlineOrder.stripeCheckoutSessionId}`,
+      amountCents: onlineOrder.amountCents,
+      rewardEligibleAmountCents: onlineOrder.amountCents - onlineOrder.licenseTransferFeeCents,
+      earnedAt: now,
+    });
+    const [activatedAgent] = await tx
+      .select()
+      .from(agents)
+      .where(eq(agents.id, onlineAgent.id))
+      .limit(1);
+    assert.equal(onlineSettlement?.automaticallyActivated, true);
+    assert.equal(activatedAgent.accountStatus, "active");
+    assert.equal(activatedAgent.onboardingStage, "complete");
 
     report = {
       database: "production (transaction rolled back)",
@@ -236,7 +292,15 @@ try {
       solo: { paymentProduct: "one_year_membership", readyForAgreement: true },
       teamSameSponsor: { teamAllocation: 900, sponsorReward: 100, agentNet: 8_100 },
       teamDifferentSponsor: { teamAllocation: 900, sponsorReward: 100, agentNet: 8_100 },
-      offlinePayment: { status: paidAgent.paymentStatus, sponsorPlanRewardCents: reward.amountCents },
+      offlinePayment: {
+        paymentStatus: paidAgent.paymentStatus,
+        accountStatus: paidAgent.accountStatus,
+        sponsorPlanRewardCents: reward.amountCents,
+      },
+      stripePayment: {
+        paymentStatus: activatedAgent.paymentStatus,
+        accountStatus: activatedAgent.accountStatus,
+      },
     };
     completed = true;
     tx.rollback();

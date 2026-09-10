@@ -7,11 +7,12 @@ import { commerceOrders } from "@/db/schema";
 import { commerceProductName, formatProductAmount } from "@/lib/commerce/catalog";
 import { getLocale } from "@/lib/i18n";
 import { commerceStatusLabel } from "@/lib/domain-labels";
+import { OnboardingActivationRedirect } from "./onboarding-activation-redirect";
 
 const M = {
   en: {
     title: "Payment received",
-    lead: "Stripe accepted the payment. Homix will finish internal processing from the payment confirmation.",
+    lead: "Stripe accepted the payment. Online onboarding activates automatically from the verified payment.",
     order: "Order",
     product: "Product",
     amount: "Amount",
@@ -20,12 +21,11 @@ const M = {
     workspace: "Workspace",
     unavailable: "Order details are not available yet.",
     back: "Back to payments",
-    backToReview: "Continue to final review",
     licenseTransferFee: "License transfer fee",
   },
   zh: {
     title: "付款已收到",
-    lead: "Stripe 已接受付款，Homix 将根据付款确认完成后续内部处理。",
+    lead: "Stripe 已接受付款，线上入职将根据已验证的付款自动开通。",
     order: "订单",
     product: "项目",
     amount: "金额",
@@ -34,7 +34,6 @@ const M = {
     workspace: "Workspace 账号",
     unavailable: "订单详情暂时还不可用。",
     back: "返回缴费页面",
-    backToReview: "进入最终审核",
     licenseTransferFee: "执照转入费",
   },
 } as const;
@@ -123,14 +122,18 @@ export default async function PaySuccessPage({
           </div>
         )}
 
-        <div className="mt-8 flex flex-wrap gap-3">
-          <Link
-            href={onboardingPayment ? "/pending" : "/pay"}
-            className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-4 text-[14px] text-ink transition hover:bg-paper-deep"
-          >
-            {onboardingPayment ? t.backToReview : t.back}
-          </Link>
-        </div>
+        {onboardingPayment ? (
+          <OnboardingActivationRedirect locale={locale} />
+        ) : (
+          <div className="mt-8 flex flex-wrap gap-3">
+            <Link
+              href="/pay"
+              className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-4 text-[14px] text-ink transition hover:bg-paper-deep"
+            >
+              {t.back}
+            </Link>
+          </div>
+        )}
       </div>
     </main>
   );
