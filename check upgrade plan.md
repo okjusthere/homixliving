@@ -482,3 +482,79 @@ Local verification completed:
    fulfillment.
 7. Monitor Checkout errors, Customer mismatches, webhook failures, and Customer
    counts per agent before widening rollout.
+
+## 19. Agent identity, website roster, and Team Leader workspace plan
+
+### Decision
+
+Use a three-layer identity model instead of email-as-person:
+
+```text
+Agent person (#id; business ownership and lifecycle)
+  -> verified email addresses (one primary, multiple login aliases)
+  -> stable Google identities (provider + OIDC subject)
+```
+
+Normal Google login must never register a new Agent. Only an explicit `/join`
+application, a valid invitation, or configured admin bootstrap may create one.
+An existing Agent can initiate “link another Google email” and must prove
+control of that exact account through Google OAuth. All verified aliases return
+to the same Agent id, role, team, deals, payout profile, and approval state.
+
+### Confirmed production merges
+
+The following source rows are approved for transactional merge and deletion
+after migration, deployment, and a final reference check:
+
+| Delete source | Keep canonical | Treatment |
+| --- | --- | --- |
+| `#27808 limeixuan001@gmail.com` | `#27689 michelleliny001@gmail.com` | Preserve alias and onboarding history |
+| `#27810 kertweller@gmail.com` | `#1463 wellerkert@gmail.com` | Preserve alias, onboarding history, and failed e-sign snapshot |
+| `#1064 eric.wei@kevv.ai` | `#11762 eric.wei@homixny.com` | Preserve alias and training view |
+
+Do not delete `#27811 jht94825@gmail.com` (active e-sign), `#27756
+liaoyux@gmail.com` (no reliable canonical target), or `#787
+stellashen0809@gmail.com` (deal association and no reliable target). Do not
+merge `#1 okjusthere@gmail.com` in this change because it owns orders, deals,
+training, and onboarding history that require a separate business review.
+
+Every approved merge must be one all-or-nothing transaction. Before deleting a
+source it validates exact ids/emails, refuses unexpected deal/payment/team/legal
+references, preserves the complete source row in `agent_merge_history`, moves
+permitted activity, retains the old email as a verified login alias, and writes
+an append-only audit entry.
+
+### Administrator experience
+
+- The 81-row website roster shows total, linked, unlinked, and broken counts.
+- Every website profile shows its website email plus the exact linked Portal
+  Agent id, name, primary email, and lifecycle status.
+- Broken links are visibly different from unlinked profiles.
+- Agent search and detail screens show verified login aliases, so staff can find
+  one person by any known email without creating another account.
+- Fuzzy name matching never writes a link; ambiguous matches remain a human
+  decision.
+
+### Team Leader workspace
+
+- Team Leaders and admins get a persistent Personal / Team workspace switch in
+  desktop navigation and the mobile menu.
+- `/` remains the personal Agent workspace; `/team-workspace` is the distinct
+  team view.
+- A missing team or leader assignment renders a clear empty state with the
+  corrective action. It never silently redirects to the personal homepage.
+- Production currently has zero teams and zero Team Leader applications, so an
+  admin must create a team and assign its leader before team data can appear.
+
+### Rollout order
+
+1. Run lint, type checking, unit/integration tests, and production build.
+2. Apply the additive identity migration and verify legacy primary-email
+   backfill.
+3. Deploy the application code and verify normal login, explicit application,
+   alias linking, roster association display, and both mobile workspaces.
+4. Run the confirmed-merge command without `--apply`; compare its reference
+   report to this table.
+5. Apply all three merges in one transaction, then verify source absence,
+   canonical status, aliases, merge history, audit entries, roster links, and
+   login with both emails.

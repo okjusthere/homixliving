@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  agentEmailAddresses,
   agentPaymentProfiles,
   agentPayouts,
   agents,
@@ -71,6 +72,20 @@ export default async function ProfilePage() {
   const [ledTeam] = agentId
     ? await db.select({ id: teams.id }).from(teams).where(eq(teams.leaderAgentId, agentId)).limit(1)
     : [];
+  const loginEmails = agentId
+    ? await db
+        .select({
+          email: agentEmailAddresses.email,
+          isPrimary: agentEmailAddresses.isPrimary,
+          verifiedAt: agentEmailAddresses.verifiedAt,
+        })
+        .from(agentEmailAddresses)
+        .where(and(
+          eq(agentEmailAddresses.agentId, agentId),
+          eq(agentEmailAddresses.canSignIn, true),
+        ))
+        .orderBy(desc(agentEmailAddresses.isPrimary), agentEmailAddresses.email)
+    : [];
 
   // Strip bank digits before props cross to the client — anything passed here
   // is serialized into the page payload. The UI only needs masked state.
@@ -98,6 +113,7 @@ export default async function ProfilePage() {
         splitPct: agent.splitPct,
         pendingEmail: agent.pendingEmail,
         emailChangeRequestedAt: agent.emailChangeRequestedAt,
+        loginEmails,
       }
     : null;
 

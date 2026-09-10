@@ -244,6 +244,99 @@ export const agents = portal.table("agents", {
     .where(sql`${table.stripeCustomerId} IS NOT NULL`),
 ]);
 
+export type AgentEmailKind = "login" | "business" | "personal" | "recovery" | "public";
+
+/**
+ * Email addresses are contact and routing attributes, not the person key.
+ * `agents.email` remains the compatibility projection of the primary login
+ * address while legacy invoice and reporting paths are migrated.
+ */
+export const agentEmailAddresses = portal.table(
+  "agent_email_addresses",
+  {
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    agentId: integer("agent_id")
+      .notNull()
+      .references(() => agents.id, { onDelete: "cascade" }),
+    email: text("email").notNull(),
+    kind: text("kind").$type<AgentEmailKind>().notNull().default("login"),
+    canSignIn: boolean("can_sign_in").notNull().default(false),
+    isPrimary: boolean("is_primary").notNull().default(false),
+    verifiedAt: timestamptz("verified_at"),
+    source: text("source").notNull().default("legacy"),
+    createdByAgentId: integer("created_by_agent_id").references(() => agents.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamptz("created_at").notNull().defaultNow(),
+    updatedAt: timestamptz("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("uq_agent_email_addresses_lower").on(sql`lower(${table.email})`),
+    uniqueIndex("uq_agent_email_addresses_primary")
+      .on(table.agentId)
+      .where(sql`${table.isPrimary} = TRUE`),
+    index("idx_agent_email_addresses_agent").on(table.agentId),
+  ],
+);
+
+/** Stable provider identities. For Google, provider_subject is the OIDC `sub`. */
+export const agentLoginIdentities = portal.table(
+  "agent_login_identities",
+  {
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    agentId: integer("agent_id")
+      .notNull()
+      .references(() => agents.id, { onDelete: "cascade" }),
+    provider: text("provider").notNull(),
+    providerSubject: text("provider_subject").notNull(),
+    emailAtLink: text("email_at_link"),
+    isPrimary: boolean("is_primary").notNull().default(false),
+    verifiedAt: timestamptz("verified_at").notNull(),
+    lastUsedAt: timestamptz("last_used_at"),
+    disabledAt: timestamptz("disabled_at"),
+    source: text("source").notNull().default("sign_in"),
+    createdByAgentId: integer("created_by_agent_id").references(() => agents.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamptz("created_at").notNull().defaultNow(),
+    updatedAt: timestamptz("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("uq_agent_login_identity_provider_subject").on(
+      table.provider,
+      table.providerSubject,
+    ),
+    uniqueIndex("uq_agent_login_identity_primary")
+      .on(table.agentId)
+      .where(sql`${table.isPrimary} = TRUE AND ${table.disabledAt} IS NULL`),
+    index("idx_agent_login_identities_agent").on(table.agentId),
+  ],
+);
+
+/**
+ * Durable redirect/audit record for a duplicate person row that was removed.
+ * source_agent_id deliberately has no FK because the source row no longer exists.
+ */
+export const agentMergeHistory = portal.table(
+  "agent_merge_history",
+  {
+    id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+    sourceAgentId: integer("source_agent_id").notNull().unique(),
+    targetAgentId: integer("target_agent_id")
+      .notNull()
+      .references(() => agents.id, { onDelete: "restrict" }),
+    sourceEmail: text("source_email").notNull(),
+    sourceSnapshot: jsonb("source_snapshot").$type<Record<string, unknown>>().notNull(),
+    movedReferences: jsonb("moved_references")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    mergedByEmail: text("merged_by_email"),
+    mergedAt: timestamptz("merged_at").notNull().defaultNow(),
+  },
+  (table) => [index("idx_agent_merge_history_target").on(table.targetAgentId)],
+);
+
 // Invitation links freeze only their authoritative facts. A personal referral
 // locks the sponsor, while a team campaign also locks the team and plan. Only
 // a SHA-256 token hash is stored; plaintext exists only in the generated URL.
@@ -1154,6 +1247,9 @@ export type OnboardingEvent = typeof onboardingEvents.$inferSelect;
 export type NewOnboardingEvent = typeof onboardingEvents.$inferInsert;
 export type Agent = typeof agents.$inferSelect;
 export type NewAgent = typeof agents.$inferInsert;
+export type AgentEmailAddress = typeof agentEmailAddresses.$inferSelect;
+export type AgentLoginIdentity = typeof agentLoginIdentities.$inferSelect;
+export type AgentMergeHistory = typeof agentMergeHistory.$inferSelect;
 export type RentalDeal = typeof rentalDeals.$inferSelect;
 export type NewRentalDeal = typeof rentalDeals.$inferInsert;
 export type RentalDealAgent = typeof rentalDealAgents.$inferSelect;

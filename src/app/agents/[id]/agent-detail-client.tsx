@@ -48,6 +48,8 @@ const M = {
     unit: "Unit",
     contact: "Contact",
     email: "Email",
+    loginEmails: "Verified login emails",
+    primaryEmail: "Primary",
     phone: "Phone",
     notes: "Notes",
     noNotes: "No notes yet.",
@@ -96,6 +98,8 @@ const M = {
     unit: "单元",
     contact: "联系方式",
     email: "邮箱",
+    loginEmails: "已验证登录邮箱",
+    primaryEmail: "主邮箱",
     phone: "电话",
     notes: "备注",
     noNotes: "暂无备注。",
@@ -114,6 +118,7 @@ const M = {
 type AgentPayload = {
   agent: Agent;
   teamName: string | null;
+  loginEmails: Array<{ email: string; isPrimary: boolean; verifiedAt: string | null }>;
 };
 
 type ReportPayload = {
@@ -242,7 +247,7 @@ export default function AgentDetailConsole() {
     );
   }
 
-  const { agent, teamName } = payload;
+  const { agent, teamName, loginEmails } = payload;
 
   return (
     <div className="space-y-7">
@@ -382,6 +387,27 @@ export default function AgentDetailConsole() {
           <CardHeader title={t.contact} />
           <div className="p-5 space-y-4">
             <SoftField label={t.email} value={agent.email || "—"} mono />
+            {loginEmails.length > 0 && (
+              <div>
+                <div className="text-[11px] uppercase tracking-[0.1em]" style={{ color: tone.ink50 }}>
+                  {t.loginEmails}
+                </div>
+                <div className="mt-2 space-y-1.5">
+                  {loginEmails.map((address) => (
+                    <div key={address.email} className="flex min-w-0 items-center gap-2">
+                      <span className="min-w-0 truncate font-mono text-[11.5px]" style={{ color: tone.ink70 }}>
+                        {address.email}
+                      </span>
+                      {address.isPrimary && (
+                        <span className="shrink-0 rounded-full px-2 py-0.5 text-[9.5px] uppercase" style={{ background: tone.accentSoft, color: tone.accent }}>
+                          {t.primaryEmail}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <SoftField label={t.phone} value={agent.phone || "—"} mono />
           </div>
         </Card>

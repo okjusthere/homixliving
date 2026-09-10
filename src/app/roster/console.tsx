@@ -14,6 +14,7 @@ type PortalRosterCandidate = {
   id: number;
   name: string;
   email: string;
+  accountStatus: "pending" | "active" | "inactive";
 };
 
 type MergeDraft = {
@@ -65,6 +66,14 @@ const M = {
     cancel: "Cancel",
     replacing: "Replacing…",
     confirmReplace: "Replace link and delete duplicate",
+    total: "Website profiles",
+    linkedCount: "Linked",
+    unlinkedCount: "Unlinked",
+    brokenCount: "Needs review",
+    linkedTo: "Linked Portal account",
+    brokenLink: "The linked Portal account no longer exists",
+    websiteEmail: "Website email",
+    status: { active: "Active", pending: "Pending", inactive: "Inactive" },
   },
   zh: {
     unreachable: "暂时无法连接对外网站（www.homixny.com）。请稍后重试；如持续失败，请检查 HOMIXWEB_REVALIDATE_URL 与 AGENTS_REVALIDATE_SECRET。",
@@ -109,6 +118,14 @@ const M = {
     cancel: "取消",
     replacing: "正在更换…",
     confirmReplace: "确认更换并删除重复主页",
+    total: "官网档案",
+    linkedCount: "已关联",
+    unlinkedCount: "未关联",
+    brokenCount: "需核对",
+    linkedTo: "关联的 Portal 账号",
+    brokenLink: "原关联 Portal 账号已不存在",
+    websiteEmail: "官网邮箱",
+    status: { active: "在职", pending: "待审批", inactive: "已停用" },
   },
 } as const;
 
@@ -152,6 +169,14 @@ export function RosterConsole({
   const keepProfile = mergeDraft
     ? agents.find((agent) => agent.id === mergeDraft.keepProfileId) ?? null
     : null;
+  const rosterCounts = useMemo(() => ({
+    total: agents.length,
+    linked: agents.filter((agent) => agent.portal_agent_id != null).length,
+    unlinked: agents.filter((agent) => agent.portal_agent_id == null).length,
+    broken: agents.filter(
+      (agent) => agent.portal_agent_id != null && !agent.linked_portal_agent,
+    ).length,
+  }), [agents]);
 
   if (unreachable) {
     return (
@@ -252,6 +277,12 @@ export function RosterConsole({
               ...agent,
               name: portalAgent.name,
               portal_agent_id: portalAgentId,
+              linked_portal_agent: {
+                id: portalAgent.id,
+                name: portalAgent.name,
+                email: portalAgent.email,
+                account_status: portalAgent.accountStatus,
+              },
             }
           : agent,
       );
@@ -300,7 +331,17 @@ export function RosterConsole({
         .filter((agent) => agent.id !== mergeDraft.duplicate.id)
         .map((agent) =>
           agent.id === keepProfile.id
-            ? { ...agent, name: portalAgent.name, portal_agent_id: portalAgentId }
+            ? {
+                ...agent,
+                name: portalAgent.name,
+                portal_agent_id: portalAgentId,
+                linked_portal_agent: {
+                  id: portalAgent.id,
+                  name: portalAgent.name,
+                  email: portalAgent.email,
+                  account_status: portalAgent.accountStatus,
+                },
+              }
             : agent,
         );
       onAgentsChange?.(updated);
@@ -321,6 +362,22 @@ export function RosterConsole({
         </div>
       )}
 
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {[
+          { label: t.total, value: rosterCounts.total, color: tone.ink },
+          { label: t.linkedCount, value: rosterCounts.linked, color: tone.green },
+          { label: t.unlinkedCount, value: rosterCounts.unlinked, color: tone.amber },
+          { label: t.brokenCount, value: rosterCounts.broken, color: rosterCounts.broken ? tone.rose : tone.ink50 },
+        ].map(({ label, value, color }) => (
+          <Card key={label} className="p-4">
+            <div className="text-[10.5px] uppercase tracking-[0.1em]" style={{ color: tone.ink50 }}>
+              {label}
+            </div>
+            <div className="mt-1 font-serif text-[28px]" style={{ color }}>{value}</div>
+          </Card>
+        ))}
+      </div>
+
       {/* Roster */}
       <Card className="flex flex-col">
         <CardHeader
@@ -329,7 +386,10 @@ export function RosterConsole({
         />
         <div className="divide-y" style={{ borderColor: tone.line }}>
           {agents.map((a, idx) => (
-            <div key={a.id} className="flex flex-wrap items-center gap-3 px-5 py-3">
+            <div
+              key={a.id}
+              className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3 px-4 py-4 sm:grid-cols-[auto_minmax(180px,0.9fr)_minmax(260px,1.2fr)_auto] sm:px-5"
+            >
               {/* Order controls */}
               <div className="flex flex-col">
                 <button
@@ -355,7 +415,7 @@ export function RosterConsole({
               </div>
 
               {/* Identity */}
-              <div className="min-w-[180px] flex-1">
+              <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="font-medium text-[13.5px]" style={{ color: tone.ink }}>
                     {a.name || t.unnamed}
@@ -379,6 +439,41 @@ export function RosterConsole({
                 >
                   /{a.slug} ↗
                 </a>
+                {a.email && (
+                  <div className="mt-1 truncate text-[11px]" style={{ color: tone.ink50 }}>
+                    {t.websiteEmail}: {a.email}
+                  </div>
+                )}
+              </div>
+
+              <div
+                className="col-span-2 min-w-0 rounded-lg px-3 py-2 sm:col-span-1"
+                style={{
+                  background: a.linked_portal_agent ? tone.paperDeep : a.portal_agent_id ? tone.roseSoft : "transparent",
+                  border: `1px solid ${a.linked_portal_agent ? tone.lineSoft : a.portal_agent_id ? `${tone.rose}30` : tone.lineSoft}`,
+                }}
+              >
+                <div className="text-[10px] uppercase tracking-[0.08em]" style={{ color: tone.ink50 }}>
+                  {t.linkedTo}
+                </div>
+                {a.linked_portal_agent ? (
+                  <>
+                    <div className="mt-1 truncate text-[12.5px] font-medium" style={{ color: tone.ink }}>
+                      #{a.linked_portal_agent.id} · {a.linked_portal_agent.name}
+                    </div>
+                    <div className="truncate font-mono text-[11px]" style={{ color: tone.ink50 }}>
+                      {a.linked_portal_agent.email} · {t.status[a.linked_portal_agent.account_status]}
+                    </div>
+                  </>
+                ) : a.portal_agent_id != null ? (
+                  <div className="mt-1 text-[12px]" style={{ color: tone.rose }}>
+                    #{a.portal_agent_id} · {t.brokenLink}
+                  </div>
+                ) : (
+                  <div className="mt-1 text-[12px]" style={{ color: tone.amber }}>
+                    {t.unlinkedCount}
+                  </div>
+                )}
               </div>
 
               {/* Visibility state */}
@@ -406,7 +501,7 @@ export function RosterConsole({
               </button>
 
               {/* Actions */}
-              <div className="flex flex-wrap items-center justify-end gap-2">
+              <div className="col-span-2 flex min-w-0 flex-wrap items-center gap-2 sm:col-span-1 sm:justify-end">
                 {a.portal_agent_id == null && availablePortalAgents.length > 0 && (
                   <>
                     <select
@@ -419,7 +514,7 @@ export function RosterConsole({
                         }))
                       }
                       disabled={busy !== null}
-                      className="h-9 max-w-[230px] rounded border bg-white px-2 text-[12px] disabled:opacity-50"
+                      className="h-9 min-w-0 flex-1 rounded border bg-white px-2 text-[12px] disabled:opacity-50 sm:max-w-[230px]"
                       style={{ borderColor: tone.line, color: tone.ink }}
                     >
                       <option value="">{t.selectPortalAgent}</option>

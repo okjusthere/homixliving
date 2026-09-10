@@ -104,6 +104,7 @@ const LABELS = {
     menu: "Menu", switchLanguage: "Switch language", userMenu: "User menu", workspace: "Workspace", market: "Market overview", expiredListings: "Expired listings",
     transactionSupport: "Transaction support", learningGrowth: "Learning & growth", companyPerformance: "Company & performance",
     peopleManagement: "People", financeManagement: "Finance", systemManagement: "System", teamWorkspace: "Team workspace", anonymousFeedback: "Anonymous feedback",
+    personalWorkspace: "Personal", workspaceMode: "Workspace mode",
   },
   zh: {
     overview: "概览", sales: "买卖", rental: "租赁", training: "培训",
@@ -113,6 +114,7 @@ const LABELS = {
     menu: "菜单", switchLanguage: "切换语言", userMenu: "用户菜单", workspace: "工作台", market: "市场概览", expiredListings: "已过期房源",
     transactionSupport: "交易支持", learningGrowth: "学习成长", companyPerformance: "公司与业绩",
     peopleManagement: "人员管理", financeManagement: "财务管理", systemManagement: "系统管理", teamWorkspace: "团队工作台", anonymousFeedback: "匿名建议",
+    personalWorkspace: "个人", workspaceMode: "工作台切换",
   },
 } as const;
 
@@ -217,6 +219,40 @@ export function Nav() {
             <Link href="/" prefetch={false} className="flex-none">
               <HomixMark />
             </Link>
+            {mayUseTeamWorkspace && (
+              <div
+                className="hidden shrink-0 items-center rounded-lg p-1 sm:flex"
+                style={{ background: tone.paperDeep, border: `1px solid ${tone.lineSoft}` }}
+                aria-label={t.workspaceMode}
+              >
+                <Link
+                  href="/"
+                  prefetch={false}
+                  aria-current={pathname === "/" ? "page" : undefined}
+                  className="flex h-7 items-center rounded-md px-2.5 text-[11.5px] font-medium transition-colors"
+                  style={{
+                    background: pathname === "/" ? tone.card : "transparent",
+                    color: pathname === "/" ? tone.ink : tone.ink50,
+                    boxShadow: pathname === "/" ? "0 1px 2px rgba(0,0,0,0.06)" : "none",
+                  }}
+                >
+                  {t.personalWorkspace}
+                </Link>
+                <Link
+                  href="/team-workspace"
+                  prefetch={false}
+                  aria-current={pathname.startsWith("/team-workspace") ? "page" : undefined}
+                  className="flex h-7 items-center rounded-md px-2.5 text-[11.5px] font-medium transition-colors"
+                  style={{
+                    background: pathname.startsWith("/team-workspace") ? tone.card : "transparent",
+                    color: pathname.startsWith("/team-workspace") ? tone.ink : tone.ink50,
+                    boxShadow: pathname.startsWith("/team-workspace") ? "0 1px 2px rgba(0,0,0,0.06)" : "none",
+                  }}
+                >
+                  {t.teamWorkspace}
+                </Link>
+              </div>
+            )}
             <div className="hidden xl:flex items-center gap-0.5">
               {primaryItems.slice(0, 3).map((item) => {
                 const active = isActive(item.href);
@@ -523,6 +559,38 @@ export function Nav() {
             className="xl:hidden pb-3 grid grid-cols-2 gap-1"
             style={{ borderTop: `1px solid ${tone.lineSoft}` }}
           >
+            {mayUseTeamWorkspace && (
+              <div
+                className="col-span-2 mb-1 mt-3 grid grid-cols-2 rounded-lg p-1"
+                style={{ background: tone.paperDeep, border: `1px solid ${tone.lineSoft}` }}
+                aria-label={t.workspaceMode}
+              >
+                <Link
+                  href="/"
+                  prefetch={false}
+                  onClick={() => setMobileOpen(false)}
+                  className="flex h-10 items-center justify-center rounded-md text-[13px] font-medium"
+                  style={{
+                    background: pathname === "/" ? tone.card : "transparent",
+                    color: pathname === "/" ? tone.ink : tone.ink50,
+                  }}
+                >
+                  {t.personalWorkspace}
+                </Link>
+                <Link
+                  href="/team-workspace"
+                  prefetch={false}
+                  onClick={() => setMobileOpen(false)}
+                  className="flex h-10 items-center justify-center rounded-md text-[13px] font-medium"
+                  style={{
+                    background: pathname.startsWith("/team-workspace") ? tone.card : "transparent",
+                    color: pathname.startsWith("/team-workspace") ? tone.ink : tone.ink50,
+                  }}
+                >
+                  {t.teamWorkspace}
+                </Link>
+              </div>
+            )}
             {primaryItems.slice(0, 3).map((item) => {
               const active = isActive(item.href);
               return (

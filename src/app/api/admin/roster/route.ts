@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { requireAdminApi } from "@/lib/auth-guards";
 import { homixwebBase, homixwebSecret, isHomixwebConfigured } from "@/lib/homixweb";
 import { logAudit } from "@/lib/audit";
@@ -27,8 +27,64 @@ export async function GET() {
       cache: "no-store",
       signal: AbortSignal.timeout(8000),
     });
-    const body = await res.json().catch(() => ({}));
-    return NextResponse.json(body, { status: res.status });
+    const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) return NextResponse.json(body, { status: res.status });
+
+    const roster = Array.isArray(body.agents)
+      ? (body.agents as Array<Record<string, unknown>>)
+      : [];
+    const portalIds = [...new Set(
+      roster
+        .map((row) => Number(row.portal_agent_id))
+        .filter((id) => Number.isInteger(id) && id > 0),
+    )];
+    const linkedAgents = portalIds.length
+      ? await db
+          .select({
+            id: agents.id,
+            name: agents.name,
+            email: agents.email,
+            accountStatus: agents.accountStatus,
+          })
+          .from(agents)
+          .where(inArray(agents.id, portalIds))
+      : [];
+    const linkedById = new Map(linkedAgents.map((agent) => [agent.id, agent]));
+    return NextResponse.json({
+      ...body,
+      agents: roster.map((row) => {
+        const portalAgentId = Number(row.portal_agent_id);
+        const linked = Number.isInteger(portalAgentId) && portalAgentId > 0
+          ? linkedById.get(portalAgentId)
+          : undefined;
+        return {
+          ...row,
+          linked_portal_agent: linked
+            ? {
+                id: linked.id,
+                name: linked.name,
+                email: linked.email,
+                account_status: linked.accountStatus,
+              }
+            : null,
+        };
+      }),
+      link_summary: {
+        total: roster.length,
+        linked: roster.filter((row) => {
+          const id = Number(row.portal_agent_id);
+          return Number.isInteger(id) && id > 0;
+        }).length,
+        unlinked: roster.filter((row) => {
+          const id = Number(row.portal_agent_id);
+          return !Number.isInteger(id) || id <= 0;
+        }).length,
+        broken: roster.filter((row) => {
+          const id = Number(row.portal_agent_id);
+          return Number.isInteger(id) && id > 0 && !linkedById.has(id);
+        }).length,
+      },
+    });
   } catch {
     return NextResponse.json({ error: "Couldn't reach the website." }, { status: 502 });
   }

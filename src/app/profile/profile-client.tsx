@@ -21,6 +21,7 @@ export type SafeAgentProfile = {
   splitPct: number;
   pendingEmail: string | null;
   emailChangeRequestedAt: string | null;
+  loginEmails: Array<{ email: string; isPrimary: boolean; verifiedAt: string | null }>;
 };
 
 // Masked payment state — full routing/account digits never reach the client.
@@ -50,24 +51,25 @@ const M = {
     saving: "Saving…",
     saved: "Saved.",
     saveFailed: "Save failed — please retry.",
-    emailChangeTitle: "Google login email",
+    emailChangeTitle: "Google login emails",
     emailChangeLead:
-      "Enter the new address, then verify it by signing in with that Google account. Your deals, team, and payouts stay on the same profile.",
-    newEmail: "New Google email",
-    requestEmailChange: "Change email",
+      "Link every Google address you use to this one Agent profile. Sign in once with the additional address to verify it; your primary contact email stays unchanged.",
+    newEmail: "Additional Google email",
+    requestEmailChange: "Link email",
     requestingEmailChange: "Saving…",
     pendingEmail: (email: string) => `Waiting for verification: ${email}`,
     pendingEmailLead:
-      "This request is valid for 7 days. Sign out, choose the new Google account, and Homix will rebind this profile after Google verifies it.",
+      "This request is valid for 7 days. Sign out and choose this Google account; after verification either email will open the same profile.",
     verifyEmail: "Verify with Google",
     cancelEmailChange: "Cancel request",
     cancelingEmailChange: "Canceling…",
     emailInvalid: "Enter a valid email address.",
-    emailSame: "That is already your login email.",
+    emailSame: "That email is already linked to your profile.",
     emailInUse: "That email is already linked or waiting to be linked to another profile.",
-    emailAdmin:
-      "An admin must add the new address to ADMIN_EMAILS before changing this login.",
-    emailChangeFailed: "Could not start the email change. Please retry.",
+    emailAdmin: "This address cannot be linked to the admin account.",
+    emailChangeFailed: "Could not start linking the email. Please retry.",
+    primaryEmail: "Primary",
+    linkedEmail: "Verified login",
     mlsVerified: "Saved. MLS identity verified. Past sales appear when OneKey has eligible Closed records.",
     mlsUnavailable: "Saved. MLS verification is temporarily unavailable and will retry automatically.",
     mlsUnmatched: "Saved. This license has not matched the Homix OneKey roster. Check the number; the system retries daily.",
@@ -135,21 +137,23 @@ const M = {
     saveFailed: "保存失败，请重试。",
     emailChangeTitle: "Google 登录邮箱",
     emailChangeLead:
-      "填写新邮箱后，需要用该 Google 账号重新登录完成验证。成交、团队、付款等资料仍保留在同一个档案下。",
-    newEmail: "新的 Google 邮箱",
-    requestEmailChange: "更换邮箱",
+      "把你常用的多个 Google 邮箱关联到同一份经纪人档案。用新增邮箱登录一次完成验证，主联系邮箱不会改变。",
+    newEmail: "新增 Google 邮箱",
+    requestEmailChange: "关联邮箱",
     requestingEmailChange: "保存中…",
     pendingEmail: (email: string) => `等待验证：${email}`,
     pendingEmailLead:
-      "申请 7 天内有效。退出后选择新的 Google 账号登录，Google 验证成功后系统会自动完成换绑。",
+      "申请 7 天内有效。退出后选择这个 Google 账号，验证成功后两个邮箱都会进入同一份档案。",
     verifyEmail: "使用 Google 验证",
     cancelEmailChange: "取消申请",
     cancelingEmailChange: "取消中…",
     emailInvalid: "请输入有效邮箱。",
-    emailSame: "这已经是当前登录邮箱。",
+    emailSame: "该邮箱已经关联到你的档案。",
     emailInUse: "该邮箱已关联或正等待关联到其他档案。",
-    emailAdmin: "管理员换绑前，需要先把新地址加入 ADMIN_EMAILS。",
-    emailChangeFailed: "无法发起邮箱更换，请重试。",
+    emailAdmin: "该邮箱无法关联到管理员账号。",
+    emailChangeFailed: "无法发起邮箱关联，请重试。",
+    primaryEmail: "主邮箱",
+    linkedEmail: "已验证登录邮箱",
     mlsVerified: "已保存，并已匹配 MLS 身份。OneKey 有可展示的 Closed 记录时，历史成交会自动出现。",
     mlsUnavailable: "已保存。MLS 暂时无法验证，系统会自动重试。",
     mlsUnmatched: "已保存，但该执照号尚未匹配 Homix 的 OneKey 名册。请核对号码；系统每天会自动重试。",
@@ -485,6 +489,30 @@ export function ProfileClient({
             <p className="mt-1 text-[12.5px] leading-5" style={{ color: tone.ink50 }}>
               {t.emailChangeLead}
             </p>
+            {agent?.loginEmails.length ? (
+              <div className="mt-3 space-y-1.5">
+                {agent.loginEmails.map((address) => (
+                  <div
+                    key={address.email}
+                    className="flex min-w-0 items-center justify-between gap-3 rounded-lg px-3 py-2"
+                    style={{ background: tone.paperDeep }}
+                  >
+                    <span className="min-w-0 truncate font-mono text-[12px]" style={{ color: tone.ink70 }}>
+                      {address.email}
+                    </span>
+                    <span
+                      className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.06em]"
+                      style={{
+                        background: address.isPrimary ? tone.accentSoft : tone.greenSoft,
+                        color: address.isPrimary ? tone.accent : tone.green,
+                      }}
+                    >
+                      {address.isPrimary ? t.primaryEmail : t.linkedEmail}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
             {pendingEmail ? (
               <div className="mt-3 space-y-3 rounded-lg p-3" style={{ background: tone.paperDeep }}>
                 <div>

@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { agentPaymentProfiles, agents, dealAgents, deals, teams } from "@/db/schema";
+import {
+  agentEmailAddresses,
+  agentPaymentProfiles,
+  agents,
+  dealAgents,
+  deals,
+  teams,
+} from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { requireActiveAgentApi, requireAdminApi } from "@/lib/auth-guards";
 import { isAgentPractice, normalizeAgentPlan, PLAN_SPLIT_PCT } from "@/lib/agent-plans";
@@ -126,6 +133,23 @@ export async function GET(req: NextRequest) {
 
   const visibleRows = rows;
 
+  const loginEmailRows = await db
+    .select({
+      agentId: agentEmailAddresses.agentId,
+      email: agentEmailAddresses.email,
+      isPrimary: agentEmailAddresses.isPrimary,
+      verifiedAt: agentEmailAddresses.verifiedAt,
+    })
+    .from(agentEmailAddresses)
+    .where(eq(agentEmailAddresses.canSignIn, true));
+  const loginEmailsByAgent = new Map<number, typeof loginEmailRows>();
+  for (const address of loginEmailRows) {
+    loginEmailsByAgent.set(address.agentId, [
+      ...(loginEmailsByAgent.get(address.agentId) || []),
+      address,
+    ]);
+  }
+
   const allDeals = await db.select().from(deals);
   const allDealAgents = await db.select().from(dealAgents);
   const allAgents = rows.map((row) => row.agent);
@@ -182,6 +206,7 @@ export async function GET(req: NextRequest) {
     const payment = paymentByAgent.get(row.agent.id);
     return {
       ...row,
+      loginEmails: loginEmailsByAgent.get(row.agent.id) || [],
       mtdDeals: monthDeals.length,
       mtdTake,
       hasPayout: payment?.hasPayout ?? false,
@@ -232,10 +257,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Team Member plan requires a team" }, { status: 400 });
     }
 
-    const [created] = await db
-      .insert(agents)
-      .values({ ...data, email, createdAt: new Date().toISOString() })
-      .returning();
+    const created = await db.transaction(async (tx) => {
+      const now = new Date().toISOString();
+      const [newAgent] = await tx
+        .insert(agents)
+        .values({ ...data, email, createdAt: now })
+        .returning();
+      await tx.insert(agentEmailAddresses).values({
+        agentId: newAgent.id,
+        email,
+        kind: "login",
+        canSignIn: true,
+        isPrimary: true,
+        verifiedAt: now,
+        source: "admin_created",
+        createdByAgentId: authResult.session.user.agentId,
+        updatedAt: now,
+      });
+      return newAgent;
+    });
     await logAudit(
       authResult.session,
       "create",

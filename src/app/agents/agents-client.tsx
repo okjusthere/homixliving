@@ -236,6 +236,7 @@ const M = {
 type AgentRow = {
   agent: Agent;
   teamName: string | null;
+  loginEmails?: Array<{ email: string; isPrimary: boolean; verifiedAt: string | null }>;
   mtdDeals: number;
   mtdTake: number;
   /** Payout readiness (presence only — never the bank digits themselves). */
@@ -470,11 +471,12 @@ export default function AgentsConsole({ initialView }: { initialView: AdminView 
     if (!search) return activeAgents;
     const q = search.toLowerCase();
     return activeAgents.filter(
-      ({ agent, teamName }) =>
+      ({ agent, teamName, loginEmails }) =>
         agent.name.toLowerCase().includes(q) ||
         // Searchable by the licence/tax name too — admins often only have that.
         (agent.legalName || "").toLowerCase().includes(q) ||
         (agent.email || "").toLowerCase().includes(q) ||
+        (loginEmails || []).some((address) => address.email.toLowerCase().includes(q)) ||
         (agent.licenseNumber || "").toLowerCase().includes(q) ||
         (teamName || "").toLowerCase().includes(q)
     );
@@ -677,7 +679,12 @@ export default function AgentsConsole({ initialView }: { initialView: AdminView 
           initialAgents={publicAgents}
           portalAgents={agents
             .filter(({ agent }) => agent.accountStatus === "active")
-            .map(({ agent }) => ({ id: agent.id, name: agent.name, email: agent.email }))}
+            .map(({ agent }) => ({
+              id: agent.id,
+              name: agent.name,
+              email: agent.email,
+              accountStatus: agent.accountStatus,
+            }))}
           unreachable={publicRosterUnreachable}
           loading={publicRosterLoading}
           onAgentsChange={setPublicAgents}
@@ -702,7 +709,7 @@ export default function AgentsConsole({ initialView }: { initialView: AdminView 
             action={<Pill tone="draft">{pending.length}</Pill>}
           />
           <div className="divide-y" style={{ borderColor: tone.lineSoft }}>
-            {pending.map(({ agent }) => (
+            {pending.map(({ agent, loginEmails }) => (
               <div
                 key={agent.id}
                 className="grid items-start gap-4 px-5 py-4 sm:items-center sm:px-6 sm:[grid-template-columns:auto_1fr_auto]"
@@ -724,6 +731,11 @@ export default function AgentsConsole({ initialView }: { initialView: AdminView 
                       <span> · {t.joined} {agent.joinedAt}</span>
                     )}
                   </div>
+                  {(loginEmails || []).filter((address) => !address.isPrimary).length > 0 && (
+                    <div className="mt-0.5 truncate font-mono text-[11px]" style={{ color: tone.accent }}>
+                      + {(loginEmails || []).filter((address) => !address.isPrimary).map((address) => address.email).join(" · ")}
+                    </div>
+                  )}
                   <div className="mt-1 flex flex-wrap gap-2 text-[11px]" style={{ color: tone.ink50 }}>
                     <span>{t.agreement}: {agreementStatusLabel(agent.agreementStatus)}</span>
                     <span>·</span>
@@ -837,7 +849,7 @@ export default function AgentsConsole({ initialView }: { initialView: AdminView 
             action={<Pill tone="neutral">{inactive.length}</Pill>}
           />
           <div className="divide-y" style={{ borderColor: tone.lineSoft }}>
-            {inactive.map(({ agent }) => (
+            {inactive.map(({ agent, loginEmails }) => (
               <div
                 key={agent.id}
                 className="grid items-start gap-4 px-5 py-4 sm:items-center sm:px-6 sm:[grid-template-columns:auto_1fr_auto]"
@@ -856,6 +868,11 @@ export default function AgentsConsole({ initialView }: { initialView: AdminView 
                   <div className="text-[12px] mt-0.5 font-mono" style={{ color: tone.ink50 }}>
                     {agent.email || t.noEmail}
                   </div>
+                  {(loginEmails || []).filter((address) => !address.isPrimary).length > 0 && (
+                    <div className="mt-0.5 truncate font-mono text-[11px]" style={{ color: tone.accent }}>
+                      + {(loginEmails || []).filter((address) => !address.isPrimary).map((address) => address.email).join(" · ")}
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <Btn variant="outline" size="sm" onClick={() => setEditAgent(agent)}>
@@ -940,6 +957,11 @@ export default function AgentsConsole({ initialView }: { initialView: AdminView 
                       <div className="truncate text-[12.5px]" style={{ color: tone.ink70 }}>
                         {agent.email || t.noEmailCap}
                       </div>
+                      {(row.loginEmails || []).filter((address) => !address.isPrimary).length > 0 && (
+                        <div className="mt-0.5 truncate font-mono text-[10.5px]" style={{ color: tone.accent }}>
+                          + {(row.loginEmails || []).filter((address) => !address.isPrimary).map((address) => address.email).join(" · ")}
+                        </div>
+                      )}
                       {agent.phone && (
                         <div className="mt-0.5 truncate font-mono text-[11.5px]" style={{ color: tone.ink50 }}>
                           {agent.phone}

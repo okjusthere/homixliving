@@ -3,8 +3,14 @@ import Google from "next-auth/providers/google";
 import { after } from "next/server";
 import { cookies } from "next/headers";
 import { db } from "@/db";
-import { agents, invoices, onboardingEvents, teams, trainingVideoViews } from "@/db/schema";
-import { and, eq, sql } from "drizzle-orm";
+import {
+  agentEmailAddresses,
+  agentLoginIdentities,
+  agents,
+  onboardingEvents,
+  teams,
+} from "@/db/schema";
+import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import { authConfig } from "./auth.config";
 import { DEFAULT_AGENT_SPLIT_PCT } from "@/lib/splits";
 import { adminAgentIds, notify } from "@/lib/notify";
@@ -34,14 +40,17 @@ const googleEnabled =
 
 type Agent = typeof agents.$inferSelect;
 
-class EmailChangeConflictError extends Error {}
+class EmailLinkConflictError extends Error {}
+class IdentityConflictError extends Error {}
 
 async function reconcileConfiguredAccess(
   existing: Agent,
   admin: boolean,
   name: string | null | undefined,
 ) {
-  const needsAdminFlip = Boolean(existing.isAdmin) !== admin;
+  // A person may sign in through a personal alias. Never remove an existing
+  // admin grant merely because that alias is not listed in ADMIN_EMAILS.
+  const needsAdminFlip = admin && !existing.isAdmin;
   const needsActiveForce = admin && existing.accountStatus !== "active";
   const needsNameFill = !existing.name && Boolean(name);
 
@@ -52,7 +61,7 @@ async function reconcileConfiguredAccess(
   const [updated] = await db
     .update(agents)
     .set({
-      isAdmin: admin,
+      ...(needsAdminFlip ? { isAdmin: true } : {}),
       ...(needsActiveForce ? { accountStatus: "active" as const } : {}),
       ...(needsNameFill ? { name: name! } : {}),
       updatedAt: new Date().toISOString(),
@@ -64,30 +73,152 @@ async function reconcileConfiguredAccess(
 }
 
 async function loadAgentFromDatabase(user: {
+  agentId?: number | null;
   email?: string | null;
   name?: string | null;
 }) {
-  if (!user.email) throw new Error("Google account has no email");
+  if (user.agentId) {
+    const [byId] = await db
+      .select()
+      .from(agents)
+      .where(eq(agents.id, user.agentId))
+      .limit(1);
+    if (byId) {
+      return reconcileConfiguredAccess(
+        byId,
+        isConfiguredAdminEmail(byId.email),
+        user.name,
+      );
+    }
+  }
+
+  if (!user.email) throw new Error("Agent account not found");
 
   const email = user.email.trim().toLowerCase();
-  const [existing] = await db
-    .select()
-    .from(agents)
-    .where(sql`lower(${agents.email}) = ${email}`)
+  const [linked] = await db
+    .select({ agent: agents })
+    .from(agentEmailAddresses)
+    .innerJoin(agents, eq(agentEmailAddresses.agentId, agents.id))
+    .where(and(
+      sql`lower(${agentEmailAddresses.email}) = ${email}`,
+      eq(agentEmailAddresses.canSignIn, true),
+      isNotNull(agentEmailAddresses.verifiedAt),
+    ))
     .limit(1);
 
-  if (!existing) {
+  if (!linked?.agent) {
     throw new Error(`Agent account not found for ${email}`);
   }
 
   return reconcileConfiguredAccess(
-    existing,
-    isConfiguredAdminEmail(email),
+    linked.agent,
+    isConfiguredAdminEmail(email) || isConfiguredAdminEmail(linked.agent.email),
     user.name,
   );
 }
 
-async function completeEmailChange(pendingAgent: Agent, email: string) {
+async function agentForGoogleSubject(providerSubject: string) {
+  const [linked] = await db
+    .select({ agent: agents })
+    .from(agentLoginIdentities)
+    .innerJoin(agents, eq(agentLoginIdentities.agentId, agents.id))
+    .where(and(
+      eq(agentLoginIdentities.provider, "google"),
+      eq(agentLoginIdentities.providerSubject, providerSubject),
+      isNull(agentLoginIdentities.disabledAt),
+    ))
+    .limit(1);
+  return linked?.agent || null;
+}
+
+async function agentForVerifiedLoginEmail(email: string) {
+  const [linked] = await db
+    .select({ agent: agents })
+    .from(agentEmailAddresses)
+    .innerJoin(agents, eq(agentEmailAddresses.agentId, agents.id))
+    .where(and(
+      sql`lower(${agentEmailAddresses.email}) = ${email}`,
+      eq(agentEmailAddresses.canSignIn, true),
+      isNotNull(agentEmailAddresses.verifiedAt),
+    ))
+    .limit(1);
+  return linked?.agent || null;
+}
+
+async function recordVerifiedGoogleIdentity(
+  agent: Agent,
+  email: string,
+  providerSubject: string,
+  source: "sign_in" | "legacy_bootstrap" | "application",
+) {
+  const now = new Date().toISOString();
+  await db.transaction(async (tx) => {
+    await tx
+      .insert(agentEmailAddresses)
+      .values({
+        agentId: agent.id,
+        email,
+        kind: "login",
+        canSignIn: true,
+        isPrimary: email === agent.email.toLowerCase(),
+        verifiedAt: now,
+        source,
+        updatedAt: now,
+      })
+      .onConflictDoNothing();
+
+    const [emailOwner] = await tx
+      .select({ agentId: agentEmailAddresses.agentId })
+      .from(agentEmailAddresses)
+      .where(sql`lower(${agentEmailAddresses.email}) = ${email}`)
+      .limit(1);
+    if (!emailOwner || emailOwner.agentId !== agent.id) {
+      throw new IdentityConflictError("Verified email belongs to another Agent");
+    }
+
+    await tx
+      .insert(agentLoginIdentities)
+      .values({
+        agentId: agent.id,
+        provider: "google",
+        providerSubject,
+        emailAtLink: email,
+        isPrimary: email === agent.email.toLowerCase(),
+        verifiedAt: now,
+        lastUsedAt: now,
+        source,
+        updatedAt: now,
+      })
+      .onConflictDoNothing();
+
+    const [identityOwner] = await tx
+      .select({ agentId: agentLoginIdentities.agentId })
+      .from(agentLoginIdentities)
+      .where(and(
+        eq(agentLoginIdentities.provider, "google"),
+        eq(agentLoginIdentities.providerSubject, providerSubject),
+      ))
+      .limit(1);
+    if (!identityOwner || identityOwner.agentId !== agent.id) {
+      throw new IdentityConflictError("Google identity belongs to another Agent");
+    }
+
+    await tx
+      .update(agentLoginIdentities)
+      .set({ emailAtLink: email, lastUsedAt: now, updatedAt: now })
+      .where(and(
+        eq(agentLoginIdentities.provider, "google"),
+        eq(agentLoginIdentities.providerSubject, providerSubject),
+        eq(agentLoginIdentities.agentId, agent.id),
+      ));
+  });
+}
+
+async function completeEmailAliasLink(
+  pendingAgent: Agent,
+  email: string,
+  providerSubject: string,
+) {
   if (!isEmailChangeRequestActive(pendingAgent.emailChangeRequestedAt)) {
     throw new Error(`Email change request expired for ${email}`);
   }
@@ -101,32 +232,79 @@ async function completeEmailChange(pendingAgent: Agent, email: string) {
     throw new Error(`Email change verification context missing for ${email}`);
   }
 
-  const oldEmail = pendingAgent.email;
-  const admin = isConfiguredAdminEmail(email);
   const now = new Date().toISOString();
 
   let updated: Agent;
   try {
     updated = await db.transaction(async (tx) => {
-      // These legacy ownership paths still use email rather than agent_id.
       await tx
-        .update(invoices)
-        .set({ agentEmail: email, updatedAt: now })
-        .where(sql`lower(${invoices.agentEmail}) = ${oldEmail.toLowerCase()}`);
+        .insert(agentEmailAddresses)
+        .values({
+          agentId: pendingAgent.id,
+          email,
+          kind: "login",
+          canSignIn: true,
+          isPrimary: false,
+          verifiedAt: now,
+          source: "self_service_alias",
+          updatedAt: now,
+        })
+        .onConflictDoNothing();
+      const [newAddress] = await tx
+        .select({ agentId: agentEmailAddresses.agentId })
+        .from(agentEmailAddresses)
+        .where(sql`lower(${agentEmailAddresses.email}) = ${email}`)
+        .limit(1);
+      if (!newAddress || newAddress.agentId !== pendingAgent.id) {
+        throw new EmailLinkConflictError();
+      }
       await tx
-        .update(trainingVideoViews)
-        .set({ agentEmail: email, updatedAt: now })
-        .where(eq(trainingVideoViews.agentId, pendingAgent.id));
+        .update(agentEmailAddresses)
+        .set({ canSignIn: true, verifiedAt: now, updatedAt: now })
+        .where(and(
+          eq(agentEmailAddresses.agentId, pendingAgent.id),
+          sql`lower(${agentEmailAddresses.email}) = ${email}`,
+        ));
+      await tx
+        .insert(agentLoginIdentities)
+        .values({
+          agentId: pendingAgent.id,
+          provider: "google",
+          providerSubject,
+          emailAtLink: email,
+          isPrimary: false,
+          verifiedAt: now,
+          lastUsedAt: now,
+          source: "self_service_alias",
+          updatedAt: now,
+        })
+        .onConflictDoNothing();
+      const [identityOwner] = await tx
+        .select({ agentId: agentLoginIdentities.agentId })
+        .from(agentLoginIdentities)
+        .where(and(
+          eq(agentLoginIdentities.provider, "google"),
+          eq(agentLoginIdentities.providerSubject, providerSubject),
+        ))
+        .limit(1);
+      if (!identityOwner || identityOwner.agentId !== pendingAgent.id) {
+        throw new EmailLinkConflictError();
+      }
+      await tx
+        .update(agentLoginIdentities)
+        .set({ emailAtLink: email, lastUsedAt: now, disabledAt: null, updatedAt: now })
+        .where(and(
+          eq(agentLoginIdentities.agentId, pendingAgent.id),
+          eq(agentLoginIdentities.provider, "google"),
+          eq(agentLoginIdentities.providerSubject, providerSubject),
+        ));
 
       const [changedAgent] = await tx
         .update(agents)
         .set({
-          email,
           pendingEmail: null,
           emailChangeRequestedAt: null,
           emailChangeTokenHash: null,
-          isAdmin: admin,
-          ...(admin ? { accountStatus: "active" as const } : {}),
           updatedAt: now,
         })
         .where(
@@ -136,23 +314,23 @@ async function completeEmailChange(pendingAgent: Agent, email: string) {
           ),
         )
         .returning();
-      if (!changedAgent) throw new EmailChangeConflictError();
+      if (!changedAgent) throw new EmailLinkConflictError();
       return changedAgent;
     });
   } catch (error) {
-    if (error instanceof EmailChangeConflictError) {
-      throw new Error(`Email change request no longer available for ${email}`);
+    if (error instanceof EmailLinkConflictError) {
+      throw new Error(`Email link request no longer available for ${email}`);
     }
     throw error;
   }
 
   await logAudit(
-    { user: { email } },
-    "complete_email_change",
+    { user: { email: pendingAgent.email } },
+    "link_login_email",
     "agent",
     updated.id,
-    `登录邮箱已从 ${oldEmail} 更换为 ${email}`,
-    { oldEmail, newEmail: email },
+    `已验证并关联登录邮箱 ${email}`,
+    { primaryEmail: pendingAgent.email, linkedEmail: email },
   );
 
   return updated;
@@ -161,11 +339,16 @@ async function completeEmailChange(pendingAgent: Agent, email: string) {
 async function upsertAgentFromGoogle(user: {
   email?: string | null;
   name?: string | null;
+  providerSubject?: string | null;
 }) {
-  if (!user.email) throw new Error("Google account has no email");
+  if (!user.email || !user.providerSubject) {
+    throw new Error("Google account has no stable identity");
+  }
 
   const email = normalizeEmail(user.email);
   if (!email) throw new Error("Google account has no email");
+  const providerSubject = user.providerSubject.trim();
+  if (!providerSubject) throw new Error("Google account has no stable identity");
 
   const admin = isConfiguredAdminEmail(email);
   const now = new Date().toISOString();
@@ -180,6 +363,20 @@ async function upsertAgentFromGoogle(user: {
   );
   const initialPlan = !admin && entryContext?.plan ? entryContext.plan : "solo";
 
+  const identityAgent = await agentForGoogleSubject(providerSubject);
+  if (identityAgent) {
+    await recordVerifiedGoogleIdentity(identityAgent, email, providerSubject, "sign_in");
+    return reconcileConfiguredAccess(identityAgent, admin, user.name);
+  }
+
+  const emailAgent = await agentForVerifiedLoginEmail(email);
+  if (emailAgent) {
+    await recordVerifiedGoogleIdentity(emailAgent, email, providerSubject, "sign_in");
+    return reconcileConfiguredAccess(emailAgent, admin, user.name);
+  }
+
+  // Compatibility bridge for a deploy where the additive backfill has not yet
+  // captured an older manually-created Agent row.
   const [existing] = await db
     .select()
     .from(agents)
@@ -187,6 +384,7 @@ async function upsertAgentFromGoogle(user: {
     .limit(1);
 
   if (existing) {
+    await recordVerifiedGoogleIdentity(existing, email, providerSubject, "legacy_bootstrap");
     return reconcileConfiguredAccess(existing, admin, user.name);
   }
 
@@ -197,28 +395,59 @@ async function upsertAgentFromGoogle(user: {
     .limit(1);
 
   if (pendingAgent) {
-    const updated = await completeEmailChange(pendingAgent, email);
+    const updated = await completeEmailAliasLink(pendingAgent, email, providerSubject);
     return reconcileConfiguredAccess(updated, admin, user.name);
   }
 
-  const [created] = await db
-    .insert(agents)
-    .values({
+  // Ordinary sign-in is not registration. A new person record may only be
+  // created by a configured admin, an invitation, or the explicit /join flow.
+  if (!admin && !hasInvitationContext && !entryContext) {
+    return null;
+  }
+
+  const created = await db.transaction(async (tx) => {
+    const [newAgent] = await tx
+      .insert(agents)
+      .values({
+        email,
+        name: user.name || email.split("@")[0],
+        isAdmin: admin,
+        accountStatus: admin ? "active" : "pending",
+        splitPct: PLAN_SPLIT_PCT[initialPlan] ?? DEFAULT_AGENT_SPLIT_PCT,
+        plan: initialPlan,
+        onboardingSource: !admin ? entryContext?.source || "direct" : "direct",
+        planEffectiveFrom: now.slice(0, 10),
+        anniversaryStart: now.slice(0, 10),
+        joinedAt: now.slice(0, 10),
+        createdAt: now,
+        updatedAt: now,
+      })
+      .onConflictDoNothing({ target: agents.email })
+      .returning();
+    if (!newAgent) return null;
+    await tx.insert(agentEmailAddresses).values({
+      agentId: newAgent.id,
       email,
-      name: user.name || email.split("@")[0],
-      isAdmin: admin,
-      accountStatus: admin ? "active" : "pending",
-      splitPct: PLAN_SPLIT_PCT[initialPlan] ?? DEFAULT_AGENT_SPLIT_PCT,
-      plan: initialPlan,
-      onboardingSource: !admin ? entryContext?.source || "direct" : "direct",
-      planEffectiveFrom: now.slice(0, 10),
-      anniversaryStart: now.slice(0, 10),
-      joinedAt: now.slice(0, 10),
-      createdAt: now,
+      kind: "login",
+      canSignIn: true,
+      isPrimary: true,
+      verifiedAt: now,
+      source: admin ? "admin_bootstrap" : "application",
       updatedAt: now,
-    })
-    .onConflictDoNothing({ target: agents.email })
-    .returning();
+    });
+    await tx.insert(agentLoginIdentities).values({
+      agentId: newAgent.id,
+      provider: "google",
+      providerSubject,
+      emailAtLink: email,
+      isPrimary: true,
+      verifiedAt: now,
+      lastUsedAt: now,
+      source: admin ? "admin_bootstrap" : "application",
+      updatedAt: now,
+    });
+    return newAgent;
+  });
 
   if (created && !admin) {
     // Admin notification is not part of the OAuth critical path.
@@ -258,13 +487,8 @@ async function upsertAgentFromGoogle(user: {
 
   const upserted =
     created ||
-    (
-      await db
-        .select()
-        .from(agents)
-        .where(sql`lower(${agents.email}) = ${email}`)
-        .limit(1)
-    )[0];
+    (await agentForGoogleSubject(providerSubject)) ||
+    (await agentForVerifiedLoginEmail(email));
 
   if (!upserted) {
     throw new Error(`Failed to upsert agent for ${email}`);
@@ -280,7 +504,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         Google({
           clientId: process.env.AUTH_GOOGLE_ID!,
           clientSecret: process.env.AUTH_GOOGLE_SECRET!,
-          allowDangerousEmailAccountLinking: true,
         }),
       ]
     : [],
@@ -288,9 +511,21 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     ...authConfig.callbacks,
     async signIn({ account, profile }) {
       if (account?.provider !== "google") return false;
-      return profile?.email_verified === true;
+      if (profile?.email_verified !== true || !profile.email || !account.providerAccountId) {
+        return false;
+      }
+      try {
+        return Boolean(await upsertAgentFromGoogle({
+          email: profile.email,
+          name: typeof profile.name === "string" ? profile.name : null,
+          providerSubject: account.providerAccountId,
+        }));
+      } catch (error) {
+        console.error("Google identity resolution failed", error);
+        return false;
+      }
     },
-    async jwt({ token, user, trigger }) {
+    async jwt({ token, user, trigger, account }) {
       const email =
         (typeof user?.email === "string" && user.email) ||
         (typeof token.email === "string" && token.email) ||
@@ -308,7 +543,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // cached isAdmin/accountStatus is more than a few minutes old, so an
       // admin approving/promoting someone still lands within a few minutes
       // without a full sign-out required.
-      const isFreshSignIn = Boolean(user);
+      const isFreshSignIn = Boolean(user && account?.provider === "google");
       const checkedAt = typeof token.checkedAt === "number" ? token.checkedAt : 0;
       const isStale =
         trigger === "update" ||
@@ -325,8 +560,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           (typeof token.name === "string" ? token.name : null),
       };
       const agent = isFreshSignIn
-        ? await upsertAgentFromGoogle(identity)
-        : await loadAgentFromDatabase(identity);
+        ? await upsertAgentFromGoogle({
+            ...identity,
+            providerSubject: account?.providerAccountId,
+          })
+        : await loadAgentFromDatabase({
+            ...identity,
+            agentId: typeof token.agentId === "number" ? token.agentId : null,
+          });
+      if (!agent) throw new Error("Google account is not linked to a Homix Agent");
 
       token.agentId = agent.id;
       token.email = agent.email;

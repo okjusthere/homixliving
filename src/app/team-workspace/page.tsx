@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
+import Link from "next/link";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -11,6 +11,9 @@ import {
   teams,
 } from "@/db/schema";
 import { requireActiveAgent } from "@/lib/auth-guards";
+import { getLocale } from "@/lib/i18n";
+import { tone } from "@/components/homix/tokens";
+import { Card } from "@/components/homix/server-primitives";
 import {
   recruitingInvitationState,
   teamRecruitingStage,
@@ -27,7 +30,11 @@ export default async function TeamWorkspacePage({
 }) {
   const session = await requireActiveAgent();
   const agentId = session.user.agentId;
-  if (!agentId) redirect("/");
+  const locale = await getLocale();
+
+  if (!agentId) {
+    return <TeamWorkspaceUnavailable locale={locale} isAdmin={false} />;
+  }
 
   const availableTeams = session.user.isAdmin
     ? await db.select().from(teams).orderBy(teams.name)
@@ -36,7 +43,9 @@ export default async function TeamWorkspacePage({
         .from(teams)
         .where(eq(teams.leaderAgentId, agentId))
         .orderBy(teams.name);
-  if (!availableTeams.length) redirect("/");
+  if (!availableTeams.length) {
+    return <TeamWorkspaceUnavailable locale={locale} isAdmin={session.user.isAdmin} />;
+  }
 
   const query = await searchParams;
   const requestedId = Number(Array.isArray(query.team) ? query.team[0] : query.team);
@@ -226,4 +235,73 @@ export default async function TeamWorkspacePage({
   };
 
   return <TeamWorkspaceClient data={data} isAdmin={session.user.isAdmin} />;
+}
+
+function TeamWorkspaceUnavailable({
+  locale,
+  isAdmin,
+}: {
+  locale: "en" | "zh";
+  isAdmin: boolean;
+}) {
+  const copy = locale === "zh"
+    ? {
+        eyebrow: "团队工作台",
+        title: isAdmin ? "尚未建立团队" : "尚未分配团队权限",
+        lead: isAdmin
+          ? "团队工作台和个人工作台是两个不同视图。建立团队并指定 Team Leader 后，团队成员、招募进度和分成配置会显示在这里。"
+          : "此账号目前不是任何团队的 Team Leader。管理员完成团队与负责人关联后，无需重新登录即可进入团队工作台。",
+        personal: "返回个人工作台",
+        setup: "管理团队",
+      }
+    : {
+        eyebrow: "Team workspace",
+        title: isAdmin ? "No team has been created" : "No team access assigned",
+        lead: isAdmin
+          ? "The team and personal workspaces are separate views. Create a team and assign its Team Leader to see members, recruiting, and compensation here."
+          : "This account is not currently the Team Leader of a team. Once an admin links the team and leader, this workspace becomes available without signing in again.",
+        personal: "Back to personal workspace",
+        setup: "Manage teams",
+      };
+
+  return (
+    <div className="mx-auto max-w-3xl space-y-6 py-4 sm:py-8">
+      <div>
+        <div
+          className="mb-2 text-[11px] font-medium uppercase tracking-[0.16em]"
+          style={{ color: tone.ink50 }}
+        >
+          {copy.eyebrow}
+        </div>
+        <h1 className="font-serif text-[32px] leading-none sm:text-[40px]" style={{ color: tone.ink }}>
+          {copy.title}
+        </h1>
+      </div>
+      <Card className="p-5 sm:p-7">
+        <p className="max-w-2xl text-[14px] leading-6" style={{ color: tone.ink70 }}>
+          {copy.lead}
+        </p>
+        <div className="mt-6 flex flex-col gap-2 sm:flex-row">
+          {isAdmin && (
+            <Link
+              href="/teams"
+              prefetch={false}
+              className="inline-flex h-11 items-center justify-center rounded-lg px-5 text-[13px] font-medium text-white"
+              style={{ background: tone.accent }}
+            >
+              {copy.setup}
+            </Link>
+          )}
+          <Link
+            href="/"
+            prefetch={false}
+            className="inline-flex h-11 items-center justify-center rounded-lg px-5 text-[13px] font-medium"
+            style={{ border: `1px solid ${tone.line}`, color: tone.ink70, background: tone.card }}
+          >
+            {copy.personal}
+          </Link>
+        </div>
+      </Card>
+    </div>
+  );
 }
