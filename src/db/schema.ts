@@ -782,6 +782,7 @@ export const commerceOrders = portal.table("commerce_orders", {
   billingMode: text("billing_mode").notNull(), // payment | subscription
   stripePriceId: text("stripe_price_id"),
   amountCents: integer("amount_cents").notNull(),
+  licenseTransferFeeCents: integer("license_transfer_fee_cents").notNull().default(0),
   currency: text("currency").notNull().default("usd"),
   status: text("status").notNull().default("pending"),
   stripeCheckoutSessionId: text("stripe_checkout_session_id").unique(),

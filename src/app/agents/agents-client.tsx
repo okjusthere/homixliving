@@ -24,6 +24,7 @@ import type { MlsVerificationStatus } from "@/lib/public-identity-status";
 import { RosterConsole } from "../roster/console";
 import { onboardingPaymentProduct } from "@/lib/onboarding";
 import { getCommerceProduct } from "@/lib/commerce/catalog";
+import { onboardingLicenseTransferFeeCents } from "@/lib/plan-payments";
 
 const M = {
   en: {
@@ -119,7 +120,7 @@ const M = {
     offlineMethod: "Payment method",
     offlineDate: "Received date",
     offlineReference: "Receipt / check / transaction reference",
-    offlineAmount: "Full amount (USD)",
+    offlineAmount: "Total received (plan + $20 license transfer)",
     offlineSave: "Verify payment",
     offlineRecorded: "Offline payment verified",
     mlsUnavailable: "MLS verification is temporarily unavailable and will retry automatically.",
@@ -221,7 +222,7 @@ const M = {
     offlineMethod: "付款方式",
     offlineDate: "收款日期",
     offlineReference: "收据 / 支票号 / 交易参考号",
-    offlineAmount: "全额金额（美元）",
+    offlineAmount: "实收总额（方案费 + $20 执照转入费）",
     offlineSave: "确认已收款",
     offlineRecorded: "线下付款已核验",
     mlsUnavailable: "MLS 暂时无法验证，系统会自动重试。",
@@ -517,7 +518,9 @@ export default function AgentsConsole({ initialView }: { initialView: AdminView 
     setOfflineMethod("check");
     setOfflineReference("");
     setOfflineDate(new Date().toISOString().slice(0, 10));
-    setOfflineAmount(product ? (product.amountCents / 100).toFixed(2) : "");
+    setOfflineAmount(product
+      ? ((product.amountCents + onboardingLicenseTransferFeeCents(agent, product.key)) / 100).toFixed(2)
+      : "");
     setOfflineKey(crypto.randomUUID());
     offlineSignatureRef.current = null;
   };

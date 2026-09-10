@@ -4,11 +4,16 @@ import { eq } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "@/db";
 import { agents } from "@/db/schema";
-import { getConfiguredCommerceProducts, formatProductAmount } from "@/lib/commerce/catalog";
+import {
+  formatProductAmount,
+  getCommerceProduct,
+  getConfiguredCommerceProducts,
+} from "@/lib/commerce/catalog";
 import { getWorkspaceAllowedDomains } from "@/lib/google-workspace";
 import { getStripeSecretKey } from "@/lib/stripe";
 import { PayClient, type PublicPayProduct } from "./pay-client";
 import { canPurchasePlanProduct } from "@/lib/plan-payments";
+import { onboardingPaymentProduct } from "@/lib/onboarding";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +37,19 @@ export default async function PayPage({
   if (!agent || agent.accountStatus === "inactive") redirect("/pending");
   const params = await searchParams;
   const canceled = params.canceled === "1";
+  const onboarding = agent.accountStatus === "pending";
+  const onboardingProductKey = onboarding
+    ? onboardingPaymentProduct(agent.plan, agent.affiliationTermMonths)
+    : null;
+  if (onboarding && (agent.agreementStatus !== "completed" || !onboardingProductKey)) {
+    redirect("/pending");
+  }
+  if (onboarding && agent.paymentStatus === "paid") redirect("/pending");
+  const licenseTransferProduct = onboarding
+    ? getCommerceProduct("license_transfer_fee")
+    : null;
   const products: PublicPayProduct[] = getConfiguredCommerceProducts()
+    .filter((product) => !onboarding || product.key === onboardingProductKey)
     .filter((product) => canPurchasePlanProduct(agent, product.key).ok)
     .map((product) => ({
     key: product.key,
@@ -57,7 +74,13 @@ export default async function PayPage({
       canceled={canceled}
       stripeConfigured={Boolean(getStripeSecretKey())}
       workspaceDomains={getWorkspaceAllowedDomains()}
-      initialProductKey={typeof params.product === "string" ? params.product : undefined}
+      initialProductKey={onboardingProductKey || (typeof params.product === "string" ? params.product : undefined)}
+      onboarding={onboarding}
+      licenseTransferFee={licenseTransferProduct ? {
+        name: licenseTransferProduct.name,
+        amountCents: licenseTransferProduct.amountCents,
+        priceLabel: formatProductAmount(licenseTransferProduct.amountCents),
+      } : null}
       identity={{
         name: agent.legalName || agent.name,
         email: agent.email,

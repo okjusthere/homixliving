@@ -11,7 +11,6 @@ export default async function PendingApprovalPage() {
 
   return (
     <PendingApprovalClient
-      initialIsApproved={session.user.isAdmin || session.user.accountStatus === "active"}
       accountStatus={session.user.accountStatus}
     />
   );

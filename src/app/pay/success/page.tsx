@@ -20,6 +20,8 @@ const M = {
     workspace: "Workspace",
     unavailable: "Order details are not available yet.",
     back: "Back to payments",
+    backToReview: "Continue to final review",
+    licenseTransferFee: "License transfer fee",
   },
   zh: {
     title: "付款已收到",
@@ -32,6 +34,8 @@ const M = {
     workspace: "Workspace 账号",
     unavailable: "订单详情暂时还不可用。",
     back: "返回缴费页面",
+    backToReview: "进入最终审核",
+    licenseTransferFee: "执照转入费",
   },
 } as const;
 
@@ -57,6 +61,7 @@ export default async function PaySuccessPage({
         ))
         .limit(1)
     : [];
+  const onboardingPayment = Boolean(order?.licenseTransferFeeCents);
 
   return (
     <main className="min-h-screen bg-paper px-5 py-10 text-ink">
@@ -83,6 +88,12 @@ export default async function PaySuccessPage({
               <span className="text-ink-50">{t.amount}</span>
               <span className="font-mono">{formatProductAmount(order.amountCents)}</span>
             </div>
+            {order.licenseTransferFeeCents > 0 && (
+              <div className="grid gap-1 px-4 py-3 text-[14px] sm:grid-cols-[140px_1fr] sm:gap-3">
+                <span className="text-ink-50">{t.licenseTransferFee}</span>
+                <span className="font-mono">{formatProductAmount(order.licenseTransferFeeCents)}</span>
+              </div>
+            )}
             <div className="grid gap-1 px-4 py-3 text-[14px] sm:grid-cols-[140px_1fr] sm:gap-3">
               <span className="text-ink-50">{t.status}</span>
               <span>{commerceStatusLabel(order.status, locale)}</span>
@@ -114,10 +125,10 @@ export default async function PaySuccessPage({
 
         <div className="mt-8 flex flex-wrap gap-3">
           <Link
-            href="/pay"
+            href={onboardingPayment ? "/pending" : "/pay"}
             className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-white px-4 text-[14px] text-ink transition hover:bg-paper-deep"
           >
-            {t.back}
+            {onboardingPayment ? t.backToReview : t.back}
           </Link>
         </div>
       </div>

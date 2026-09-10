@@ -17,8 +17,7 @@ const M = {
     pendingBody: "Your account has been created. An admin needs to activate it before you can start working.",
     inactiveHint: "Your historical deals and payment records remain retained by the company.",
     pendingHint: "This page checks automatically. Once approved, you will enter Homix Agents without signing out.",
-    checking: "Checking approval…",
-    check: "Check approval",
+    checking: "Checking…",
     signOut: "Sign out",
     setupTitle: "Complete your setup",
     setupHint: "Choose the facts once. Homix will apply the commission rules automatically after approval.",
@@ -34,7 +33,8 @@ const M = {
     oneYear: "$288 · 1 year",
     twoYears: "$500 · 2 years prepaid",
     saveSetup: "Submit setup",
-    setupSaved: "Setup submitted. An admin can now approve the account.",
+    savingSetup: "Submitting…",
+    setupSaved: "Setup submitted. Your agreement will be sent automatically.",
     teamRequestPending: (team: string) => `Team request sent to ${team}. Continue after the Team Leader accepts it.`,
     teamRequestDeclined: (team: string, reason: string | null) =>
       `${team} did not accept this request.${reason ? ` Reason: ${reason}` : " Choose another team or a solo plan."}`,
@@ -63,7 +63,9 @@ const M = {
     invitedRoute: (source: string) => `Invitation applied · ${source.toUpperCase()} · locked details cannot be changed`,
     agreementTitle: "Affiliation agreement",
     agreementHint: "Your submitted facts are inserted into the agreement. Review and sign before payment.",
-    sendAgreement: "Send agreement to my email",
+    sendAgreement: "Retry sending agreement",
+    sendingAgreement: "Sending agreement…",
+    agreementFailed: "The agreement could not be sent. Check the information above and try again.",
     agreementPreparing: "Preparing your approved agreement…",
     agreementSent: "Agreement sent. Open the secure link in your email, then return here.",
     agreementCompleted: "Agreement signed",
@@ -86,7 +88,6 @@ const M = {
     inactiveHint: "公司仍会保留你的历史成交与付款记录。",
     pendingHint: "本页会自动检查状态；批准后无需退出登录，将直接进入 Homix Agents。",
     checking: "正在检查…",
-    check: "检查批准状态",
     signOut: "退出登录",
     setupTitle: "完成入职选择",
     setupHint: "只需填写一次事实；批准后系统会自动套用分佣、封顶和团队规则。",
@@ -102,7 +103,8 @@ const M = {
     oneYear: "$288 · 1 年",
     twoYears: "$500 · 2 年预付",
     saveSetup: "提交入职资料",
-    setupSaved: "资料已提交，管理员现在可以直接批准。",
+    savingSetup: "正在提交…",
+    setupSaved: "资料已提交，系统将自动发送入职协议。",
     teamRequestPending: (team: string) => `已申请加入 ${team}，Team Leader 接受后即可继续签署协议。`,
     teamRequestDeclined: (team: string, reason: string | null) =>
       `${team} 未接受本次申请。${reason ? `原因：${reason}` : "你可以选择其他团队或独立经纪人方案。"}`,
@@ -131,7 +133,9 @@ const M = {
     invitedRoute: (source: string) => `已应用邀请 · ${source.toUpperCase()} · 被锁定的资料不可修改`,
     agreementTitle: "挂靠协议",
     agreementHint: "系统会把已提交的信息带入协议；请先阅读签署，再支付费用。",
-    sendAgreement: "发送协议到我的邮箱",
+    sendAgreement: "重新发送协议",
+    sendingAgreement: "正在发送协议…",
+    agreementFailed: "协议发送失败，请检查上方资料后重试。",
     agreementPreparing: "正在生成已审核版本的协议…",
     agreementSent: "协议已发送，请打开邮箱中的安全链接签署，然后返回本页。",
     agreementCompleted: "协议已签署",
@@ -179,17 +183,15 @@ type TeamJoinRequest = {
 };
 
 export function PendingApprovalClient({
-  initialIsApproved,
   accountStatus,
 }: {
-  initialIsApproved: boolean;
   accountStatus: "pending" | "active" | "inactive";
 }) {
   const router = useRouter();
   const { data: session, status, update } = useSession();
-  const [checking, setChecking] = useState(initialIsApproved);
   const [setupLoading, setSetupLoading] = useState(accountStatus === "pending");
   const [setupSaving, setSetupSaving] = useState(false);
+  const [setupComplete, setSetupComplete] = useState(false);
   const [setupMessage, setSetupMessage] = useState("");
   const [plan, setPlan] = useState("solo");
   const [teamId, setTeamId] = useState("");
@@ -215,6 +217,7 @@ export function PendingApprovalClient({
   const [paymentProduct, setPaymentProduct] = useState<string | null>(null);
   const [esignConfigured, setEsignConfigured] = useState(false);
   const [agreementLoading, setAgreementLoading] = useState(false);
+  const [agreementError, setAgreementError] = useState("");
   const [teams, setTeams] = useState<TeamOption[]>([]);
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [frozenTeamTerms, setFrozenTeamTerms] = useState<TeamTerms | null>(null);
@@ -222,6 +225,9 @@ export function PendingApprovalClient({
   const [sponsors, setSponsors] = useState<Array<{ id: number; name: string }>>([]);
   const checkedOnce = useRef(false);
   const checkInFlight = useRef(false);
+  const agreementRequestInFlight = useRef(false);
+  const agreementAutoStartAttempted = useRef(false);
+  const paymentRedirectStarted = useRef(false);
   const effectiveStatus = session?.user?.accountStatus ?? accountStatus;
   const t = M[useLocale()];
 
@@ -232,6 +238,7 @@ export function PendingApprovalClient({
       const data = await response.json();
       const request = (data.teamJoinRequest || null) as TeamJoinRequest | null;
       setTeamJoinRequest(request);
+      setSetupComplete(Boolean(data.profile?.onboardingCompletedAt));
         const profileCompanyId = data.profile?.licensedCompanyId || "";
         const routedCompanyId = data.routing?.locks?.company
           ? data.routing?.licensedCompanyId || ""
@@ -344,6 +351,8 @@ export function PendingApprovalClient({
         setSetupMessage(t.teamRequestPending(request.teamName));
       } else {
         setTeamJoinRequest(null);
+        agreementAutoStartAttempted.current = false;
+        setSetupComplete(true);
         setSetupMessage(t.setupSaved);
         await refreshAgreement();
       }
@@ -368,18 +377,24 @@ export function PendingApprovalClient({
     }
   }, []);
 
-  const startAgreement = async () => {
+  const startAgreement = useCallback(async () => {
+    if (agreementRequestInFlight.current) return false;
+    agreementRequestInFlight.current = true;
     setAgreementLoading(true);
+    setAgreementError("");
     try {
       const response = await fetch("/api/onboarding/agreement", { method: "POST" });
       if (!response.ok) throw new Error();
       await refreshAgreement();
+      return true;
     } catch {
-      setSetupMessage(t.setupFailed);
+      setAgreementError(t.agreementFailed);
+      return false;
     } finally {
+      agreementRequestInFlight.current = false;
       setAgreementLoading(false);
     }
-  };
+  }, [refreshAgreement, t.agreementFailed]);
 
   useEffect(() => {
     if (accountStatus === "pending") void refreshAgreement();
@@ -390,6 +405,42 @@ export function PendingApprovalClient({
     const interval = window.setInterval(() => void refreshAgreement(), 15_000);
     return () => window.clearInterval(interval);
   }, [agreementStatus, refreshAgreement]);
+
+  useEffect(() => {
+    if (
+      accountStatus !== "pending" ||
+      !setupComplete ||
+      !esignConfigured ||
+      agreementStatus !== "not_started" ||
+      teamJoinRequest?.status === "pending" ||
+      agreementAutoStartAttempted.current
+    ) {
+      return;
+    }
+    agreementAutoStartAttempted.current = true;
+    void startAgreement();
+  }, [
+    accountStatus,
+    agreementStatus,
+    esignConfigured,
+    setupComplete,
+    startAgreement,
+    teamJoinRequest?.status,
+  ]);
+
+  useEffect(() => {
+    if (
+      accountStatus !== "pending" ||
+      agreementStatus !== "completed" ||
+      paymentStatus === "paid" ||
+      !paymentProduct ||
+      paymentRedirectStarted.current
+    ) {
+      return;
+    }
+    paymentRedirectStarted.current = true;
+    router.replace(`/pay?product=${encodeURIComponent(paymentProduct)}&onboarding=1`);
+  }, [accountStatus, agreementStatus, paymentProduct, paymentStatus, router]);
 
   const redirectIfApproved = useCallback(
     (effectiveSession: typeof session) => {
@@ -404,10 +455,9 @@ export function PendingApprovalClient({
     [router]
   );
 
-  const refreshApproval = useCallback(async (showProgress = true) => {
+  const refreshApproval = useCallback(async () => {
     if (checkInFlight.current) return;
     checkInFlight.current = true;
-    if (showProgress) setChecking(true);
     try {
       const refreshed = await refreshApprovalSession(update);
       redirectIfApproved(refreshed || session);
@@ -415,7 +465,6 @@ export function PendingApprovalClient({
       console.error("Unable to refresh approval status", error);
     } finally {
       checkInFlight.current = false;
-      if (showProgress) setChecking(false);
     }
   }, [redirectIfApproved, session, update]);
 
@@ -433,7 +482,7 @@ export function PendingApprovalClient({
     // Approval changes live in the DB, but proxy reads the JWT cookie.
     // Refresh immediately so a previously approved user does not bounce
     // between /pending and /. Ongoing checks are scoped to this page below.
-    void refreshApproval(false);
+    void refreshApproval();
   }, [refreshApproval, router, session, session?.user?.email, status]);
 
   useEffect(() => {
@@ -446,7 +495,7 @@ export function PendingApprovalClient({
     }
 
     const checkNow = () => {
-      if (document.visibilityState === "visible") void refreshApproval(false);
+      if (document.visibilityState === "visible") void refreshApproval();
     };
     const interval = window.setInterval(checkNow, 15_000);
     const checkWhenVisible = () => {
@@ -675,7 +724,7 @@ export function PendingApprovalClient({
                     </select>
                   </label>
                   <Btn variant="primary" className="justify-center sm:col-span-2" onClick={() => void saveSetup()} disabled={setupSaving || agreementStatus !== "not_started"}>
-                    {setupSaving ? t.checking : t.saveSetup}
+                    {setupSaving ? t.savingSetup : t.saveSetup}
                   </Btn>
                   {setupMessage && (
                     <p
@@ -694,7 +743,7 @@ export function PendingApprovalClient({
                 </div>
               )}
 
-              {setupMessage === t.setupSaved && (
+              {setupComplete && teamJoinRequest?.status !== "pending" && (
                 <div className="mt-5 border-t pt-5" style={{ borderColor: tone.line }}>
                   <h3 className="font-serif text-[20px]" style={{ color: tone.ink }}>{t.agreementTitle}</h3>
                   <p className="mt-1 text-[12px]" style={{ color: tone.ink50 }}>{t.agreementHint}</p>
@@ -707,12 +756,23 @@ export function PendingApprovalClient({
                   ) : agreementStatus === "sent" ? (
                     <p className="mt-3 text-[12px]" style={{ color: tone.green }}>{t.agreementSent}</p>
                   ) : (
-                    <Btn variant="outline" className="mt-4 w-full justify-center" onClick={() => void startAgreement()} disabled={agreementLoading}>
-                      {agreementLoading ? t.checking : t.sendAgreement}
-                    </Btn>
+                    <div className="mt-3">
+                      {agreementLoading ? (
+                        <p className="text-[12px]" style={{ color: tone.amber }}>{t.sendingAgreement}</p>
+                      ) : agreementError ? (
+                        <>
+                          <p className="text-[12px]" style={{ color: tone.rose }}>{agreementError}</p>
+                          <Btn variant="outline" className="mt-3 w-full justify-center" onClick={() => void startAgreement()}>
+                            {t.sendAgreement}
+                          </Btn>
+                        </>
+                      ) : (
+                        <p className="text-[12px]" style={{ color: tone.amber }}>{t.agreementPreparing}</p>
+                      )}
+                    </div>
                   )}
                   {agreementStatus === "completed" && paymentProduct && paymentStatus !== "paid" && (
-                    <Btn variant="primary" className="mt-4 w-full justify-center" onClick={() => router.push(`/pay?product=${encodeURIComponent(paymentProduct)}`)}>
+                    <Btn variant="primary" className="mt-4 w-full justify-center" onClick={() => router.push(`/pay?product=${encodeURIComponent(paymentProduct)}&onboarding=1`)}>
                       {t.payAnnualFee}
                     </Btn>
                   )}
@@ -728,18 +788,6 @@ export function PendingApprovalClient({
           )}
 
           <div className="mt-6 grid gap-2">
-            {effectiveStatus === "pending" && (
-              <Btn
-                variant="primary"
-                size="md"
-                type="button"
-                className="w-full justify-center"
-                onClick={() => void refreshApproval(true)}
-                disabled={checking}
-              >
-                {checking ? t.checking : t.check}
-              </Btn>
-            )}
             <Btn
               variant="outline"
               size="md"

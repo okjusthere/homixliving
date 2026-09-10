@@ -564,6 +564,7 @@ export async function ensureSchema(sql: Sql) {
       billing_mode TEXT NOT NULL,
       stripe_price_id TEXT,
       amount_cents INTEGER NOT NULL,
+      license_transfer_fee_cents INTEGER NOT NULL DEFAULT 0,
       currency TEXT NOT NULL DEFAULT 'usd',
       status TEXT NOT NULL DEFAULT 'pending',
       stripe_checkout_session_id TEXT UNIQUE,
@@ -602,6 +603,9 @@ export async function ensureSchema(sql: Sql) {
   await run(`ALTER TABLE portal.commerce_orders ADD COLUMN IF NOT EXISTS offline_reference TEXT`);
   await run(`ALTER TABLE portal.commerce_orders ADD COLUMN IF NOT EXISTS verified_by_email TEXT`);
   await run(`ALTER TABLE portal.commerce_orders ADD COLUMN IF NOT EXISTS external_payment_key TEXT`);
+  await run(`ALTER TABLE portal.commerce_orders ADD COLUMN IF NOT EXISTS license_transfer_fee_cents INTEGER NOT NULL DEFAULT 0`);
+  await run(`ALTER TABLE portal.commerce_orders DROP CONSTRAINT IF EXISTS commerce_orders_license_transfer_fee_check`);
+  await run(`ALTER TABLE portal.commerce_orders ADD CONSTRAINT commerce_orders_license_transfer_fee_check CHECK (license_transfer_fee_cents >= 0 AND license_transfer_fee_cents <= amount_cents)`);
   await run(`CREATE UNIQUE INDEX IF NOT EXISTS uq_commerce_orders_external_payment_key ON portal.commerce_orders(external_payment_key) WHERE external_payment_key IS NOT NULL`);
   await run(`ALTER TABLE portal.commerce_orders DROP CONSTRAINT IF EXISTS commerce_orders_payment_channel_check`);
   await run(`ALTER TABLE portal.commerce_orders ADD CONSTRAINT commerce_orders_payment_channel_check CHECK (payment_channel IN ('stripe','offline'))`);
