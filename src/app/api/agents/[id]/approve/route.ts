@@ -17,6 +17,7 @@ import {
 import { normalizeAgentPlan, PLAN_SPLIT_PCT } from "@/lib/agent-plans";
 import {
   hasAgentSignedOnboardingAgreement,
+  isOnboardingV2Enforced,
   onboardingPaymentProduct,
 } from "@/lib/onboarding";
 import { isOnboardingESignConfigured } from "@/lib/esign";
@@ -60,7 +61,7 @@ export async function POST(
       { status: 409 },
     );
   }
-  if (existing.accountStatus === "pending") {
+  if (existing.accountStatus === "pending" && isOnboardingV2Enforced()) {
     if (existing.esignEnvelopeId) {
       if (!isOnboardingESignConfigured(
         existing.licensedCompany,

@@ -71,6 +71,7 @@ export function shouldAutomaticallyActivatePaidOnboarding(
   >,
   paymentChannel: string,
 ) {
+  if (!isOnboardingV2Enforced()) return false;
   if (
     paymentChannel !== "stripe" ||
     agent.accountStatus !== "pending" ||
