@@ -1,11 +1,21 @@
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { agents, sponsorPlanRewards, type Agent, type CommerceOrder } from "@/db/schema";
+import {
+  agents,
+  onboardingEvents,
+  sponsorPlanRewards,
+  type Agent,
+  type CommerceOrder,
+} from "@/db/schema";
 import {
   ONBOARDING_LICENSE_TRANSFER_FEE_CENTS,
   type CommerceProductKey,
 } from "@/lib/commerce/catalog";
-import { onboardingPaymentProduct } from "@/lib/onboarding";
+import {
+  onboardingPaymentProduct,
+  shouldAutomaticallyActivatePaidOnboarding,
+} from "@/lib/onboarding";
+import { onboardingEventValues } from "@/lib/onboarding-events";
 
 type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type DbExecutor = typeof db | DbTransaction;
@@ -85,19 +95,47 @@ export async function settlePlanPayment(
   const plan = input.order.productKey === "elite_desk_fee" && agent.plan !== "team_leader"
     ? "solo_pro" as const
     : agent.plan;
+  const automaticallyActivated = shouldAutomaticallyActivatePaidOnboarding(
+    { ...agent, plan },
+    input.order.paymentChannel,
+  );
+  const paidDate = input.earnedAt.slice(0, 10);
   await executor.update(agents).set({
-    affiliationPaidAt: input.earnedAt.slice(0, 10),
+    affiliationPaidAt: paidDate,
     affiliationTermMonths: termMonths,
     plan,
     splitPct: plan === "solo_pro" ? 100 : agent.splitPct,
     paymentStatus: "paid",
-    onboardingStage: agent.accountStatus === "pending" && (
-      agent.agreementStatus === "completed" || !agent.esignEnvelopeId
-    ) ? "review" : agent.onboardingStage,
+    ...(automaticallyActivated ? {
+      accountStatus: "active" as const,
+      onboardingStage: "complete" as const,
+      joinedAt: agent.joinedAt || paidDate,
+      anniversaryStart: paidDate,
+      planEffectiveFrom: paidDate,
+    } : {
+      onboardingStage: agent.accountStatus === "pending" ? "review" as const : agent.onboardingStage,
+    }),
     updatedAt,
   }).where(eq(agents.id, agent.id));
 
-  if (!agent.referredByAgentId) return { agentId: agent.id, reward: null };
+  if (automaticallyActivated) {
+    await executor.insert(onboardingEvents).values(onboardingEventValues({
+      eventType: "online_payment_auto_activated",
+      agentId: agent.id,
+      actorEmail: "stripe@system.homixny.com",
+      teamId: agent.teamId,
+      detail: {
+        orderId: input.order.id,
+        productKey: input.order.productKey,
+        paymentChannel: input.order.paymentChannel,
+        sourceKey: input.sourceKey,
+      },
+    }));
+  }
+
+  if (!agent.referredByAgentId) {
+    return { agentId: agent.id, reward: null, automaticallyActivated };
+  }
   const rewardEligibleAmountCents = Math.max(
     0,
     input.rewardEligibleAmountCents ?? input.amountCents,
@@ -113,5 +151,5 @@ export async function settlePlanPayment(
     earnedAt: input.earnedAt,
     availableAt: input.earnedAt,
   }).onConflictDoNothing({ target: sponsorPlanRewards.sourceKey }).returning();
-  return { agentId: agent.id, reward: reward || null };
+  return { agentId: agent.id, reward: reward || null, automaticallyActivated };
 }

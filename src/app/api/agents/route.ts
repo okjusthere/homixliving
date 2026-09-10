@@ -4,11 +4,12 @@ import {
   agentEmailAddresses,
   agentPaymentProfiles,
   agents,
+  commerceOrders,
   dealAgents,
   deals,
   teams,
 } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, gt, inArray } from "drizzle-orm";
 import { requireActiveAgentApi, requireAdminApi } from "@/lib/auth-guards";
 import { isAgentPractice, normalizeAgentPlan, PLAN_SPLIT_PCT } from "@/lib/agent-plans";
 import {
@@ -176,6 +177,28 @@ export async function GET(req: NextRequest) {
     ]),
   );
 
+  // Only onboarding orders carry the one-time licence-transfer fee. Expose
+  // the latest settled channel so the admin UI can reserve approval for cash,
+  // check, Zelle, or another verified offline payment. Stripe activates from
+  // its signed webhook and must not depend on an admin click.
+  const onboardingOrderRows = await db
+    .select({
+      agentId: commerceOrders.agentId,
+      paymentChannel: commerceOrders.paymentChannel,
+    })
+    .from(commerceOrders)
+    .where(and(
+      gt(commerceOrders.licenseTransferFeeCents, 0),
+      inArray(commerceOrders.status, ["paid", "active"]),
+    ))
+    .orderBy(desc(commerceOrders.paidAt), desc(commerceOrders.id));
+  const onboardingPaymentChannelByAgent = new Map<number, string>();
+  for (const order of onboardingOrderRows) {
+    if (order.agentId && !onboardingPaymentChannelByAgent.has(order.agentId)) {
+      onboardingPaymentChannelByAgent.set(order.agentId, order.paymentChannel);
+    }
+  }
+
   const result = visibleRows.map((row) => {
     const monthDealIds = new Set(
       allDealAgents
@@ -211,6 +234,7 @@ export async function GET(req: NextRequest) {
       mtdTake,
       hasPayout: payment?.hasPayout ?? false,
       hasW9: payment?.hasW9 ?? false,
+      onboardingPaymentChannel: onboardingPaymentChannelByAgent.get(row.agent.id) || null,
     };
   });
 

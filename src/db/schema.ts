@@ -219,6 +219,10 @@ export const agents = portal.table("agents", {
   esignEnvelopeId: text("esign_envelope_id"),
   esignTemplateVersionId: text("esign_template_version_id"),
   esignEvidencePackageId: text("esign_evidence_package_id"),
+  /** Candidate-side signature completion; payment may begin before company countersign. */
+  agreementAgentSignedAt: timestamptz("agreement_agent_signed_at"),
+  /** Company countersign completion; the sealed evidence package follows this milestone. */
+  agreementCountersignedAt: timestamptz("agreement_countersigned_at"),
   agreementCompletedAt: timestamptz("agreement_completed_at"),
   paymentStatus: text("payment_status")
     .$type<OnboardingPaymentStatus>()

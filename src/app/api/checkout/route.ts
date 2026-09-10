@@ -11,9 +11,11 @@ import {
 import { getStripe, stripeId } from "@/lib/stripe";
 import { and, desc, eq, gte, inArray } from "drizzle-orm";
 import {
+  onboardingAgreementAllowsPayment,
   SOLO_PRO_UPGRADE_CREDIT_DAYS,
   soloProUpgradeCreditCents,
 } from "@/lib/onboarding";
+import { syncOnboardingAgreement } from "@/lib/onboarding-agreement";
 import {
   canPurchasePlanProduct,
   isPlanPaymentProduct,
@@ -48,9 +50,20 @@ export async function POST(request: Request) {
   if (!session?.user?.agentId) {
     return NextResponse.json({ error: "Sign in to Homix Agents before paying." }, { status: 401 });
   }
-  const [agent] = await db.select().from(agents).where(eq(agents.id, session.user.agentId)).limit(1);
+  let [agent] = await db.select().from(agents).where(eq(agents.id, session.user.agentId)).limit(1);
   if (!agent || agent.accountStatus === "inactive") {
     return NextResponse.json({ error: "Agent account is unavailable." }, { status: 403 });
+  }
+  if (
+    agent.accountStatus === "pending" &&
+    agent.esignEnvelopeId &&
+    !onboardingAgreementAllowsPayment(agent)
+  ) {
+    try {
+      agent = await syncOnboardingAgreement(agent);
+    } catch (error) {
+      console.error("Unable to verify agent signature before checkout", error);
+    }
   }
   let body: unknown;
   try {
@@ -80,7 +93,7 @@ export async function POST(request: Request) {
   if (
     agent.accountStatus === "pending" &&
     isPlanPayment &&
-    agent.agreementStatus !== "completed"
+    !onboardingAgreementAllowsPayment(agent)
   ) {
     return NextResponse.json({ error: "Sign the affiliation agreement before paying." }, { status: 409 });
   }

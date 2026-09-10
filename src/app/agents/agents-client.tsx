@@ -56,7 +56,7 @@ const M = {
     addAgent: "Add Agent",
     searchPlaceholder: "Search name, team, license, email…",
     pendingApprovals: "Pending approvals",
-    pendingSubtitle: "New brokers awaiting activation",
+    pendingSubtitle: "Online onboarding activates after Stripe payment; approve only verified offline payments",
     existingPublicProfile: "Existing website profile (optional)",
     noExistingPublicProfile: "No existing profile — approve and create one",
     loadingPublicProfiles: "Loading website profiles…",
@@ -123,6 +123,8 @@ const M = {
     offlineAmount: "Total received (plan + $20 license transfer)",
     offlineSave: "Verify payment",
     offlineRecorded: "Offline payment verified",
+    agentSignatureDone: "Agent signed; company countersign pending",
+    onlineActivationPending: "Stripe payment received; automatic activation is processing",
     mlsUnavailable: "MLS verification is temporarily unavailable and will retry automatically.",
     mlsUnmatched: "The license has not matched the Homix OneKey roster. Check the number; the system retries daily.",
     mlsAmbiguous: "Multiple MLS records matched this license. Review it before relying on past sales.",
@@ -158,7 +160,7 @@ const M = {
     addAgent: "添加经纪人",
     searchPlaceholder: "搜索姓名、团队、执照、邮箱…",
     pendingApprovals: "待审批",
-    pendingSubtitle: "等待激活的新经纪人",
+    pendingSubtitle: "线上签约在 Stripe 付款后自动开通；这里只审批已核验的线下付款",
     existingPublicProfile: "关联既有官网经纪人（可选）",
     noExistingPublicProfile: "没有既有档案——批准并创建官网主页",
     loadingPublicProfiles: "正在读取官网经纪人…",
@@ -225,6 +227,8 @@ const M = {
     offlineAmount: "实收总额（方案费 + $20 执照转入费）",
     offlineSave: "确认已收款",
     offlineRecorded: "线下付款已核验",
+    agentSignatureDone: "经纪人已签署；等待公司会签",
+    onlineActivationPending: "Stripe 已收款，系统正在自动开通",
     mlsUnavailable: "MLS 暂时无法验证，系统会自动重试。",
     mlsUnmatched: "该执照号尚未匹配 Homix 的 OneKey 名册，请核对号码；系统每天会自动重试。",
     mlsAmbiguous: "该执照号匹配到多条 MLS 记录，请核对后再使用历史成交。",
@@ -236,6 +240,7 @@ const M = {
 type AgentRow = {
   agent: Agent;
   teamName: string | null;
+  onboardingPaymentChannel?: string | null;
   loginEmails?: Array<{ email: string; isPrimary: boolean; verifiedAt: string | null }>;
   mtdDeals: number;
   mtdTake: number;
@@ -709,7 +714,15 @@ export default function AgentsConsole({ initialView }: { initialView: AdminView 
             action={<Pill tone="draft">{pending.length}</Pill>}
           />
           <div className="divide-y" style={{ borderColor: tone.lineSoft }}>
-            {pending.map(({ agent, loginEmails }) => (
+            {pending.map(({ agent, loginEmails, onboardingPaymentChannel }) => {
+              const agentSigned = Boolean(
+                agent.agreementAgentSignedAt || agent.agreementStatus === "completed",
+              );
+              const canApproveOffline = Boolean(
+                agent.paymentStatus === "paid" && onboardingPaymentChannel === "offline",
+              );
+              const canApprove = canApproveOffline;
+              return (
               <div
                 key={agent.id}
                 className="grid items-start gap-4 px-5 py-4 sm:items-center sm:px-6 sm:[grid-template-columns:auto_1fr_auto]"
@@ -737,7 +750,11 @@ export default function AgentsConsole({ initialView }: { initialView: AdminView 
                     </div>
                   )}
                   <div className="mt-1 flex flex-wrap gap-2 text-[11px]" style={{ color: tone.ink50 }}>
-                    <span>{t.agreement}: {agreementStatusLabel(agent.agreementStatus)}</span>
+                    <span>
+                      {t.agreement}: {agentSigned && agent.agreementStatus !== "completed"
+                        ? t.agentSignatureDone
+                        : agreementStatusLabel(agent.agreementStatus)}
+                    </span>
                     <span>·</span>
                     <span>{t.payment}: {paymentStatusLabel(agent.paymentStatus)}</span>
                     <span>·</span>
@@ -745,7 +762,7 @@ export default function AgentsConsole({ initialView }: { initialView: AdminView 
                   </div>
                 </div>
                 <div className="col-span-full flex min-w-0 flex-wrap items-center gap-2 sm:col-span-1 sm:justify-end">
-                  <label className="flex w-full min-w-0 flex-col gap-1 sm:w-auto sm:flex-none">
+                  {canApprove && <label className="flex w-full min-w-0 flex-col gap-1 sm:w-auto sm:flex-none">
                     <span className="text-[10.5px]" style={{ color: tone.ink50 }}>
                       {t.existingPublicProfile}
                     </span>
@@ -772,11 +789,11 @@ export default function AgentsConsole({ initialView }: { initialView: AdminView 
                         </option>
                       ))}
                     </select>
-                  </label>
+                  </label>}
                   {/* Captured here because approval is the one moment an admin
                       is already looking at this person; asked for later, it
                       rarely gets filled in. Optional. */}
-                  <label className="flex w-full min-w-0 flex-col gap-1 sm:w-auto sm:flex-none">
+                  {canApprove && <label className="flex w-full min-w-0 flex-col gap-1 sm:w-auto sm:flex-none">
                     <span className="text-[10.5px]" style={{ color: tone.ink50 }}>
                       {t.labelReferredBy}
                     </span>
@@ -800,7 +817,7 @@ export default function AgentsConsole({ initialView }: { initialView: AdminView 
                           </option>
                         ))}
                     </select>
-                  </label>
+                  </label>}
                   <Btn
                     variant="outline"
                     size="sm"
@@ -808,7 +825,7 @@ export default function AgentsConsole({ initialView }: { initialView: AdminView 
                   >
                     {t.edit}
                   </Btn>
-                  {agent.agreementStatus === "completed" &&
+                  {agentSigned &&
                     agent.paymentStatus !== "paid" &&
                     (agent.plan !== "team_member" || Boolean(agent.teamTermsAcceptedAt)) && (
                     <Btn
@@ -826,17 +843,25 @@ export default function AgentsConsole({ initialView }: { initialView: AdminView 
                   >
                     {t.ignore}
                   </Btn>
-                  <Btn
-                    variant="primary"
-                    size="sm"
-                    icon={<Icons.Check />}
-                    onClick={() => handleApprove(agent.id)}
-                  >
-                    {t.approve}
-                  </Btn>
+                  {agent.paymentStatus === "paid" && onboardingPaymentChannel === "stripe" && (
+                    <span className="text-[11px]" style={{ color: tone.accent }}>
+                      {t.onlineActivationPending}
+                    </span>
+                  )}
+                  {canApprove && (
+                    <Btn
+                      variant="primary"
+                      size="sm"
+                      icon={<Icons.Check />}
+                      onClick={() => handleApprove(agent.id)}
+                    >
+                      {t.approve}
+                    </Btn>
+                  )}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         </Card>
       )}

@@ -13,7 +13,11 @@ import { getWorkspaceAllowedDomains } from "@/lib/google-workspace";
 import { getStripeSecretKey } from "@/lib/stripe";
 import { PayClient, type PublicPayProduct } from "./pay-client";
 import { canPurchasePlanProduct } from "@/lib/plan-payments";
-import { onboardingPaymentProduct } from "@/lib/onboarding";
+import {
+  onboardingAgreementAllowsPayment,
+  onboardingPaymentProduct,
+} from "@/lib/onboarding";
+import { syncOnboardingAgreement } from "@/lib/onboarding-agreement";
 
 export const dynamic = "force-dynamic";
 
@@ -29,19 +33,30 @@ export default async function PayPage({
 }) {
   const session = await auth();
   if (!session?.user?.agentId) redirect("/login?callbackUrl=/pay");
-  const [agent] = await db
+  let [agent] = await db
     .select()
     .from(agents)
     .where(eq(agents.id, session.user.agentId))
     .limit(1);
   if (!agent || agent.accountStatus === "inactive") redirect("/pending");
+  if (
+    agent.accountStatus === "pending" &&
+    agent.esignEnvelopeId &&
+    !onboardingAgreementAllowsPayment(agent)
+  ) {
+    try {
+      agent = await syncOnboardingAgreement(agent);
+    } catch (error) {
+      console.error("Unable to verify agent signature before payment", error);
+    }
+  }
   const params = await searchParams;
   const canceled = params.canceled === "1";
   const onboarding = agent.accountStatus === "pending";
   const onboardingProductKey = onboarding
     ? onboardingPaymentProduct(agent.plan, agent.affiliationTermMonths)
     : null;
-  if (onboarding && (agent.agreementStatus !== "completed" || !onboardingProductKey)) {
+  if (onboarding && (!onboardingAgreementAllowsPayment(agent) || !onboardingProductKey)) {
     redirect("/pending");
   }
   if (onboarding && agent.paymentStatus === "paid") redirect("/pending");

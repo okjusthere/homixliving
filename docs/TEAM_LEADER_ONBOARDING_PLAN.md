@@ -171,7 +171,7 @@ Team Leader 只能看到完成招聘所需的业务状态，不得看到 W-9、A
 8. Team Leader 接受申请后，系统绑定 Team，并锁定接受当日有效的 Team Compensation Config；拒绝则返回计划选择，Sponsor 不变。
 9. Team Member 明确接受已锁定的 Team Compensation Config。
 10. Portal 调用生产 eSign，生成对应法律实体及计划的协议。
-11. 新人完成电子签名及必要的公司 countersignature。
+11. 新人完成本人电子签名后即可进入付款；公司 countersignature 继续异步完成并生成最终密封文件。
 12. 新人在线支付年费，或管理员确认已经实际收到线下付款。
 13. 系统生成统一订单、付款记录和 Sponsor Reward 记录。
 14. 管理员完成执照与合规终审。

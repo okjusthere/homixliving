@@ -1,3 +1,4 @@
+import type { Agent } from "@/db/schema";
 import type { AgentPlan } from "@/lib/agent-plans";
 import type { CommerceProductKey } from "@/lib/commerce/catalog";
 
@@ -31,4 +32,53 @@ export function onboardingPaymentProduct(
 
 export function isOnboardingV2Enforced() {
   return process.env.ONBOARDING_V2_ENFORCED === "1";
+}
+
+const NON_PAYABLE_AGREEMENT_STATUSES = new Set([
+  "declined",
+  "voided",
+  "expired",
+  "failed",
+]);
+
+export function hasAgentSignedOnboardingAgreement(
+  agent: Pick<Agent, "agreementAgentSignedAt" | "agreementStatus">,
+) {
+  // Completed legacy envelopes predate the separate signer timestamp. The
+  // additive migration backfills them, while this fallback keeps rolling
+  // deploys safe if application code arrives before the migration.
+  return Boolean(agent.agreementAgentSignedAt || agent.agreementStatus === "completed");
+}
+
+export function onboardingAgreementAllowsPayment(
+  agent: Pick<Agent, "agreementAgentSignedAt" | "agreementStatus">,
+) {
+  return hasAgentSignedOnboardingAgreement(agent) &&
+    !NON_PAYABLE_AGREEMENT_STATUSES.has(agent.agreementStatus);
+}
+
+export function shouldAutomaticallyActivatePaidOnboarding(
+  agent: Pick<
+    Agent,
+    | "accountStatus"
+    | "onboardingCompletedAt"
+    | "agreementAgentSignedAt"
+    | "agreementStatus"
+    | "plan"
+    | "teamId"
+    | "teamTermsConfigId"
+    | "teamTermsAcceptedAt"
+  >,
+  paymentChannel: string,
+) {
+  if (
+    paymentChannel !== "stripe" ||
+    agent.accountStatus !== "pending" ||
+    !agent.onboardingCompletedAt ||
+    !onboardingAgreementAllowsPayment(agent)
+  ) {
+    return false;
+  }
+  if (agent.plan !== "team_member") return true;
+  return Boolean(agent.teamId && agent.teamTermsConfigId && agent.teamTermsAcceptedAt);
 }
