@@ -127,6 +127,9 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
       order: updatedOrder,
       sourceKey: `checkout:${session.id}`,
       amountCents,
+      rewardEligibleAmountCents: order.licenseTransferFeeCents > 0
+        ? Math.max(0, order.amountCents - order.licenseTransferFeeCents)
+        : amountCents,
       earnedAt: now,
     });
     await maybeProvisionWorkspace(updatedOrder);

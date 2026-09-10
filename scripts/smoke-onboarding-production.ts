@@ -197,7 +197,8 @@ try {
       productKey: "one_year_membership",
       productName: "One-year membership",
       billingMode: "one_time",
-      amountCents: 28_800,
+      amountCents: 30_800,
+      licenseTransferFeeCents: 2_000,
       currency: "usd",
       status: "paid",
       paymentChannel: "offline",
@@ -217,6 +218,7 @@ try {
       order,
       sourceKey: order.externalPaymentKey!,
       amountCents: order.amountCents,
+      rewardEligibleAmountCents: order.amountCents - order.licenseTransferFeeCents,
       earnedAt: now,
     });
     const [paidAgent] = await tx.select().from(agents).where(eq(agents.id, offlineAgent.id)).limit(1);

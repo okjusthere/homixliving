@@ -7,6 +7,7 @@ export type CommerceProductKey =
   | "elite_desk_fee"
   | "growth_desk_fee"
   | "libor"
+  | "license_transfer_fee"
   | "transfer_fee";
 
 export type CommerceProduct = {
@@ -24,6 +25,8 @@ export type CommerceProduct = {
   requiresReferral?: boolean;
   availableForSale?: boolean;
 };
+
+export const ONBOARDING_LICENSE_TRANSFER_FEE_CENTS = 2_000;
 
 export const commerceProducts: CommerceProduct[] = [
   {
@@ -98,6 +101,17 @@ export const commerceProducts: CommerceProduct[] = [
     category: "service",
   },
   {
+    key: "license_transfer_fee",
+    name: "License Transfer Fee",
+    description: "One-time license transfer processing fee collected during onboarding.",
+    amountCents: ONBOARDING_LICENSE_TRANSFER_FEE_CENTS,
+    currency: "usd",
+    billingMode: "payment",
+    priceEnvVar: "STRIPE_PRICE_LICENSE_TRANSFER_FEE",
+    category: "service",
+    availableForSale: false,
+  },
+  {
     key: "transfer_fee",
     name: "Transfer Fee",
     description: "Agent transfer fee.",
@@ -148,6 +162,7 @@ const ZH_PRODUCT_NAMES: Partial<Record<CommerceProductKey, string>> = {
   two_year_membership: "Homix 两年 affiliation 费用",
   one_year_membership: "Homix 一年 affiliation 费用",
   libor: "LIBOR",
+  license_transfer_fee: "执照转入费",
   transfer_fee: "经纪人转入费",
 };
 

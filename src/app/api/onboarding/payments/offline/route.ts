@@ -6,7 +6,10 @@ import { requireAdminApi } from "@/lib/auth-guards";
 import { getCommerceProduct } from "@/lib/commerce/catalog";
 import { logAudit } from "@/lib/audit";
 import { onboardingPaymentProduct } from "@/lib/onboarding";
-import { settlePlanPayment } from "@/lib/plan-payments";
+import {
+  onboardingLicenseTransferFeeCents,
+  settlePlanPayment,
+} from "@/lib/plan-payments";
 import { lockAgentLedgers } from "@/lib/advisory-locks";
 
 const METHODS = new Set(["cash", "check", "ach", "zelle", "wire", "other"]);
@@ -78,10 +81,12 @@ export async function POST(req: NextRequest) {
   const productKey = onboardingPaymentProduct(agent.plan, agent.affiliationTermMonths);
   const product = productKey ? getCommerceProduct(productKey) : null;
   if (!product) return NextResponse.json({ error: "Required onboarding product is unavailable" }, { status: 409 });
+  const licenseTransferFeeCents = onboardingLicenseTransferFeeCents(agent, product.key);
+  const requiredCents = product.amountCents + licenseTransferFeeCents;
   const amountCents = Math.round(Number(body.amountCents));
-  if (amountCents !== product.amountCents) {
+  if (amountCents !== requiredCents) {
     return NextResponse.json(
-      { error: "Offline onboarding payments must match the full signed fee", requiredCents: product.amountCents },
+      { error: "Offline onboarding payments must match the plan fee plus the license transfer fee", requiredCents },
       { status: 409 },
     );
   }
@@ -110,6 +115,7 @@ export async function POST(req: NextRequest) {
         productName: product.name,
         billingMode: product.billingMode,
         amountCents,
+        licenseTransferFeeCents,
         currency: product.currency,
         status: "paid",
         paymentChannel: "offline",
@@ -129,6 +135,7 @@ export async function POST(req: NextRequest) {
         order,
         sourceKey: externalPaymentKey,
         amountCents,
+        rewardEligibleAmountCents: product.amountCents,
         earnedAt: receivedAt,
       });
       return { order, replayed: false, alreadyPaid: false as const };
@@ -151,7 +158,7 @@ export async function POST(req: NextRequest) {
       "commerce_order",
       result.order.id,
       `管理员核验 ${agent.name} 线下入职付款 $${(amountCents / 100).toFixed(2)}（${method}）`,
-      { agentId, method, reference, receivedAt, productKey },
+      { agentId, method, reference, receivedAt, productKey, licenseTransferFeeCents },
     );
   }
   return NextResponse.json({ order: result.order, replayed: result.replayed });

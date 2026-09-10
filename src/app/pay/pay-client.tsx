@@ -12,7 +12,11 @@ import {
   Mail,
   ShieldCheck,
 } from "lucide-react";
-import type { CommerceProduct, CommerceProductKey } from "@/lib/commerce/catalog";
+import {
+  formatProductAmount,
+  type CommerceProduct,
+  type CommerceProductKey,
+} from "@/lib/commerce/catalog";
 import { useLocale } from "@/lib/i18n-client";
 
 export type PublicPayProduct = Omit<CommerceProduct, "currency"> & {
@@ -48,12 +52,18 @@ const M = {
     checkoutFailed: "Checkout could not start.",
     title: "Agent payments",
     lead: "Affiliation plans, company email, and agent services.",
+    onboardingTitle: "Complete onboarding payment",
+    onboardingLead: "Your agreement is signed. Pay the selected plan fee and the one-time license transfer fee to continue final review.",
     secureBilling: "Secure billing",
     recurring: "Recurring",
     autoRenewal: "Auto-renewal",
     setup: "Setup required",
     oneTime: "One-time",
     selected: "Selected",
+    planFee: "Plan fee",
+    licenseTransferFee: "License transfer fee",
+    dueToday: "Due today",
+    oneTimeFee: "One time",
     fullName: "Full name",
     receiptEmail: "Receipt email",
     companyEmail: "Company email",
@@ -73,12 +83,18 @@ const M = {
     checkoutFailed: "暂时无法发起付款，请稍后重试。",
     title: "经纪人缴费",
     lead: "Affiliation 方案、公司邮箱与经纪人服务。",
+    onboardingTitle: "完成入职付款",
+    onboardingLead: "协议已签署。支付所选方案费用及一次性执照转入费后，将进入最终审核。",
     secureBilling: "安全付款",
     recurring: "订阅项目",
     autoRenewal: "自动续费",
     setup: "需要配置",
     oneTime: "一次性项目",
     selected: "已选择",
+    planFee: "方案费用",
+    licenseTransferFee: "执照转入费",
+    dueToday: "本次应付",
+    oneTimeFee: "仅收一次",
     fullName: "姓名",
     receiptEmail: "收据邮箱",
     companyEmail: "公司邮箱",
@@ -167,6 +183,8 @@ export function PayClient({
   stripeConfigured,
   workspaceDomains,
   initialProductKey,
+  onboarding,
+  licenseTransferFee,
   identity,
 }: {
   products: PublicPayProduct[];
@@ -174,6 +192,8 @@ export function PayClient({
   stripeConfigured: boolean;
   workspaceDomains: string[];
   initialProductKey?: string;
+  onboarding: boolean;
+  licenseTransferFee: { name: string; amountCents: number; priceLabel: string } | null;
   identity: {
     name: string;
     email: string;
@@ -187,7 +207,7 @@ export function PayClient({
   const [selectedKey, setSelectedKey] = useState<CommerceProductKey>(
     products.some((product) => product.key === initialProductKey)
       ? initialProductKey as CommerceProductKey
-      : "company_domain_email"
+      : products[0]?.key || "company_domain_email"
   );
   const [form, setForm] = useState<FormState>({
     ...initialForm,
@@ -198,7 +218,9 @@ export function PayClient({
     referralAgentName: identity.referralAgentName,
   });
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(canceled ? t.canceled : null);
+  const [error, setError] = useState<string | null>(
+    canceled ? t.canceled : stripeConfigured ? null : t.notConfigured,
+  );
 
   const displayProducts = useMemo(
     () => products.map((product) => locale === "zh" ? { ...product, ...PRODUCT_COPY[product.key] } : product),
@@ -209,6 +231,9 @@ export function PayClient({
     () => displayProducts.find((product) => product.key === selectedKey) || displayProducts[0],
     [displayProducts, selectedKey]
   );
+  const totalAmountCents = selectedProduct
+    ? selectedProduct.amountCents + (onboarding ? licenseTransferFee?.amountCents || 0 : 0)
+    : 0;
 
   const grouped = useMemo(
     () => ({
@@ -276,10 +301,10 @@ export function PayClient({
               </span>
             </div>
             <h1 className="mt-5 max-w-2xl font-serif text-[42px] leading-[1.05] md:text-[54px]">
-              {t.title}
+              {onboarding ? t.onboardingTitle : t.title}
             </h1>
             <p className="mt-3 max-w-2xl text-[15px] leading-6 text-ink-70">
-              {t.lead}
+              {onboarding ? t.onboardingLead : t.lead}
             </p>
           </div>
           <div className="grid grid-cols-3 gap-2 text-[12px] text-ink-70">
@@ -300,7 +325,7 @@ export function PayClient({
 
         <main className="grid gap-8 py-8 lg:grid-cols-[1fr_420px]">
           <section className="space-y-8">
-            <div>
+            {grouped.subscriptions.length > 0 && <div>
               <div className="mb-3 flex items-center justify-between">
                 <h2 className="text-[12px] font-medium uppercase tracking-[0.14em] text-ink-50">
                   {t.recurring}
@@ -350,9 +375,9 @@ export function PayClient({
                   </button>
                 ))}
               </div>
-            </div>
+            </div>}
 
-            <div>
+            {grouped.oneTime.length > 0 && <div>
               <h2 className="mb-3 text-[12px] font-medium uppercase tracking-[0.14em] text-ink-50">
                 {t.oneTime}
               </h2>
@@ -380,7 +405,7 @@ export function PayClient({
                   </button>
                 ))}
               </div>
-            </div>
+            </div>}
           </section>
 
           <aside className="h-fit rounded-lg border border-line bg-white p-5">
@@ -394,14 +419,39 @@ export function PayClient({
                 </div>
               </div>
               <div className="text-right">
-                <div className="font-mono text-[24px]">{selectedProduct.priceLabel}</div>
-                {selectedProduct.recurrenceLabel && (
+                <div className="font-mono text-[24px]">
+                  {onboarding ? formatProductAmount(totalAmountCents) : selectedProduct.priceLabel}
+                </div>
+                {onboarding ? (
+                  <div className="mt-1 text-[12px] text-ink-50">{t.dueToday}</div>
+                ) : selectedProduct.recurrenceLabel ? (
                   <div className="mt-1 text-[12px] text-ink-50">
                     {selectedProduct.recurrenceLabel}
                   </div>
-                )}
+                ) : null}
               </div>
             </div>
+
+            {onboarding && licenseTransferFee && (
+              <dl className="mt-4 divide-y divide-line-soft rounded-md bg-paper-deep px-3 text-[13px]">
+                <div className="flex items-center justify-between gap-4 py-3">
+                  <dt className="text-ink-70">
+                    {t.planFee}
+                    {selectedProduct.recurrenceLabel && (
+                      <span className="ml-2 text-[11px] text-ink-50">{selectedProduct.recurrenceLabel}</span>
+                    )}
+                  </dt>
+                  <dd className="font-mono">{selectedProduct.priceLabel}</dd>
+                </div>
+                <div className="flex items-center justify-between gap-4 py-3">
+                  <dt className="text-ink-70">
+                    {t.licenseTransferFee}
+                    <span className="ml-2 text-[11px] text-ink-50">{t.oneTimeFee}</span>
+                  </dt>
+                  <dd className="font-mono">{licenseTransferFee.priceLabel}</dd>
+                </div>
+              </dl>
+            )}
 
             <div className="mt-5 space-y-4">
               <Field label={t.fullName}>
@@ -446,13 +496,15 @@ export function PayClient({
                 </>
               )}
 
-              <Field label={t.message}>
-                <textarea
-                  className="min-h-[92px] w-full resize-y rounded-md border border-line bg-white px-3 py-3 text-[14px] text-ink outline-none transition focus:border-ink-30 focus:ring-3 focus:ring-line-soft"
-                  value={form.message}
-                  onChange={(event) => update("message", event.target.value)}
-                />
-              </Field>
+              {!onboarding && (
+                <Field label={t.message}>
+                  <textarea
+                    className="min-h-[92px] w-full resize-y rounded-md border border-line bg-white px-3 py-3 text-[14px] text-ink outline-none transition focus:border-ink-30 focus:ring-3 focus:ring-line-soft"
+                    value={form.message}
+                    onChange={(event) => update("message", event.target.value)}
+                  />
+                </Field>
+              )}
             </div>
 
             {error && (

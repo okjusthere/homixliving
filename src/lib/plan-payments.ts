@@ -1,7 +1,10 @@
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { agents, sponsorPlanRewards, type Agent, type CommerceOrder } from "@/db/schema";
-import type { CommerceProductKey } from "@/lib/commerce/catalog";
+import {
+  ONBOARDING_LICENSE_TRANSFER_FEE_CENTS,
+  type CommerceProductKey,
+} from "@/lib/commerce/catalog";
 import { onboardingPaymentProduct } from "@/lib/onboarding";
 
 type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -13,6 +16,12 @@ export const PLAN_PAYMENT_PRODUCTS = new Set<CommerceProductKey>([
   "elite_desk_fee",
   "growth_desk_fee",
 ]);
+
+export function onboardingLicenseTransferFeeCents(agent: Agent, productKey: string) {
+  return agent.accountStatus === "pending" && isPlanPaymentProduct(productKey)
+    ? ONBOARDING_LICENSE_TRANSFER_FEE_CENTS
+    : 0;
+}
 
 export function isPlanPaymentProduct(key: string): key is CommerceProductKey {
   return PLAN_PAYMENT_PRODUCTS.has(key as CommerceProductKey);
@@ -56,6 +65,7 @@ export async function settlePlanPayment(
     order: CommerceOrder;
     sourceKey: string;
     amountCents: number;
+    rewardEligibleAmountCents?: number;
     earnedAt: string;
   },
 ) {
@@ -88,12 +98,16 @@ export async function settlePlanPayment(
   }).where(eq(agents.id, agent.id));
 
   if (!agent.referredByAgentId) return { agentId: agent.id, reward: null };
+  const rewardEligibleAmountCents = Math.max(
+    0,
+    input.rewardEligibleAmountCents ?? input.amountCents,
+  );
   const [reward] = await executor.insert(sponsorPlanRewards).values({
     sourceKey: input.sourceKey,
     orderId: input.order.id,
     sponsorAgentId: agent.referredByAgentId,
     referredAgentId: agent.id,
-    amountCents: Math.round(input.amountCents * 0.1),
+    amountCents: Math.round(rewardEligibleAmountCents * 0.1),
     paidCents: 0,
     status: "accrued",
     earnedAt: input.earnedAt,

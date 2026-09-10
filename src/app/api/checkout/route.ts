@@ -3,14 +3,23 @@ import { auth } from "@/auth";
 import { db } from "@/db";
 import { agents, commerceOrders } from "@/db/schema";
 import { validateCheckoutPayload } from "@/lib/commerce/checkout";
-import { formatProductAmount, getProductStripePriceId } from "@/lib/commerce/catalog";
+import {
+  formatProductAmount,
+  getCommerceProduct,
+  getProductStripePriceId,
+} from "@/lib/commerce/catalog";
 import { getStripe, stripeId } from "@/lib/stripe";
 import { and, desc, eq, gte, inArray } from "drizzle-orm";
 import {
   SOLO_PRO_UPGRADE_CREDIT_DAYS,
   soloProUpgradeCreditCents,
 } from "@/lib/onboarding";
-import { canPurchasePlanProduct, isPlanPaymentProduct } from "@/lib/plan-payments";
+import {
+  canPurchasePlanProduct,
+  isPlanPaymentProduct,
+  onboardingLicenseTransferFeeCents,
+} from "@/lib/plan-payments";
+import { ensureStripeProductPrice } from "@/lib/commerce/stripe-products";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -74,6 +83,10 @@ export async function POST(request: Request) {
       { status: 503 }
     );
   }
+  const licenseTransferFeeCents = onboardingLicenseTransferFeeCents(agent, product.key);
+  const licenseTransferProduct = licenseTransferFeeCents > 0
+    ? getCommerceProduct("license_transfer_fee")
+    : null;
 
   let stripe;
   try {
@@ -82,6 +95,18 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: "Stripe is not configured. Set STRIPE_SECRET_KEY." },
       { status: 503 }
+    );
+  }
+  let licenseTransferPriceId: string | null = null;
+  try {
+    licenseTransferPriceId = licenseTransferProduct
+      ? await ensureStripeProductPrice(stripe, licenseTransferProduct)
+      : null;
+  } catch (error) {
+    console.error("Stripe license transfer price configuration failed", error);
+    return NextResponse.json(
+      { error: "The license transfer fee is temporarily unavailable. Please try again." },
+      { status: 503 },
     );
   }
 
@@ -94,7 +119,8 @@ export async function POST(request: Request) {
       productName: product.name,
       billingMode: product.billingMode,
       stripePriceId: priceId,
-      amountCents: product.amountCents,
+      amountCents: product.amountCents + licenseTransferFeeCents,
+      licenseTransferFeeCents,
       currency: product.currency,
       status: "pending",
       customerName: payload.customerName,
@@ -160,11 +186,20 @@ export async function POST(request: Request) {
       productKey: product.key,
       agentId: String(agent.id),
       upgradeCreditCents: String(upgradeCreditCents),
+      licenseTransferFeeCents: String(licenseTransferFeeCents),
     };
+
+    const lineItems = [
+      { price: priceId, quantity: 1 },
+      ...(licenseTransferPriceId ? [{ price: licenseTransferPriceId, quantity: 1 }] : []),
+    ];
+    const checkoutDescription = licenseTransferFeeCents > 0
+      ? `${product.name} + ${licenseTransferProduct!.name} - ${formatProductAmount(order.amountCents)}`
+      : `${product.name} - ${formatProductAmount(product.amountCents)}`;
 
     const session = await stripe.checkout.sessions.create({
       mode: product.billingMode,
-      line_items: [{ price: priceId, quantity: 1 }],
+      line_items: lineItems,
       customer_email: payload.customerEmail,
       client_reference_id: String(order.id),
       metadata,
@@ -172,18 +207,18 @@ export async function POST(request: Request) {
         product.billingMode === "subscription"
           ? {
               metadata,
-              description: `${product.name} - ${formatProductAmount(product.amountCents)}`,
+              description: checkoutDescription,
             }
           : undefined,
       payment_intent_data:
         product.billingMode === "payment"
           ? {
               metadata,
-              description: `${product.name} - ${formatProductAmount(product.amountCents)}`,
+              description: checkoutDescription,
             }
           : undefined,
       discounts: upgradeCoupon ? [{ coupon: upgradeCoupon.id }] : undefined,
-      allow_promotion_codes: upgradeCoupon ? undefined : true,
+      allow_promotion_codes: upgradeCoupon || licenseTransferFeeCents > 0 ? undefined : true,
       billing_address_collection: "auto",
       automatic_tax: { enabled: process.env.STRIPE_AUTOMATIC_TAX === "1" },
       success_url: `${baseUrl}/pay/success?session_id={CHECKOUT_SESSION_ID}`,
