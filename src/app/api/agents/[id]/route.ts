@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { agents, teams } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { agentEmailAddresses, agents, teams } from "@/db/schema";
+import { and, desc, eq } from "drizzle-orm";
 import { requireActiveAgentApi, requireAdminApi } from "@/lib/auth-guards";
 import { hidePublicProfileForOffboarding } from "@/lib/homixweb";
 
@@ -33,7 +33,20 @@ export async function GET(
     return NextResponse.json({ error: "Agent not found" }, { status: 404 });
   }
 
-  return NextResponse.json(result);
+  const loginEmails = await db
+    .select({
+      email: agentEmailAddresses.email,
+      isPrimary: agentEmailAddresses.isPrimary,
+      verifiedAt: agentEmailAddresses.verifiedAt,
+    })
+    .from(agentEmailAddresses)
+    .where(and(
+      eq(agentEmailAddresses.agentId, parsedId),
+      eq(agentEmailAddresses.canSignIn, true),
+    ))
+    .orderBy(desc(agentEmailAddresses.isPrimary), agentEmailAddresses.email);
+
+  return NextResponse.json({ ...result, loginEmails });
 }
 
 export async function DELETE(

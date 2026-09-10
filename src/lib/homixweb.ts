@@ -212,12 +212,19 @@ export type AdminAgentRow = {
   id: string;
   name: string | null;
   slug: string;
+  email?: string | null;
   visibility_status: PublicProfileVisibility | null;
   sort: number | null;
   portal_agent_id: number | null;
   photo_url: string | null;
   license_number: string | null;
   bio?: string | null;
+  linked_portal_agent?: {
+    id: number;
+    name: string;
+    email: string;
+    account_status: "pending" | "active" | "inactive";
+  } | null;
 };
 
 async function postHomixwebJson(

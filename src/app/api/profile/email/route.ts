@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { agents } from "@/db/schema";
-import { isConfiguredAdminEmail } from "@/lib/admin-emails";
+import { agentEmailAddresses, agents } from "@/db/schema";
 import { requireActiveAgentApi } from "@/lib/auth-guards";
 import { logAudit } from "@/lib/audit";
 import {
@@ -52,22 +51,20 @@ export async function POST(request: Request) {
     );
   }
 
-  if (agent.email.toLowerCase() === pendingEmail) {
+  const [existingAddress] = await db
+    .select({ agentId: agentEmailAddresses.agentId })
+    .from(agentEmailAddresses)
+    .where(sql`lower(${agentEmailAddresses.email}) = ${pendingEmail}`)
+    .limit(1);
+  if (existingAddress?.agentId === agentId || agent.email.toLowerCase() === pendingEmail) {
     return NextResponse.json(
-      { error: "This is already your login email", code: "SAME_EMAIL" },
+      { error: "This email is already linked to your account", code: "SAME_EMAIL" },
       { status: 409 },
     );
   }
-
-  if (
-    (authResult.session.user.isAdmin || agent.isAdmin) &&
-    !isConfiguredAdminEmail(pendingEmail)
-  ) {
+  if (existingAddress) {
     return NextResponse.json(
-      {
-        error: "Add the new address to ADMIN_EMAILS before changing an admin login.",
-        code: "ADMIN_EMAIL_NOT_CONFIGURED",
-      },
+      { error: "This email is already linked to another account", code: "EMAIL_IN_USE" },
       { status: 409 },
     );
   }
@@ -90,18 +87,15 @@ export async function POST(request: Request) {
       )
     `);
 
-  const [conflict] = await db
+  const [pendingConflict] = await db
     .select({ id: agents.id })
     .from(agents)
-    .where(sql`
-      ${agents.id} <> ${agentId}
-      AND (
-        lower(${agents.email}) = ${pendingEmail}
-        OR lower(COALESCE(${agents.pendingEmail}, '')) = ${pendingEmail}
-      )
-    `)
+    .where(and(
+      sql`${agents.id} <> ${agentId}`,
+      sql`lower(COALESCE(${agents.pendingEmail}, '')) = ${pendingEmail}`,
+    ))
     .limit(1);
-  if (conflict) {
+  if (pendingConflict) {
     return NextResponse.json(
       { error: "This email is already in use", code: "EMAIL_IN_USE" },
       { status: 409 },
@@ -136,11 +130,11 @@ export async function POST(request: Request) {
 
   await logAudit(
     authResult.session,
-    "request_email_change",
+    "request_login_email_link",
     "agent",
     agentId,
-    `申请将登录邮箱更换为 ${pendingEmail}`,
-    { oldEmail: agent.email, pendingEmail },
+    `申请关联登录邮箱 ${pendingEmail}`,
+    { primaryEmail: agent.email, pendingEmail },
   );
 
   const response = NextResponse.json({
@@ -188,10 +182,10 @@ export async function DELETE() {
 
   await logAudit(
     authResult.session,
-    "cancel_email_change",
+    "cancel_login_email_link",
     "agent",
     agentId,
-    "取消登录邮箱更换申请",
+    "取消登录邮箱关联申请",
     { pendingEmail: agent?.pendingEmail ?? null },
   );
 

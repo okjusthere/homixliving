@@ -18,9 +18,12 @@ building management), and tracks everything an admin needs to run the brokerage:
 - **Global search** — ⌘K palette over deals, invoices, buildings, agents
 - Bilingual UI (中文 / English) via a cookie-based locale toggle
 
-**Auth is Google-only.** Any Google account can sign in; new accounts land in a pending
-state until an admin approves them. Emails listed in `ADMIN_EMAILS` are auto-approved
-as admins. There are no passwords or magic links.
+**Auth is Google-only.** Normal sign-in accepts only a verified email or Google identity
+already linked to an Agent. New applicants must enter through `/join` or an invitation,
+so mistyping or switching Google accounts does not create duplicate pending Agents.
+One Agent can link multiple verified Google login emails while retaining one canonical
+person record and primary contact email. Emails listed in `ADMIN_EMAILS` are
+auto-approved as admins. There are no passwords or magic links.
 
 ### Public agent applications
 

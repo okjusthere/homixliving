@@ -33,6 +33,32 @@ The lifecycle migration is deliberately expand/contract:
    - deactivation sets `inactive` and `admin_hidden`.
 4. Apply `db/migrations/20260723-agent-lifecycle-phase-b.sql`.
 
+## Agent identity model
+
+Agent identity has three layers so an email address is no longer treated as a
+person id:
+
+1. `portal.agents` is the canonical person and owns status, role, team, deals,
+   payments, and onboarding.
+2. `portal.agent_email_addresses` contains the person's verified contact and
+   login addresses. Exactly one is primary; multiple verified addresses can
+   sign in to the same Agent.
+3. `portal.agent_login_identities` binds a stable provider subject (Google OIDC
+   `sub`) to the Agent. Authentication resolves this before email.
+
+Apply `db/migrations/20260910-agent-identity-model.sql` before deploying code
+that reads these tables. Normal Google sign-in never creates a person. Creation
+is allowed only from an explicit `/join` context, a valid invitation, or the
+configured admin bootstrap. A signed-in Agent links an additional Google email
+from My profile and proves ownership by completing Google OAuth with that
+address.
+
+Confirmed duplicate cleanup uses `npm run agents:merge-confirmed`. The command
+is dry-run by default and is intentionally restricted to the reviewed ids. Its
+`--apply` mode moves identity/activity history, snapshots every deleted Agent in
+`portal.agent_merge_history`, writes `portal.audit_log`, and aborts the whole
+transaction if any unexpected business reference appears.
+
 ## Automated News
 
 `db/migrations/20260730-automated-news.sql` is an additive shared-database
