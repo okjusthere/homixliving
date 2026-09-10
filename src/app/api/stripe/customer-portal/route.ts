@@ -1,9 +1,15 @@
 import { NextResponse } from "next/server";
-import { and, desc, eq, isNotNull, isNull, or } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { commerceOrders } from "@/db/schema";
+import { agents } from "@/db/schema";
 import { requireActiveAgentApi } from "@/lib/auth-guards";
 import { getStripe } from "@/lib/stripe";
+import {
+  InvalidStripeCustomerError,
+  StripeCustomerConflictError,
+  isMissingStripeCustomerError,
+  resolveStripeCustomerForAgent,
+} from "@/lib/commerce/stripe-customer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,43 +30,27 @@ export async function POST(request: Request) {
   if ("error" in authResult) return authResult.error;
 
   const agentId = authResult.session.user.agentId;
-  const email = authResult.session.user.email?.trim().toLowerCase();
   if (!agentId) {
     return NextResponse.json({ error: "Signed-in agent is missing." }, { status: 400 });
   }
 
-  const [order] = await db
-    .select({
-      stripeCustomerId: commerceOrders.stripeCustomerId,
-      updatedAt: commerceOrders.updatedAt,
-    })
-    .from(commerceOrders)
-    .where(
-      and(
-        or(
-          eq(commerceOrders.agentId, agentId),
-          and(
-            isNull(commerceOrders.agentId),
-            eq(commerceOrders.customerEmail, email || ""),
-          ),
-        ),
-        isNotNull(commerceOrders.stripeCustomerId)
-      )
-    )
-    .orderBy(desc(commerceOrders.updatedAt))
+  const [agent] = await db
+    .select()
+    .from(agents)
+    .where(eq(agents.id, agentId))
     .limit(1);
-
-  const customer = order?.stripeCustomerId?.trim();
-  if (!customer) {
+  if (!agent || agent.accountStatus === "inactive") {
     return NextResponse.json(
-      { error: "No Stripe billing profile is connected to this user yet." },
+      { error: "Agent account is unavailable." },
       { status: 404 }
     );
   }
 
   try {
+    const stripe = getStripe();
+    const customer = await resolveStripeCustomerForAgent({ agent, stripe });
     const configuration = process.env.STRIPE_CUSTOMER_PORTAL_CONFIGURATION?.trim();
-    const session = await getStripe().billingPortal.sessions.create({
+    const session = await stripe.billingPortal.sessions.create({
       customer,
       return_url: `${getBaseUrl(request)}/`,
       configuration: configuration || undefined,
@@ -68,10 +58,21 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ url: session.url });
   } catch (error) {
-    console.error("Stripe customer portal session creation failed", error);
+    console.error("Stripe customer portal session creation failed", {
+      agentId: agent.id,
+      stripeCustomerId: agent.stripeCustomerId,
+      error,
+    });
+    const billingProfileError = error instanceof InvalidStripeCustomerError
+      || error instanceof StripeCustomerConflictError
+      || isMissingStripeCustomerError(error);
     return NextResponse.json(
-      { error: "Could not open the billing portal. Please try again." },
-      { status: 500 }
+      {
+        error: billingProfileError
+          ? "Your Stripe billing profile needs attention. Contact support before retrying."
+          : "Could not open the billing portal. Please try again.",
+      },
+      { status: billingProfileError ? 409 : 500 }
     );
   }
 }

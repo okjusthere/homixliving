@@ -20,6 +20,14 @@ import {
   onboardingLicenseTransferFeeCents,
 } from "@/lib/plan-payments";
 import { ensureStripeProductPrice } from "@/lib/commerce/stripe-products";
+import {
+  InvalidStripeCustomerError,
+  StripeCustomerConflictError,
+  isMissingStripeCustomerError,
+  resolveStripeCustomerForAgent,
+} from "@/lib/commerce/stripe-customer";
+import { buildCheckoutSessionParams } from "@/lib/commerce/checkout-session";
+import { withStripeAppMetadata } from "@/lib/commerce/stripe-app";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -140,8 +148,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Could not create checkout order." }, { status: 500 });
   }
 
+  let resolvedStripeCustomerId: string | null = null;
   try {
     const baseUrl = getBaseUrl(request);
+    const stripeCustomerId = await resolveStripeCustomerForAgent({ agent, stripe });
+    resolvedStripeCustomerId = stripeCustomerId;
     let upgradeCreditCents = 0;
     if (product.key === "elite_desk_fee") {
       const threshold = new Date(Date.now() - SOLO_PRO_UPGRADE_CREDIT_DAYS * 86_400_000).toISOString();
@@ -176,18 +187,21 @@ export async function POST(request: Request) {
             currency: product.currency,
             duration: "once",
             name: "90-day Solo Pro upgrade credit",
-            metadata: { agentId: String(agent.id), orderId: String(order.id) },
+            metadata: withStripeAppMetadata({
+              agentId: String(agent.id),
+              orderId: String(order.id),
+            }),
           },
           { idempotencyKey: `solo-pro-upgrade-credit-order-${order.id}` },
         )
       : null;
-    const metadata = {
+    const metadata = withStripeAppMetadata({
       orderId: String(order.id),
       productKey: product.key,
       agentId: String(agent.id),
       upgradeCreditCents: String(upgradeCreditCents),
       licenseTransferFeeCents: String(licenseTransferFeeCents),
-    };
+    });
 
     const lineItems = [
       { price: priceId, quantity: 1 },
@@ -197,39 +211,24 @@ export async function POST(request: Request) {
       ? `${product.name} + ${licenseTransferProduct!.name} - ${formatProductAmount(order.amountCents)}`
       : `${product.name} - ${formatProductAmount(product.amountCents)}`;
 
-    const session = await stripe.checkout.sessions.create({
-      mode: product.billingMode,
-      line_items: lineItems,
-      customer_email: payload.customerEmail,
-      client_reference_id: String(order.id),
+    const session = await stripe.checkout.sessions.create(buildCheckoutSessionParams({
+      billingMode: product.billingMode,
+      lineItems,
+      stripeCustomerId,
+      orderId: order.id,
       metadata,
-      subscription_data:
-        product.billingMode === "subscription"
-          ? {
-              metadata,
-              description: checkoutDescription,
-            }
-          : undefined,
-      payment_intent_data:
-        product.billingMode === "payment"
-          ? {
-              metadata,
-              description: checkoutDescription,
-            }
-          : undefined,
-      discounts: upgradeCoupon ? [{ coupon: upgradeCoupon.id }] : undefined,
-      allow_promotion_codes: upgradeCoupon || licenseTransferFeeCents > 0 ? undefined : true,
-      billing_address_collection: "auto",
-      automatic_tax: { enabled: process.env.STRIPE_AUTOMATIC_TAX === "1" },
-      success_url: `${baseUrl}/pay/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${baseUrl}/pay?canceled=1`,
-    });
+      description: checkoutDescription,
+      couponId: upgradeCoupon?.id,
+      hasLicenseTransferFee: licenseTransferFeeCents > 0,
+      automaticTaxEnabled: process.env.STRIPE_AUTOMATIC_TAX === "1",
+      baseUrl,
+    }));
 
     await db
       .update(commerceOrders)
       .set({
         stripeCheckoutSessionId: session.id,
-        stripeCustomerId: stripeId(session.customer),
+        stripeCustomerId: stripeId(session.customer) || stripeCustomerId,
         stripeSubscriptionId: stripeId(session.subscription),
         stripePaymentIntentId: stripeId(session.payment_intent),
         checkoutUrl: session.url,
@@ -239,15 +238,26 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ url: session.url });
   } catch (error) {
-    console.error("Stripe checkout session creation failed", error);
+    console.error("Stripe checkout session creation failed", {
+      agentId: agent.id,
+      stripeCustomerId: resolvedStripeCustomerId || agent.stripeCustomerId,
+      error,
+    });
     await db
       .update(commerceOrders)
       .set({ status: "failed", updatedAt: new Date().toISOString() })
       .where(eq(commerceOrders.id, order.id));
 
+    const billingProfileError = error instanceof InvalidStripeCustomerError
+      || error instanceof StripeCustomerConflictError
+      || isMissingStripeCustomerError(error);
     return NextResponse.json(
-      { error: "Could not start Stripe checkout. Please try again." },
-      { status: 500 }
+      {
+        error: billingProfileError
+          ? "Your Stripe billing profile needs attention. Contact support before retrying."
+          : "Could not start Stripe checkout. Please try again.",
+      },
+      { status: billingProfileError ? 409 : 500 }
     );
   }
 }

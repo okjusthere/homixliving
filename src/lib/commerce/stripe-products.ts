@@ -3,6 +3,7 @@ import {
   getProductStripePriceId,
   type CommerceProduct,
 } from "@/lib/commerce/catalog";
+import { STRIPE_APP_ID } from "@/lib/commerce/stripe-app";
 
 function recurringFor(
   product: CommerceProduct,
@@ -32,8 +33,9 @@ async function findProduct(
 ): Promise<Stripe.Product | null> {
   for await (const candidate of stripe.products.list({ active: true, limit: 100 })) {
     if (
-      candidate.metadata.homix_product_key === product.key ||
-      candidate.name === product.name
+      (!candidate.metadata.app || candidate.metadata.app === STRIPE_APP_ID) &&
+      (candidate.metadata.homix_product_key === product.key ||
+        candidate.name === product.name)
     ) {
       return candidate;
     }
@@ -55,6 +57,7 @@ export async function ensureStripeProductPrice(
         name: product.name,
         description: product.description,
         metadata: {
+          app: STRIPE_APP_ID,
           homix_product_key: product.key,
           source: "homixliving",
         },
@@ -77,6 +80,7 @@ export async function ensureStripeProductPrice(
       unit_amount: product.amountCents,
       recurring: recurringFor(product),
       metadata: {
+        app: STRIPE_APP_ID,
         homix_product_key: product.key,
         source: "homixliving",
       },

@@ -224,6 +224,8 @@ export const agents = portal.table("agents", {
     .$type<OnboardingPaymentStatus>()
     .notNull()
     .default("pending"),
+  /** Canonical Stripe Customer for this portal account. Card details remain in Stripe. */
+  stripeCustomerId: text("stripe_customer_id"),
   /** rental | sales | both. Null when not yet specified. */
   practice: text("practice").$type<AgentPractice>(),
   /** Which existing agent recruited this one — set by an admin, never inferred. */
@@ -237,6 +239,9 @@ export const agents = portal.table("agents", {
   uniqueIndex("uq_agents_pending_email_lower")
     .on(sql`lower(${table.pendingEmail})`)
     .where(sql`${table.pendingEmail} IS NOT NULL`),
+  uniqueIndex("uq_agents_stripe_customer")
+    .on(table.stripeCustomerId)
+    .where(sql`${table.stripeCustomerId} IS NOT NULL`),
 ]);
 
 // Invitation links freeze only their authoritative facts. A personal referral

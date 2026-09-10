@@ -18,6 +18,7 @@ import {
   type CommerceProductKey,
 } from "@/lib/commerce/catalog";
 import { useLocale } from "@/lib/i18n-client";
+import { BillingPortalButton } from "@/components/homix/billing-portal-button";
 
 export type PublicPayProduct = Omit<CommerceProduct, "currency"> & {
   currency: "usd";
@@ -76,6 +77,8 @@ const M = {
     opening: "Opening Stripe…",
     checkout: "Checkout",
     stripeNotice: "Payment details are collected securely by Stripe Checkout.",
+    savedCardNotice: "Save your card securely with Stripe for faster future purchases.",
+    manageBilling: "Manage saved cards and billing",
   },
   zh: {
     canceled: "付款已取消。",
@@ -107,6 +110,8 @@ const M = {
     opening: "正在打开 Stripe…",
     checkout: "前往付款",
     stripeNotice: "付款信息由 Stripe Checkout 安全收集。",
+    savedCardNotice: "可选择由 Stripe 安全保存付款方式，之后采购无需重新输入卡号。",
+    manageBilling: "管理已保存的卡与账单",
   },
 } as const;
 
@@ -534,8 +539,13 @@ export function PayClient({
 
             <div className="mt-4 flex items-start gap-2 text-[12px] leading-5 text-ink-50">
               <ShieldCheck className="mt-0.5 size-4 shrink-0 text-homix-green" />
-              <span>{t.stripeNotice}</span>
+              <span>
+                {t.stripeNotice} {t.savedCardNotice}
+              </span>
             </div>
+            {!onboarding && (
+              <BillingPortalButton className="mt-3" label={t.manageBilling} />
+            )}
           </aside>
         </main>
       </div>

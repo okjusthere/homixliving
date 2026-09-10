@@ -85,6 +85,7 @@ Set `SEED_DEMO=1` when seeding to also insert demo teams/agents (never use in pr
 | `npm run test:<suite>` | One suite, e.g. `test:commission`, `test:renewals` |
 | `npm run db:seed` | Create/seed the `portal` schema against `DATABASE_URL` |
 | `npm run stripe:products` | Create or reuse the configured Stripe Products/Prices |
+| `npm run stripe:customers:audit` | Read-only report of canonical and conflicting Stripe Customers per agent |
 | `npm run google:workspace:oauth` | Generate a Google Workspace admin refresh token locally |
 | `npx tsx scripts/verify-tables.ts` | Check a DB's tables against the expected schema |
 | `npx tsx scripts/import-cloudflare-videos.ts` | Import existing Cloudflare Stream videos into `training_videos` |
@@ -174,12 +175,41 @@ STRIPE_AUTOMATIC_TAX=1                     # optional
 STRIPE_CUSTOMER_PORTAL_CONFIGURATION=...   # optional
 ```
 
+All Stripe objects created by this app are tagged with `app=homixliving`.
+Configure a dedicated webhook endpoint for `/api/stripe/webhook` with only the
+six event types handled by the route: `checkout.session.completed`,
+`checkout.session.expired`, `invoice.payment_succeeded`,
+`invoice.payment_failed`, `customer.subscription.updated`, and
+`customer.subscription.deleted`. Events belonging to another app are
+acknowledged and ignored.
+
+For local test mode, sign in once with the Stripe CLI and run
+`npm run stripe:test:configure`. The command accepts only a CLI `*_test_*` key,
+creates or reuses the Homix test products, writes the test key and Price IDs to
+the gitignored `.env.local`, and never prints the key.
+
+Run the hosted-Checkout saved-card smoke flow with
+`npm run stripe:test:smoke -- setup`, then `return`, `subscription`, `portal`,
+`decline`, `removal`, and finally `cleanup`. The script refuses non-test keys and deletes only the
+synthetic Customer tagged for its own Homix smoke run.
+
 All authenticated Portal purchases are bound to `agentId`; email is retained as
 a receipt/contact field rather than the accounting identity. Onboarding checkout
 is available only after the agreement is signed, and its product is selected from
 the agent's locked compensation plan. A Solo/Holding agent upgrading to Solo Pro
 within 90 days receives the prior `$288` or `$500` affiliation payment as a
 one-time Stripe discount; the annual subscription then renews at the normal rate.
+
+Each agent is also bound to one canonical Stripe Customer. Checkout offers an
+explicit Stripe-hosted option to save or remove a payment method, and later
+Checkout Sessions reuse that Customer so eligible saved cards can be selected
+without re-entering card details. Optional one-time services still require the
+agent to confirm every purchase; this integration does not grant administrators
+blanket off-session charging authority. Enable payment-method management in the
+configured Stripe Customer Portal. After the additive schema expansion and
+before deploying application code, run `npm run stripe:customers:audit` against
+the target database and manually review any agent with multiple historical or
+active-subscription Customer IDs.
 
 Stripe is the default onboarding payment path. When the office has actually
 received cash, check, ACH, Zelle, or wire payment, an administrator may use the
