@@ -8,6 +8,7 @@ import {
 } from "./azure";
 import type { BrandContext, ContentInput } from "./types";
 import { dispatchGeneration } from "./dispatch";
+import { addCompanyLogo, companyLogo } from "./logo";
 
 type Job = {
   id: string;
@@ -32,6 +33,8 @@ export async function prepareGeneration(id: string) {
     [job.owner_agent_id],
   );
   if (!agent) throw new FatalError("Agent is no longer active");
+  // Fail before spending an image generation if the deployment lacks branding.
+  await companyLogo();
   await query(
     "UPDATE portal.content_generations SET status='preparing',updated_at=now() WHERE id=$1 AND status='queued'",
     [id],
@@ -140,7 +143,7 @@ export async function saveGeneration(
   // Output uses job ID so retries write the same immutable output object.
   await putAsset(
     job.owner_agent_id,
-    Buffer.from(result.bytes),
+    await addCompanyLogo(Buffer.from(result.bytes), job.input.size),
     "output",
     id,
     false,

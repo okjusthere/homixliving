@@ -35,14 +35,15 @@ import {
 
 const emptyEvent = {
   date: "",
-  start: "",
-  end: "",
+  start: "13:00",
+  end: "15:00",
   timezone: "America/New_York",
 };
 const emptyInput: ContentInput = {
   kind: "listing",
   theme: "just_listed",
-  language: "en",
+  language: "zh",
+  event: { ...emptyEvent },
   size: "1024x1280",
   includePortrait: true,
   headline: "",
@@ -57,7 +58,7 @@ export function ContentStudio() {
     t = (en: string, cn: string) => (zh ? cn : en);
   const [tab, setTab] = useState<"listing" | "holiday" | "works">("listing");
   const [outputChoice, setOutputChoice] = useState<"both" | "en" | "zh">(
-    "both",
+    "zh",
   );
   const [templates, setTemplates] = useState<ContentTemplate[]>([]),
     [holidays, setHolidays] = useState<Holiday[]>([]);
@@ -374,7 +375,7 @@ export function ContentStudio() {
         fetchedAt: new Date().toISOString(),
         sourceStatus: listing.status,
       });
-      patch({ event: listingEvent(listing) });
+      patch({ event: listingEvent(listing) || { ...emptyEvent } });
       setProjectId(undefined);
     } finally {
       setBusy(false);
@@ -625,12 +626,12 @@ export function ContentStudio() {
                             ...g.input,
                             language:
                               g.input.language === "bilingual"
-                                ? "en"
+                                ? "zh"
                                 : g.input.language,
                           });
                           setOutputChoice(
                             g.input.language === "bilingual"
-                              ? "both"
+                              ? "zh"
                               : g.input.language,
                           );
                           setProjectId(g.projectId);
@@ -690,7 +691,13 @@ export function ContentStudio() {
                             aria-pressed={input.theme === s.id}
                             key={s.id}
                             onClick={() => {
-                              patch({ theme: s.id, headline: "" });
+                              patch({
+                                theme: s.id,
+                                headline: "",
+                                ...(s.id === "open_house" && !input.event
+                                  ? { event: { ...emptyEvent } }
+                                  : {}),
+                              });
                               setSelected("");
                             }}
                           >
@@ -872,8 +879,8 @@ export function ContentStudio() {
                     <>
                       <p className="studio-note">
                         {t(
-                          "Property costs appear alongside the price and key features. Use confirmed amounts and keep the billing period explicit.",
-                          "税费将与价格、户型和亮点一同展示。请填写已确认的金额并注明周期。",
+                          "Enter confirmed amounts with their billing period. Blank costs are omitted from the poster, never treated as zero.",
+                          "仅填写已确认的金额并注明周期。未填写的费用不会展示，也不会按零计算。",
                         )}
                       </p>
                       <div className="studio-row">
@@ -885,7 +892,6 @@ export function ContentStudio() {
                         >
                           <input
                             value={input.listing?.annualPropertyTax || ""}
-                            placeholder="$8,000"
                             onChange={(e) =>
                               patchListing({
                                 annualPropertyTax: e.target.value,
@@ -901,7 +907,6 @@ export function ContentStudio() {
                         >
                           <input
                             value={input.listing?.monthlyMaintenanceFee || ""}
-                            placeholder="$375"
                             onChange={(e) =>
                               patchListing({
                                 monthlyMaintenanceFee: e.target.value,
@@ -1158,6 +1163,9 @@ export function ContentStudio() {
               />
               {t("Include my portrait", "加入我的头像")}
             </label>
+            <p className="studio-note">
+              {t("The Homix company logo is included on every poster.", "每张海报都会自动加入 Homix 公司 Logo。")}
+            </p>
             <Field label={t("Output versions", "生成版本")}>
               <select
                 value={outputChoice}
@@ -1236,7 +1244,13 @@ export function ContentStudio() {
             )}
             {input.theme === "open_house" && (
               <>
-                <Field label={t("Open House date", "开放看房日期")}>
+                <p className="studio-note">
+                  {t(
+                    "Default time: 1–3 PM. MLS event times take priority; confirm the date and time before generating.",
+                    "默认时间为下午 1–3 点；如房源已提供公展时间，会优先填入。生成前请确认日期和时间。",
+                  )}
+                </p>
+                <Field label={t("Open House date", "公展日期")}>
                   <input
                     type="date"
                     value={input.event?.date || ""}

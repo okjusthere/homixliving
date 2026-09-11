@@ -52,7 +52,7 @@ test("Open House still requires a valid date and increasing time range, with use
   assert.equal(invalid.success, false);
   if (!invalid.success) {
     const message = contentValidationMessage(invalid.error.issues);
-    assert.match(message, /Open House 日期/);
+    assert.match(message, /公展日期/);
     assert.match(message, /开始时间/);
     assert.doesNotMatch(message, /pattern|Too small/);
   }

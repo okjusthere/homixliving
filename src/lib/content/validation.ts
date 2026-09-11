@@ -114,7 +114,7 @@ const contentInputSchema = z
       ctx.addIssue({
         code: "custom",
         message:
-          "Open House requires a date and an end time after the start / 请填写 Open House 日期，结束时间必须晚于开始时间",
+          "Open House requires a date and an end time after the start / 请填写公展日期，结束时间必须晚于开始时间",
         path: ["event"],
       });
     }

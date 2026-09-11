@@ -1,7 +1,7 @@
 export const LISTING_THEMES = [
   { id: "coming_soon", group: "PRE-LIST", en: "Coming Soon", zh: "即将上市" },
   { id: "just_listed", group: "ACTIVE", en: "Just Listed", zh: "新房上市" },
-  { id: "open_house", group: "ACTIVE", en: "Open House", zh: "开放看房" },
+  { id: "open_house", group: "ACTIVE", en: "Open House", zh: "公展" },
   {
     id: "under_contract",
     group: "PROCESS",

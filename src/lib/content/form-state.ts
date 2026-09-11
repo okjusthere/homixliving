@@ -85,12 +85,12 @@ export function contentValidationMessage(issues: Issue[]): string {
     "listing.imageAssetIds":
       "Select 1–4 property photos / 请选择 1–4 张房源照片",
     "event.date":
-      "Enter a valid Open House date / 请填写有效的 Open House 日期",
+      "Enter a valid Open House date / 请填写有效的公展日期",
     "event.start":
-      "Enter the Open House start time / 请填写 Open House 开始时间",
-    "event.end": "Enter the Open House end time / 请填写 Open House 结束时间",
+      "Enter the Open House start time / 请填写公展开始时间",
+    "event.end": "Enter the Open House end time / 请填写公展结束时间",
     "event.timezone":
-      "Enter a valid Open House timezone / 请填写有效的 Open House 时区",
+      "Enter a valid Open House timezone / 请填写有效的公展时区",
     holidayDate: "Enter a valid holiday date / 请填写有效的节日日期",
     "listing.description":
       "Keep the listing description within 12,000 characters / 房源描述不能超过 12,000 字符",

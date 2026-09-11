@@ -123,3 +123,12 @@ These sample checks verify the implemented workflow and inspected artwork, not a
 - The explicitly labelled “Confirm copy & create” action combines copy approval and generation. `copyReviewStep` keeps extraction separate from approval; only the confirm action marks extracted copy reviewed in the submitted snapshot. No separate confirm button is required. An explicit basic-details-only option skips AI, retaining structured costs and facts.
 - A generation action beside the selection list shows output languages. Imported MLS source text is collapsed by default; brief status posters hide unused source/copy controls.
 - Validation: 24 content tests, typecheck, scoped lint and production build passed. Local browser acceptance verified cap feedback, deselect/reselect, inline empty-translation errors, expand/collapse and a 350px-wide component layout.
+
+### Poster branding and defaults (2026-09-11)
+
+- New forms default to one Chinese poster. A second English version requires the user to choose the pair. Reusing a single-language work preserves its language; legacy bilingual works default to Chinese.
+- Numeric tax/maintenance placeholders were removed. Empty amounts remain absent from model facts and must never be inferred as zero. Only confirmed entered/imported fees are used.
+- Open House is labeled 公展 in Chinese UI, validation and generation instructions. New events default to 13:00–15:00 America/New_York; their date remains required. Imported actual MLS events and existing edited times take precedence.
+- Every newly saved poster, including holidays and portrait-free output, receives the approved original `src/assets/content/homix-logo.webp`. The retryable save step fits the complete Azure result proportionally above a separate white brand footer and composites the logo there, retaining exact output dimensions without covering or cropping artwork. Prompt instructions prohibit invented logos. The official brand asset retains its original bilingual lettering.
+- Branding is bundled into content/cron/workflow functions and checked before calling Azure. Save retries reuse the persisted provider result. Existing saved artwork is not rewritten; use again to create a branded version.
+- Verified all three supported sizes with pixel tests for intact artwork, exact dimensions and visible logo pixels, plus a visual composite check. No additional image generation is needed for compositing verification.

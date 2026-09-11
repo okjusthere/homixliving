@@ -62,10 +62,10 @@ const nextConfig: NextConfig = {
     "/api/invoices/*/send": ["src/assets/homix-living-inc-w9.pdf"],
     // Sharp's dynamically loaded Linux libvips binaries must travel with both
     // request handlers and durable Workflow steps in Vercel's function bundles.
-    "/api/content/**": ["node_modules/sharp/**/*", "node_modules/@img/sharp-*/**/*"],
+    "/api/content/**": ["src/assets/content/homix-logo.webp", "node_modules/sharp/**/*", "node_modules/@img/sharp-*/**/*"],
     "/api/marketing/email/**": ["node_modules/sharp/**/*", "node_modules/@img/sharp-*/**/*"],
-    "/api/cron/content-generations": ["node_modules/sharp/**/*", "node_modules/@img/sharp-*/**/*"],
-    "/.well-known/workflow/**": ["node_modules/sharp/**/*", "node_modules/@img/sharp-*/**/*"],
+    "/api/cron/content-generations": ["src/assets/content/homix-logo.webp", "node_modules/sharp/**/*", "node_modules/@img/sharp-*/**/*"],
+    "/.well-known/workflow/**": ["src/assets/content/homix-logo.webp", "node_modules/sharp/**/*", "node_modules/@img/sharp-*/**/*"],
   },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
