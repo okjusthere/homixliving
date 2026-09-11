@@ -1,13 +1,10 @@
 import type { Metadata } from "next";
-import { asc } from "drizzle-orm";
-import { db } from "@/db";
-import { checklistItems, resources, type Resource } from "@/db/schema";
+import { type Resource } from "@/db/schema";
+import { loadLibrary } from "@/lib/resource-library";
 import { requireActiveAgent } from "@/lib/auth-guards";
 import { tone } from "@/components/homix/tokens";
 import { Card, Pill } from "@/components/homix/server-primitives";
 import { PageHeader, CardHeader } from "@/components/homix/page-kit";
-import { ResourceManager } from "@/components/resources/resource-manager";
-import { ChecklistManager } from "@/components/resources/checklist-manager";
 import { RequiredDocs } from "@/components/resources/required-docs";
 import { CompanyDocuments } from "@/components/resources/company-documents";
 import { getCompanyW9DocumentMetadata } from "@/lib/company-w9";
@@ -51,45 +48,15 @@ function groupByCategory(items: Resource[]): [string, Resource[]][] {
   return Array.from(map.entries());
 }
 
-async function queryLibrary() {
-  return Promise.all([
-    db.select().from(resources).orderBy(asc(resources.sortOrder), asc(resources.id)),
-    db
-      .select()
-      .from(checklistItems)
-      .orderBy(asc(checklistItems.sortOrder), asc(checklistItems.id)),
-  ]);
-}
-
-/**
- * Self-healing load: right after a deploy that adds columns/tables, the
- * production database hasn't run the DDL yet. On the
- * first failed query, apply the idempotent ensure-schema and retry once,
- * instead of 500ing until someone remembers to hit the admin endpoint.
- */
-async function loadLibrary() {
-  try {
-    return await queryLibrary();
-  } catch {
-    const [{ pgClient }, { ensureSchema }] = await Promise.all([
-      import("@/db"),
-      import("@/db/ensure-schema"),
-    ]);
-    await ensureSchema(pgClient);
-    return queryLibrary();
-  }
-}
-
 export default async function ResourcesPage() {
-  const session = await requireActiveAgent();
-  const isAdmin = !!session.user.isAdmin;
+  await requireActiveAgent();
   const t = M[await getLocale()];
 
   const [[all, checklist], companyW9s] = await Promise.all([
     loadLibrary(),
     getCompanyW9DocumentMetadata(),
   ]);
-  const visible = isAdmin ? all : all.filter((r) => r.isPublished);
+  const visible = all;
   const groups = groupByCategory(visible);
 
   return (
@@ -100,15 +67,13 @@ export default async function ResourcesPage() {
         description={t.description}
       />
 
-      {isAdmin && <ResourceManager initialResources={all} />}
-      {isAdmin && <ChecklistManager initialItems={checklist} />}
 
       <RequiredDocs items={checklist} />
 
       {visible.length === 0 ? (
         <Card className="p-10 text-center">
           <p className="text-[14px]" style={{ color: tone.ink50 }}>
-            {isAdmin ? t.emptyAdmin : t.emptyAgent}
+            {t.emptyAgent}
           </p>
         </Card>
       ) : (
@@ -162,7 +127,7 @@ export default async function ResourcesPage() {
         </div>
       )}
 
-      <CompanyDocuments initialW9s={companyW9s} isAdmin={isAdmin} />
+      <CompanyDocuments initialW9s={companyW9s} isAdmin={false} />
     </div>
   );
 }

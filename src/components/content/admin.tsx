@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/homix/page-kit";
 import { useLocale } from "@/lib/i18n-client";
 import { ContentErrorDialog } from "./error-dialog";
@@ -36,8 +37,10 @@ const freshHoliday: Holiday = {
 export function ContentAdmin() {
   const locale = useLocale(),
     t = (en: string, zh: string) => (locale === "zh" ? zh : en);
-  const [tab, setTab] = useState("templates"),
-    [templates, setTemplates] = useState<ContentTemplate[]>([]),
+  const params = useSearchParams();
+  const tab = ["templates", "holidays", "settings", "generations"].includes(params.get("tab") || "") ? params.get("tab")! : "templates";
+  const setTab = (value: string) => { const next = new URLSearchParams(params); next.set("tab", value); window.history.pushState(null, "", `?${next}`); };
+  const [templates, setTemplates] = useState<ContentTemplate[]>([]),
     [holidays, setHolidays] = useState<Holiday[]>([]),
     [selected, setSelected] = useState<ContentTemplate | null>(null);
   const [config, setConfig] = useState<TemplateConfig>(freshConfig),

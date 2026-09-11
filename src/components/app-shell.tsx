@@ -35,6 +35,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
+  if (isPathOrChild(pathname, "/admin")) return <>{children}</>;
+
   return (
     <>
       <Nav />

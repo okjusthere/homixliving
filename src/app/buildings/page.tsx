@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
+import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import {
@@ -137,7 +138,8 @@ export default function BuildingsPage() {
   const [editBuilding, setEditBuilding] = useState<Building | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [saving, setSaving] = useState(false);
-  const isAdmin = Boolean(session?.user.isAdmin);
+  const pathname = usePathname();
+  const isAdmin = pathname.startsWith("/admin/") && Boolean(session?.user.isAdmin);
 
   const fetchBuildings = () => {
     fetch("/api/buildings")
