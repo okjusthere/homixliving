@@ -1,9 +1,10 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { agents, onboardingEvents, teamLeaderApplications, teams } from "@/db/schema";
 import { lockTeamConfiguration } from "@/lib/advisory-locks";
 import {
   getESignEnvelope,
+  esignEnvelopeHasExpired,
   getESignEvidence,
   isTeamLeaderESignConfigured,
   teamLeaderESignTemplateConfiguration,
@@ -37,7 +38,7 @@ export async function syncTeamLeaderAgreement(
   if (envelope.templateVersionId !== configuration.templateVersionId) {
     throw new Error("The Team Leader envelope uses an unapproved template version.");
   }
-  const agreementStatus = teamLeaderAgreementState(envelope.status);
+  const agreementStatus = esignEnvelopeHasExpired(envelope) ? "expired" : teamLeaderAgreementState(envelope.status);
   let evidencePackageId = application.esignEvidencePackageId;
   let agreementCompletedAt = application.agreementCompletedAt;
   if (agreementStatus === "completed") {
@@ -56,7 +57,10 @@ export async function syncTeamLeaderAgreement(
     envelope.templateVersionId === application.esignTemplateVersionId &&
     evidencePackageId === application.esignEvidencePackageId &&
     agreementCompletedAt === application.agreementCompletedAt
-  ) return application;
+  ) {
+    const [fresh] = await db.select().from(teamLeaderApplications).where(eq(teamLeaderApplications.id, application.id)).limit(1);
+    return fresh || application;
+  }
   return db.transaction(async (tx) => {
     const [updated] = await tx.update(teamLeaderApplications).set({
       agreementStatus,
@@ -67,6 +71,8 @@ export async function syncTeamLeaderAgreement(
     }).where(and(
       eq(teamLeaderApplications.id, application.id),
       eq(teamLeaderApplications.agreementStatus, application.agreementStatus),
+      eq(teamLeaderApplications.esignEnvelopeId, application.esignEnvelopeId!),
+      sql`${teamLeaderApplications.updatedAt} IS NOT DISTINCT FROM ${application.updatedAt}::timestamptz`,
     )).returning();
     if (!updated) {
       const [fresh] = await tx
@@ -95,13 +101,14 @@ export async function syncTeamLeaderAgreement(
   });
 }
 
-export async function markTeamLeaderAgreementSent(applicationId: number) {
+export async function markTeamLeaderAgreementSent(applicationId: number, envelopeId: string) {
   return db.transaction(async (tx) => {
     const [sent] = await tx.update(teamLeaderApplications).set({
       agreementStatus: "sent",
       updatedAt: new Date().toISOString(),
     }).where(and(
       eq(teamLeaderApplications.id, applicationId),
+      eq(teamLeaderApplications.esignEnvelopeId, envelopeId),
       eq(teamLeaderApplications.agreementStatus, "preparing"),
     )).returning();
     if (!sent) {

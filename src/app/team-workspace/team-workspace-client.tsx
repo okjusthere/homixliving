@@ -1,5 +1,7 @@
 "use client";
 
+import { canRestartAgreement } from "@/lib/agreement-recovery-policy";
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Link2 } from "lucide-react";
@@ -101,6 +103,9 @@ const M = {
     formingLead: "The office approved this forming team and published v1 terms. Sign the Team Leader agreement before creating recruiting links.",
     agreement: "Agreement",
     prepareAgreement: "Prepare and send agreement",
+    restartAgreement: "Create and send a replacement agreement",
+    finalizationFailed: "Your signatures are retained. Contact an administrator to recover the final document.",
+    agreementChecked: "Agreement status refreshed.",
     agreementPreparing: "Preparing…",
     agreementSent: "Agreement sent. Complete it from the eSign email, then check again.",
     checkAgreement: "Check agreement status",
@@ -208,6 +213,9 @@ const M = {
     formingLead: "公司已批准筹备中的团队并发布 v1 条款。签署 Team Leader 协议后，系统才开放团队招聘链接。",
     agreement: "协议",
     prepareAgreement: "生成并发送协议",
+    restartAgreement: "重新生成并发送协议",
+    finalizationFailed: "签名已保留，请联系管理员恢复最终文件，无需重新签署。",
+    agreementChecked: "协议状态已刷新。",
     agreementPreparing: "处理中…",
     agreementSent: "协议已发送，请在 eSign 邮件中完成签署后再检查状态。",
     checkAgreement: "检查协议状态",
@@ -330,7 +338,7 @@ export function TeamWorkspaceClient({
       const response = await fetch(`/api/team-leader-applications/${data.leaderApplication.id}/agreement`, { method });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(String(payload.error || t.agreementFailed));
-      toast.success(payload.agreementStatus === "completed" ? t.agreementComplete : t.agreementSent);
+      toast.success(payload.agreementStatus === "completed" ? t.agreementComplete : method === "POST" ? t.agreementSent : t.agreementChecked);
       router.refresh();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t.agreementFailed);
@@ -380,6 +388,7 @@ export function TeamWorkspaceClient({
         <Card>
           <CardHeader title={t.formingTitle} subtitle={t.formingLead} />
           <div className="space-y-3 p-5">
+            {data.leaderApplication.agreementStatus === "failed" && <p className="text-[13px]" style={{ color: tone.rose }}>{t.finalizationFailed}</p>}
             <div className="flex flex-wrap items-center gap-3">
               <Pill tone={data.leaderApplication.agreementStatus === "completed" ? "sent" : "draft"}>
                 {t.agreement}: {t.agreementStatus[data.leaderApplication.agreementStatus]}
@@ -390,10 +399,10 @@ export function TeamWorkspaceClient({
                 <Btn
                   variant="primary"
                   size="sm"
-                  onClick={() => void updateLeaderAgreement(data.leaderApplication?.agreementStatus === "not_started" ? "POST" : "GET")}
+                  onClick={() => void updateLeaderAgreement((data.leaderApplication?.agreementStatus === "not_started" || data.leaderApplication?.agreementStatus === "preparing" || canRestartAgreement(data.leaderApplication?.agreementStatus || "")) ? "POST" : "GET")}
                   disabled={leaderAgreementBusy}
                 >
-                  {leaderAgreementBusy ? t.agreementPreparing : data.leaderApplication.agreementStatus === "not_started" ? t.prepareAgreement : t.checkAgreement}
+                  {leaderAgreementBusy ? t.agreementPreparing : canRestartAgreement(data.leaderApplication.agreementStatus) ? t.restartAgreement : ["not_started", "preparing"].includes(data.leaderApplication.agreementStatus) ? t.prepareAgreement : t.checkAgreement}
                 </Btn>
               )}
             </div>

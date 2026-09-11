@@ -7,6 +7,7 @@ import { Btn } from "@/components/homix/primitives";
 import { HomixMark } from "@/components/homix/brand-mark";
 import { tone } from "@/components/homix/tokens";
 import { useLocale } from "@/lib/i18n-client";
+import { canRestartAgreement, agreementNeedsAttention } from "@/lib/agreement-recovery-policy";
 import { refreshApprovalSession } from "./approval-session";
 
 const M = {
@@ -64,6 +65,9 @@ const M = {
     agreementTitle: "Affiliation agreement",
     agreementHint: "Your submitted facts are inserted into the agreement. Review and sign before payment.",
     sendAgreement: "Retry sending agreement",
+    restartAgreement: "Create a new agreement and send",
+    restartAgreementHint: "The previous agreement was declined, voided or expired. Start a new agreement using your submitted details. Any payment already received will be retained.",
+    finalizationFailed: "Your signatures are retained, but the final document could not be generated. Contact an administrator for recovery.",
     sendingAgreement: "Sending agreement…",
     agreementFailed: "The agreement could not be sent. Check the information above and try again.",
     agreementPreparing: "Preparing your approved agreement…",
@@ -134,7 +138,10 @@ const M = {
     invitedRoute: (source: string) => `已应用邀请 · ${source.toUpperCase()} · 被锁定的资料不可修改`,
     agreementTitle: "挂靠协议",
     agreementHint: "系统会把已提交的信息带入协议；请先阅读签署，再支付费用。",
-    sendAgreement: "重新发送协议",
+    sendAgreement: "重试发送协议",
+    restartAgreement: "重新生成并发送协议",
+    restartAgreementHint: "原协议已拒签、作废或过期。可使用已提交的资料重新生成协议；已支付的费用会保留。",
+    finalizationFailed: "签名已保留，但最终文件生成失败。请联系管理员恢复文件，无需重新签署。",
     sendingAgreement: "正在发送协议…",
     agreementFailed: "协议发送失败，请检查上方资料后重试。",
     agreementPreparing: "正在生成已审核版本的协议…",
@@ -756,10 +763,24 @@ export function PendingApprovalClient({
                     <p className="mt-3 text-[12px]" style={{ color: tone.amber }}>{t.agreementUnavailable}</p>
                   ) : agreementStatus === "completed" ? (
                     <p className="mt-3 text-[13px]" style={{ color: tone.green }}>{t.agreementCompleted}</p>
+                  ) : canRestartAgreement(agreementStatus) ? (
+                    <div className="mt-3">
+                      <p className="text-[12px]" style={{ color: tone.rose }}>{t.restartAgreementHint}</p>
+                      <Btn variant="primary" className="mt-3 w-full justify-center" disabled={agreementLoading} onClick={() => void startAgreement()}>
+                        {agreementLoading ? t.sendingAgreement : t.restartAgreement}
+                      </Btn>
+                      {agreementError && <p className="mt-2 text-[12px]" style={{ color: tone.rose }}>{agreementError}</p>}
+                    </div>
+                  ) : agreementStatus === "failed" ? (
+                    <p className="mt-3 text-[12px]" style={{ color: tone.rose }}>{t.finalizationFailed}</p>
                   ) : agreementAgentSignedAt ? (
                     <p className="mt-3 text-[13px]" style={{ color: tone.green }}>{t.agentSignatureCompleted}</p>
                   ) : agreementStatus === "preparing" ? (
-                    <p className="mt-3 text-[12px]" style={{ color: tone.amber }}>{t.agreementPreparing}</p>
+                    <div className="mt-3">
+                      <p className="text-[12px]" style={{ color: tone.amber }}>{t.agreementPreparing}</p>
+                      <Btn variant="outline" className="mt-3 w-full justify-center" disabled={agreementLoading} onClick={() => void startAgreement()}>{t.sendAgreement}</Btn>
+                      {agreementError && <p className="mt-2 text-[12px]" style={{ color: tone.rose }}>{agreementError}</p>}
+                    </div>
                   ) : agreementStatus === "sent" ? (
                     <p className="mt-3 text-[12px]" style={{ color: tone.green }}>{t.agreementSent}</p>
                   ) : (
@@ -778,7 +799,7 @@ export function PendingApprovalClient({
                       )}
                     </div>
                   )}
-                  {agreementAgentSignedAt && paymentProduct && paymentStatus !== "paid" && (
+                  {agreementAgentSignedAt && !agreementNeedsAttention(agreementStatus) && paymentProduct && paymentStatus !== "paid" && (
                     <Btn variant="primary" className="mt-4 w-full justify-center" onClick={() => router.push(`/pay?product=${encodeURIComponent(paymentProduct)}&onboarding=1`)}>
                       {t.payAnnualFee}
                     </Btn>
@@ -786,7 +807,7 @@ export function PendingApprovalClient({
                   {paymentStatus === "paid" && (
                     <p className="mt-3 text-[13px]" style={{ color: tone.green }}>{t.paymentReceived}</p>
                   )}
-                  {agreementAgentSignedAt && (paymentStatus === "paid" || !paymentProduct) && (
+                  {agreementAgentSignedAt && !agreementNeedsAttention(agreementStatus) && (paymentStatus === "paid" || !paymentProduct) && (
                     <p className="mt-3 text-[12px]" style={{ color: tone.ink70 }}>{t.finalReview}</p>
                   )}
                 </div>

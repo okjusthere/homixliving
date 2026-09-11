@@ -1,8 +1,9 @@
-import { eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { agents } from "@/db/schema";
 import {
   getESignEnvelope,
+  esignEnvelopeHasExpired,
   getESignEvidence,
   isOnboardingESignConfigured,
   onboardingESignTemplateConfiguration,
@@ -70,7 +71,7 @@ export async function syncOnboardingAgreement(agent: typeof agents.$inferSelect)
   if (envelope.templateVersionId !== templateConfiguration.templateVersionId) {
     throw new Error("The onboarding envelope uses an unapproved template version.");
   }
-  const status = onboardingAgreementState(envelope.status);
+  const status = esignEnvelopeHasExpired(envelope) ? "expired" : onboardingAgreementState(envelope.status);
   const signatures = onboardingEnvelopeSignatureProgress(envelope);
   const agentSignedAt = signatures.agentSignedAt || agent.agreementAgentSignedAt;
   const countersignedAt = signatures.countersignedAt || agent.agreementCountersignedAt;
@@ -120,7 +121,8 @@ export async function syncOnboardingAgreement(agent: typeof agents.$inferSelect)
         memberAgreementStatus: agent.agreementStatus,
       });
     }
-    return agent;
+    const [fresh] = await db.select().from(agents).where(eq(agents.id, agent.id)).limit(1);
+    return fresh || agent;
   }
   const [updated] = await db.update(agents).set({
     agreementStatus: status,
@@ -132,8 +134,12 @@ export async function syncOnboardingAgreement(agent: typeof agents.$inferSelect)
     agreementCompletedAt: completedAt || null,
     teamTermsAcceptedAt: teamTermsAcceptedAt || null,
     updatedAt: new Date().toISOString(),
-  }).where(eq(agents.id, agent.id)).returning();
-  const result = updated || agent;
+  }).where(and(
+    eq(agents.id, agent.id), eq(agents.esignEnvelopeId, agent.esignEnvelopeId),
+    eq(agents.agreementStatus, agent.agreementStatus),
+    sql`${agents.updatedAt} IS NOT DISTINCT FROM ${agent.updatedAt}::timestamptz`,
+  )).returning();
+  const result = updated || (await db.select().from(agents).where(eq(agents.id, agent.id)).limit(1))[0] || agent;
   if (result.plan === "team_member" && result.agreementStatus === "completed") {
     await activateFormingTeamAfterMemberAgreement({
       teamId: result.teamId,
