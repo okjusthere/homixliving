@@ -1,4 +1,5 @@
 "use client";
+import { copyReviewStep, confirmPosterCopy } from "@/lib/content/copy-review";
 import { generationErrorGuidance } from "@/lib/content/error-guidance";
 /* eslint-disable @next/next/no-img-element -- Private authenticated artwork uses signed R2 URLs. */
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -15,6 +16,7 @@ import { useLocale } from "@/lib/i18n-client";
 import { PageHeader } from "@/components/homix/page-kit";
 import { contentFetch, Field, TemplateArt } from "./ui";
 import { ContentErrorDialog } from "./error-dialog";
+import { HighlightPicker } from "./highlight-picker";
 import { PhotoSorter } from "./photo-sorter";
 import { inputSchema } from "@/lib/content/validation";
 import { contentValidationMessage } from "@/lib/content/form-state";
@@ -188,11 +190,12 @@ export function ContentStudio() {
   const selectedSize = availableSizes.includes(input.size)
     ? input.size
     : availableSizes[0];
-  const needsHighlightsReview =
-    input.kind === "listing" &&
-    listingDetailLevel(input.theme) === "detailed" &&
-    Boolean(input.listing?.description?.trim()) &&
-    !input.listing?.highlightsReviewed;
+  const maxHighlights = listingDetailLevel(input.theme) === "preview" ? 1 : 4;
+  const highlightsSection = useRef<HTMLElement>(null);
+  const [extracting, setExtracting] = useState(false);
+  const hasExtractedHighlights = Boolean(input.listing?.highlightsModel);
+  const copyStep = copyReviewStep(input);
+  const needsHighlightsReview = copyStep !== "ready";
   const patch = (value: Partial<ContentInput>) => {
     requestKey.current = null;
     setInput((v) => ({ ...v, ...value }));
@@ -244,34 +247,53 @@ export function ContentStudio() {
     listingRevision.current += 1;
   }, [input.listing]);
   async function extractHighlights() {
-    const sourceRevision = listingRevision.current;
-    const result = await contentFetch<{
-      highlights: NonNullable<ContentInput["listing"]>["highlights"];
-      financialFacts: NonNullable<ContentInput["listing"]>["financialFacts"];
-      model: string;
-    }>("/api/content/highlights", {
-      method: "POST",
-      body: JSON.stringify({ listing: input.listing }),
-    });
-    if (sourceRevision !== listingRevision.current)
+    if ((input.listing?.description?.trim().length || 0) < 10)
       throw new Error(
         t(
-          "Listing details changed during extraction. Please extract again.",
-          "提取期间房源资料发生变化，请重新提取。",
+          "Add at least 10 characters to the original listing description, or choose basic details only.",
+          "请在原始房源介绍中填写至少 10 个字符，或选择「仅用房源基本信息」。",
         ),
       );
-    patchListing({
-      highlights: result.highlights?.map((h, index) => ({
-        ...h,
-        selected: index < 4,
-      })),
-      financialFacts: result.financialFacts?.map((h) => ({
-        ...h,
-        selected: true,
-      })),
-      highlightsModel: result.model,
-      highlightsReviewed: false,
-    });
+    setExtracting(true);
+    try {
+      const sourceRevision = listingRevision.current;
+      const result = await contentFetch<{
+        highlights: NonNullable<ContentInput["listing"]>["highlights"];
+        financialFacts: NonNullable<ContentInput["listing"]>["financialFacts"];
+        model: string;
+      }>("/api/content/highlights", {
+        method: "POST",
+        body: JSON.stringify({ listing: input.listing }),
+      });
+      if (sourceRevision !== listingRevision.current)
+        throw new Error(
+          t(
+            "Listing details changed during extraction. Please extract again.",
+            "提取期间房源资料发生变化，请重新提取。",
+          ),
+        );
+      patchListing({
+        highlights: result.highlights?.map((h, index) => ({
+          ...h,
+          selected: index < maxHighlights,
+        })),
+        financialFacts: result.financialFacts?.map((h) => ({
+          ...h,
+          selected: true,
+        })),
+        highlightsModel: result.model,
+        highlightsReviewed: false,
+      });
+      requestAnimationFrame(() => {
+        highlightsSection.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+        highlightsSection.current?.focus({ preventScroll: true });
+      });
+    } finally {
+      setExtracting(false);
+    }
   }
   const selectTab = (next: typeof tab) => {
     setTab(next);
@@ -363,7 +385,26 @@ export function ContentStudio() {
       throw new Error(
         t("Choose a published style first", "请先选择已发布的风格"),
       );
-    const validated = inputSchema.safeParse({ ...input, size: selectedSize });
+    // The primary action explicitly confirms the selected copy and submits it
+    // in one step. A missing extraction still leads to selection, never generation.
+    if (copyStep === "extract") {
+      await extractHighlights();
+      return;
+    }
+    if (
+      (input.listing?.highlights?.filter((h) => h.selected !== false).length ||
+        0) > maxHighlights &&
+      input.kind === "listing" &&
+      listingDetailLevel(input.theme) !== "brief"
+    )
+      throw new Error(
+        t(
+          `Selling points: select at most ${maxHighlights}. Click a selected card to deselect it.`,
+          `房源卖点：最多选 ${maxHighlights} 条，请点击多余的已选卡片取消选择。`,
+        ),
+      );
+    const confirmedInput = confirmPosterCopy({ ...input, size: selectedSize });
+    const validated = inputSchema.safeParse(confirmedInput);
     if (!validated.success)
       throw new Error(contentValidationMessage(validated.error.issues));
     requestKey.current ??= crypto.randomUUID();
@@ -416,6 +457,21 @@ export function ContentStudio() {
     .sort((a, b) =>
       (nextDate(a) || "9999").localeCompare(nextDate(b) || "9999"),
     );
+  const generationLabel = extracting
+    ? t("Finding selling points…", "正在提取卖点…")
+    : copyStep === "extract"
+      ? t("Find selling points & continue", "提取卖点，继续")
+      : copyStep === "confirm"
+        ? running
+          ? t("Confirm copy & join queue", "确认文案并加入队列")
+          : outputChoice === "both"
+            ? t("Confirm copy & create both posters", "确认文案并生成两份")
+            : t("Confirm copy & create poster", "确认文案并生成海报")
+        : running
+          ? t("Add to generation queue", "加入生成队列")
+          : outputChoice === "both"
+            ? t("Create Chinese & English posters", "生成中文和英文两份")
+            : t("Create my poster", "生成我的海报");
   const status = (s: string) =>
     ({
       queued: t("Queued", "排队中"),
@@ -894,136 +950,156 @@ export function ContentStudio() {
                       </div>
                     </>
                   )}
-                  <Field
-                    label={t("Original listing description", "原始房源介绍")}
-                    hint={t(
-                      "The text AI uses this source to identify selling points and stated costs.",
-                      "文字 AI 将从这份原文中识别卖点和已注明的费用。",
-                    )}
-                  >
-                    <textarea
-                      value={input.listing?.description || ""}
-                      onChange={(e) =>
-                        patchListing({ description: e.target.value })
-                      }
-                    />
-                  </Field>
                   {listingDetailLevel(input.theme) !== "brief" && (
-                    <section className="studio-section">
-                      <h3>{t("Property selling points", "房源卖点")}</h3>
-                      <p className="studio-note">
-                        {t(
-                          "AI identifies distinctive features and links each result to its source. Select up to 4 selling points, edit both versions, then confirm the content for your posters.",
-                          "AI 识别房源特色，并展示对应原文。选择最多 4 个卖点，可修改中英文内容后确认用于海报。",
-                        )}
-                      </p>
-                      <button
-                        className="studio-button secondary"
-                        disabled={
-                          busy ||
-                          (input.listing?.description?.trim().length || 0) < 10
+                    <>
+                      <details
+                        className="studio-source-details"
+                        key={input.listing?.sourceKey || "manual"}
+                        open={
+                          input.listing?.source !== "mls" ? true : undefined
                         }
-                        onClick={() => act(extractHighlights)}
                       >
-                        {t("Extract selling points with AI", "AI 提取房源卖点")}
-                      </button>
-                      {(["highlights", "financialFacts"] as const).map(
-                        (group) => (
-                          <div key={group}>
-                            {!!input.listing?.[group]?.length && (
-                              <h4>
-                                {group === "highlights"
-                                  ? t("Selling points", "卖点")
-                                  : t("Stated costs", "费用事实")}
-                              </h4>
-                            )}
-                            {input.listing?.[group]?.map((item, index) => (
-                              <div className="studio-field" key={index}>
-                                <label className="studio-check">
-                                  <input
-                                    type="checkbox"
-                                    checked={item.selected !== false}
-                                    onChange={(e) =>
-                                      patchListing({
-                                        [group]: input.listing![group]!.map(
-                                          (h, i) =>
-                                            i === index
-                                              ? {
-                                                  ...h,
-                                                  selected: e.target.checked,
-                                                }
-                                              : h,
-                                        ),
-                                      })
-                                    }
-                                  />
-                                  {t("Include", "选入海报")} {index + 1}
-                                </label>
-                                <div className="studio-row">
-                                  <Field
-                                    label={t("English version", "英文内容")}
-                                  >
-                                    <textarea
-                                      value={item.en}
-                                      onChange={(e) =>
-                                        patchListing({
-                                          [group]: input.listing![group]!.map(
-                                            (h, i) =>
-                                              i === index
-                                                ? { ...h, en: e.target.value }
-                                                : h,
-                                          ),
-                                        })
-                                      }
-                                    />
-                                  </Field>
-                                  <Field
-                                    label={t("Chinese version", "中文内容")}
-                                  >
-                                    <textarea
-                                      value={item.zh}
-                                      onChange={(e) =>
-                                        patchListing({
-                                          [group]: input.listing![group]!.map(
-                                            (h, i) =>
-                                              i === index
-                                                ? { ...h, zh: e.target.value }
-                                                : h,
-                                          ),
-                                        })
-                                      }
-                                    />
-                                  </Field>
-                                </div>
-                                <small>
-                                  {t("Source: ", "原文依据：")}
-                                  {item.evidence}
-                                </small>
-                              </div>
-                            ))}
-                          </div>
-                        ),
-                      )}
-                      {input.listing?.highlightsModel && (
-                        <button
-                          className="studio-button secondary"
-                          disabled={
-                            busy ||
-                            input.listing.highlightsReviewed ||
-                            (input.listing.highlights?.filter(
-                              (h) => h.selected !== false,
-                            ).length || 0) > 4
-                          }
-                          onClick={() =>
-                            patchListing({ highlightsReviewed: true })
-                          }
+                        <summary>
+                          {t("Original listing description", "原始房源介绍")}
+                          <span>{t("View or edit", "查看 / 修改")}</span>
+                        </summary>
+                        <Field
+                          label={t("Source description", "房源原文")}
+                          hint={t(
+                            "Used only to identify supported selling points and costs.",
+                            "用于提取有原文依据的卖点和费用。",
+                          )}
                         >
-                          {input.listing.highlightsReviewed
-                            ? t("Content confirmed", "内容已确认")
-                            : t("Confirm selected content", "确认选中的内容")}
-                        </button>
-                      )}
-                    </section>
+                          <textarea
+                            value={input.listing?.description || ""}
+                            onChange={(e) =>
+                              patchListing({ description: e.target.value })
+                            }
+                          />
+                        </Field>
+                      </details>
+                      <section
+                        ref={highlightsSection}
+                        tabIndex={-1}
+                        className="studio-selling-points"
+                        aria-label={t("Property selling points", "房源卖点")}
+                      >
+                        <div className="studio-highlight-heading">
+                          <h3>{t("Property selling points", "房源卖点")}</h3>
+                          <span>{t("Optional", "可选")}</span>
+                        </div>
+                        <p className="studio-note">
+                          {hasExtractedHighlights
+                            ? t(
+                                `Click a card to select it. Up to ${maxHighlights} selling point(s); edit only when needed. Your selection is confirmed when you generate.`,
+                                `点击卡片即可选入，最多 ${maxHighlights} 个卖点。需要时再编辑，点击生成时一并确认。`,
+                              )
+                            : t(
+                                "Let AI suggest selling points, or continue with the address, price and property facts only.",
+                                "让 AI 帮你挑选卖点，也可以只用地址、价格和房源资料直接生成。",
+                              )}
+                        </p>
+                        <div className="studio-highlight-actions">
+                          <button
+                            className="studio-button secondary"
+                            disabled={busy}
+                            onClick={() => act(extractHighlights)}
+                          >
+                            {extracting && (
+                              <LoaderCircle
+                                size={16}
+                                className="animate-spin"
+                              />
+                            )}
+                            {extracting
+                              ? t("Finding selling points…", "正在提取卖点…")
+                              : hasExtractedHighlights
+                                ? t("Extract again", "重新提取")
+                                : t("Suggest selling points", "AI 推荐卖点")}
+                          </button>
+                          {!hasExtractedHighlights &&
+                            !input.listing?.highlightsReviewed && (
+                              <button
+                                className="studio-back-link"
+                                disabled={busy}
+                                onClick={() =>
+                                  patchListing({
+                                    highlights: [],
+                                    financialFacts: [],
+                                    highlightsReviewed: true,
+                                  })
+                                }
+                              >
+                                {t(
+                                  "Use basic details only",
+                                  "仅用房源基本信息",
+                                )}
+                              </button>
+                            )}
+                        </div>
+                        {!hasExtractedHighlights &&
+                          input.listing?.highlightsReviewed && (
+                            <p className="studio-note" role="status">
+                              {t(
+                                "Using basic details only. You can generate now, or add AI selling points anytime.",
+                                "已选择仅用基本信息，可以直接生成；也可随时添加 AI 卖点。",
+                              )}
+                            </p>
+                          )}
+                        {input.listing && (
+                          <HighlightPicker
+                            listing={input.listing}
+                            maxHighlights={maxHighlights}
+                            zh={zh}
+                            busy={busy}
+                            onChange={patchListing}
+                          />
+                        )}
+                        {hasExtractedHighlights &&
+                          !input.listing?.highlights?.length &&
+                          !input.listing?.financialFacts?.length && (
+                            <p className="studio-note" role="status">
+                              {t(
+                                "No specific selling points were found. You can still generate using the property facts.",
+                                "没有找到足够明确的卖点，可直接使用房源基本信息生成。",
+                              )}
+                            </p>
+                          )}
+                        {(hasExtractedHighlights ||
+                          input.listing?.highlightsReviewed) && (
+                          <div className="studio-highlight-next">
+                            <button
+                              className="studio-button"
+                              disabled={
+                                busy ||
+                                !template ||
+                                !settings?.azureConfigured ||
+                                !settings.storageConfigured
+                              }
+                              onClick={() => act(generate)}
+                            >
+                              {busy && (
+                                <LoaderCircle
+                                  size={16}
+                                  className="animate-spin"
+                                />
+                              )}
+                              {generationLabel}
+                            </button>
+                            <span>
+                              {outputChoice === "both"
+                                ? t(
+                                    "Chinese + English · 2 separate posters",
+                                    "中文 + 英文 · 两张独立海报",
+                                  )
+                                : outputChoice === "zh"
+                                  ? t("Chinese · 1 poster", "中文 · 一张海报")
+                                  : t("English · 1 poster", "英文 · 一张海报")}
+                            </span>
+                          </div>
+                        )}
+                      </section>
+                    </>
                   )}
                   <PhotoSorter
                     ids={input.listing?.imageAssetIds || []}
@@ -1235,7 +1311,6 @@ export function ContentStudio() {
               className="studio-button w-full"
               disabled={
                 busy ||
-                needsHighlightsReview ||
                 !template ||
                 !settings?.azureConfigured ||
                 !settings.storageConfigured
@@ -1247,11 +1322,7 @@ export function ContentStudio() {
               ) : (
                 <Plus size={16} />
               )}{" "}
-              {running
-                ? t("Add to generation queue", "加入生成队列")
-                : outputChoice === "both"
-                  ? t("Create Chinese & English posters", "生成中文和英文两份")
-                  : t("Create my poster", "生成我的海报")}
+              {generationLabel}
             </button>
             {running && (
               <p className="studio-note">
@@ -1264,8 +1335,12 @@ export function ContentStudio() {
             {needsHighlightsReview && (
               <p className="studio-note">
                 {t(
-                  "Extract and confirm the property selling points to create these posters.",
-                  "请先提取并确认房源卖点，再生成海报。",
+                  hasExtractedHighlights
+                    ? "Review your selected cards, then confirm and generate in one click."
+                    : "First choose AI selling points or basic details only in the property section.",
+                  hasExtractedHighlights
+                    ? "看一眼已选卡片，点击上方按钮即可确认并生成。"
+                    : "先提取卖点，或在房源卖点区域选择「仅用房源基本信息」。",
                 )}
               </p>
             )}

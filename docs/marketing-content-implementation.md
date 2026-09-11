@@ -115,3 +115,11 @@ These sample checks verify the implemented workflow and inspected artwork, not a
 - Portal supports signed DELETE of draft campaigns, with an in-product confirmation. Email Service checks owner, DRAFT state and version atomically and retains audit/test history. Sender pacing details are shown directly from Email Service; limits were not changed.
 - Search input and action align at their lower edge with matching minimum height.
 - Validation: 21 content unit tests, real PostgreSQL concurrent queue/idempotency/language/quota tests, Portal typecheck and scoped lint. Email Service: 81 unit tests; 47 sandbox integration cases and the disabled-delivery case tested separately in its required mode.
+
+## Simplified selling-point review (2026-09-11)
+
+- Compact selectable cards show the current interface language first. A 26px selection mark and full-width selection button replace the tiny checkbox. English/Chinese editing and exact source evidence expand on demand; editing does not toggle selection.
+- Visible selection counts and a message on the attempted card explain the cap. Additional selection is refused without greying out the workflow. Existing over-limit input remains editable and gives a specific remedy. Coming Soon offers one selling point, matching its actual poster output; detailed posters allow four.
+- The explicitly labelled “Confirm copy & create” action combines copy approval and generation. `copyReviewStep` keeps extraction separate from approval; only the confirm action marks extracted copy reviewed in the submitted snapshot. No separate confirm button is required. An explicit basic-details-only option skips AI, retaining structured costs and facts.
+- A generation action beside the selection list shows output languages. Imported MLS source text is collapsed by default; brief status posters hide unused source/copy controls.
+- Validation: 24 content tests, typecheck, scoped lint and production build passed. Local browser acceptance verified cap feedback, deselect/reselect, inline empty-translation errors, expand/collapse and a 350px-wide component layout.

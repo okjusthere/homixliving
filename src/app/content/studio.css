@@ -742,3 +742,190 @@
 .studio-email-search input {
   min-height: 48px;
 }
+
+/* Compact copy review: selection first, translation/source editing on demand. */
+.studio-selling-points {
+  margin: 24px 0;
+  scroll-margin-top: 90px;
+}
+.studio-selling-points:focus {
+  outline: none;
+}
+.studio-selling-points:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 6px;
+}
+.studio-highlight-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 10px;
+}
+.studio-highlight-heading h3,
+.studio-highlight-heading h4 {
+  margin: 0;
+}
+.studio-highlight-heading > span {
+  color: var(--color-ink-50);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.studio-highlight-heading .over-limit {
+  color: #9b3e30;
+}
+.studio-highlight-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 18px;
+  margin: 12px 0 18px;
+}
+.studio-highlight-group + .studio-highlight-group {
+  margin-top: 20px;
+}
+.studio-highlight-card {
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  background: var(--background);
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+.studio-highlight-card.selected {
+  border-color: #879d8b;
+  background: #f0f4ee;
+}
+.studio-highlight-select {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px;
+  text-align: left;
+  color: var(--foreground);
+  font-size: 14px;
+  line-height: 1.5;
+  cursor: pointer;
+}
+.studio-highlight-select > span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.studio-highlight-select:hover {
+  background: rgb(44 65 52 / 5%);
+}
+.studio-highlight-select:focus-visible {
+  outline: 2px solid #2c4134;
+  outline-offset: -3px;
+}
+.studio-highlight-check {
+  flex: 0 0 26px;
+  height: 26px;
+  border: 1.5px solid #8b9288;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  background: white;
+}
+.selected .studio-highlight-check {
+  background: #2c4134;
+  border-color: #2c4134;
+  color: white;
+}
+.studio-highlight-state {
+  font-size: 12px;
+  color: var(--color-ink-50);
+  white-space: nowrap;
+}
+.studio-highlight-details summary {
+  min-height: 44px;
+  padding: 4px 14px 9px 52px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  color: #536353;
+  list-style: none;
+}
+.studio-highlight-details summary::-webkit-details-marker,
+.studio-source-details summary::-webkit-details-marker {
+  display: none;
+}
+.studio-highlight-details[open] summary > svg:last-child {
+  transform: rotate(180deg);
+}
+.studio-highlight-editor {
+  padding: 12px 14px 14px;
+  border-top: 1px solid var(--color-line);
+}
+.studio-highlight-editor .studio-field {
+  margin-bottom: 10px;
+}
+.studio-highlight-editor textarea {
+  min-height: 68px;
+  background: white;
+}
+.studio-highlight-editor small {
+  text-align: right;
+}
+.studio-highlight-evidence {
+  font-size: 12px;
+  color: var(--color-ink-50);
+  line-height: 1.6;
+}
+.studio-highlight-evidence p {
+  margin: 4px 0 0;
+}
+.studio-highlight-notice {
+  margin: 8px 12px;
+  color: #9b3e30;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.studio-highlight-notice:empty {
+  display: none;
+}
+.studio-source-details {
+  margin: 18px 0;
+  border-bottom: 1px solid var(--color-line);
+}
+.studio-source-details summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.studio-source-details summary span {
+  color: var(--color-ink-50);
+  font-size: 12px;
+}
+.studio-source-details > .studio-field {
+  margin-top: 12px;
+}
+@media (max-width: 600px) {
+  .studio-highlight-state {
+    display: none;
+  }
+  .studio-highlight-select {
+    padding: 12px;
+    gap: 10px;
+  }
+}
+
+.studio-highlight-next {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  margin-top: 18px;
+}
+.studio-highlight-next > span {
+  font-size: 12px;
+  color: var(--color-ink-50);
+}
