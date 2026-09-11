@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Copy, Link2, RefreshCw, UserPlus } from "lucide-react";
+import { Link2 } from "lucide-react";
 import { toast } from "sonner";
 import { Btn, Card, EditorialInput, Pill } from "@/components/homix/primitives";
 import { CardHeader, PageHeader } from "@/components/homix/page-kit";
@@ -256,14 +256,6 @@ export function TeamWorkspaceClient({
   const router = useRouter();
   const locale = useLocale();
   const t = M[locale];
-  const [email, setEmail] = useState("");
-  const [sponsorAgentId, setSponsorAgentId] = useState(
-    String(data.team.leaderAgentId || data.sponsorCandidates[0]?.id || ""),
-  );
-  const [source, setSource] = useState("direct");
-  const [expiresInDays, setExpiresInDays] = useState("30");
-  const [inviteBusy, setInviteBusy] = useState(false);
-  const [createdUrl, setCreatedUrl] = useState("");
   const [termsBusy, setTermsBusy] = useState(false);
   const [decisionBusy, setDecisionBusy] = useState<number | null>(null);
   const [leaderAgreementBusy, setLeaderAgreementBusy] = useState(false);
@@ -274,54 +266,6 @@ export function TeamWorkspaceClient({
     teamCapCents: data.currentConfig?.teamCapCents ?? null,
     effectiveFrom: isAdmin ? new Date().toISOString().slice(0, 10) : tomorrow(),
   });
-  async function createInvitation(input?: {
-    email: string | null;
-    sponsorAgentId: number | null;
-    source: string;
-    revokeId?: number;
-  }) {
-    setInviteBusy(true);
-    try {
-      const inviteEmail = input ? input.email || "" : email.trim();
-      const response = await fetch("/api/onboarding/invitations", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          kind: "team_recruiting",
-          teamId: data.team.id,
-          sponsorAgentId: input?.sponsorAgentId || Number(sponsorAgentId),
-          source: input?.source || source,
-          email: inviteEmail || null,
-          maxUses: inviteEmail ? 1 : 100,
-          expiresInDays: Number(expiresInDays),
-          affiliationTermMonths: 12,
-        }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok || !payload.url) throw new Error(String(payload.error || t.inviteFailed));
-      setCreatedUrl(payload.url);
-      setEmail("");
-      if (input?.revokeId) {
-        const revokeResponse = await fetch("/api/onboarding/invitations", {
-          method: "DELETE",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ id: input.revokeId }),
-        });
-        if (!revokeResponse.ok) {
-          toast.error(t.regeneratedWithWarning);
-          router.refresh();
-          return;
-        }
-      }
-      toast.success(t.created);
-      router.refresh();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : t.inviteFailed);
-    } finally {
-      setInviteBusy(false);
-    }
-  }
-
   async function revokeInvitation(id: number) {
     const response = await fetch("/api/onboarding/invitations", {
       method: "DELETE",
@@ -334,11 +278,6 @@ export function TeamWorkspaceClient({
     }
     toast.success(t.revoked);
     router.refresh();
-  }
-
-  async function copyCreatedUrl() {
-    await navigator.clipboard.writeText(createdUrl);
-    toast.success(t.copied);
   }
 
   async function publishTerms() {
@@ -406,8 +345,6 @@ export function TeamWorkspaceClient({
     [t.pending, data.counts.pending, tone.amber],
     [t.inactive, data.counts.inactive, tone.ink50],
   ] as const;
-  const recruitingEnabled = data.team.status === "active" ||
-    data.leaderApplication?.agreementStatus === "completed";
 
   return (
     <div className="space-y-7">
@@ -543,39 +480,6 @@ export function TeamWorkspaceClient({
         </div>
       </Card>
 
-      <Card className={!recruitingEnabled ? "opacity-60" : ""}>
-        <CardHeader title={t.inviteTitle} subtitle={t.inviteLead} />
-        <div className="space-y-4 p-5">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <EditorialInput value={email} onChange={setEmail} placeholder={t.email} type="email" />
-            <select value={sponsorAgentId} onChange={(event) => setSponsorAgentId(event.target.value)} className={selectClass} style={fieldStyle} aria-label={t.sponsor}>
-              {data.sponsorCandidates.map((agent) => <option key={agent.id} value={agent.id}>{t.sponsor}: {agent.name}</option>)}
-            </select>
-            <select value={source} onChange={(event) => setSource(event.target.value)} className={selectClass} style={fieldStyle} aria-label={t.source}>
-              <option value="direct">{t.source}: Direct</option>
-              <option value="exp">eXp</option>
-              <option value="real">Real</option>
-              <option value="voro">Voro</option>
-              <option value="other">Other</option>
-            </select>
-            <select value={expiresInDays} onChange={(event) => setExpiresInDays(event.target.value)} className={selectClass} style={fieldStyle} aria-label={t.expires}>
-              <option value="30">{t.days30}</option>
-              <option value="60">{t.days60}</option>
-              <option value="90">{t.days90}</option>
-            </select>
-          </div>
-          <Btn variant="primary" icon={<UserPlus size={16} />} onClick={() => void createInvitation()} disabled={!recruitingEnabled || inviteBusy || !sponsorAgentId}>
-            {inviteBusy ? t.creating : t.create}
-          </Btn>
-          {createdUrl && (
-            <div className="flex min-w-0 flex-col gap-2 rounded-lg p-3 sm:flex-row sm:items-center" style={{ background: tone.paperDeep }}>
-              <div className="min-w-0 flex-1 break-all font-mono text-[12px]" style={{ color: tone.ink70 }}>{createdUrl}</div>
-              <Btn variant="outline" size="sm" icon={<Copy size={15} />} onClick={() => void copyCreatedUrl()}>{t.copy}</Btn>
-            </div>
-          )}
-        </div>
-      </Card>
-
       <Card>
         <CardHeader title={t.invitationHistory} subtitle={t.invitationHistoryLead} />
         <div className="divide-y" style={{ borderColor: tone.lineSoft }}>
@@ -596,20 +500,6 @@ export function TeamWorkspaceClient({
                 {invite.state === "active" && (
                   <Btn variant="ghost" size="sm" onClick={() => void revokeInvitation(invite.id)}>{t.revoke}</Btn>
                 )}
-                <Btn
-                  variant="outline"
-                  size="sm"
-                  icon={<RefreshCw size={14} />}
-                  disabled={inviteBusy}
-                  onClick={() => void createInvitation({
-                    email: invite.email,
-                    sponsorAgentId: invite.sponsorAgentId,
-                    source: invite.source,
-                    ...(invite.state === "active" ? { revokeId: invite.id } : {}),
-                  })}
-                >
-                  {t.regenerate}
-                </Btn>
               </div>
             </div>
           ))}

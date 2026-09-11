@@ -110,7 +110,7 @@ const LABELS = {
     overview: "Overview", sales: "Sales", rental: "Rental", training: "Training",
     resources: "Resource library", onboarding: "Onboarding guide", coach: "AI coach", offer: "Offers", share: "Share center", content: "Content studio", emailMarketing: "Email marketing",
     agents: "Agents", teams: "Teams", reports: "Performance report", finance: "Finance", payouts: "Payouts", audit: "Audit", feedbackInbox: "Feedback inbox", settings: "Settings",
-    search: "Search", signedIn: "Signed in", signOut: "Sign out", admin: "Admin", profile: "Public profile", accountProfile: "My profile",
+    search: "Search", signedIn: "Signed in", signOut: "Sign out", admin: "Admin", profile: "Public profile", accountProfile: "My profile", inviteJoin: "Invite to join",
     menu: "Menu", switchLanguage: "Switch language", userMenu: "User menu", workspace: "Workspace", market: "Market overview", expiredListings: "Expired listings",
     transactionSupport: "Transaction support", learningGrowth: "Learning & growth", companyPerformance: "Company & performance",
     peopleManagement: "People", financeManagement: "Finance", systemManagement: "System", teamWorkspace: "Team workspace", anonymousFeedback: "Anonymous feedback",
@@ -121,7 +121,7 @@ const LABELS = {
     overview: "概览", sales: "买卖", rental: "租赁", training: "培训",
     resources: "资料库", onboarding: "入职指南", coach: "AI 教练", offer: "报价", share: "分享中心", content: "内容中心", emailMarketing: "邮件营销",
     agents: "经纪人", teams: "团队", reports: "业绩报表", finance: "财务", payouts: "发放", audit: "审计", feedbackInbox: "建议收件箱", settings: "设置",
-    search: "搜索", signedIn: "已登录", signOut: "退出登录", admin: "管理员", profile: "个人主页", accountProfile: "我的档案",
+    search: "搜索", signedIn: "已登录", signOut: "退出登录", admin: "管理员", profile: "个人主页", accountProfile: "我的档案", inviteJoin: "邀请加入",
     menu: "菜单", switchLanguage: "切换语言", userMenu: "用户菜单", workspace: "工作台", market: "市场概览", expiredListings: "已过期房源",
     transactionSupport: "交易支持", learningGrowth: "学习成长", companyPerformance: "公司与业绩",
     peopleManagement: "人员管理", financeManagement: "财务管理", systemManagement: "系统管理", teamWorkspace: "团队工作台", anonymousFeedback: "匿名建议",
@@ -529,6 +529,15 @@ export function Nav() {
                         style={{ color: tone.ink70, borderBottom: `1px solid ${tone.lineSoft}` }}
                       >
                         {t.accountProfile}
+                      </Link>
+                      <Link
+                        href="/invite"
+                        prefetch={false}
+                        onClick={() => setMenuOpen(false)}
+                        className="block px-4 py-3 text-[13px] hover:bg-[#FAF7F0] transition-colors"
+                        style={{ color: tone.ink70, borderBottom: `1px solid ${tone.lineSoft}` }}
+                      >
+                        {t.inviteJoin}
                       </Link>
                       {mayUseTeamWorkspace && (
                         <Link

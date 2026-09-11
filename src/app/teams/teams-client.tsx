@@ -191,17 +191,6 @@ export default function TeamsConsole() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [editTeam, setEditTeam] = useState<TeamEdit | null>(null);
   const [saving, setSaving] = useState(false);
-  const [inviteOpen, setInviteOpen] = useState(false);
-  const [inviteSaving, setInviteSaving] = useState(false);
-  const [inviteUrl, setInviteUrl] = useState("");
-  const [inviteSource, setInviteSource] = useState("direct");
-  const [inviteCompanyId, setInviteCompanyId] = useState("");
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteTeamId, setInviteTeamId] = useState("");
-  const [inviteSponsorId, setInviteSponsorId] = useState("");
-  const [invitePlan, setInvitePlan] = useState("solo");
-  const [inviteTerm, setInviteTerm] = useState("12");
-  const [sponsorAgents, setSponsorAgents] = useState<Agent[]>([]);
   const [applications, setApplications] = useState<ApplicationRow[]>([]);
   const [reviewApplication, setReviewApplication] = useState<ApplicationRow | null>(null);
   const [reviewSaving, setReviewSaving] = useState(false);
@@ -217,17 +206,12 @@ export default function TeamsConsole() {
     setLoading(true);
     Promise.all([
       fetch("/api/teams").then((r) => r.json()),
-      fetch("/api/agents").then((r) => (r.ok ? r.json() : [])),
       fetch("/api/team-leader-applications").then((r) => (r.ok ? r.json() : [])),
     ])
-      .then(([teamRows, agentRows, applicationRows]) => {
+      .then(([teamRows, applicationRows]) => {
         setTeams(teamRows);
         setApplications(applicationRows);
-        setSponsorAgents(
-          (agentRows as Array<{ agent: Agent }>)
-            .map((row) => row.agent)
-            .filter((agent) => agent.accountStatus === "active"),
-        );
+
       })
       .finally(() => setLoading(false));
   };
@@ -319,35 +303,6 @@ export default function TeamsConsole() {
     }
   };
 
-  const createInvitation = async () => {
-    setInviteSaving(true);
-    try {
-      const response = await fetch("/api/onboarding/invitations", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          kind: "admin",
-          source: inviteSource,
-          licensedCompanyId: inviteCompanyId,
-          email: inviteEmail || null,
-          teamId: invitePlan === "team_member" ? inviteTeamId || null : null,
-          sponsorAgentId: inviteSponsorId || null,
-          plan: invitePlan,
-          affiliationTermMonths: Number(inviteTerm),
-          maxUses: inviteEmail ? 1 : 100,
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok || !data.url) throw new Error();
-      setInviteUrl(data.url);
-      toast.success(t.inviteCreated);
-    } catch {
-      toast.error(t.saveFailed);
-    } finally {
-      setInviteSaving(false);
-    }
-  };
-
   return (
     <div className="space-y-7">
       <PageHeader
@@ -355,9 +310,6 @@ export default function TeamsConsole() {
         title={t.title}
         description={t.description}
         actions={<div className="flex flex-wrap gap-2">
-          <Btn variant="outline" onClick={() => { setInviteUrl(""); setInviteOpen(true); }}>
-            {t.invite}
-          </Btn>
           <Btn variant="primary" icon={<Icons.Plus />} onClick={() => setEditTeam(emptyTeam)}>
             {t.addTeam}
           </Btn>
@@ -634,98 +586,6 @@ export default function TeamsConsole() {
         </div>
       )}
 
-      {inviteOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(26, 24, 20, 0.4)", backdropFilter: "blur(4px)" }} onClick={() => setInviteOpen(false)}>
-          <div className="w-full max-w-lg rounded-xl border border-line bg-white p-6" onClick={(event) => event.stopPropagation()}>
-            <div className="flex items-center justify-between gap-4">
-              <h2 className="font-serif text-[26px]">{t.inviteTitle}</h2>
-              <button type="button" aria-label={t.cancel} className="flex size-9 items-center justify-center rounded-md bg-paper-deep" onClick={() => setInviteOpen(false)}>
-                <Icons.Close />
-              </button>
-            </div>
-            <div className="mt-5 grid gap-4 sm:grid-cols-2">
-              <LabeledField label={t.inviteSource}>
-                <select value={inviteSource} onChange={(event) => setInviteSource(event.target.value)} className="h-11 w-full rounded-lg border border-line bg-white px-3 text-[13px]">
-                  <option value="direct">Direct</option>
-                  <option value="exp">eXp</option>
-                  <option value="real">Real</option>
-                  <option value="voro">Voro</option>
-                  <option value="other">Other</option>
-                </select>
-              </LabeledField>
-              <LabeledField label={t.inviteCompany}>
-                <select
-                  value={inviteCompanyId}
-                  onChange={(event) => {
-                    setInviteCompanyId(event.target.value);
-                    setInviteTeamId("");
-                  }}
-                  className="h-11 w-full rounded-lg border border-line bg-white px-3 text-[13px]"
-                >
-                  <option value="">{t.unassigned}</option>
-                  <option value="homix_realty">Homix Realty Inc.</option>
-                  <option value="homix_living">Homix Living Inc.</option>
-                </select>
-              </LabeledField>
-              <LabeledField label={t.inviteEmail}>
-                <EditorialInput value={inviteEmail} onChange={setInviteEmail} type="email" />
-              </LabeledField>
-              <LabeledField label={t.invitePlan}>
-                <select value={invitePlan} onChange={(event) => {
-                  setInvitePlan(event.target.value);
-                  if (event.target.value === "solo_pro") setInviteTerm("12");
-                }} className="h-11 w-full rounded-lg border border-line bg-white px-3 text-[13px]">
-                  <option value="solo">Solo</option>
-                  <option value="solo_pro">Solo Pro</option>
-                  <option value="team_member">Team Member</option>
-                </select>
-              </LabeledField>
-              <LabeledField label={t.inviteTerm}>
-                <select value={inviteTerm} onChange={(event) => setInviteTerm(event.target.value)} disabled={invitePlan === "solo_pro"} className="h-11 w-full rounded-lg border border-line bg-white px-3 text-[13px] disabled:opacity-50">
-                  <option value="12">{t.months12}</option>
-                  <option value="24">{t.months24}</option>
-                </select>
-              </LabeledField>
-              <LabeledField label={t.inviteTeam}>
-                <select value={inviteTeamId} onChange={(event) => {
-                  setInviteTeamId(event.target.value);
-                  const selected = teams.find((row) => String(row.team.id) === event.target.value);
-                  if (selected?.team.companyId) setInviteCompanyId(selected.team.companyId);
-                }} disabled={invitePlan !== "team_member"} className="h-11 w-full rounded-lg border border-line bg-white px-3 text-[13px] disabled:opacity-50">
-                  <option value="">{t.unassigned}</option>
-                  {teams
-                    .filter((row) => !inviteCompanyId || row.team.companyId === inviteCompanyId)
-                    .map((row) => <option key={row.team.id} value={row.team.id}>{row.team.name}</option>)}
-                </select>
-              </LabeledField>
-              <LabeledField label={t.inviteSponsor}>
-                <select value={inviteSponsorId} onChange={(event) => setInviteSponsorId(event.target.value)} className="h-11 w-full rounded-lg border border-line bg-white px-3 text-[13px]">
-                  <option value="">{t.unassigned}</option>
-                  {sponsorAgents.map((agent) => (
-                    <option key={agent.id} value={agent.id}>{agent.name}</option>
-                  ))}
-                </select>
-              </LabeledField>
-            </div>
-            <div className="mt-5 rounded-lg bg-paper p-3 text-[12.5px] leading-6" style={{ color: tone.ink70 }}>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.1em]" style={{ color: tone.ink50 }}>{t.inviteSummary}</div>
-              <div>{inviteEmail || t.general} · {inviteCompanyId === "homix_realty" ? "Homix Realty Inc." : inviteCompanyId === "homix_living" ? "Homix Living Inc." : t.unassigned}</div>
-              <div>{invitePlan.replaceAll("_", " ")} · {inviteTerm} {locale === "zh" ? "个月" : "months"}</div>
-              <div>{invitePlan === "team_member" ? teams.find((row) => String(row.team.id) === inviteTeamId)?.team.name || t.unassigned : t.unassigned} · {sponsorAgents.find((agent) => String(agent.id) === inviteSponsorId)?.name || t.unassigned}</div>
-            </div>
-            {inviteUrl && (
-              <div className="mt-5 rounded-lg bg-paper p-3">
-                <div className="break-all font-mono text-[12px]">{inviteUrl}</div>
-                <Btn variant="outline" className="mt-3 w-full justify-center" onClick={() => void navigator.clipboard.writeText(inviteUrl)}>{t.copyInvite}</Btn>
-              </div>
-            )}
-            <div className="mt-5 flex justify-end gap-2">
-              <Btn variant="outline" onClick={() => setInviteOpen(false)}>{t.cancel}</Btn>
-              <Btn variant="primary" onClick={() => void createInvitation()} disabled={inviteSaving || !inviteCompanyId || (invitePlan === "team_member" && !inviteTeamId)}>{inviteSaving ? t.saving : t.createInvite}</Btn>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -9,6 +9,7 @@ import { tone } from "@/components/homix/tokens";
 import { Copy, Smartphone } from "lucide-react";
 import { toast } from "sonner";
 import { useLocale } from "@/lib/i18n-client";
+import { loginHandoffUrl } from "@/lib/invitation-handoff";
 
 const M = {
   en: {
@@ -23,6 +24,7 @@ const M = {
     signInFailed: "Could not sign in with Google",
     accessDenied: "This Google address is not linked to a Homix account. Use a linked email, or start an agent application below.",
     genericError: "Sign-in failed. Please try again.",
+    invalidInvite: "This invitation has expired or been disabled. Ask your inviter for their current link to keep your referral attached to your application.",
     continueGoogle: "Continue with Google",
     applySignIn: "Agent application",
     applyTitle: "Start or continue your Homix application.",
@@ -50,6 +52,7 @@ const M = {
     signInFailed: "无法使用 Google 登录",
     accessDenied: "此 Google 邮箱尚未关联 Homix 账号。请使用已关联邮箱登录，或从下方开始经纪人申请。",
     genericError: "登录失败，请重试。",
+    invalidInvite: "此邀请已过期或停用。请向邀请人索取当前链接，再继续申请，以便正确记录推荐关系。",
     continueGoogle: "使用 Google 继续",
     applySignIn: "经纪人申请",
     applyTitle: "开始或继续您的 Homix 入职申请。",
@@ -203,15 +206,7 @@ function LoginInner() {
 
   const copyLoginLink = async () => {
     try {
-      let loginLink = window.location.href;
-      if (applicationMode) {
-        const startUrl = new URL("/join/start", window.location.origin);
-        for (const key of ["source", "lang", "plan", "campaign"]) {
-          const value = params.get(key);
-          if (value) startUrl.searchParams.set(key, value);
-        }
-        loginLink = startUrl.toString();
-      }
+      const loginLink = loginHandoffUrl(window.location.href);
       await navigator.clipboard.writeText(loginLink);
       toast.success(t.copied);
     } catch {
@@ -307,7 +302,7 @@ function LoginInner() {
             </div>
           )}
 
-          {error && (
+          {(error || params.get("invite") === "invalid") && (
             <div
               className="mt-5 rounded-lg p-3 text-[12.5px]"
               style={{
@@ -316,7 +311,7 @@ function LoginInner() {
                 border: `1px solid ${tone.rose}30`,
               }}
             >
-              {error === "AccessDenied"
+              {params.get("invite") === "invalid" ? t.invalidInvite : error === "AccessDenied"
                 ? t.accessDenied
                 : t.genericError}
             </div>
