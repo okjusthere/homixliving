@@ -10,7 +10,9 @@ import {
 import { lockOnboardingAgent } from "@/lib/advisory-locks";
 import { requireActiveAgentApi } from "@/lib/auth-guards";
 import {
-  createESignEnvelope,
+  findOrCreateESignEnvelope,
+  ensureESignEnvelopeReplaceable,
+  ESignApiError,
   findOrCreateESignTransaction,
   getESignTemplate,
   isTeamLeaderESignConfigured,
@@ -25,6 +27,9 @@ import {
   markTeamLeaderAgreementSent,
   syncTeamLeaderAgreement,
 } from "@/lib/team-leader-agreement";
+
+import { canRestartAgreement } from "@/lib/agreement-recovery-policy";
+import { AgreementAttemptChanged, agreementAttemptReference, claimAgreementAttempt, withAgreementAttempt, type AgreementAttempt } from "@/lib/agreement-attempts";
 
 const PREPARATION_STALE_MS = 5 * 60_000;
 
@@ -90,9 +95,7 @@ export async function POST(
     return NextResponse.json({ error: "Team Leader eSign is not configured." }, { status: 503 });
   }
 
-  let row;
-  try {
-    row = await db.transaction(async (tx) => {
+  const claim = async (restartEnvelopeId?: string) => db.transaction(async (tx) => {
       await lockOnboardingAgent(tx, agentId);
       const [fresh] = await tx
         .select({ application: teamLeaderApplications, agent: agents })
@@ -115,20 +118,35 @@ export async function POST(
       ) {
         throw new Error("COMPANY_OR_PLAN_CHANGED");
       }
-      if (fresh.application.agreementStatus === "preparing" && !fresh.application.esignEnvelopeId) {
+      const replacing = Boolean(restartEnvelopeId);
+      if (replacing && (fresh.application.esignEnvelopeId !== restartEnvelopeId || !canRestartAgreement(fresh.application.agreementStatus))) throw new Error("AGREEMENT_CHANGED");
+      if (!replacing && fresh.application.agreementStatus === "preparing" && !fresh.application.esignEnvelopeId) {
         const updatedAt = new Date(fresh.application.updatedAt).getTime();
         if (Number.isFinite(updatedAt) && Date.now() - updatedAt < PREPARATION_STALE_MS) {
           throw new Error("PREPARING");
         }
-      } else if (fresh.application.agreementStatus !== "not_started") {
-        return fresh;
+      } else if (!replacing && fresh.application.agreementStatus !== "not_started") {
+        return { ...fresh, attempt: null };
       }
+      const attempt = await claimAgreementAttempt(tx, { scope: "team_leader", subjectId: id, agentId }, replacing ? {
+        envelopeId: fresh.application.esignEnvelopeId, transactionId: fresh.application.esignTransactionId,
+        templateVersionId: fresh.application.esignTemplateVersionId, evidencePackageId: fresh.application.esignEvidencePackageId,
+        status: fresh.application.agreementStatus, completedAt: fresh.application.agreementCompletedAt,
+      } : undefined);
       const [claimed] = await tx.update(teamLeaderApplications).set({
+        ...(replacing ? { esignEnvelopeId: null, esignTransactionId: null, esignTemplateVersionId: null,
+          esignEvidencePackageId: null, agreementCompletedAt: null } : {}),
         agreementStatus: "preparing",
         updatedAt: new Date().toISOString(),
       }).where(eq(teamLeaderApplications.id, id)).returning();
-      return { application: claimed, agent: fresh.agent };
+      return { application: claimed, agent: fresh.agent, attempt };
     });
+
+  let row;
+  let attempt: AgreementAttempt | null = null;
+  try {
+    row = await claim();
+    attempt = row.attempt;
   } catch (error) {
     const code = error instanceof Error ? error.message : "";
     if (code === "APPLICATION_NOT_READY") return NextResponse.json({ error: "Application is not ready for signing." }, { status: 409 });
@@ -146,20 +164,29 @@ export async function POST(
   try {
     if (row.application.esignEnvelopeId) {
       const synced = await syncTeamLeaderAgreement(row.application, row.application.licensedCompany);
-      if (synced.agreementStatus === "preparing") {
-        await sendESignEnvelope(
-          synced.esignEnvelopeId!,
-          agentId,
-          `homix-team-leader-send-${id}`,
-        );
-        const sent = await markTeamLeaderAgreementSent(id);
-        return NextResponse.json({ success: true, agreementStatus: sent?.agreementStatus || "sent" });
+      if (synced.esignEnvelopeId !== row.application.esignEnvelopeId) {
+        return NextResponse.json({ error: "The agreement changed. Refresh its status." }, { status: 409 });
       }
-      return NextResponse.json({ success: true, agreementStatus: synced.agreementStatus });
+      if (canRestartAgreement(synced.agreementStatus)) {
+        await ensureESignEnvelopeReplaceable(synced.esignEnvelopeId!);
+        row = await claim(synced.esignEnvelopeId!);
+        attempt = row.attempt;
+      } else {
+        if (synced.agreementStatus === "failed") {
+          return NextResponse.json({ error: "The signed PDF needs recovery. Contact an administrator; your signatures are retained." }, { status: 409 });
+        }
+        if (synced.agreementStatus === "preparing") {
+          await sendESignEnvelope(synced.esignEnvelopeId!, agentId, `homix-team-leader-send-${synced.esignEnvelopeId}`);
+          const sent = await markTeamLeaderAgreementSent(id, synced.esignEnvelopeId!);
+          return NextResponse.json({ success: true, agreementStatus: sent?.agreementStatus || "sent" });
+        }
+        return NextResponse.json({ success: true, agreementStatus: synced.agreementStatus });
+      }
     }
     if (row.application.agreementStatus !== "preparing") {
       return NextResponse.json({ success: true, agreementStatus: row.application.agreementStatus });
     }
+    if (!attempt) throw new Error("AGREEMENT_CHANGED");
     const [team] = await db.select().from(teams).where(eq(teams.id, row.application.teamId!)).limit(1);
     const [terms] = await db.select().from(teamCompensationConfigs).where(eq(
       teamCompensationConfigs.id,
@@ -191,13 +218,14 @@ export async function POST(
       name: `${row.agent.legalName || row.agent.name} Team Leader agreement`,
       externalReference: `homix-team-leader-${id}`,
     });
-    const externalReference = `homix-team-leader-application-${id}`;
-    const envelope = await createESignEnvelope({
+    const externalReference = agreementAttemptReference(`homix-team-leader-application-${id}`, attempt);
+    const envelope = await findOrCreateESignEnvelope({
       transactionId: transaction.id,
       templateId: templateConfiguration.templateId,
       legalEntityName: templateConfiguration.legalEntityName,
       agentId,
       externalReference,
+      expiresAt: attempt.expiresAt,
       subject: `${templateConfiguration.legalEntityName} Team Leader agreement`,
       message: `Please review and sign the Team Leader agreement for ${team.name}.`,
       recipients: [
@@ -224,26 +252,29 @@ export async function POST(
       expectedTemplateVersionId: version.id,
       expectedTemplateSchemaHash: version.schemaHash!,
     });
-    await db.update(teamLeaderApplications).set({
-      esignTransactionId: transaction.id,
-      esignEnvelopeId: envelope.id,
-      esignTemplateVersionId: envelope.templateVersionId,
-      agreementStatus: "preparing",
-      updatedAt: new Date().toISOString(),
-    }).where(eq(teamLeaderApplications.id, id));
-    await sendESignEnvelope(envelope.id, agentId, `homix-team-leader-send-${id}`);
-    await markTeamLeaderAgreementSent(id);
+    await withAgreementAttempt({ scope: "team_leader", subjectId: id, agentId }, attempt.id, async (tx) => {
+      await tx.update(teamLeaderApplications).set({
+        esignTransactionId: transaction.id,
+        esignEnvelopeId: envelope.id,
+        esignTemplateVersionId: envelope.templateVersionId,
+        agreementStatus: "preparing",
+        updatedAt: new Date().toISOString(),
+      }).where(and(eq(teamLeaderApplications.id, id), isNull(teamLeaderApplications.esignEnvelopeId)));
+    });
+    await sendESignEnvelope(envelope.id, agentId, `homix-team-leader-send-${envelope.id}`);
+    await markTeamLeaderAgreementSent(id, envelope.id);
     return NextResponse.json({ success: true, agreementStatus: "sent" });
   } catch (error) {
-    await db.update(teamLeaderApplications).set({
-      agreementStatus: "not_started",
-      updatedAt: new Date().toISOString(),
-    }).where(and(
-      eq(teamLeaderApplications.id, id),
-      eq(teamLeaderApplications.agreementStatus, "preparing"),
-      isNull(teamLeaderApplications.esignEnvelopeId),
-    )).catch(() => undefined);
-    if (error instanceof OnboardingESignTemplateError) {
+    if (attempt) await withAgreementAttempt({ scope: "team_leader", subjectId: id, agentId }, attempt.id, async (tx) => {
+      await tx.update(teamLeaderApplications).set({
+        updatedAt: new Date(Date.now() - PREPARATION_STALE_MS).toISOString(),
+      }).where(and(
+        eq(teamLeaderApplications.id, id),
+        eq(teamLeaderApplications.agreementStatus, "preparing"),
+        isNull(teamLeaderApplications.esignEnvelopeId),
+      ));
+    }).catch(() => undefined);
+    if (error instanceof OnboardingESignTemplateError || error instanceof AgreementAttemptChanged || (error instanceof ESignApiError && error.status === 409) || (error instanceof Error && ["AGREEMENT_CHANGED", "PREPARING", "APPLICATION_NOT_READY", "COMPANY_OR_PLAN_CHANGED"].includes(error.message))) {
       return NextResponse.json({ error: error.message }, { status: 409 });
     }
     console.error("Unable to prepare Team Leader agreement", error);
