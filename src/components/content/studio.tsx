@@ -13,6 +13,8 @@ import {
 import { useLocale } from "@/lib/i18n-client";
 import { PageHeader } from "@/components/homix/page-kit";
 import { contentFetch, Field, TemplateArt } from "./ui";
+import { ListingPicker } from "./listing-picker";
+import { listingEvent, type StudioListing } from "@/lib/content/listing-source";
 import { listingDetailLevel } from "@/lib/content/output-plan";
 import {
   IMAGE_SIZES,
@@ -24,21 +26,6 @@ import {
   type Holiday,
 } from "@/lib/content/types";
 
-type ListingResult = {
-  sourceKey: string;
-  unparsedAddress: string;
-  listPrice?: number;
-  bedroomsTotal?: number;
-  bathroomsTotalInteger?: number;
-  livingArea?: number;
-  publicRemarks?: string;
-  standardStatus?: string;
-  annualPropertyTax?: string;
-  monthlyMaintenanceFee?: string;
-  associationFee?: string;
-  associationFeeFrequency?: string;
-  imageUrls: string[];
-};
 const emptyEvent = {
   date: "",
   start: "",
@@ -83,9 +70,7 @@ export function ContentStudio() {
   const [country, setCountry] = useState("ALL"),
     [month, setMonth] = useState("ALL"),
     [search, setSearch] = useState("");
-  const [mlsQuery, setMlsQuery] = useState(""),
-    [listings, setListings] = useState<ListingResult[]>([]),
-    [projectId, setProjectId] = useState<string>();
+  const [projectId, setProjectId] = useState<string>();
   const [page, setPage] = useState(0),
     [hasMore, setHasMore] = useState(false);
   const requestKey = useRef<string | null>(null);
@@ -288,35 +273,51 @@ export function ContentStudio() {
       ),
     });
   }
-  async function chooseListing(listing: ListingResult) {
-    const imageAssetIds: string[] = [];
-    if (listing.imageUrls[0]) {
-      const { asset } = await contentFetch<{ asset: { id: string } }>(
-        "/api/content/assets",
-        { method: "POST", body: JSON.stringify({ url: listing.imageUrls[0] }) },
-      );
-      imageAssetIds.push(asset.id);
+  async function chooseListing(listing: StudioListing, photos: string[]) {
+    const sourceRevision = listingRevision.current;
+    setBusy(true);
+    try {
+      const imageAssetIds: string[] = [];
+      for (const url of photos.slice(0, 4)) {
+        const { asset } = await contentFetch<{ asset: { id: string } }>(
+          "/api/content/assets",
+          { method: "POST", body: JSON.stringify({ url }) },
+        );
+        imageAssetIds.push(asset.id);
+      }
+      if (sourceRevision !== listingRevision.current)
+        throw new Error(
+          t(
+            "Property details changed during import; select the listing again.",
+            "导入期间房源资料已变化，请重新选择房源。",
+          ),
+        );
+      patchListing({
+        source: "mls",
+        sourceKey: listing.id,
+        address: listing.address.full,
+        price: (
+          input.theme === "just_sold" ? listing.closePrice : listing.askingPrice
+        )
+          ? `$${(input.theme === "just_sold" ? listing.closePrice! : listing.askingPrice!).toLocaleString("en-US")}`
+          : "",
+        beds: String(listing.beds ?? ""),
+        baths: String(listing.baths + (listing.halfBaths || 0) * 0.5 || ""),
+        area: String(listing.sqft || ""),
+        description: listing.description || "",
+        annualPropertyTax: listing.annualPropertyTax || "",
+        monthlyMaintenanceFee: listing.monthlyMaintenanceFee || "",
+        associationFee: listing.associationFee || "",
+        associationFeeFrequency: listing.associationFeeFrequency || "",
+        imageAssetIds,
+        fetchedAt: new Date().toISOString(),
+        sourceStatus: listing.status,
+      });
+      patch({ event: listingEvent(listing) || emptyEvent });
+      setProjectId(undefined);
+    } finally {
+      setBusy(false);
     }
-    patchListing({
-      source: "mls",
-      sourceKey: listing.sourceKey,
-      address: listing.unparsedAddress,
-      price: listing.listPrice
-        ? `$${listing.listPrice.toLocaleString("en-US")}`
-        : "",
-      beds: String(listing.bedroomsTotal || ""),
-      baths: String(listing.bathroomsTotalInteger || ""),
-      area: String(listing.livingArea || ""),
-      description: listing.publicRemarks || "",
-      annualPropertyTax: listing.annualPropertyTax || "",
-      monthlyMaintenanceFee: listing.monthlyMaintenanceFee || "",
-      associationFee: listing.associationFee || "",
-      associationFeeFrequency: listing.associationFeeFrequency || "",
-      imageAssetIds,
-      fetchedAt: new Date().toISOString(),
-      sourceStatus: listing.standardStatus,
-    });
-    setListings([]);
   }
   async function generate() {
     if (!template)
@@ -720,60 +721,11 @@ export function ContentStudio() {
                 </div>
                 <h2>{t("Bring the home into focus", "让房源成为主角")}</h2>
                 <div className="studio-panel">
-                  <Field
-                    label={t(
-                      "Find by MLS number or address",
-                      "输入 MLS 编号或地址",
-                    )}
-                  >
-                    <div className="studio-row">
-                      <input
-                        value={mlsQuery}
-                        onChange={(e) => setMlsQuery(e.target.value)}
-                        placeholder="MLS / Address"
-                      />
-                      <button
-                        type="button"
-                        disabled={busy || mlsQuery.trim().length < 2}
-                        className="studio-button secondary"
-                        onClick={() =>
-                          act(async () => {
-                            const data = await contentFetch<{
-                              items: ListingResult[];
-                            }>(
-                              `/api/marketing/email/listings?query=${encodeURIComponent(mlsQuery)}`,
-                            );
-                            setListings(data.items);
-                            if (!data.items.length)
-                              throw new Error(
-                                t("No matching listings", "未找到匹配房源"),
-                              );
-                          })
-                        }
-                      >
-                        {t("Search", "搜索")}
-                      </button>
-                    </div>
-                  </Field>
-                  {!!listings.length && (
-                    <div className="studio-search-results">
-                      {listings.map((l) => (
-                        <button
-                          disabled={busy}
-                          key={l.sourceKey}
-                          onClick={() => act(() => chooseListing(l))}
-                        >
-                          {l.unparsedAddress}
-                          <small>
-                            {l.standardStatus}{" "}
-                            {l.listPrice
-                              ? `$${l.listPrice.toLocaleString()}`
-                              : ""}
-                          </small>
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                  <ListingPicker
+                    zh={zh}
+                    disabled={busy}
+                    onChoose={chooseListing}
+                  />
                   <p className="studio-note">
                     {t(
                       "Or enter the details and upload photos below.",
