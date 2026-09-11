@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { relevantContentInput } from "./form-state";
 import { IMAGE_SIZES, LISTING_THEMES } from "./types";
 
 export const uuid = z.string().uuid();
@@ -15,8 +16,8 @@ const date = z
   .refine((s) => {
     const d = new Date(`${s}T12:00:00Z`);
     return Number.isFinite(d.valueOf()) && d.toISOString().slice(0, 10) === s;
-  }, "Invalid calendar date");
-export const inputSchema = z
+  }, "Choose a real calendar date / 请选择有效的日历日期");
+const contentInputSchema = z
   .object({
     kind: z.enum(["listing", "holiday"]),
     theme: short.min(1),
@@ -100,7 +101,8 @@ export const inputSchema = z
     ) {
       ctx.addIssue({
         code: "custom",
-        message: "Choose a listing theme and supply property details",
+        message:
+          "Choose a listing theme and supply property details / 请选择房源主题并填写房源资料",
         path: ["listing"],
       });
     }
@@ -111,11 +113,16 @@ export const inputSchema = z
     ) {
       ctx.addIssue({
         code: "custom",
-        message: "Open House requires a date and an end time after the start",
+        message:
+          "Open House requires a date and an end time after the start / 请填写 Open House 日期，结束时间必须晚于开始时间",
         path: ["event"],
       });
     }
   });
+export const inputSchema = z.preprocess(
+  relevantContentInput,
+  contentInputSchema,
+);
 export const templateConfigSchema = z.object({
   name: z.object({ en: short.min(1), zh: short.min(1) }),
   description: z.object({ en: short, zh: short }),

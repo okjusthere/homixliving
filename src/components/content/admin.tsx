@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { PageHeader } from "@/components/homix/page-kit";
 import { useLocale } from "@/lib/i18n-client";
+import { ContentErrorDialog } from "./error-dialog";
 import { contentFetch, Field, TemplateArt } from "./ui";
 import { GenerationReview } from "./generation-review";
 import {
@@ -128,11 +129,11 @@ export function ContentAdmin() {
           </button>
         ))}
       </div>
-      {error && (
-        <div className="studio-error" role="alert">
-          {error}
-        </div>
-      )}
+      <ContentErrorDialog
+        message={error}
+        onClose={() => setError("")}
+        zh={locale === "zh"}
+      />
       {notice && (
         <p role="status" className="studio-note">
           {notice}

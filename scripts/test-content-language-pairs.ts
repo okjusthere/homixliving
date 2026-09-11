@@ -86,6 +86,9 @@ async function main() {
         headline: "",
         message: "Hello",
         additionalInstructions: "",
+        // Hidden fields left over after switching from a listing to a holiday.
+        listing: { source: "manual", address: "", imageAssetIds: [] },
+        event: { date: "", start: "", end: "", timezone: "America/New_York" },
       },
     };
     const [first, retry] = await Promise.all([
@@ -100,6 +103,8 @@ async function main() {
       )
     ).rows;
     assert.equal(pair.length, 2);
+    assert.equal(pair[0].input.listing, undefined);
+    assert.equal(pair[0].input.event, undefined);
     assert.equal(pair[0].input.language, "zh");
     assert.equal(pair[1].input.language, "en");
     assert.equal(pair[1].predecessor_id, first);

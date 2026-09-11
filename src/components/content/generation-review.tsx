@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useLocale } from "@/lib/i18n-client";
+import { ContentErrorDialog } from "./error-dialog";
 import { contentFetch, Field } from "./ui";
 import type { Generation } from "@/lib/content/types";
 export function GenerationReview() {
@@ -46,11 +47,11 @@ export function GenerationReview() {
   return (
     <div className="studio-grid">
       <main>
-        {error && (
-          <div role="alert" className="studio-error">
-            {error}
-          </div>
-        )}
+        <ContentErrorDialog
+          message={error}
+          onClose={() => setError("")}
+          zh={zh}
+        />
         <p className="studio-note">
           {t(
             "Review the provider request and workflow before closing an uncertain outcome. Closing does not start another paid generation.",

@@ -6,16 +6,33 @@ export async function contentFetch<T>(
   path: string,
   init?: RequestInit,
 ): Promise<T> {
-  const response = await fetch(path, {
-    ...init,
-    headers: {
-      ...(init?.body && !(init.body instanceof FormData)
-        ? { "Content-Type": "application/json" }
-        : {}),
-      ...init?.headers,
-    },
-  });
-  const data = await response.json();
+  let response: Response;
+  try {
+    response = await fetch(path, {
+      ...init,
+      headers: {
+        ...(init?.body && !(init.body instanceof FormData)
+          ? { "Content-Type": "application/json" }
+          : {}),
+        ...init?.headers,
+      },
+    });
+  } catch (error) {
+    if (init?.signal?.aborted) throw error;
+    throw new Error(
+      "Connection failed. Check your network and try again / 网络连接失败，请检查网络后重试",
+    );
+  }
+  let data;
+  try {
+    data = await response.json();
+  } catch {
+    throw new Error(
+      response.status === 413
+        ? "File is too large. Choose a smaller image / 图片过大，请选择更小的图片"
+        : "The service returned an unexpected response. Please try again / 服务返回异常，请稍后重试",
+    );
+  }
   if (!response.ok)
     throw new Error(
       typeof data.error === "string"

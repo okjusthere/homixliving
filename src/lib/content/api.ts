@@ -1,3 +1,4 @@
+import { contentValidationMessage } from "./form-state";
 import { z } from "zod";
 import { requireActiveAgentApi } from "@/lib/auth-guards";
 import { ContentError, query } from "./store";
@@ -47,7 +48,7 @@ export function contentError(error: unknown): Response {
   if (error instanceof z.ZodError)
     return Response.json(
       {
-        error: error.issues[0]?.message || "Invalid input",
+        error: contentValidationMessage(error.issues),
         issues: error.issues,
       },
       { status: 400 },

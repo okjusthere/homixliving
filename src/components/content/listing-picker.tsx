@@ -1,7 +1,13 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- MLS photos originate from the website listing feed. */
 import { useEffect, useRef, useState } from "react";
-import { LoaderCircle, RefreshCw, Search, Check } from "lucide-react";
+import {
+  LoaderCircle,
+  RefreshCw,
+  Search,
+  Check,
+  ArrowLeft,
+} from "lucide-react";
 import type {
   StudioListing,
   StudioListingPage,
@@ -12,7 +18,9 @@ export function ListingPicker({
   zh,
   disabled,
   onChoose,
+  onError,
 }: {
+  onError: (message: string) => void;
   zh: boolean;
   disabled: boolean;
   onChoose: (listing: StudioListing, photos: string[]) => Promise<void>;
@@ -25,7 +33,7 @@ export function ListingPicker({
   const [refresh, setRefresh] = useState(0);
   const [data, setData] = useState<StudioListingPage | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const setError = onError;
   const [detail, setDetail] = useState<StudioListing | null>(null);
   const [photos, setPhotos] = useState<string[]>([]);
   const [selecting, setSelecting] = useState(false);
@@ -36,7 +44,6 @@ export function ListingPicker({
     const controller = new AbortController();
     const requestRevision = revision;
     setData(null);
-    setError("");
     setDetail(null);
     revision.current++;
     if (scope === "all" && query.length < 2) {
@@ -61,7 +68,7 @@ export function ListingPicker({
       controller.abort();
       requestRevision.current++;
     };
-  }, [scope, query, page, refresh]);
+  }, [scope, query, page, refresh, setError]);
   async function open(listing: StudioListing) {
     const current = ++revision.current;
     setSelecting(true);
@@ -78,7 +85,7 @@ export function ListingPicker({
       if (current === revision.current)
         setError(e instanceof Error ? e.message : "Request failed");
     } finally {
-      setSelecting(false);
+      if (current === revision.current) setSelecting(false);
     }
   }
   const locked = disabled || selecting;
@@ -179,11 +186,6 @@ export function ListingPicker({
           {t("Loading listings…", "正在加载房源…")}
         </p>
       )}
-      {error && (
-        <p role="alert" className="studio-picker-error">
-          {error}
-        </p>
-      )}
       {data && !data.listings.length && (
         <p className="studio-note">
           {t(
@@ -251,6 +253,23 @@ export function ListingPicker({
             </div>
           )}
         </>
+      )}
+      {(detail || selecting) && (
+        <button
+          type="button"
+          className="studio-back-link"
+          disabled={disabled}
+          onClick={() => {
+            revision.current++;
+            setDetail(null);
+            setPhotos([]);
+            setSelecting(false);
+            setError("");
+          }}
+        >
+          <ArrowLeft size={15} />
+          {t("Back to listings", "返回房源列表")}
+        </button>
       )}
       {selecting && (
         <p role="status" className="studio-note">

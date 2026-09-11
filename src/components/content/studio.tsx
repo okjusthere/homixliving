@@ -13,6 +13,10 @@ import {
 import { useLocale } from "@/lib/i18n-client";
 import { PageHeader } from "@/components/homix/page-kit";
 import { contentFetch, Field, TemplateArt } from "./ui";
+import { ContentErrorDialog } from "./error-dialog";
+import { PhotoSorter } from "./photo-sorter";
+import { inputSchema } from "@/lib/content/validation";
+import { contentValidationMessage } from "@/lib/content/form-state";
 import { ListingPicker } from "./listing-picker";
 import { listingEvent, type StudioListing } from "@/lib/content/listing-source";
 import { listingDetailLevel } from "@/lib/content/output-plan";
@@ -74,10 +78,41 @@ export function ContentStudio() {
   const [page, setPage] = useState(0),
     [hasMore, setHasMore] = useState(false);
   const requestKey = useRef<string | null>(null);
+  const lastRefreshError = useRef("");
+  const reportRefreshError = useCallback((error: Error) => {
+    if (lastRefreshError.current !== error.message) {
+      lastRefreshError.current = error.message;
+      setError(error.message);
+    }
+  }, []);
+  const reportedFailures = useRef(new Set<string>());
+  const observedJobs = useRef(new Map<string, string>());
+  const sessionStarted = useRef(Date.now());
   const refreshWorks = useCallback(async () => {
     const data = await contentFetch<{ generations: Generation[] }>(
       "/api/content/generations",
     );
+    lastRefreshError.current = "";
+    const failures = data.generations.filter(
+      (g) =>
+        ["failed", "needs_review"].includes(g.status) &&
+        !reportedFailures.current.has(g.id) &&
+        (new Date(g.createdAt).valueOf() >= sessionStarted.current ||
+          ["queued", "preparing", "generating", "saving"].includes(
+            observedJobs.current.get(g.id) || "",
+          )),
+    );
+    for (const g of data.generations) observedJobs.current.set(g.id, g.status);
+    for (const g of failures) reportedFailures.current.add(g.id);
+    if (failures.length)
+      setError(
+        failures
+          .map(
+            (g) =>
+              `${g.input.listing?.address || g.input.theme}: ${g.status === "needs_review" ? "Generation needs administrator review before retrying / 生成结果待管理员确认，请勿重复提交" : "Generation failed. View the artwork details and try again / 海报生成失败，请查看作品详情后重试"}`,
+          )
+          .join("\n"),
+      );
     setWorks(data.generations);
     setHasMore(data.generations.length === 24);
     setPage(0);
@@ -129,19 +164,19 @@ export function ContentStudio() {
     };
   }, []);
   useEffect(() => {
-    if (tab === "works") refreshWorks().catch((e) => setError(e.message));
-  }, [tab, refreshWorks]);
+    if (tab === "works") refreshWorks().catch(reportRefreshError);
+  }, [tab, refreshWorks, reportRefreshError]);
   const running = works.some((g) =>
     ["queued", "preparing", "generating", "saving"].includes(g.status),
   );
   useEffect(() => {
     if (!running || tab !== "works") return;
     const timer = setInterval(
-      () => refreshWorks().catch((e) => setError(e.message)),
+      () => refreshWorks().catch(reportRefreshError),
       6000,
     );
     return () => clearInterval(timer);
-  }, [running, tab, refreshWorks]);
+  }, [running, tab, refreshWorks, reportRefreshError]);
   const applicable = templates.filter(
     (v) =>
       v.config.kind === input.kind &&
@@ -188,7 +223,10 @@ export function ContentStudio() {
         price: "",
         imageAssetIds: [],
         ...v.listing,
-        highlightsReviewed: false,
+        highlightsReviewed:
+          sourceChanged || "highlights" in value || "financialFacts" in value
+            ? false
+            : v.listing?.highlightsReviewed,
         ...(sourceChanged
           ? {
               highlights: undefined,
@@ -313,7 +351,7 @@ export function ContentStudio() {
         fetchedAt: new Date().toISOString(),
         sourceStatus: listing.status,
       });
-      patch({ event: listingEvent(listing) || emptyEvent });
+      patch({ event: listingEvent(listing) });
       setProjectId(undefined);
     } finally {
       setBusy(false);
@@ -324,6 +362,9 @@ export function ContentStudio() {
       throw new Error(
         t("Choose a published style first", "请先选择已发布的风格"),
       );
+    const validated = inputSchema.safeParse({ ...input, size: selectedSize });
+    if (!validated.success)
+      throw new Error(contentValidationMessage(validated.error.issues));
     requestKey.current ??= crypto.randomUUID();
     const { generationId } = await contentFetch<{ generationId: string }>(
       "/api/content/generations",
@@ -331,7 +372,7 @@ export function ContentStudio() {
         method: "POST",
         body: JSON.stringify({
           templateId: template.id,
-          input: { ...input, size: selectedSize },
+          input: validated.data,
           languages: outputChoice === "both" ? ["zh", "en"] : [outputChoice],
           projectId,
           idempotencyKey: requestKey.current,
@@ -425,11 +466,11 @@ export function ContentStudio() {
           </button>
         ))}
       </div>
-      {error && (
-        <div role="alert" className="studio-error">
-          {error}
-        </div>
-      )}
+      <ContentErrorDialog
+        message={error}
+        onClose={() => setError("")}
+        zh={zh}
+      />
       {loading ? (
         <div className="studio-empty">
           {t("Loading your studio…", "正在加载内容中心…")}
@@ -725,6 +766,7 @@ export function ContentStudio() {
                     zh={zh}
                     disabled={busy}
                     onChoose={chooseListing}
+                    onError={setError}
                   />
                   <p className="studio-note">
                     {t(
@@ -986,29 +1028,14 @@ export function ContentStudio() {
                       )}
                     </section>
                   )}
-                  <div className="studio-photos">
-                    {input.listing?.imageAssetIds.map((id) => (
-                      <div className="studio-photo" key={id}>
-                        <img
-                          src={`/api/content/assets/${id}`}
-                          alt={t("Selected property photo", "已选房源照片")}
-                        />
-                        <button
-                          aria-label={t("Remove photo", "移除照片")}
-                          onClick={() =>
-                            patchListing({
-                              imageAssetIds:
-                                input.listing!.imageAssetIds.filter(
-                                  (a) => a !== id,
-                                ),
-                            })
-                          }
-                        >
-                          ×
-                        </button>
-                      </div>
-                    ))}
-                  </div>
+                  <PhotoSorter
+                    ids={input.listing?.imageAssetIds || []}
+                    disabled={busy}
+                    zh={zh}
+                    onChange={(imageAssetIds) =>
+                      patchListing({ imageAssetIds })
+                    }
+                  />
                   <Field
                     label={t("Property photos (1–4)", "房源照片（1–4 张）")}
                   >
