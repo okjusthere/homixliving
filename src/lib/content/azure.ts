@@ -1,5 +1,6 @@
 import type { ImageSize } from "./types";
 import sharp from "sharp";
+import { withCompanyLogo } from "./logo";
 
 export type AzureImageSnapshot = {
   base: string;
@@ -61,6 +62,7 @@ export async function generateAzureImage(
   if (snapshot && snapshot.base !== current.base)
     throw new AzureImageError("AZURE_CONFIGURATION_CHANGED", false);
   const { base, deployment, apiVersion } = snapshot || current;
+  ({ prompt, references } = await withCompanyLogo(prompt, references));
   const endpoint = `${base}/images/${references.length ? "edits" : "generations"}`;
   const url = new URL(endpoint);
   if (apiVersion) url.searchParams.set("api-version", apiVersion);

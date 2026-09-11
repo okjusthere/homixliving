@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import sharp from "sharp";
-import { addCompanyLogo } from "../logo";
+import { addCompanyLogo, withCompanyLogo } from "../logo";
 import { IMAGE_SIZES } from "../types";
 
 test("every poster size preserves the artwork and adds a visible logo outside it", async () => {
@@ -27,5 +27,21 @@ test("every poster size preserves the artwork and adds a visible logo outside it
     }
     assert.ok(logoPixels > 300, `${size} includes a visible company logo`);
     assert.deepEqual(pixel(2, height - 2), [255, 255, 255], "footer has a solid contrast background");
+  }
+});
+
+
+test("branding supplies the real transparent logo last without changing photo order", async () => {
+  const portrait = Buffer.from("portrait");
+  const property = Buffer.from("property");
+  for (const refs of [[], [portrait, property]]) {
+    const result = await withCompanyLogo("Existing saved prompt", refs);
+    assert.deepEqual(result.references.slice(0, -1), refs);
+    assert.equal(refs.length, result.references.length - 1);
+    const logo = await sharp(result.references.at(-1)!).metadata();
+    assert.equal(logo.format, "png");
+    assert.equal(logo.hasAlpha, true);
+    assert.match(result.prompt, /MUST appear exactly once INSIDE/);
+    assert.match(result.prompt, /no branding will be added after generation/);
   }
 });

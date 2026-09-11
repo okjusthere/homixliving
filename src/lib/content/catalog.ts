@@ -46,7 +46,7 @@ const directions: Record<string, string> = {
   just_listed:
     "Celebrate a newly listed property, emphasizing the actual home and supplied asking price. No urgency claims or invented amenities.",
   open_house:
-    "Make the exact open-house date, start/end time and timezone the main practical callout after the property photograph. Include a clear invitation to visit.",
+    "Make the exact open-house date and local start/end time the main practical callout after the property photograph. Include a clear invitation to visit.",
   under_contract:
     "Announce that a contract has been signed; the transaction has NOT closed. Use a composed celebratory tone without sold stamps.",
   offer_accepted:

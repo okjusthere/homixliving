@@ -175,6 +175,10 @@ test("both language prompts contain both exact schedules, exclude unselected ses
       ],
     );
     const prompt = buildPosterPrompt(template, parsed, brand);
+    assert.doesNotMatch(prompt, /America\/New_York/);
+    assert.ok(posterEvents(parsed)?.every((event) => !("timezone" in event)));
+    assert.match(prompt, /do not convert them/);
+    assert.match(prompt, /Never print a timezone/);
     assert.match(prompt, /2026-09-12/);
     assert.match(prompt, /2026-09-13/);
     assert.doesNotMatch(prompt, /2026-09-20/);

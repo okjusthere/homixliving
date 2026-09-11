@@ -35,8 +35,8 @@ export function EventEditor({
       </div>
       <p className="studio-note">
         {t(
-          "All selected sessions appear on one poster. MLS schedules take priority; new sessions default to 1–3 PM.",
-          "所选场次会放在同一张海报上。优先使用 MLS 时间；新场次默认为下午 1–3 点。",
+          "All selected sessions appear on one poster, using local time at the property. MLS schedules take priority; new sessions default to 1–3 PM.",
+          "所选场次会放在同一张海报上，时间以房源所在地为准。优先使用 MLS 时间；新场次默认为下午 1–3 点。",
         )}
       </p>
       {events.map((event, index) => {
@@ -115,21 +115,6 @@ export function EventEditor({
                 )}
               </p>
             )}
-            <details className="studio-event-zone">
-              <summary>
-                {t("Timezone", "时区")} ·{" "}
-                {event.timezone === "America/New_York"
-                  ? t("New York", "纽约")
-                  : event.timezone}
-              </summary>
-              <Field label={t("Timezone", "时区")}>
-                <input
-                  aria-label={`${name} ${t("timezone", "时区")}`}
-                  value={event.timezone}
-                  onChange={(e) => update(index, { timezone: e.target.value })}
-                />
-              </Field>
-            </details>
           </fieldset>
         );
       })}

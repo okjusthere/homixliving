@@ -61,6 +61,7 @@ export async function prepareGeneration(id: string) {
 
 export async function requestGeneration(id: string): Promise<{
   bytes: Uint8Array;
+  branding: "integrated";
   usage: Record<string, unknown> | null;
   requestId: string | null;
 } | null> {
@@ -91,6 +92,7 @@ export async function requestGeneration(id: string): Promise<{
     // repeat the provider call if the process died after taking the DB claim.
     return {
       bytes: new Uint8Array(result.bytes),
+      branding: "integrated",
       usage: result.usage,
       requestId: result.requestId,
     };
@@ -126,6 +128,7 @@ export async function saveGeneration(
   id: string,
   result: {
     bytes: Uint8Array;
+    branding?: "integrated";
     usage: Record<string, unknown> | null;
     requestId: string | null;
   },
@@ -143,7 +146,9 @@ export async function saveGeneration(
   // Output uses job ID so retries write the same immutable output object.
   await putAsset(
     job.owner_agent_id,
-    await addCompanyLogo(Buffer.from(result.bytes), job.input.size),
+    result.branding === "integrated"
+      ? Buffer.from(result.bytes)
+      : await addCompanyLogo(Buffer.from(result.bytes), job.input.size),
     "output",
     id,
     false,

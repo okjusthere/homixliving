@@ -99,7 +99,7 @@ test("portrait ordering, single-language output and supplied facts stay explicit
   assert.match(prompt, /Reference image 1 supplies the portrait only/);
   assert.match(prompt, /never reuse its text, contact details, addresses/);
   assert.match(prompt, /Reference images 2 through 2/);
-  assert.match(prompt, /style or logo references only/);
+  assert.match(prompt, /style references only/);
   assert.match(prompt, /123 Example Street/);
   const noFace = buildPosterPrompt(
     config,
@@ -246,7 +246,10 @@ test("Azure adapter sends references to edits and never retries uncertain calls"
       assert.match(String(url), /\/images\/edits/);
       const form = init?.body as FormData;
       assert.equal(form.get("model"), "gpt-image-2");
-      assert.equal(form.getAll("image[]").length, 2);
+      assert.equal(form.getAll("image[]").length, 3);
+      const logo = form.getAll("image[]").at(-1) as File;
+      assert.equal((await sharp(Buffer.from(await logo.arrayBuffer())).metadata()).format, "png");
+      assert.match(String(form.get("prompt")), /LAST reference image is the official company logo/);
       assert.equal(form.get("input_fidelity"), null);
       return Response.json(
         {

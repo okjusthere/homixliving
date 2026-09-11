@@ -47,12 +47,11 @@ export function posterEvents(input: ContentInput) {
     return undefined;
   return contentEvents(input)
     .filter((event) => event.selected !== false)
-    .map(({ date, start, end, timezone }) => ({
+    .map(({ date, start, end }) => ({
       date,
       weekday: eventWeekday(date, input.language),
       start,
       end,
-      timezone,
     }))
     .sort((a, b) =>
       `${a.date} ${a.start}`.localeCompare(`${b.date} ${b.start}`),
