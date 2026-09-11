@@ -162,7 +162,7 @@ export async function GET(req: NextRequest) {
       group: "agent" as const,
       title: r.name,
       subtitle: r.email,
-      href: `/agents/${r.id}`,
+      href: `/admin/agents/${r.id}`,
     })),
   ];
 

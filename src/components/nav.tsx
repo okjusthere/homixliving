@@ -16,10 +16,8 @@ import {
   Image,
   Mail,
   LineChart,
-  Settings2,
   ShieldCheck,
   UsersRound,
-  WalletCards,
 } from "lucide-react";
 import { HomixMark } from "@/components/homix/brand-mark";
 import { tone } from "@/components/homix/tokens";
@@ -34,13 +32,6 @@ const navItems = [
   { href: "/offer", key: "offer", adminOnly: false },
   { href: "/share", key: "share", adminOnly: false },
   { href: "/profile/public", key: "profile", adminOnly: false },
-  { href: "/agents", key: "agents", adminOnly: true },
-  { href: "/teams", key: "teams", adminOnly: true },
-  { href: "/finance", key: "finance", adminOnly: true },
-  { href: "/payouts", key: "payouts", adminOnly: true },
-  { href: "/audit", key: "audit", adminOnly: true },
-  { href: "/feedback/admin", key: "feedbackInbox", adminOnly: true },
-  { href: "/settings", key: "settings", adminOnly: true },
 ] as const;
 
 const workspaceGroups = [
@@ -76,41 +67,13 @@ const workspaceGroups = [
   },
 ] as const;
 
-const adminGroups = [
-  {
-    key: "peopleManagement",
-    icon: UsersRound,
-    items: [
-      { href: "/agents", key: "agents" },
-      { href: "/teams", key: "teams" },
-    ],
-  },
-  {
-    key: "financeManagement",
-    icon: WalletCards,
-    items: [
-      { href: "/finance", key: "finance" },
-      { href: "/payouts", key: "payouts" },
-    ],
-  },
-  {
-    key: "systemManagement",
-    icon: Settings2,
-    items: [
-      { href: "/audit", key: "audit" },
-      { href: "/feedback/admin", key: "feedbackInbox" },
-      { href: "/settings", key: "settings" },
-    ],
-  },
-] as const;
-
 const LABELS = {
   en: {
     personalMarketing: "Personal marketing",
     overview: "Overview", sales: "Sales", rental: "Rental", training: "Training",
     resources: "Resource library", onboarding: "Onboarding guide", coach: "AI coach", offer: "Offers", share: "Share center", content: "Content studio", emailMarketing: "Email marketing",
     agents: "Agents", teams: "Teams", reports: "Performance report", finance: "Finance", payouts: "Payouts", audit: "Audit", feedbackInbox: "Feedback inbox", settings: "Settings",
-    search: "Search", signedIn: "Signed in", signOut: "Sign out", admin: "Admin", profile: "Public profile", accountProfile: "My profile", inviteJoin: "Invite to join",
+    search: "Search", signedIn: "Signed in", signOut: "Sign out", admin: "Admin center", profile: "Public profile", accountProfile: "My profile", inviteJoin: "Invite to join",
     menu: "Menu", switchLanguage: "Switch language", userMenu: "User menu", workspace: "Workspace", market: "Market overview", expiredListings: "Expired listings",
     transactionSupport: "Transaction support", learningGrowth: "Learning & growth", companyPerformance: "Company & performance",
     peopleManagement: "People", financeManagement: "Finance", systemManagement: "System", teamWorkspace: "Team workspace", anonymousFeedback: "Anonymous feedback",
@@ -121,7 +84,7 @@ const LABELS = {
     overview: "概览", sales: "买卖", rental: "租赁", training: "培训",
     resources: "资料库", onboarding: "入职指南", coach: "AI 教练", offer: "报价", share: "分享中心", content: "内容中心", emailMarketing: "邮件营销",
     agents: "经纪人", teams: "团队", reports: "业绩报表", finance: "财务", payouts: "发放", audit: "审计", feedbackInbox: "建议收件箱", settings: "设置",
-    search: "搜索", signedIn: "已登录", signOut: "退出登录", admin: "管理员", profile: "个人主页", accountProfile: "我的档案", inviteJoin: "邀请加入",
+    search: "搜索", signedIn: "已登录", signOut: "退出登录", admin: "管理中心", profile: "个人主页", accountProfile: "我的档案", inviteJoin: "邀请加入",
     menu: "菜单", switchLanguage: "切换语言", userMenu: "用户菜单", workspace: "工作台", market: "市场概览", expiredListings: "已过期房源",
     transactionSupport: "交易支持", learningGrowth: "学习成长", companyPerformance: "公司与业绩",
     peopleManagement: "人员管理", financeManagement: "财务管理", systemManagement: "系统管理", teamWorkspace: "团队工作台", anonymousFeedback: "匿名建议",
@@ -145,11 +108,8 @@ export function Nav() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [toolsMenuOpen, setToolsMenuOpen] = useState(false);
   const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
-  const [adminMenuOpen, setAdminMenuOpen] = useState(false);
-  const [mobileAdminOpen, setMobileAdminOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const toolsMenuRef = useRef<HTMLDivElement>(null);
-  const adminMenuRef = useRef<HTMLDivElement>(null);
   const locale = useLocale();
   const t = LABELS[locale];
   const toggleLocale = () => {
@@ -159,20 +119,18 @@ export function Nav() {
   };
 
   useEffect(() => {
-    if (!menuOpen && !toolsMenuOpen && !adminMenuOpen) return;
+    if (!menuOpen && !toolsMenuOpen) return;
     const handler = (e: MouseEvent) => {
       const target = e.target as Node;
       if (menuOpen && !menuRef.current?.contains(target)) setMenuOpen(false);
       if (toolsMenuOpen && !toolsMenuRef.current?.contains(target)) {
         setToolsMenuOpen(false);
       }
-      if (adminMenuOpen && !adminMenuRef.current?.contains(target)) {
-        setAdminMenuOpen(false);
-      }
+
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, [adminMenuOpen, menuOpen, toolsMenuOpen]);
+  }, [menuOpen, toolsMenuOpen]);
 
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/";
@@ -196,11 +154,9 @@ export function Nav() {
   const isAdmin = session?.user?.isAdmin || false;
   const mayUseTeamWorkspace = isAdmin || Boolean(session?.user?.isTeamLeader);
   const primaryItems = navItems.filter((item) => !item.adminOnly);
-  const adminItems = navItems.filter((item) => item.adminOnly);
   const toolsSectionActive = workspaceGroups.some((group) =>
     group.items.some((item) => (!item.leaderOnly || mayUseTeamWorkspace) && isActive(item.href)),
   );
-  const adminSectionActive = adminItems.some((item) => isActive(item.href));
   const initials = getInitials(session?.user?.name, session?.user?.email);
 
   return (
@@ -307,7 +263,6 @@ export function Nav() {
                   aria-expanded={toolsMenuOpen}
                   onClick={() => {
                     setToolsMenuOpen((open) => !open);
-                    setAdminMenuOpen(false);
                     setMenuOpen(false);
                   }}
                   className="flex h-9 items-center gap-1.5 rounded-md px-2 text-[13px] font-medium transition-colors"
@@ -378,85 +333,9 @@ export function Nav() {
                 )}
               </div>
               {isAdmin && (
-                <div ref={adminMenuRef} className="relative shrink-0">
-                  <button
-                    type="button"
-                    aria-haspopup="menu"
-                    aria-expanded={adminMenuOpen}
-                    onClick={() => {
-                      setAdminMenuOpen((open) => !open);
-                      setToolsMenuOpen(false);
-                      setMenuOpen(false);
-                    }}
-                    className="flex h-9 items-center gap-1.5 rounded-md px-2 text-[13px] font-medium transition-colors"
-                    style={{
-                      color: adminSectionActive ? tone.ink : tone.ink50,
-                      background: adminSectionActive
-                        ? tone.paperDeep
-                        : "transparent",
-                    }}
-                  >
-                    <ShieldCheck size={14} strokeWidth={1.8} aria-hidden />
-                    {t.admin}
-                    <ChevronDown
-                      size={14}
-                      aria-hidden
-                      className={`transition-transform ${adminMenuOpen ? "rotate-180" : ""}`}
-                    />
-                  </button>
-
-                  {adminMenuOpen && (
-                    <div
-                      role="menu"
-                      className="absolute right-0 top-11 z-50 grid w-[500px] grid-cols-3 rounded-lg p-3 shadow-lg"
-                      style={{
-                        background: tone.card,
-                        border: `1px solid ${tone.line}`,
-                        boxShadow: "0 16px 40px -16px rgba(41,37,30,0.22)",
-                      }}
-                    >
-                      {adminGroups.map((group, groupIndex) => {
-                        const GroupIcon = group.icon;
-                        return (
-                          <section
-                            key={group.key}
-                            className={`min-w-0 px-1 ${groupIndex > 0 ? "border-l pl-3" : ""}`}
-                            style={{ borderColor: tone.lineSoft }}
-                          >
-                            <p
-                              className="flex items-center gap-1.5 px-2 pb-3 pt-1 text-[11px] font-medium tracking-[0.08em]"
-                              style={{ color: tone.ink50 }}
-                            >
-                              <GroupIcon size={13} strokeWidth={1.7} aria-hidden />
-                              {t[group.key]}
-                            </p>
-                            <div className="space-y-1">
-                              {group.items.map((item) => {
-                                const active = isActive(item.href);
-                                return (
-                                  <Link
-                                    key={item.href}
-                                    href={item.href}
-                                    prefetch={false}
-                                    role="menuitem"
-                                    onClick={() => setAdminMenuOpen(false)}
-                                    className="flex h-11 items-center rounded-md px-2.5 text-[13px] font-medium transition-colors hover:bg-[#F6F1E8]"
-                                    style={{
-                                      color: active ? tone.ink : tone.ink70,
-                                      background: active ? tone.paperDeep : "transparent",
-                                    }}
-                                  >
-                                    {t[item.key]}
-                                  </Link>
-                                );
-                              })}
-                            </div>
-                          </section>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
+                <Link href="/admin" prefetch={false} className="flex h-9 shrink-0 items-center gap-1.5 rounded-md px-2 text-[13px] font-medium hover:bg-[#F6F1E8]" style={{ color: tone.ink70 }}>
+                  <ShieldCheck size={14} strokeWidth={1.8} aria-hidden />{t.admin}
+                </Link>
               )}
             </div>
           </div>
@@ -481,7 +360,6 @@ export function Nav() {
                 type="button"
                 onClick={() => {
                   setMenuOpen((v) => !v);
-                  setAdminMenuOpen(false);
                   setToolsMenuOpen(false);
                 }}
                 className="w-9 h-9 rounded-full flex items-center justify-center font-medium hover:opacity-90 transition-opacity"
@@ -622,7 +500,6 @@ export function Nav() {
                   onClick={() => {
                     setMobileOpen(false);
                     setMobileToolsOpen(false);
-                    setMobileAdminOpen(false);
                   }}
                   className="px-3 h-10 rounded-md text-[13.5px] font-medium flex items-center"
                   style={{
@@ -644,7 +521,6 @@ export function Nav() {
                   onClick={() => {
                     setMobileOpen(false);
                     setMobileToolsOpen(false);
-                    setMobileAdminOpen(false);
                   }}
                   className="px-3 h-10 rounded-md text-[13.5px] font-medium flex items-center"
                   style={{
@@ -701,7 +577,6 @@ export function Nav() {
                                 onClick={() => {
                                   setMobileOpen(false);
                                   setMobileToolsOpen(false);
-                                  setMobileAdminOpen(false);
                                 }}
                                 className="flex h-10 items-center gap-2 rounded-md px-2 text-[12.5px] font-medium"
                                 style={{
@@ -722,72 +597,9 @@ export function Nav() {
               )}
             </div>
             {isAdmin && (
-              <div
-                className="col-span-2 mt-1 pt-1"
-                style={{ borderTop: `1px solid ${tone.lineSoft}` }}
-              >
-                <button
-                  type="button"
-                  aria-expanded={mobileAdminOpen}
-                  onClick={() => setMobileAdminOpen((open) => !open)}
-                  className="flex h-11 w-full items-center gap-2 rounded-md px-3 text-[13.5px] font-medium"
-                  style={{
-                    color: adminSectionActive ? tone.ink : tone.ink50,
-                    background: adminSectionActive
-                      ? tone.paperDeep
-                      : "transparent",
-                  }}
-                >
-                  <ShieldCheck size={16} strokeWidth={1.8} aria-hidden />
-                  <span>{t.admin}</span>
-                  <ChevronDown
-                    size={15}
-                    aria-hidden
-                    className={`ml-auto transition-transform ${mobileAdminOpen ? "rotate-180" : ""}`}
-                  />
-                </button>
-                {mobileAdminOpen && (
-                  <div className="mt-1 space-y-3 px-3 pb-2">
-                    {adminGroups.map((group) => {
-                      const GroupIcon = group.icon;
-                      return (
-                        <section key={group.key}>
-                          <p
-                            className="mb-1 flex items-center gap-1.5 px-2 text-[10px] font-semibold uppercase tracking-[0.12em]"
-                            style={{ color: tone.ink50 }}
-                          >
-                            <GroupIcon size={13} strokeWidth={1.7} aria-hidden />
-                            {t[group.key]}
-                          </p>
-                          <div className="grid grid-cols-2 gap-1">
-                            {group.items.map((item) => {
-                              const active = isActive(item.href);
-                              return (
-                                <Link
-                                  key={item.href}
-                                  href={item.href}
-                                  prefetch={false}
-                                  onClick={() => {
-                                    setMobileOpen(false);
-                                    setMobileAdminOpen(false);
-                                  }}
-                                  className="flex h-10 items-center rounded-md px-2 text-[12.5px] font-medium"
-                                  style={{
-                                    color: active ? tone.ink : tone.ink50,
-                                    background: active ? tone.paperDeep : "transparent",
-                                  }}
-                                >
-                                  {t[item.key]}
-                                </Link>
-                              );
-                            })}
-                          </div>
-                        </section>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+              <Link href="/admin" prefetch={false} onClick={() => setMobileOpen(false)} className="col-span-2 flex min-h-11 items-center gap-2 rounded-md border-t border-line px-3 text-sm font-medium">
+                <ShieldCheck size={16} aria-hidden />{t.admin}
+              </Link>
             )}
           </div>
         )}

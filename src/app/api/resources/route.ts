@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { asc } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { resources } from "@/db/schema";
 import { requireActiveAgentApi, requireAdminApi } from "@/lib/auth-guards";
@@ -11,6 +11,7 @@ export async function GET() {
   const rows = await db
     .select()
     .from(resources)
+    .where(eq(resources.isPublished, true))
     .orderBy(asc(resources.sortOrder), asc(resources.id));
   return NextResponse.json(rows);
 }

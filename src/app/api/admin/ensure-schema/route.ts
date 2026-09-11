@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { requireAdminApi } from "@/lib/auth-guards";
 import { pgClient } from "@/db";
 import {
   contractAgentLifecycle,
@@ -33,9 +33,9 @@ async function isAuthorized(request: Request): Promise<{ ok: boolean; actor: str
     }
   }
   try {
-    const session = await auth();
-    if (session?.user?.isAdmin) {
-      return { ok: true, actor: session.user.email || "admin" };
+    const access = await requireAdminApi();
+    if (!("error" in access)) {
+      return { ok: true, actor: access.session.user.email || "admin" };
     }
   } catch {
     // No request scope / no session — fall through to unauthorized.

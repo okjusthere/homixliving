@@ -1,9 +1,41 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { NextResponse } from "next/server";
+import { cache } from "react";
+import { eq } from "drizzle-orm";
+import { db } from "@/db";
+import { agents } from "@/db/schema";
+
+// A cached JWT must not preserve administrator access after it is revoked.
+// Read only the current access fields, and deduplicate within a server render.
+const currentSession = cache(async () => {
+  const session = await auth();
+  if (!session?.user?.isAdmin) return session;
+  const id = session.user.agentId;
+  const [access] = id
+    ? await db
+        .select({
+          isAdmin: agents.isAdmin,
+          accountStatus: agents.accountStatus,
+        })
+        .from(agents)
+        .where(eq(agents.id, id))
+        .limit(1)
+    : [];
+  if (!access) return null;
+  return {
+    ...session,
+    user: {
+      ...session.user,
+      ...access,
+      isAdmin: access.isAdmin && access.accountStatus === "active",
+      isActive: access.accountStatus === "active",
+    },
+  };
+});
 
 export async function requireActiveAgent() {
-  const session = await auth();
+  const session = await currentSession();
 
   if (!session?.user?.email) {
     redirect("/login");
@@ -17,7 +49,7 @@ export async function requireActiveAgent() {
 }
 
 export async function requireActiveAgentApi() {
-  const session = await auth();
+  const session = await currentSession();
 
   if (!session?.user?.email) {
     return {
@@ -45,4 +77,10 @@ export async function requireAdminApi() {
   }
 
   return result;
+}
+
+export async function requireAdmin() {
+  const session = await requireActiveAgent();
+  if (!session.user.isAdmin) redirect("/");
+  return session;
 }

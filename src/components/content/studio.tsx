@@ -12,7 +12,6 @@ import {
   Download,
   LoaderCircle,
   Plus,
-  Settings2,
 } from "lucide-react";
 import { useLocale } from "@/lib/i18n-client";
 import { PageHeader } from "@/components/homix/page-kit";
@@ -480,17 +479,7 @@ export function ContentStudio() {
           "Turn a new listing or a meaningful occasion into something distinctly yours.",
           "让每一次房源上新、每一个重要节日，都带上你的个人风格。",
         )}
-        actions={
-          settings?.admin ? (
-            <Link
-              className="studio-button secondary"
-              href="/content/admin/templates"
-            >
-              <Settings2 size={15} />
-              {t("Manage templates", "管理模板")}
-            </Link>
-          ) : undefined
-        }
+
       />
       <div
         className="studio-tabs"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Btn, Card } from "@/components/homix/primitives";
@@ -15,7 +15,7 @@ import {
   type ProfileImageErrorCode,
 } from "@/lib/profile-image-client";
 
-const PLACEHOLDER = "/agent-placeholder-logo.png";
+const PLACEHOLDER = "/icons/homix-192.png";
 const SOCIAL_KEYS = ["instagram", "xiaohongshu", "douyin", "youtube", "linkedin", "website"] as const;
 const SOCIAL_LABEL: Record<string, { en: string; zh: string }> = {
   instagram: { en: "Instagram", zh: "Instagram" },
@@ -41,7 +41,7 @@ const STAT_PH: Record<string, string> = {
 
 const M = {
   en: {
-    unreachable: "The public website is temporarily unavailable. Try again later. If this continues, verify HOMIXWEB_REVALIDATE_URL and AGENTS_REVALIDATE_SECRET.",
+    unreachable: "The website is temporarily unavailable. Please retry in a moment.",
     publishFailed: "Unable to create the profile. Please try again.",
     unpublishedTitle: "Public profile not yet published",
     unpublishedOwn: "Your Portal account is not linked to a website advisor profile. Ask an administrator to link an existing profile before creating a new one.",
@@ -123,7 +123,7 @@ const M = {
     save: "Save and sync",
   },
   zh: {
-    unreachable: "暂时无法连接对外网站（www.homixny.com）。请稍后重试；如持续失败，请检查 HOMIXWEB_REVALIDATE_URL 与 AGENTS_REVALIDATE_SECRET。",
+    unreachable: "暂时无法读取官网资料，请稍后重试。",
     publishFailed: "发布失败，请重试。",
     unpublishedTitle: "尚未发布对外主页",
     unpublishedOwn: "你的 Portal 账号尚未关联官网经纪人档案。请联系管理员关联既有档案；完成后即可在这里编辑并控制显示状态。",
@@ -253,6 +253,11 @@ export function PublicProfileEditor({
   agentPhone,
   agentLicense,
   adminPublicId,
+  compact = false,
+  onSaved,
+  onDirtyChange,
+  onSavingChange,
+  identityEditHref,
 }: {
   linked: boolean;
   unreachable: boolean;
@@ -266,6 +271,11 @@ export function PublicProfileEditor({
   /** When set, the admin console is editing this advisor by PUBLIC agent id
    *  (covers advisors with no portal account); saves go to the admin endpoint. */
   adminPublicId?: string;
+  compact?: boolean;
+  onSaved?: () => void;
+  onDirtyChange?: (dirty: boolean) => void;
+  onSavingChange?: (saving: boolean) => void;
+  identityEditHref?: string;
 }) {
   const router = useRouter();
   const locale = useLocale();
@@ -274,12 +284,14 @@ export function PublicProfileEditor({
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [removeQr, setRemoveQr] = useState(false);
-  const [visibility, setVisibility] = useState(profile?.visibility_status ?? "visible");
+  const [visibility, setVisibility] = useState<PublicProfile["visibility_status"]>(profile?.visibility_status ?? null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [qrFile, setQrFile] = useState<File | null>(null);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [qrBusy, setQrBusy] = useState(false);
   const [qrError, setQrError] = useState<string | null>(null);
+
+  useEffect(() => { onSavingChange?.(busy || photoBusy || qrBusy); }, [busy, photoBusy, qrBusy, onSavingChange]);
 
   if (unreachable) {
     return (
@@ -318,7 +330,7 @@ export function PublicProfileEditor({
         </p>
         {canCreate && (
           <div className="flex flex-wrap items-center gap-3">
-            <Link href="/agents?view=public" className="text-[12.5px] underline" style={{ color: tone.accent }}>
+            <Link href="/admin/agents?view=public" className="text-[12.5px] underline" style={{ color: tone.accent }}>
               {t.checkRoster}
             </Link>
             <Btn variant="primary" onClick={publish} disabled={busy}>
@@ -363,7 +375,7 @@ export function PublicProfileEditor({
 
   async function save() {
     const form = formRef.current;
-    if (!form) return;
+    if (!form || !form.reportValidity()) return;
     if (photoBusy || qrBusy) {
       setMsg({ ok: false, text: t.imageProcessing });
       return;
@@ -398,7 +410,8 @@ export function PublicProfileEditor({
       setPhotoFile(null);
       setQrFile(null);
       setRemoveQr(false);
-      router.refresh();
+      onDirtyChange?.(false);
+      if (onSaved) onSaved(); else router.refresh();
     } catch {
       setMsg({ ok: false, text: t.saveFailed });
     } finally {
@@ -414,6 +427,7 @@ export function PublicProfileEditor({
     try {
       const prepared = await prepareQrUpload(source);
       setQrFile(prepared);
+      onDirtyChange?.(true);
       setRemoveQr(false);
     } catch (cause) {
       const code: ProfileImageErrorCode =
@@ -425,14 +439,14 @@ export function PublicProfileEditor({
   }
 
   return (
-    <form ref={formRef} onSubmit={(e) => e.preventDefault()} className="space-y-6">
+    <form ref={formRef} onSubmit={(e) => e.preventDefault()} onChange={() => onDirtyChange?.(true)} className={compact ? "profile-editor-compact space-y-5" : "space-y-6"}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-[12.5px]" style={{ color: tone.ink50 }}>
           {visibility === "visible"
             ? `✓ ${t.visible}`
             : visibility === "agent_hidden"
-              ? `· ${t.agentHidden}`
-              : `· ${t.adminHidden}`}{" "}
+              ? `· ${adminPublicId ? (locale === "zh" ? "经纪人隐藏" : "Hidden by agent") : t.agentHidden}`
+              : visibility === "admin_hidden" ? `· ${t.adminHidden}` : (locale === "zh" ? "· 未设定，不公开" : "· Unset, hidden")}{" "}
           ·{" "}
           <a href={publicUrl} target="_blank" rel="noopener noreferrer" style={{ color: tone.accent }}>
             {t.viewProfile} ↗
@@ -451,6 +465,10 @@ export function PublicProfileEditor({
         )}
       </div>
 
+      <details open={compact ? undefined : true} className={compact ? "profile-photo-disclosure" : "contents"}>
+        <summary className={compact ? "flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-line p-3 text-sm" : "hidden"}>
+          <span>{t.photo}</span><span className="text-xs text-ink-50">{locale === "zh" ? "查看 / 更换照片" : "View / change photo"} ↓</span>
+        </summary>
       {/* Photo */}
       <Card className="flex flex-col">
         <CardHeader title={t.photo} subtitle={t.photoHint} />
@@ -459,12 +477,15 @@ export function PublicProfileEditor({
             name="photo"
             currentSrc={p.photo_url || PLACEHOLDER}
             alt={p.name || ""}
-            onFileReady={setPhotoFile}
+            onFileReady={file => { setPhotoFile(file); if (file) onDirtyChange?.(true); }}
             onProcessingChange={setPhotoBusy}
           />
         </div>
       </Card>
 
+      </details>
+      <details open={compact ? undefined : true} className={compact ? "profile-identity-disclosure" : "contents"}>
+        <summary className={compact ? "cursor-pointer text-xs text-ink-50" : "hidden"}>{locale === "zh" ? "账号身份：" : "Account identity: "}{agentName || p.name} · {agentLicense || p.license_number || "—"}</summary>
       {/* Basics */}
       <Card className="flex flex-col">
         <CardHeader title={t.identity} subtitle={t.identityHint} />
@@ -478,6 +499,7 @@ export function PublicProfileEditor({
           <Field label={t.license}>
             <Input value={agentLicense || p.license_number || ""} readOnly disabled />
           </Field>
+          {adminPublicId && <div className="sm:col-span-3 text-xs text-ink-50">{identityEditHref ? <Link href={identityEditHref} className="underline">{locale === "zh" ? "编辑关联账号资料" : "Edit linked account details"}</Link> : (locale === "zh" ? "未关联账号；身份字段暂由官网同步管理。可在名册中关联现有账号。" : "No linked account. Identity fields are managed by website synchronization; link an existing account from the roster.")}</div>}
           {isOwn && (
             <div className="sm:col-span-3">
               <Link href="/profile" className="text-[12.5px] underline" style={{ color: tone.accent }}>
@@ -488,6 +510,7 @@ export function PublicProfileEditor({
         </div>
       </Card>
 
+      </details>
       <Card className="flex flex-col">
         <CardHeader title={t.websiteBasics} />
         <div className="grid gap-4 p-5 sm:grid-cols-2">
@@ -531,6 +554,9 @@ export function PublicProfileEditor({
         </div>
       </Card>
 
+      <details open={compact ? undefined : true} className={compact ? "profile-advanced" : "contents"}>
+        <summary className={compact ? "cursor-pointer py-3 text-sm font-medium" : "hidden"}>{locale === "zh" ? "更多资料：社交账号、二维码、评价与业绩" : "More: social links, QR code, reviews and statistics"}</summary>
+        <div className="space-y-5">
       {/* Social */}
       <Card className="flex flex-col">
         <CardHeader title={t.social} subtitle={t.socialHint} />
@@ -556,7 +582,7 @@ export function PublicProfileEditor({
                 className="h-24 w-24 rounded-md object-cover"
                 style={{ border: `1px solid ${tone.line}` }}
               />
-              <button type="button" onClick={() => setRemoveQr(true)} className="text-[12.5px] font-medium" style={{ color: tone.rose }}>
+              <button type="button" onClick={() => (setRemoveQr(true), onDirtyChange?.(true))} className="text-[12.5px] font-medium" style={{ color: tone.rose }}>
                 {t.removeQr}
               </button>
             </div>
@@ -637,9 +663,11 @@ export function PublicProfileEditor({
         </div>
       </Card>
 
+        </div>
+      </details>
       {/* Save bar */}
       <div
-        className="sticky bottom-0 flex items-center justify-between gap-3 rounded-xl px-5 py-3"
+        className="profile-save-bar sticky bottom-0 flex items-center justify-between gap-3 rounded-xl px-5 py-3"
         style={{ background: tone.card, border: `1px solid ${tone.line}`, boxShadow: "0 -6px 20px -12px rgba(0,0,0,0.15)" }}
       >
         <span className="text-[12.5px]" style={{ color: msg ? (msg.ok ? tone.green : tone.rose) : tone.ink50 }}>

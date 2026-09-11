@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, usePathname, useSearchParams, useRouter } from "next/navigation";
+import { agentListReturnUrl } from "@/lib/agent-list";
 import { toast } from "sonner";
 import { Btn, Card, EditorialInput, Icons, LabeledField, Pill, SoftField } from "@/components/homix/primitives";
 import { PageHeader, CardHeader } from "@/components/homix/page-kit";
@@ -146,8 +147,14 @@ function previousMonth(month: string) {
 export default function AgentDetailConsole() {
   const params = useParams();
   const router = useRouter();
+  const isAdminView = usePathname().startsWith("/admin/");
+  const searchParams = useSearchParams();
+  const returnTo = isAdminView ? agentListReturnUrl(searchParams.get("returnTo")) : "/profile";
   const t = M[useLocale()];
   const id = String(params.id);
+  const editQuery = new URLSearchParams(returnTo.split("?")[1]);
+  editQuery.set("agent", id);
+  const accountEditHref = `/admin/agents?${editQuery}`;
   const thisMonth = getMonthKey();
   const [payload, setPayload] = useState<AgentPayload | null>(null);
   const [report, setReport] = useState<ReportPayload | null>(null);
@@ -169,6 +176,7 @@ export default function AgentDetailConsole() {
         setReport(reportData);
         setTeams(teamRows);
       })
+      .catch(() => { toast.error(t.agentNotFound); setPayload(null); })
       .finally(() => setLoading(false));
   };
 
@@ -212,7 +220,7 @@ export default function AgentDetailConsole() {
       const res = await fetch(`/api/agents/${payload.agent.id}`, { method: "DELETE" });
       if (!res.ok) throw new Error();
       toast.success(t.agentDeactivated);
-      router.push("/agents");
+      router.push(returnTo);
     } catch {
       toast.error(t.deleteFailed);
     }
@@ -240,7 +248,7 @@ export default function AgentDetailConsole() {
         <div className="font-serif text-2xl" style={{ color: tone.ink }}>
           {t.agentNotFound}
         </div>
-        <Link href="/agents" className="mt-4 inline-block text-[13px] underline" style={{ color: tone.accent }}>
+        <Link href={returnTo} className="mt-4 inline-block text-[13px] underline" style={{ color: tone.accent }}>
           {t.backToAgents}
         </Link>
       </div>
@@ -252,7 +260,7 @@ export default function AgentDetailConsole() {
   return (
     <div className="space-y-7">
       <div className="space-y-4">
-        <Link href="/agents" className="inline-flex items-center gap-1.5 text-[12.5px]" style={{ color: tone.ink50 }}>
+        <Link href={returnTo} className="inline-flex items-center gap-1.5 text-[12.5px]" style={{ color: tone.ink50 }}>
           <Icons.Back /> {t.backToAgents}
         </Link>
         <PageHeader
@@ -265,15 +273,13 @@ export default function AgentDetailConsole() {
               <span className="mr-1 text-[12px]" style={{ color: tone.ink50 }}>
                 {teamName || t.unassigned}
               </span>
-              <Btn variant="outline" icon={<Icons.Edit />} onClick={() => setEditAgent(agent)}>
+              <Btn variant="outline" icon={<Icons.Edit />} onClick={() => isAdminView ? router.push(accountEditHref) : setEditAgent(agent)}>
                 {t.edit}
               </Btn>
-              <Btn variant="outline" onClick={() => router.push(`/profile/public?agentId=${agent.id}`)}>
+              <Btn variant="outline" onClick={() => router.push(isAdminView ? `/admin/agents?view=public&q=${encodeURIComponent(agent.email || agent.name)}` : "/profile/public")}>
                 {t.editPublic}
               </Btn>
-              <Btn variant="danger" icon={<Icons.Trash />} onClick={handleDelete}>
-                {t.deactivate}
-              </Btn>
+              {isAdminView && <details><summary className="cursor-pointer text-sm">•••</summary><Btn variant="danger" icon={<Icons.Trash />} onClick={handleDelete}>{t.deactivate}</Btn></details>}
             </>
           }
         />

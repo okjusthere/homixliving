@@ -1,7 +1,5 @@
 import { redirect } from "next/navigation";
-
-// Keep old bookmarks working while account and public-roster administration
-// live together in the unified agents console.
-export default function RosterPage() {
-  redirect("/agents?view=public");
+import { legacyAdminUrl } from "@/lib/admin-navigation";
+export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  redirect(legacyAdminUrl("/admin/agents", { ...await searchParams, view: "public" }));
 }

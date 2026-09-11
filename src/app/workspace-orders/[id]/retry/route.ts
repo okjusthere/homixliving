@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
-import { auth } from "@/auth";
+import { requireAdminApi } from "@/lib/auth-guards";
 import { db } from "@/db";
 import { commerceOrders } from "@/db/schema";
 import { provisionWorkspaceForOrder } from "@/lib/google-workspace";
@@ -14,28 +14,22 @@ function parseOrderId(raw: string): number | null {
 }
 
 function redirectToOrder(request: Request, orderId: number) {
-  return NextResponse.redirect(new URL(`/workspace-orders/${orderId}`, request.url));
+  return NextResponse.redirect(
+    new URL(`/admin/orders/${orderId}`, request.url),
+    303,
+  );
 }
 
 export async function POST(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth();
+  const access = await requireAdminApi();
+  if ("error" in access) return access.error;
   const { id } = await params;
   const orderId = parseOrderId(id);
-  if (!orderId) return NextResponse.redirect(new URL("/", request.url));
-
-  if (!session?.user?.email) {
-    const callbackUrl = new URL(`/workspace-orders/${orderId}`, request.url).toString();
-    const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("callbackUrl", callbackUrl);
-    return NextResponse.redirect(loginUrl);
-  }
-
-  if (!session.user.isAdmin) {
-    return NextResponse.redirect(new URL("/", request.url));
-  }
+  if (!orderId)
+    return NextResponse.redirect(new URL("/admin/finance", request.url), 303);
 
   const [order] = await db
     .select()

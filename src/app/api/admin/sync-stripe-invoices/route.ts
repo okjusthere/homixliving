@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { and, eq, isNotNull } from "drizzle-orm";
 import type Stripe from "stripe";
-import { auth } from "@/auth";
+import { requireAdminApi } from "@/lib/auth-guards";
 import { db } from "@/db";
 import { commerceCharges, commerceOrders } from "@/db/schema";
 import { settledCheckoutAmountCents } from "@/lib/commerce/settlement";
@@ -25,9 +25,9 @@ async function isAuthorized(request: Request): Promise<{ ok: boolean; actor: str
     return { ok: true, actor: "cron-secret" };
   }
   try {
-    const session = await auth();
-    if (session?.user?.isAdmin) {
-      return { ok: true, actor: session.user.email || "admin" };
+    const access = await requireAdminApi();
+    if (!("error" in access)) {
+      return { ok: true, actor: access.session.user.email || "admin" };
     }
   } catch {
     // No request scope / no session — fall through to unauthorized.

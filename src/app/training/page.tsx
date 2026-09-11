@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
-import { asc, desc, eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import {
-  agents,
-  trainingVideoViews,
   trainingVideos,
   type TrainingVideo,
 } from "@/db/schema";
@@ -11,15 +9,12 @@ import { requireActiveAgent } from "@/lib/auth-guards";
 import { tone } from "@/components/homix/tokens";
 import { Card } from "@/components/homix/server-primitives";
 import { PageHeader } from "@/components/homix/page-kit";
-import { TrainingManager } from "@/components/training/training-manager";
 import { TrainingLibrary } from "@/components/training/training-library";
-import { cloudflareStreamConfigured } from "@/lib/cloudflare-stream";
 import {
   normalizeTrainingCategory,
   TRAINING_CATEGORIES,
 } from "@/lib/training-categories";
 import { getLocale } from "@/lib/i18n";
-import { summarizeTrainingVideoViews } from "@/lib/training-views";
 
 const M = {
   en: {
@@ -65,42 +60,21 @@ export default async function TrainingPage() {
   const session = await requireActiveAgent();
   const locale = await getLocale();
   const t = M[locale];
-  const isAdmin = !!session.user.isAdmin;
   const watermark = session.user.email || "Homix agent";
 
   const all = await db
     .select()
     .from(trainingVideos)
+    .where(eq(trainingVideos.isPublished, true))
     .orderBy(asc(trainingVideos.sortOrder), asc(trainingVideos.id));
-  const viewRows = isAdmin
-    ? await db
-        .select({
-          view: trainingVideoViews,
-          agentName: agents.name,
-        })
-        .from(trainingVideoViews)
-        .leftJoin(agents, eq(trainingVideoViews.agentId, agents.id))
-        .orderBy(desc(trainingVideoViews.lastViewedAt))
-    : [];
-  const viewSummaries = summarizeTrainingVideoViews(
-    viewRows.map((row) => ({
-      videoId: row.view.videoId,
-      agentId: row.view.agentId,
-      agentEmail: row.view.agentEmail,
-      agentName: row.agentName,
-      firstViewedAt: row.view.firstViewedAt,
-      lastViewedAt: row.view.lastViewedAt,
-      openCount: row.view.openCount,
-    }))
-  );
-  const visible = isAdmin ? all : all.filter((v) => v.isPublished);
+  const visible = all;
   const order = (c: string) => {
     const normalized = normalizeTrainingCategory(c);
     if (!normalized) return 999;
     const i = TRAINING_CATEGORIES.indexOf(normalized);
     return i === -1 ? 999 : i;
   };
-  const groups = groupByCategory(visible, isAdmin).sort(
+  const groups = groupByCategory(visible, false).sort(
     (a, b) => order(a[0]) - order(b[0]),
   );
 
@@ -112,18 +86,10 @@ export default async function TrainingPage() {
         description={t.description}
       />
 
-      {isAdmin && (
-        <TrainingManager
-          initialVideos={all}
-          initialViewSummaries={viewSummaries}
-          cloudflareConfigured={cloudflareStreamConfigured}
-        />
-      )}
-
       {visible.length === 0 ? (
         <Card className="p-10 text-center">
           <p className="text-[14px]" style={{ color: tone.ink50 }}>
-            {isAdmin ? t.emptyAdmin : t.emptyAgent}
+            {t.emptyAgent}
           </p>
         </Card>
       ) : (

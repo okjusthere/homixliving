@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-
-export default function LegacyPaymentsPage() {
-  redirect("/finance");
+import { legacyAdminUrl } from "@/lib/admin-navigation";
+export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  redirect(legacyAdminUrl("/admin/finance", await searchParams));
 }
