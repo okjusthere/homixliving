@@ -232,6 +232,7 @@
 .studio-field input,
 .studio-field textarea,
 .studio-field select,
+.studio-listing-search input,
 .studio-search {
   width: 100%;
   min-width: 0;
