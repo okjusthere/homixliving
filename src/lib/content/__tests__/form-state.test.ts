@@ -27,7 +27,7 @@ test("all non-Open-House themes ignore hidden empty dates from imported listings
     "just_sold",
   ]) {
     const parsed = inputSchema.parse({ ...input, theme });
-    assert.equal(parsed.event, undefined);
+    assert.equal(parsed.events, undefined);
     assert.equal(parsed.holidayDate, undefined);
     assert.equal(parsed.listing?.address, "2 Lee Place");
   }
@@ -41,7 +41,7 @@ test("holiday posters ignore leftover empty listing fields but validate selected
   };
   const parsed = inputSchema.parse(holiday);
   assert.equal(parsed.listing, undefined);
-  assert.equal(parsed.event, undefined);
+  assert.equal(parsed.events, undefined);
   assert.equal(
     inputSchema.safeParse({ ...holiday, holidayDate: "2026-02-30" }).success,
     false,

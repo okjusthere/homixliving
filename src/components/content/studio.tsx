@@ -1,4 +1,6 @@
 "use client";
+import { EventEditor } from "./event-editor";
+import { contentEvents, newOpenHouseEvent } from "@/lib/content/events";
 import { copyReviewStep, confirmPosterCopy } from "@/lib/content/copy-review";
 import { generationErrorGuidance } from "@/lib/content/error-guidance";
 /* eslint-disable @next/next/no-img-element -- Private authenticated artwork uses signed R2 URLs. */
@@ -21,7 +23,10 @@ import { PhotoSorter } from "./photo-sorter";
 import { inputSchema } from "@/lib/content/validation";
 import { contentValidationMessage } from "@/lib/content/form-state";
 import { ListingPicker } from "./listing-picker";
-import { listingEvent, type StudioListing } from "@/lib/content/listing-source";
+import {
+  listingEvents,
+  type StudioListing,
+} from "@/lib/content/listing-source";
 import { listingDetailLevel } from "@/lib/content/output-plan";
 import {
   IMAGE_SIZES,
@@ -33,17 +38,11 @@ import {
   type Holiday,
 } from "@/lib/content/types";
 
-const emptyEvent = {
-  date: "",
-  start: "13:00",
-  end: "15:00",
-  timezone: "America/New_York",
-};
 const emptyInput: ContentInput = {
   kind: "listing",
   theme: "just_listed",
   language: "zh",
-  event: { ...emptyEvent },
+  events: [newOpenHouseEvent()],
   size: "1024x1280",
   includePortrait: true,
   headline: "",
@@ -57,9 +56,7 @@ export function ContentStudio() {
     zh = locale === "zh",
     t = (en: string, cn: string) => (zh ? cn : en);
   const [tab, setTab] = useState<"listing" | "holiday" | "works">("listing");
-  const [outputChoice, setOutputChoice] = useState<"both" | "en" | "zh">(
-    "zh",
-  );
+  const [outputChoice, setOutputChoice] = useState<"both" | "en" | "zh">("zh");
   const [templates, setTemplates] = useState<ContentTemplate[]>([]),
     [holidays, setHolidays] = useState<Holiday[]>([]);
   const [settings, setSettings] = useState<{
@@ -375,7 +372,11 @@ export function ContentStudio() {
         fetchedAt: new Date().toISOString(),
         sourceStatus: listing.status,
       });
-      patch({ event: listingEvent(listing) || { ...emptyEvent } });
+      const events = listingEvents(listing);
+      patch({
+        events: events.length ? events : [newOpenHouseEvent()],
+        event: undefined,
+      });
       setProjectId(undefined);
     } finally {
       setBusy(false);
@@ -624,6 +625,8 @@ export function ContentStudio() {
                         onClick={() => {
                           setInput({
                             ...g.input,
+                            events: contentEvents(g.input),
+                            event: undefined,
                             language:
                               g.input.language === "bilingual"
                                 ? "zh"
@@ -694,8 +697,12 @@ export function ContentStudio() {
                               patch({
                                 theme: s.id,
                                 headline: "",
-                                ...(s.id === "open_house" && !input.event
-                                  ? { event: { ...emptyEvent } }
+                                ...(s.id === "open_house" &&
+                                !contentEvents(input).length
+                                  ? {
+                                      events: [newOpenHouseEvent()],
+                                      event: undefined,
+                                    }
                                   : {}),
                               });
                               setSelected("");
@@ -1164,7 +1171,10 @@ export function ContentStudio() {
               {t("Include my portrait", "加入我的头像")}
             </label>
             <p className="studio-note">
-              {t("The Homix company logo is included on every poster.", "每张海报都会自动加入 Homix 公司 Logo。")}
+              {t(
+                "The Homix company logo is included on every poster.",
+                "每张海报都会自动加入 Homix 公司 Logo。",
+              )}
             </p>
             <Field label={t("Output versions", "生成版本")}>
               <select
@@ -1243,69 +1253,12 @@ export function ContentStudio() {
               </Field>
             )}
             {input.theme === "open_house" && (
-              <>
-                <p className="studio-note">
-                  {t(
-                    "Default time: 1–3 PM. MLS event times take priority; confirm the date and time before generating.",
-                    "默认时间为下午 1–3 点；如房源已提供公展时间，会优先填入。生成前请确认日期和时间。",
-                  )}
-                </p>
-                <Field label={t("Open House date", "公展日期")}>
-                  <input
-                    type="date"
-                    value={input.event?.date || ""}
-                    onChange={(e) =>
-                      patch({
-                        event: {
-                          ...emptyEvent,
-                          ...input.event,
-                          date: e.target.value,
-                        },
-                      })
-                    }
-                  />
-                </Field>
-                <div className="studio-row">
-                  {(["start", "end"] as const).map((key) => (
-                    <Field
-                      key={key}
-                      label={
-                        key === "start"
-                          ? t("Starts", "开始")
-                          : t("Ends", "结束")
-                      }
-                    >
-                      <input
-                        type="time"
-                        value={input.event?.[key] || ""}
-                        onChange={(e) =>
-                          patch({
-                            event: {
-                              ...emptyEvent,
-                              ...input.event,
-                              [key]: e.target.value,
-                            },
-                          })
-                        }
-                      />
-                    </Field>
-                  ))}
-                </div>
-                <Field label={t("Timezone", "时区")}>
-                  <input
-                    value={input.event?.timezone || "America/New_York"}
-                    onChange={(e) =>
-                      patch({
-                        event: {
-                          ...emptyEvent,
-                          ...input.event,
-                          timezone: e.target.value,
-                        },
-                      })
-                    }
-                  />
-                </Field>
-              </>
+              <EventEditor
+                events={contentEvents(input)}
+                zh={zh}
+                disabled={busy}
+                onChange={(events) => patch({ events, event: undefined })}
+              />
             )}
             <Field
               label={t("Creative notes (optional)", "本次风格要求（选填）")}

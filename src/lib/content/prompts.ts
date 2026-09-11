@@ -6,6 +6,7 @@ import {
   type Holiday,
 } from "./types";
 import { listingDetailLevel, posterListingFacts } from "./output-plan";
+import { posterEvents } from "./events";
 
 export function buildPosterPrompt(
   config: TemplateConfig,
@@ -73,7 +74,7 @@ export function buildPosterPrompt(
       topic,
       message: input.message,
       listing: posterListingFacts(input),
-      event: input.event,
+      events: posterEvents(input),
       holidayDate: input.holidayDate,
       signature: {
         name: brand.name,
@@ -93,6 +94,9 @@ export function buildPosterPrompt(
           ? "INFORMATION PRIORITY: Coming Soon headline, property address, optional supplied asking price, beds/baths/area and at most ONE short property highlight. A concise preview with no tax/fee table or long remarks."
           : "INFORMATION PRIORITY: A large status headline, property address and Agent signature. Keep the introduction to at most one short line. No tax/fee table, MLS description, bedroom statistics or amenities paragraph. For Just Sold only, show a supplied confirmed closing price if present."
       : "INFORMATION PRIORITY: Holiday headline, one concise greeting, optional date and Agent signature. Leave ample space for illustration and do not add property descriptions or costs.",
+    input.theme === "open_house"
+      ? "OPEN HOUSE SCHEDULE: Render EVERY supplied event on this SAME poster, in chronological order, with its exact date, weekday, start/end times and timezone. Never choose only the first session. Sessions with identical times and timezone may share a time line only when ALL their exact dates and weekdays remain visible; otherwise use a separate row per session. Never merge different time ranges, infer extra days or omit a supplied session. Reserve enough space for the full schedule ahead of optional selling points."
+      : "",
     input.includePortrait
       ? "Reference image 1 supplies the portrait only. Reproduce the SAME person as a photographic cutout: preserve their face, age, hairstyle, clothing, skin tone and facial proportions. Include this person exactly once. Never substitute a generic businessperson, age the person up or down, or infer a different appearance from their professional title. If this image contains an existing poster, extract only the portrait: never reuse its text, contact details, addresses, logos or claims."
       : "PORTRAIT OVERRIDE: Ignore portrait placement mentioned in the style. Do not include any human portrait or invent an Agent face; retain the text signature.",

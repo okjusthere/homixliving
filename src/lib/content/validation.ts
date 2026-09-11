@@ -17,6 +17,20 @@ const date = z
     const d = new Date(`${s}T12:00:00Z`);
     return Number.isFinite(d.valueOf()) && d.toISOString().slice(0, 10) === s;
   }, "Choose a real calendar date / 请选择有效的日历日期");
+const eventSchema = z.object({
+  date,
+  start: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  end: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  timezone: short.refine((s) => {
+    try {
+      new Intl.DateTimeFormat("en", { timeZone: s });
+      return true;
+    } catch {
+      return false;
+    }
+  }),
+});
+
 const contentInputSchema = z
   .object({
     kind: z.enum(["listing", "holiday"]),
@@ -57,20 +71,31 @@ const contentInputSchema = z
         sourceStatus: short.optional(),
       })
       .optional(),
-    event: z
-      .object({
-        date,
-        start: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
-        end: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
-        timezone: short.refine((s) => {
-          try {
-            new Intl.DateTimeFormat("en", { timeZone: s });
-            return true;
-          } catch {
-            return false;
-          }
-        }),
-      })
+    events: z
+      .array(
+        z
+          .object({
+            date: short,
+            start: short,
+            end: short,
+            timezone: short,
+            selected: z.boolean().default(true),
+          })
+          .superRefine((event, ctx) => {
+            if (!event.selected) return;
+            const valid = eventSchema.safeParse(event);
+            if (!valid.success)
+              for (const issue of valid.error.issues) ctx.addIssue({ ...issue });
+            if (event.start && event.end && event.end <= event.start)
+              ctx.addIssue({
+                code: "custom",
+                path: ["end"],
+                message:
+                  "End time must be after start time / 结束时间必须晚于开始时间",
+              });
+          }),
+      )
+      .max(100)
       .optional(),
     holidayDate: date.optional(),
   })
@@ -106,16 +131,27 @@ const contentInputSchema = z
         path: ["listing"],
       });
     }
-    if (
-      value.kind === "listing" &&
-      value.theme === "open_house" &&
-      (!value.event || value.event.end <= value.event.start)
-    ) {
-      ctx.addIssue({
-        code: "custom",
-        message:
-          "Open House requires a date and an end time after the start / 请填写公展日期，结束时间必须晚于开始时间",
-        path: ["event"],
+    if (value.kind === "listing" && value.theme === "open_house") {
+      const chosen =
+        value.events?.filter((event) => event.selected !== false) || [];
+      if (!chosen.length)
+        ctx.addIssue({
+          code: "custom",
+          path: ["events"],
+          message:
+            "Choose at least one Open House session / 请添加并选择至少一场公展",
+        });
+      const seen = new Set<string>();
+      value.events?.forEach((event, index) => {
+        if (event.selected === false) return;
+        const key = `${event.date}|${event.start}|${event.end}|${event.timezone}`;
+        if (seen.has(key))
+          ctx.addIssue({
+            code: "custom",
+            path: ["events", index],
+            message: `Open House ${index + 1}: duplicate session; remove or deselect it / 第 ${index + 1} 场公展：日期和时间重复，请删除或取消选择`,
+          });
+        seen.add(key);
       });
     }
   });

@@ -5,10 +5,18 @@ export function relevantContentInput(value: unknown): unknown {
   if (input.kind === "holiday") {
     delete input.listing;
     delete input.event;
+    delete input.events;
   }
   if (input.kind === "listing") {
     delete input.holidayDate;
-    if (input.theme !== "open_house") delete input.event;
+    if (input.theme !== "open_house") {
+      delete input.event;
+      delete input.events;
+    } else {
+      if (input.events === undefined && input.event)
+        input.events = [input.event];
+      delete input.event;
+    }
     if (
       input.listing &&
       typeof input.listing === "object" &&
@@ -84,10 +92,8 @@ export function contentValidationMessage(issues: Issue[]): string {
     "listing.address": "Enter the property address / 请填写房源地址",
     "listing.imageAssetIds":
       "Select 1–4 property photos / 请选择 1–4 张房源照片",
-    "event.date":
-      "Enter a valid Open House date / 请填写有效的公展日期",
-    "event.start":
-      "Enter the Open House start time / 请填写公展开始时间",
+    "event.date": "Enter a valid Open House date / 请填写有效的公展日期",
+    "event.start": "Enter the Open House start time / 请填写公展开始时间",
     "event.end": "Enter the Open House end time / 请填写公展结束时间",
     "event.timezone":
       "Enter a valid Open House timezone / 请填写有效的公展时区",
@@ -102,6 +108,25 @@ export function contentValidationMessage(issues: Issue[]): string {
           .filter((p) => typeof p !== "number")
           .join(".")
           .replace(/^input\./, "");
+        if (path === "events" || path.startsWith("events.")) {
+          const row = (issue.path || []).find((p) => typeof p === "number");
+          if (issue.code === "custom" && !/calendar date/.test(issue.message)) {
+            if (typeof row === "number" && issue.message.startsWith("End time"))
+              return `Open House ${row + 1}: end time must be after start / 第 ${row + 1} 场公展：结束时间必须晚于开始时间，请修改时间`;
+            return issue.message;
+          }
+          const field = String((issue.path || []).at(-1));
+          const names: Record<string, [string, string]> = {
+            date: ["date", "公展日期"],
+            start: ["start time", "开始时间"],
+            end: ["end time", "结束时间"],
+            timezone: ["timezone", "时区"],
+          };
+          const name = names[field] || ["schedule", "公展场次"];
+          return typeof row === "number"
+            ? `Open House ${row + 1}: enter a valid ${name[0]} / 第 ${row + 1} 场公展：请填写有效的${name[1]}`
+            : "Choose at least one valid Open House session / 请添加并选择至少一场有效公展";
+        }
         if (issue.code === "custom" && !/calendar date/.test(issue.message))
           return issue.message;
         if (

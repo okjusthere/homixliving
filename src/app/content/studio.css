@@ -929,3 +929,88 @@
   font-size: 12px;
   color: var(--color-ink-50);
 }
+
+/* Compact multi-day schedules; each row remains independently editable. */
+.studio-events {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.studio-events-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.studio-events-heading h3 {
+  margin: 0;
+  font-size: 17px;
+}
+.studio-events-heading span {
+  color: var(--studio-muted, #78766f);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.studio-events .studio-note {
+  margin: 0;
+}
+.studio-event-card {
+  margin: 0;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #dedbd3;
+  border-radius: 12px;
+  display: grid;
+  gap: 10px;
+}
+.studio-event-card.selected {
+  border-color: #95a195;
+  background: #f7f9f5;
+}
+.studio-event-card legend {
+  padding: 0 5px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.studio-event-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.studio-event-actions .studio-check {
+  margin: 0;
+  min-height: 44px;
+}
+.studio-event-actions input[type="checkbox"] {
+  width: 22px;
+  height: 22px;
+}
+.studio-event-actions .studio-button {
+  min-height: 44px;
+  padding: 8px;
+}
+.studio-event-times {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+}
+.studio-event-card .studio-field {
+  margin: 0;
+  min-width: 0;
+}
+.studio-event-card input {
+  min-width: 0;
+}
+.studio-event-zone summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: #676d65;
+  padding: 8px 0;
+}
+.studio-event-error {
+  color: #963f2e;
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0;
+}

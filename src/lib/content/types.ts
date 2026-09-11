@@ -61,6 +61,13 @@ export type PosterHighlight = {
   evidence: string;
   selected?: boolean;
 };
+export type OpenHouseEvent = {
+  date: string;
+  start: string;
+  end: string;
+  timezone: string;
+  selected?: boolean;
+};
 export type ContentInput = {
   kind: "listing" | "holiday";
   theme: string;
@@ -71,7 +78,9 @@ export type ContentInput = {
   message: string;
   additionalInstructions: string;
   listing?: ListingContext;
-  event?: { date: string; start: string; end: string; timezone: string };
+  /** Legacy single-event input; normalized to events on submission. */
+  event?: OpenHouseEvent;
+  events?: OpenHouseEvent[];
   holidayDate?: string;
 };
 export type TemplateConfig = {
