@@ -250,7 +250,8 @@ async function main() {
   assert.equal((await current(queue[102].id)).agreementStatus, "completed");
   const [left, right] = await Promise.all([claimOnboardingAgreementBatch(), claimOnboardingAgreementBatch()]);
   assert.equal(left.rows.filter((a) => right.rows.some((b) => b.id === a.id)).length, 0, "Concurrent cron claims do not select the same page");
-  assert.ok(left.rows.some((a) => a.id === queue[0].id), "Failed records retry after wrap-around");
+  // Either concurrent transaction may acquire the cursor lock first.
+  assert.ok([...left.rows, ...right.rows].some((a) => a.id === queue[0].id), "Failed records retry after wrap-around");
   console.log("PASS: 103-envelope keyset rotation, single-envelope failure isolation, verified tail completion, fixed cycle boundary and concurrent claims");
 }
 
