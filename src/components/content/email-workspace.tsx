@@ -4,6 +4,7 @@ import { ArrowLeft, LoaderCircle, Mail, Search } from "lucide-react";
 import { useLocale } from "@/lib/i18n-client";
 import { PageHeader } from "@/components/homix/page-kit";
 import { contentFetch, Field } from "./ui";
+import { ContentErrorDialog } from "./error-dialog";
 
 type Campaign = {
   id: string;
@@ -26,6 +27,12 @@ type Campaign = {
     name: string;
     email: string;
     dailyLimit: number;
+    batchSize?: number;
+    minBatchIntervalSeconds?: number;
+    timezone?: string;
+    sendWindowStart?: string;
+    sendWindowEnd?: string;
+    allowedWeekdays?: number[];
     nextBatchAt: string | null;
   };
   stats: Record<string, number>;
@@ -94,7 +101,8 @@ export function EmailWorkspace() {
     [proposal, setProposal] = useState<Proposal | null>(null),
     [summary, setSummary] = useState<Record<string, number> | null>(null),
     [scheduled, setScheduled] = useState(""),
-    [confirm, setConfirm] = useState(false);
+    [confirm, setConfirm] = useState(false),
+    [confirmDelete, setConfirmDelete] = useState(false);
   const [radius, setRadius] = useState(3),
     [months, setMonths] = useState(12),
     [page, setPage] = useState(0),
@@ -129,6 +137,7 @@ export function EmailWorkspace() {
     };
   }, [load]);
   const select = (c: Campaign) => {
+    setConfirmDelete(false);
     setCampaign(c);
     setCopy(copyOf(c));
     setPreview("");
@@ -270,25 +279,11 @@ export function EmailWorkspace() {
           ) : undefined
         }
       />
-      {error && (
-        <div className="studio-error" role="alert">
-          {error}
-          <button
-            className="studio-button secondary"
-            disabled={busy}
-            onClick={() =>
-              act(async () => {
-                if (campaign) {
-                  const c = await refresh(campaign.id);
-                  setCopy(copyOf(c));
-                } else await load();
-              })
-            }
-          >
-            {t("Refresh status", "刷新状态")}
-          </button>
-        </div>
-      )}
+      <ContentErrorDialog
+        message={error}
+        zh={zh}
+        onClose={() => setError("")}
+      />
       {notice && (
         <p className="studio-note" role="status">
           {notice}
@@ -307,7 +302,7 @@ export function EmailWorkspace() {
             </div>
             <h2>{t("Find your listing", "查找房源")}</h2>
             <form
-              className="studio-row"
+              className="studio-row studio-email-search"
               onSubmit={(e) => {
                 e.preventDefault();
                 act(async () => {
@@ -526,6 +521,67 @@ export function EmailWorkspace() {
                   {t("Preview", "预览邮件")}
                 </button>
               </div>
+              {editable(campaign) && (
+                <div className="mt-4">
+                  {!confirmDelete ? (
+                    <button
+                      className="studio-back-link"
+                      disabled={busy}
+                      onClick={() => setConfirmDelete(true)}
+                    >
+                      {t("Delete draft", "删除草稿")}
+                    </button>
+                  ) : (
+                    <div
+                      role="group"
+                      aria-label={t(
+                        "Delete draft confirmation",
+                        "删除草稿确认",
+                      )}
+                    >
+                      <p>
+                        {t(
+                          `Delete the draft “${campaign.name}”?`,
+                          `确认删除「${campaign.name}」草稿？`,
+                        )}
+                      </p>
+                      <div className="studio-row">
+                        <button
+                          className="studio-button secondary"
+                          disabled={busy}
+                          onClick={() =>
+                            act(async () => {
+                              await contentFetch(
+                                `${base}/campaigns/${campaign.id}`,
+                                {
+                                  method: "DELETE",
+                                  body: JSON.stringify({
+                                    version: campaign.version,
+                                  }),
+                                },
+                              );
+                              setCampaign(null);
+                              setConfirmDelete(false);
+                              setPreview("");
+                              await load();
+                              setNotice(t("Draft deleted.", "草稿已删除。"));
+                            })
+                          }
+                        >
+                          {t("Confirm deletion", "确认删除")}
+                        </button>
+                        <button
+                          className="studio-button secondary"
+                          disabled={busy}
+                          onClick={() => setConfirmDelete(false)}
+                        >
+                          {t("Keep draft", "保留草稿")}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
               {dirty && (
                 <p className="studio-note">
                   {t(
@@ -607,6 +663,31 @@ export function EmailWorkspace() {
                 {campaign.sender.nextBatchAt
                   ? `${t("Next available batch", "下一批时间")}: ${new Date(campaign.sender.nextBatchAt).toLocaleString()}`
                   : ""}
+              </p>
+              {campaign.sender.batchSize !== undefined && (
+                <p className="studio-note">
+                  {t(
+                    `Up to ${campaign.sender.batchSize} emails per batch, at least ${campaign.sender.minBatchIntervalSeconds} seconds apart. Sending window: ${campaign.sender.sendWindowStart}–${campaign.sender.sendWindowEnd} (${campaign.sender.timezone}).`,
+                    `每批最多 ${campaign.sender.batchSize} 封，批次间隔至少 ${campaign.sender.minBatchIntervalSeconds} 秒。发送时段：${campaign.sender.sendWindowStart}–${campaign.sender.sendWindowEnd}（${campaign.sender.timezone}）。`,
+                  )}
+                  {t(" Sending days: ", " 发送星期：")}
+                  {campaign.sender.allowedWeekdays
+                    ?.map(
+                      (d) =>
+                        (zh
+                          ? ["日", "一", "二", "三", "四", "五", "六"]
+                          : ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"])[
+                          d
+                        ],
+                    )
+                    .join("、")}
+                </p>
+              )}
+              <p className="studio-note">
+                {t(
+                  "Email Service controls this sender’s limits and schedule. Campaigns sharing this sender also share its capacity; an administrator can adjust the sender settings.",
+                  "发送额度和时段由 Email Service 统一管理，同一发件邮箱的活动共享额度；管理员可在服务中调整发件人设置。",
+                )}
               </p>
               <p className="studio-note">
                 {t(

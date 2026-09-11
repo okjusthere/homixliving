@@ -106,3 +106,12 @@ These sample checks verify the implemented workflow and inspected artwork, not a
 - Property photos support mouse drag/drop, a touch pointer handle, keyboard arrows and previous/next buttons. Array order is preserved in the job and reference-image sequence; the first image is the requested hero. Changing only photo order does not invalidate reviewed selling points.
 - Errors in Studio, listing search/import, template administration and generation review open a native modal dialog with focus containment, Escape, a close button and a return-to-editing action. Network/non-JSON failures receive readable messages. Newly failed generation jobs notify once; identical background polling failures do not reopen after dismissal.
 - Validation: 20 content regressions passed, full Portal suite and production build passed, and the isolated PostgreSQL language-pair submission test verified removal of hidden empty fields without any image-provider calls. Recent live job metadata showed successful image jobs; the two screenshot errors occur before a generation is created.
+
+## Queue, actionable errors and email refinements (2026-09-11)
+
+- Poster submissions append to the existing per-agent predecessor chain under the existing transaction lock. Concurrent submissions and Chinese/English pairs keep one ordered queue; daily quota and idempotency still apply. Recovery scans eligible queue heads before limiting its batch.
+- Validation identifies the field, selected selling-point row and language plus the corrective action. Failed artwork explains provider authorization, rejected requests and uncertain results without exposing provider response bodies.
+- Email preview now allows the exact existing Azure marketing-assets storage origin in CSP; the iframe remains sandboxed. This resolves images that appeared in delivered test emails but were blocked in Portal preview.
+- Portal supports signed DELETE of draft campaigns, with an in-product confirmation. Email Service checks owner, DRAFT state and version atomically and retains audit/test history. Sender pacing details are shown directly from Email Service; limits were not changed.
+- Search input and action align at their lower edge with matching minimum height.
+- Validation: 21 content unit tests, real PostgreSQL concurrent queue/idempotency/language/quota tests, Portal typecheck and scoped lint. Email Service: 81 unit tests; 47 sandbox integration cases and the disabled-delivery case tested separately in its required mode.

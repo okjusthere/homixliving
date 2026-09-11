@@ -70,7 +70,12 @@ export function movePhoto(ids: string[], from: string, to: string): string[] {
   return result;
 }
 
-type Issue = { path?: PropertyKey[]; message: string; code?: string };
+type Issue = {
+  path?: PropertyKey[];
+  message: string;
+  code?: string;
+  maximum?: number | bigint;
+};
 export function contentValidationMessage(issues: Issue[]): string {
   const labels: Record<string, string> = {
     description:
@@ -93,16 +98,65 @@ export function contentValidationMessage(issues: Issue[]): string {
   return [
     ...new Set(
       issues.map((issue) => {
-        if (issue.code === "custom") return issue.message;
         const path = (issue.path || [])
           .filter((p) => typeof p !== "number")
           .join(".")
           .replace(/^input\./, "");
+        if (issue.code === "custom" && !/calendar date/.test(issue.message))
+          return issue.message;
         if (
           path.startsWith("listing.highlights") ||
           path.startsWith("listing.financialFacts")
-        )
-          return "Complete both language versions of each selected point, or deselect it / 请补全已选亮点的中英文内容，或取消勾选该条";
+        ) {
+          const row = (issue.path || []).find((p) => typeof p === "number");
+          const place = path.startsWith("listing.financialFacts")
+            ? ["Property costs", "房源费用"]
+            : ["Property selling points", "房源卖点"];
+          const field = String((issue.path || []).at(-1));
+          const lang =
+            field === "zh"
+              ? ["Chinese text", "中文内容"]
+              : field === "en"
+                ? ["English text", "英文内容"]
+                : ["source evidence", "来源依据"];
+          const nth =
+            typeof row === "number"
+              ? [`selected item ${row + 1}`, `已选第 ${row + 1} 条`]
+              : ["selected items", "已选条目"];
+          const remedy =
+            issue.code === "too_big"
+              ? [
+                  `shorten to ${issue.maximum} characters or fewer`,
+                  `请缩短到 ${issue.maximum} 字符以内`,
+                ]
+              : [
+                  "complete the text or deselect this item",
+                  "请补全内容，或取消勾选该条",
+                ];
+          return `${place[0]} → ${nth[0]} → ${lang[0]}: ${remedy[0]} / ${place[1]} → ${nth[1]} → ${lang[1]}：${remedy[1]}`;
+        }
+        const fields: Record<string, string[]> = {
+          headline: ["Headline", "标题"],
+          message: ["Personal message", "个人寄语"],
+          additionalInstructions: ["Creative notes", "创作备注"],
+          "listing.address": ["Property address", "房源地址"],
+          "listing.price": ["Price", "显示价格"],
+          "listing.beds": ["Beds", "卧室数"],
+          "listing.baths": ["Baths", "卫浴数"],
+          "listing.area": ["Interior area", "室内面积"],
+          "listing.annualPropertyTax": ["Property tax / year", "年度地税"],
+          "listing.monthlyMaintenanceFee": [
+            "Monthly maintenance",
+            "每月管理费",
+          ],
+          "listing.associationFee": ["HOA fee", "HOA 费用"],
+        };
+        if (fields[path]) {
+          const [en, zh] = fields[path];
+          return issue.code === "too_big"
+            ? `${en}: shorten to ${issue.maximum} characters or fewer / ${zh}：请缩短到 ${issue.maximum} 字符以内`
+            : `${en}: enter a valid value in this field / ${zh}：请在此栏填写有效内容`;
+        }
         return (
           labels[path] ||
           (path.startsWith("listing.imageAssetIds")

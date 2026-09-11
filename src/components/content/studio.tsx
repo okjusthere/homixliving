@@ -1,4 +1,5 @@
 "use client";
+import { generationErrorGuidance } from "@/lib/content/error-guidance";
 /* eslint-disable @next/next/no-img-element -- Private authenticated artwork uses signed R2 URLs. */
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -109,7 +110,7 @@ export function ContentStudio() {
         failures
           .map(
             (g) =>
-              `${g.input.listing?.address || g.input.theme}: ${g.status === "needs_review" ? "Generation needs administrator review before retrying / 生成结果待管理员确认，请勿重复提交" : "Generation failed. View the artwork details and try again / 海报生成失败，请查看作品详情后重试"}`,
+              `${g.input.listing?.address || g.input.theme}: ${generationErrorGuidance(g.error, g.status, false)} / ${g.input.listing?.address || g.input.theme}：${generationErrorGuidance(g.error, g.status, true)}`,
           )
           .join("\n"),
       );
@@ -544,15 +545,11 @@ export function ContentStudio() {
                     </p>
                     {g.error && (
                       <p className="studio-note">
-                        {g.status === "needs_review"
-                          ? t(
-                              "The provider may have completed this request. An administrator can review it before you start another.",
-                              "服务可能已完成此次生成，请先由管理员检查结果，再决定是否重新生成。",
-                            )
-                          : t(
-                              "Generation did not finish. Check your inputs or service configuration and create a new version.",
-                              "此次生成未完成。检查资料或服务配置后，可重新生成新版本。",
-                            )}
+                        {generationErrorGuidance(
+                          g.error,
+                          g.status,
+                          locale === "zh",
+                        )}
                       </p>
                     )}
                     <div className="studio-row">
@@ -1250,10 +1247,20 @@ export function ContentStudio() {
               ) : (
                 <Plus size={16} />
               )}{" "}
-              {outputChoice === "both"
-                ? t("Create Chinese & English posters", "生成中文和英文两份")
-                : t("Create my poster", "生成我的海报")}
+              {running
+                ? t("Add to generation queue", "加入生成队列")
+                : outputChoice === "both"
+                  ? t("Create Chinese & English posters", "生成中文和英文两份")
+                  : t("Create my poster", "生成我的海报")}
             </button>
+            {running && (
+              <p className="studio-note">
+                {t(
+                  "Your earlier posters are still processing. New posters will join the queue and start in order automatically.",
+                  "之前的海报仍在处理中，新提交的海报会加入队列，按顺序自动开始。",
+                )}
+              </p>
+            )}
             {needsHighlightsReview && (
               <p className="studio-note">
                 {t(

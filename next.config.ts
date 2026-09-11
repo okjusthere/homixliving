@@ -12,7 +12,7 @@ const contentSecurityPolicy = [
   "object-src 'none'",
   `script-src 'self' 'unsafe-inline'${isDevelopment ? " 'unsafe-eval'" : ""} https://tally.so https://va.vercel-scripts.com`,
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https://www.homixny.com https://homixny.com https://*.r2.cloudflarestorage.com https://*.supabase.co https://onekey.kevv.ai https://onekeymls.kevv.ai https://*.cloudflarestream.com https://*.videodelivery.net",
+  "img-src 'self' data: blob: https://sthomixmktf6ciz3au.blob.core.windows.net https://www.homixny.com https://homixny.com https://*.r2.cloudflarestorage.com https://*.supabase.co https://onekey.kevv.ai https://onekeymls.kevv.ai https://*.cloudflarestream.com https://*.videodelivery.net",
   "font-src 'self' data:",
   `connect-src 'self' https://*.r2.cloudflarestorage.com https://tally.so https://vitals.vercel-insights.com${isDevelopment ? " ws: http: https:" : ""}`,
   "frame-src 'self' https://tally.so https://cloud.fastgpt.io https://iframe.videodelivery.net https://*.cloudflarestream.com",

@@ -135,3 +135,18 @@ test("brief poster themes ignore hidden invalid financial and highlight fields",
     assert.equal(parsed.listing?.highlights, undefined);
   }
 });
+
+test("validation identifies the selected row, language and corrective action", () => {
+  const text = contentValidationMessage([
+    {
+      path: ["listing", "highlights", 1, "zh"],
+      code: "too_small",
+      message: "Too small",
+    },
+  ]);
+  assert.match(text, /已选第 2 条.*中文内容.*补全/);
+  const long = contentValidationMessage([
+    { path: ["message"], code: "too_big", maximum: 2000, message: "Too big" },
+  ]);
+  assert.match(long, /个人寄语.*2000/);
+});

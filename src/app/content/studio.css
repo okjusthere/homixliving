@@ -731,3 +731,14 @@
   cursor: grab;
   touch-action: none;
 }
+
+.studio-email-search {
+  align-items: end;
+}
+.studio-email-search .studio-field {
+  margin-bottom: 0;
+}
+.studio-email-search .studio-button,
+.studio-email-search input {
+  min-height: 48px;
+}

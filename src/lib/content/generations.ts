@@ -111,17 +111,13 @@ export async function submitGeneration(
         429,
         "DAILY_LIMIT",
       );
-    const [{ count: running }] = await query<{ count: string }>(
-      "SELECT count(*) FROM portal.content_generations WHERE owner_agent_id=$1 AND status IN ('queued','preparing','generating','saving')",
+    // The per-agent transaction lock serializes concurrent submissions. Append
+    // to the current queue tail, including the second language in a pair.
+    const [tail] = await query<{ id: string }>(
+      "SELECT job.id FROM portal.content_generations job WHERE job.owner_agent_id=$1 AND job.status IN ('queued','preparing','generating','saving') AND NOT EXISTS (SELECT 1 FROM portal.content_generations child WHERE child.predecessor_id=job.id AND child.status IN ('queued','preparing','generating','saving')) ORDER BY job.created_at DESC,job.id DESC LIMIT 1",
       [agentId],
       c,
     );
-    if (Number(running))
-      throw new ContentError(
-        "Your previous poster is still generating / 请等待上一张海报完成",
-        409,
-        "GENERATION_IN_PROGRESS",
-      );
     const project = projectId || randomUUID();
     if (projectId) {
       const rows = await query(
@@ -144,7 +140,7 @@ export async function submitGeneration(
         ],
       );
     const id = randomUUID();
-    let predecessor: string | null = null;
+    let predecessor: string | null = tail?.id || null;
     for (const [index, language] of languages.entries()) {
       const outputId = index === 0 ? id : randomUUID();
       const outputInput = { ...input, language };

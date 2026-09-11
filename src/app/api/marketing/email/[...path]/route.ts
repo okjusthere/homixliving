@@ -14,7 +14,7 @@ async function handle(
     const allowed =
       req.method === "GET"
         ? /^(status|listings|listings\/[^/]+|campaigns|campaigns\/[a-f0-9-]{36}(\/stats)?)$/
-        : req.method === "PATCH"
+        : ["PATCH", "DELETE"].includes(req.method)
           ? /^campaigns\/[a-f0-9-]{36}$/
           : /^campaigns(\/[a-f0-9-]{36}\/(nearby|preview|test|publish|pause|resume|cancel|ai|ai-apply))?$/;
     if (!allowed.test(path))
@@ -42,3 +42,5 @@ async function handle(
 export const GET = handle;
 export const POST = handle;
 export const PATCH = handle;
+
+export const DELETE = handle;

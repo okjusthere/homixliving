@@ -112,10 +112,18 @@ async function main() {
     assert.match(pair[1].prompt, /English ONLY/);
     assert.equal(await claimGenerationDispatch(pair[1].id), false);
     assert.equal(await claimGenerationDispatch(first), true);
-    await assert.rejects(
-      submitGeneration(owner, true, { ...body, idempotencyKey: randomUUID() }),
-      /still generating/,
-    );
+    const queued = await submitGeneration(owner, true, {
+      ...body,
+      idempotencyKey: randomUUID(),
+    });
+    const next = (
+      await pgPool.query(
+        "SELECT predecessor_id FROM portal.content_generations WHERE id=$1",
+        [queued],
+      )
+    ).rows[0];
+    assert.equal(next.predecessor_id, pair[1].id);
+    assert.equal(await claimGenerationDispatch(queued), false);
     await pgPool.query(
       "UPDATE portal.content_generations SET status='needs_review' WHERE id=$1",
       [first],
@@ -129,6 +137,7 @@ async function main() {
       "UPDATE portal.content_generations SET status='succeeded' WHERE id=$1",
       [pair[1].id],
     );
+    assert.equal(await claimGenerationDispatch(queued), true);
     await pgPool.query(
       "UPDATE portal.settings SET value='3' WHERE key='content_daily_limit'",
     );
@@ -145,7 +154,7 @@ async function main() {
           )
         ).rows[0].count,
       ),
-      2,
+      4,
     );
     await pgPool.query(
       "UPDATE portal.settings SET value='10' WHERE key='content_daily_limit'",
@@ -162,7 +171,7 @@ async function main() {
     ]);
     assert.equal(
       competing.filter((result) => result.status === "fulfilled").length,
-      1,
+      2,
     );
     assert.equal(
       Number(
@@ -173,10 +182,23 @@ async function main() {
           )
         ).rows[0].count,
       ),
-      2,
+      4,
+    );
+    const queue = (
+      await pgPool.query(
+        "SELECT id,predecessor_id FROM portal.content_generations WHERE owner_agent_id=$1",
+        [owner + 1],
+      )
+    ).rows;
+    assert.equal(queue.filter((r) => !r.predecessor_id).length, 1);
+    assert.equal(
+      new Set(
+        queue.filter((r) => r.predecessor_id).map((r) => r.predecessor_id),
+      ).size,
+      3,
     );
     console.log(
-      "Language pairs verified: two atomic outputs, exact idempotency, full-pair quota reservation, one active pair, sequential provider dispatch, independent failure recovery.",
+      "Language pairs verified: two atomic outputs, exact idempotency, full-pair quota reservation, concurrent submissions queued in one chain, sequential provider dispatch, independent failure recovery.",
     );
   } finally {
     globalThis.fetch = oldFetch;

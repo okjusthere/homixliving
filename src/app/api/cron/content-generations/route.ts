@@ -44,7 +44,7 @@ export async function GET(req: Request) {
       );
   }
   const rows = await query<{ id: string }>(
-    "SELECT id FROM portal.content_generations WHERE status='queued' AND workflow_run_id IS NULL AND (dispatch_at IS NULL OR dispatch_at < now()-interval '5 minutes') ORDER BY created_at LIMIT 20",
+    "SELECT job.id FROM portal.content_generations job WHERE job.status='queued' AND job.workflow_run_id IS NULL AND (job.dispatch_at IS NULL OR job.dispatch_at < now()-interval '5 minutes') AND (job.predecessor_id IS NULL OR EXISTS (SELECT 1 FROM portal.content_generations predecessor WHERE predecessor.id=job.predecessor_id AND predecessor.status IN ('succeeded','failed','needs_review'))) ORDER BY job.created_at LIMIT 20",
   );
   for (const row of rows) await dispatchGeneration(row.id);
   return Response.json({ dispatched: rows.length });
