@@ -49,6 +49,14 @@ export function posterListingFacts(input: ContentInput) {
     )
     .map((h) => h[language]);
   const level = listingDetailLevel(input.theme);
+  const period = (value: string) => language === "zh"
+    ? ({ Monthly: "月", Quarterly: "季度", Annually: "年" }[value] || value)
+    : ({ Monthly: "month", Quarterly: "quarter", Annually: "year" }[value] || value);
+  const costs = [
+    listing.annualPropertyTax?.trim() ? `${language === "zh" ? "地税" : "Property tax"}: ${listing.annualPropertyTax} / ${language === "zh" ? "年" : "year"}` : "",
+    listing.monthlyMaintenanceFee?.trim() ? `${language === "zh" ? "管理费" : "Maintenance"}: ${listing.monthlyMaintenanceFee} / ${language === "zh" ? "月" : "month"}` : "",
+    listing.associationFee?.trim() && listing.associationFeeFrequency?.trim() ? `${language === "zh" ? "HOA／协会费" : "HOA fee"}: ${listing.associationFee} / ${period(listing.associationFeeFrequency)}` : "",
+  ].filter(Boolean);
   if (level === "detailed")
     return {
       address: listing.address,
@@ -56,12 +64,7 @@ export function posterListingFacts(input: ContentInput) {
       beds: listing.beds,
       baths: listing.baths,
       area: listing.area,
-      annualPropertyTax: listing.annualPropertyTax,
-      monthlyMaintenanceFee: listing.monthlyMaintenanceFee,
-      associationFee: listing.associationFee,
-      associationFeeFrequency: listing.associationFeeFrequency,
-      selectedHighlights,
-      selectedFinancialFacts,
+      selectedHighlights: [...new Set([...selectedHighlights, ...costs, ...selectedFinancialFacts])],
     };
   if (level === "preview")
     return {
@@ -70,7 +73,7 @@ export function posterListingFacts(input: ContentInput) {
       beds: listing.beds,
       baths: listing.baths,
       area: listing.area,
-      selectedHighlights: selectedHighlights.slice(0, 1),
+      selectedHighlights,
     };
   return {
     address: listing.address,

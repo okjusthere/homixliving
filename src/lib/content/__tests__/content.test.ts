@@ -7,7 +7,7 @@ import {
   holidaySchema,
   templateConfigSchema,
 } from "../validation";
-import { buildPosterPrompt } from "../prompts";
+import { buildPosterPrompt, withoutPosterLicense } from "../prompts";
 import { generateAzureImage, AzureImageError } from "../azure";
 import { requestBytes, RequestBodyTooLarge } from "../request-body";
 import type { BrandContext, ContentInput } from "../types";
@@ -138,8 +138,9 @@ test("language pairs reserve separate single-language images and topics control 
     theme: "just_listed",
     listing,
   });
-  assert.ok(detailed && "annualPropertyTax" in detailed);
-  assert.equal(detailed.annualPropertyTax, "$8,000");
+  assert.ok(detailed && "selectedHighlights" in detailed);
+  assert.ok(detailed.selectedHighlights?.includes("Property tax: $8,000 / year"));
+  assert.ok(!("annualPropertyTax" in detailed));
   const brief = posterListingFacts({
     ...input,
     theme: "under_contract",
@@ -192,7 +193,7 @@ test("image prompts receive reviewed localized selling points instead of raw MLS
     },
   });
   assert.ok(facts && "selectedHighlights" in facts);
-  assert.deepEqual(facts.selectedHighlights, ["私人露台"]);
+  assert.deepEqual(facts.selectedHighlights, ["私人露台", "地税低至 $8,000/年"]);
   assert.match(JSON.stringify(facts), /地税低至/);
   assert.doesNotMatch(
     JSON.stringify(facts),
@@ -328,4 +329,37 @@ test("Azure adapter sends references to edits and never retries uncertain calls"
       else process.env[key] = value;
     }
   }
+});
+
+
+test("all selected highlights survive validation and prompts, with costs in the same list", () => {
+  const highlights = Array.from({ length: 12 }, (_, i) => ({ en: `Feature ${i + 1}`, zh: `亮点${i + 1}`, evidence: `Feature ${i + 1}`, selected: true }));
+  for (const theme of ["just_listed", "open_house", "coming_soon"]) {
+    const parsed = inputSchema.parse({ ...input, theme, listing: { ...input.listing, highlights, highlightsReviewed: true } });
+    assert.equal(parsed.listing?.highlights?.length, 12);
+    assert.equal(posterListingFacts(parsed)?.selectedHighlights?.length, 12);
+  }
+  const facts = posterListingFacts({ ...input, listing: { ...input.listing!, highlights, annualPropertyTax: "$8,000", monthlyMaintenanceFee: "$375", associationFee: "$100", associationFeeFrequency: "Monthly", financialFacts: [
+    { kind: "property_tax", en: "Old tax $7,000/year", zh: "旧地税", evidence: "Old tax $7,000/year", selected: true },
+    { kind: "other", en: "Utilities included", zh: "包含水电", evidence: "Utilities included", selected: true },
+    { kind: "other", en: "Deselected cost", zh: "未选费用", evidence: "Deselected cost", selected: false },
+  ] } });
+  assert.equal(facts?.selectedHighlights?.length, 16);
+  assert.match(JSON.stringify(facts), /Property tax: \$8,000 \/ year/);
+  assert.match(JSON.stringify(facts), /Maintenance: \$375 \/ month/);
+  assert.match(JSON.stringify(facts), /HOA fee: \$100 \/ month/);
+  assert.doesNotMatch(JSON.stringify(facts), /selectedFinancialFacts|annualPropertyTax|Old tax|Deselected cost/);
+});
+
+test("every theme and language gets the exact integrated company footer without a license number", () => {
+  const license = "10401387364";
+  for (const { config } of initialTemplates()) {
+    for (const language of ["zh", "en"] as const) {
+      const prompt = buildPosterPrompt(config, { ...input, kind: config.kind, theme: config.themes[0], language }, { ...brand, licenseNumber: license });
+      assert.match(prompt, /Homix Realty \| 3720 Prince St, STE3H, Flushing \| www\.homixny\.com/);
+      assert.match(prompt, /very bottom INSIDE the poster/);
+      assert.doesNotMatch(prompt, /licenseNumber|10401387364/);
+    }
+  }
+  assert.doesNotMatch(withoutPosterLicense(`Saved {"licenseNumber":"${license}","name":"Agent"} Also ${license}`, license), /licenseNumber|10401387364/);
 });

@@ -58,8 +58,7 @@ export function relevantContentInput(value: unknown): unknown {
                     item[key].length <=
                       (key === "evidence" ? 600 : key === "zh" ? 160 : 240),
                 ),
-            )
-            .slice(0, 1);
+            );
         } else delete listing.highlights;
       }
       input.listing = listing;
@@ -134,9 +133,7 @@ export function contentValidationMessage(issues: Issue[]): string {
           path.startsWith("listing.financialFacts")
         ) {
           const row = (issue.path || []).find((p) => typeof p === "number");
-          const place = path.startsWith("listing.financialFacts")
-            ? ["Property costs", "房源费用"]
-            : ["Property selling points", "房源卖点"];
+          const place = ["Property selling points", "房源卖点"];
           const field = String((issue.path || []).at(-1));
           const lang =
             field === "zh"

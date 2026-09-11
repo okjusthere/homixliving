@@ -55,14 +55,13 @@ const contentInputSchema = z
         associationFee: short.optional(),
         associationFeeFrequency: short.optional(),
         description: z.string().trim().max(12000).optional(),
-        highlights: z.array(highlight).max(6).optional(),
+        highlights: z.array(highlight).optional(),
         financialFacts: z
           .array(
             highlight.extend({
               kind: z.enum(["property_tax", "maintenance", "hoa", "other"]),
             }),
           )
-          .max(4)
           .optional(),
         highlightsReviewed: z.boolean().optional(),
         highlightsModel: short.optional(),
@@ -100,15 +99,6 @@ const contentInputSchema = z
     holidayDate: date.optional(),
   })
   .superRefine((value, ctx) => {
-    if (
-      (value.listing?.highlights?.filter((h) => h.selected !== false).length ||
-        0) > 4
-    )
-      ctx.addIssue({
-        code: "custom",
-        message: "Choose up to 4 selling points / 最多选择 4 个卖点",
-        path: ["listing", "highlights"],
-      });
     if (
       ["just_listed", "open_house"].includes(value.theme) &&
       value.listing?.associationFee?.trim() &&

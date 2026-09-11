@@ -6,6 +6,7 @@ import {
   eventWeekday,
   newOpenHouseEvent,
   posterEvents,
+  posterEventDate,
 } from "../events";
 import { inputSchema } from "../validation";
 import { contentValidationMessage } from "../form-state";
@@ -170,8 +171,8 @@ test("both language prompts contain both exact schedules, exclude unselected ses
     assert.deepEqual(
       posterEvents(parsed)?.map((e) => [e.date, e.start, e.end]),
       [
-        [saturday.date, "13:00", "15:00"],
-        [sunday.date, "14:00", "16:00"],
+        ["Sep 12", "13:00", "15:00"],
+        ["Sep 13", "14:00", "16:00"],
       ],
     );
     const prompt = buildPosterPrompt(template, parsed, brand);
@@ -179,8 +180,9 @@ test("both language prompts contain both exact schedules, exclude unselected ses
     assert.ok(posterEvents(parsed)?.every((event) => !("timezone" in event)));
     assert.match(prompt, /do not convert them/);
     assert.match(prompt, /Never print a timezone/);
-    assert.match(prompt, /2026-09-12/);
-    assert.match(prompt, /2026-09-13/);
+    assert.match(prompt, /Sep 12/);
+    assert.match(prompt, /Sep 13/);
+    assert.doesNotMatch(prompt, /2026-09-/);
     assert.doesNotMatch(prompt, /2026-09-20/);
     assert.match(prompt, /EVERY supplied event on this SAME poster/);
     assert.match(prompt, language === "zh" ? /星期六/ : /Saturday/);
@@ -190,4 +192,15 @@ test("both language prompts contain both exact schedules, exclude unselected ses
     undefined,
   );
   assert.equal(posterEvents({ ...input, theme: "just_sold" }), undefined);
+});
+
+
+test("US poster dates omit years and still sort correctly across month/year boundaries", () => {
+  assert.equal(posterEventDate("2026-10-03"), "Oct 3");
+  assert.equal(posterEventDate("2026-02-30"), "");
+  assert.deepEqual(posterEvents({ ...input, events: [
+    { ...saturday, date: "2027-01-01" },
+    { ...saturday, date: "2026-12-31" },
+    { ...saturday, date: "2026-10-03" },
+  ] })?.map((event) => event.date), ["Oct 3", "Dec 31", "Jan 1"]);
 });

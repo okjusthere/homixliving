@@ -42,18 +42,26 @@ export function eventWeekday(date: string, language: string) {
   }).format(value);
 }
 
+/** US month/day notation is shared by both poster languages; years stay internal. */
+export function posterEventDate(date: string) {
+  if (!eventWeekday(date, "en")) return "";
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short", day: "numeric", timeZone: "UTC",
+  }).format(new Date(`${date}T12:00:00Z`));
+}
+
 export function posterEvents(input: ContentInput) {
   if (input.kind !== "listing" || input.theme !== "open_house")
     return undefined;
   return contentEvents(input)
     .filter((event) => event.selected !== false)
+    .sort((a, b) =>
+      `${a.date} ${a.start}`.localeCompare(`${b.date} ${b.start}`),
+    )
     .map(({ date, start, end }) => ({
-      date,
+      date: posterEventDate(date),
       weekday: eventWeekday(date, input.language),
       start,
       end,
-    }))
-    .sort((a, b) =>
-      `${a.date} ${a.start}`.localeCompare(`${b.date} ${b.start}`),
-    );
+    }));
 }

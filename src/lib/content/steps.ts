@@ -9,6 +9,7 @@ import {
 import type { BrandContext, ContentInput } from "./types";
 import { dispatchGeneration } from "./dispatch";
 import { addCompanyLogo, companyLogo } from "./logo";
+import { withoutPosterLicense } from "./prompts";
 
 type Job = {
   id: string;
@@ -83,7 +84,7 @@ export async function requestGeneration(id: string): Promise<{
   if (!claimed.length) return null;
   try {
     const result = await generateAzureImage(
-      job.prompt,
+      withoutPosterLicense(job.prompt, job.brand.licenseNumber),
       job.input.size,
       refs,
       job.provider_config || undefined,

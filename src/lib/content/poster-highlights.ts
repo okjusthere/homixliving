@@ -15,14 +15,13 @@ const highlight = z.object({
   evidence: z.string().trim().min(3).max(600),
 });
 export const posterHighlightsSchema = z.object({
-  highlights: z.array(highlight).max(6),
+  highlights: z.array(highlight),
   financialFacts: z
     .array(
       highlight.extend({
         kind: z.enum(["property_tax", "maintenance", "hoa", "other"]),
       }),
-    )
-    .max(4),
+    ),
 });
 export type PosterHighlights = z.infer<typeof posterHighlightsSchema>;
 export const posterHighlightsJsonSchema = {
@@ -32,7 +31,6 @@ export const posterHighlightsJsonSchema = {
   properties: {
     highlights: {
       type: "array",
-      maxItems: 6,
       items: {
         type: "object",
         additionalProperties: false,
@@ -46,7 +44,6 @@ export const posterHighlightsJsonSchema = {
     },
     financialFacts: {
       type: "array",
-      maxItems: 4,
       items: {
         type: "object",
         additionalProperties: false,
@@ -66,7 +63,7 @@ export const posterHighlightsJsonSchema = {
 };
 export const posterHighlightsInstructions = [
   "You extract distinctive selling points from real estate listing source data. This is evidence-based selection, not paragraph compression or generic rewriting.",
-  "Identify up to 6 distinct useful selling points such as renovations, private outdoor space, layout, practical amenities or explicit property features. Select specifics that differentiate this property. Do not convert vague praise into factual claims.",
+  "Identify all distinct useful selling points supported by the source, without an arbitrary count limit, such as renovations, private outdoor space, layout, practical amenities or explicit property features. Select specifics that differentiate this property. Do not convert vague praise into factual claims.",
   "Separately extract explicitly stated property tax, maintenance and HOA facts. Preserve the amount, currency, annual/monthly period and qualifiers such as 'as low as', 'approximately' or 'included'. Never infer a missing period or amount.",
   "Every item needs an exact verbatim source excerpt in evidence and faithful English and Simplified Chinese versions in en and zh. Preserve Arabic numeric values; expanded K/M notation is allowed. Do not invent benefits, legal status, amenities, school rankings, travel times, returns or protected-class targeting.",
   "Evidence must be one contiguous verbatim substring copied from a single source field. Never splice clauses, remove words, insert ellipses, correct spelling or paraphrase evidence. Keep each selling point short enough for a poster. Do not calculate new numbers (including lot area from dimensions).",

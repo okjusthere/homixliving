@@ -188,7 +188,6 @@ export function ContentStudio() {
   const selectedSize = availableSizes.includes(input.size)
     ? input.size
     : availableSizes[0];
-  const maxHighlights = listingDetailLevel(input.theme) === "preview" ? 1 : 4;
   const highlightsSection = useRef<HTMLElement>(null);
   const [extracting, setExtracting] = useState(false);
   const hasExtractedHighlights = Boolean(input.listing?.highlightsModel);
@@ -271,9 +270,9 @@ export function ContentStudio() {
           ),
         );
       patchListing({
-        highlights: result.highlights?.map((h, index) => ({
+        highlights: result.highlights?.map((h) => ({
           ...h,
-          selected: index < maxHighlights,
+          selected: true,
         })),
         financialFacts: result.financialFacts?.map((h) => ({
           ...h,
@@ -393,18 +392,6 @@ export function ContentStudio() {
       await extractHighlights();
       return;
     }
-    if (
-      (input.listing?.highlights?.filter((h) => h.selected !== false).length ||
-        0) > maxHighlights &&
-      input.kind === "listing" &&
-      listingDetailLevel(input.theme) !== "brief"
-    )
-      throw new Error(
-        t(
-          `Selling points: select at most ${maxHighlights}. Click a selected card to deselect it.`,
-          `房源卖点：最多选 ${maxHighlights} 条，请点击多余的已选卡片取消选择。`,
-        ),
-      );
     const confirmedInput = confirmPosterCopy({ ...input, size: selectedSize });
     const validated = inputSchema.safeParse(confirmedInput);
     if (!validated.success)
@@ -882,86 +869,6 @@ export function ContentStudio() {
                       </Field>
                     ))}
                   </div>
-                  {listingDetailLevel(input.theme) === "detailed" && (
-                    <>
-                      <p className="studio-note">
-                        {t(
-                          "Enter confirmed amounts with their billing period. Blank costs are omitted from the poster, never treated as zero.",
-                          "仅填写已确认的金额并注明周期。未填写的费用不会展示，也不会按零计算。",
-                        )}
-                      </p>
-                      <div className="studio-row">
-                        <Field
-                          label={t(
-                            "Property tax / year (USD)",
-                            "地税／年（美元）",
-                          )}
-                        >
-                          <input
-                            value={input.listing?.annualPropertyTax || ""}
-                            onChange={(e) =>
-                              patchListing({
-                                annualPropertyTax: e.target.value,
-                              })
-                            }
-                          />
-                        </Field>
-                        <Field
-                          label={t(
-                            "Maintenance / month (USD)",
-                            "管理费／月（美元）",
-                          )}
-                        >
-                          <input
-                            value={input.listing?.monthlyMaintenanceFee || ""}
-                            onChange={(e) =>
-                              patchListing({
-                                monthlyMaintenanceFee: e.target.value,
-                              })
-                            }
-                          />
-                        </Field>
-                      </div>
-                      <div className="studio-row">
-                        <Field
-                          label={t(
-                            "HOA / association fee (USD)",
-                            "HOA／协会费（美元）",
-                          )}
-                        >
-                          <input
-                            value={input.listing?.associationFee || ""}
-                            onChange={(e) =>
-                              patchListing({ associationFee: e.target.value })
-                            }
-                          />
-                        </Field>
-                        <Field label={t("HOA billing period", "HOA 收费周期")}>
-                          <select
-                            value={input.listing?.associationFeeFrequency || ""}
-                            onChange={(e) =>
-                              patchListing({
-                                associationFeeFrequency: e.target.value,
-                              })
-                            }
-                          >
-                            <option value="">
-                              {t("Select period", "选择周期")}
-                            </option>
-                            <option value="Monthly">
-                              {t("Monthly", "每月")}
-                            </option>
-                            <option value="Quarterly">
-                              {t("Quarterly", "每季度")}
-                            </option>
-                            <option value="Annually">
-                              {t("Annually", "每年")}
-                            </option>
-                          </select>
-                        </Field>
-                      </div>
-                    </>
-                  )}
                   {listingDetailLevel(input.theme) !== "brief" && (
                     <>
                       <details
@@ -1003,8 +910,8 @@ export function ContentStudio() {
                         <p className="studio-note">
                           {hasExtractedHighlights
                             ? t(
-                                `Click a card to select it. Up to ${maxHighlights} selling point(s); edit only when needed. Your selection is confirmed when you generate.`,
-                                `点击卡片即可选入，最多 ${maxHighlights} 个卖点。需要时再编辑，点击生成时一并确认。`,
+                                "Select any points you want, including taxes and fees. Your selection is confirmed when you generate.",
+                                "点击卡片选择需要的亮点，数量不限，地税和管理费也包含在内。点击生成时一并确认。",
                               )
                             : t(
                                 "Let AI suggest selling points, or continue with the address, price and property facts only.",
@@ -1058,10 +965,90 @@ export function ContentStudio() {
                               )}
                             </p>
                           )}
+                        {listingDetailLevel(input.theme) === "detailed" && (
+                          <details className="studio-source-details">
+                            <summary>{t("Add or edit tax and fee highlights", "添加或修改税费亮点")}</summary>
+                            <p className="studio-note">
+                              {t(
+                                "Enter confirmed amounts with their billing period. Blank costs are omitted from the poster, never treated as zero.",
+                                "仅填写已确认的金额并注明周期。未填写的费用不会展示，也不会按零计算。",
+                              )}
+                            </p>
+                            <div className="studio-row">
+                              <Field
+                                label={t(
+                                  "Property tax / year (USD)",
+                                  "地税／年（美元）",
+                                )}
+                              >
+                                <input
+                                  value={input.listing?.annualPropertyTax || ""}
+                                  onChange={(e) =>
+                                    patchListing({
+                                      annualPropertyTax: e.target.value,
+                                    })
+                                  }
+                                />
+                              </Field>
+                              <Field
+                                label={t(
+                                  "Maintenance / month (USD)",
+                                  "管理费／月（美元）",
+                                )}
+                              >
+                                <input
+                                  value={input.listing?.monthlyMaintenanceFee || ""}
+                                  onChange={(e) =>
+                                    patchListing({
+                                      monthlyMaintenanceFee: e.target.value,
+                                    })
+                                  }
+                                />
+                              </Field>
+                            </div>
+                            <div className="studio-row">
+                              <Field
+                                label={t(
+                                  "HOA / association fee (USD)",
+                                  "HOA／协会费（美元）",
+                                )}
+                              >
+                                <input
+                                  value={input.listing?.associationFee || ""}
+                                  onChange={(e) =>
+                                    patchListing({ associationFee: e.target.value })
+                                  }
+                                />
+                              </Field>
+                              <Field label={t("HOA billing period", "HOA 收费周期")}>
+                                <select
+                                  value={input.listing?.associationFeeFrequency || ""}
+                                  onChange={(e) =>
+                                    patchListing({
+                                      associationFeeFrequency: e.target.value,
+                                    })
+                                  }
+                                >
+                                  <option value="">
+                                    {t("Select period", "选择周期")}
+                                  </option>
+                                  <option value="Monthly">
+                                    {t("Monthly", "每月")}
+                                  </option>
+                                  <option value="Quarterly">
+                                    {t("Quarterly", "每季度")}
+                                  </option>
+                                  <option value="Annually">
+                                    {t("Annually", "每年")}
+                                  </option>
+                                </select>
+                              </Field>
+                            </div>
+                          </details>
+                        )}
                         {input.listing && (
                           <HighlightPicker
                             listing={input.listing}
-                            maxHighlights={maxHighlights}
                             zh={zh}
                             busy={busy}
                             onChange={patchListing}
