@@ -328,22 +328,22 @@ export function Nav() {
                 {toolsMenuOpen && (
                   <div
                     role="menu"
-                    className="absolute right-0 top-11 z-50 grid w-[620px] grid-cols-3 rounded-lg p-3 shadow-lg"
+                    className="absolute left-1/2 top-11 z-50 grid -translate-x-1/2 w-[680px] max-w-[calc(100vw-3rem)] grid-cols-4 gap-1 rounded-xl p-4 shadow-lg"
                     style={{
                       background: tone.card,
                       border: `1px solid ${tone.line}`,
-                      boxShadow: "0 14px 32px -12px rgba(0,0,0,0.2)",
+                      boxShadow: "0 16px 40px -16px rgba(41,37,30,0.22)",
                     }}
                   >
                     {workspaceGroups.map((group, groupIndex) => {
                       return (
                         <section
                           key={group.key}
-                          className={`min-w-0 px-2 ${groupIndex > 0 ? "border-l" : ""}`}
+                          className={`min-w-0 px-1 ${groupIndex > 0 ? "border-l pl-3" : ""}`}
                           style={{ borderColor: tone.lineSoft }}
                         >
                           <p
-                            className="px-2 pb-2 pt-1 text-[10px] font-semibold uppercase tracking-[0.12em]"
+                            className="px-2 pb-3 pt-1 text-[11px] font-medium tracking-[0.08em]"
                             style={{ color: tone.ink50 }}
                           >
                             {t[group.key]}
@@ -412,7 +412,7 @@ export function Nav() {
                       style={{
                         background: tone.card,
                         border: `1px solid ${tone.line}`,
-                        boxShadow: "0 14px 32px -12px rgba(0,0,0,0.2)",
+                        boxShadow: "0 16px 40px -16px rgba(41,37,30,0.22)",
                       }}
                     >
                       {adminGroups.map((group, groupIndex) => {
@@ -420,11 +420,11 @@ export function Nav() {
                         return (
                           <section
                             key={group.key}
-                            className={`min-w-0 px-2 ${groupIndex > 0 ? "border-l" : ""}`}
+                            className={`min-w-0 px-1 ${groupIndex > 0 ? "border-l pl-3" : ""}`}
                             style={{ borderColor: tone.lineSoft }}
                           >
                             <p
-                              className="flex items-center gap-1.5 px-2 pb-2 pt-1 text-[10px] font-semibold uppercase tracking-[0.12em]"
+                              className="flex items-center gap-1.5 px-2 pb-3 pt-1 text-[11px] font-medium tracking-[0.08em]"
                               style={{ color: tone.ink50 }}
                             >
                               <GroupIcon size={13} strokeWidth={1.7} aria-hidden />

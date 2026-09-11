@@ -4,6 +4,7 @@ import { ArrowLeft, LoaderCircle, Mail, Search } from "lucide-react";
 import { useLocale } from "@/lib/i18n-client";
 import { PageHeader } from "@/components/homix/page-kit";
 import { contentFetch, Field } from "./ui";
+import { EmailCampaignPayment } from "./email-campaign-payment";
 import { ContentErrorDialog } from "./error-dialog";
 
 type Campaign = {
@@ -107,6 +108,10 @@ export function EmailWorkspace() {
     [months, setMonths] = useState(12),
     [page, setPage] = useState(0),
     [hasMore, setHasMore] = useState(false);
+  const [paidCampaignId, setPaidCampaignId] = useState<string | null>(null);
+  const onPaymentVerified = useCallback((id: string, paid: boolean) => {
+    setPaidCampaignId((current) => paid ? id : current === id ? null : current);
+  }, []);
   const actionKeys = useRef<Record<string, string>>({});
   const dirty =
     !!campaign && JSON.stringify(copy) !== JSON.stringify(copyOf(campaign));
@@ -124,10 +129,21 @@ export function EmailWorkspace() {
     Promise.allSettled([
       contentFetch<NonNullable<typeof settings>>(`${base}/status`),
       load(),
+      (() => {
+        const id = new URLSearchParams(window.location.search).get("campaign");
+        return id && /^[a-f0-9-]{36}$/.test(id)
+          ? contentFetch<{ campaign: Campaign }>(`${base}/campaigns/${id}`)
+          : Promise.resolve(null);
+      })(),
     ]).then((results) => {
       if (!live) return;
       const a = results[0];
       if (a.status === "fulfilled") setSettings(a.value);
+      const returned = results[2];
+      if (returned.status === "fulfilled" && returned.value) {
+        setCampaign(returned.value.campaign);
+        setCopy(copyOf(returned.value.campaign));
+      }
       const failed = results.find((r) => r.status === "rejected");
       if (failed?.status === "rejected") setError(failed.reason.message);
       setLoading(false);
@@ -138,6 +154,7 @@ export function EmailWorkspace() {
   }, [load]);
   const select = (c: Campaign) => {
     setConfirmDelete(false);
+    setPaidCampaignId(null);
     setCampaign(c);
     setCopy(copyOf(c));
     setPreview("");
@@ -258,8 +275,8 @@ export function EmailWorkspace() {
         eyebrow="HOMIX / PERSONAL MARKETING"
         title={t("Email marketing", "邮件推广")}
         description={t(
-          "Introduce a property to agents with nearby closed transactions.",
-          "把房源介绍给周边有成交记录的经纪人。",
+          "Introduce a property to agents with nearby closed transactions. $22 per campaign, paid before sending.",
+          "把房源介绍给周边有成交记录的经纪人。每个群发任务 $22，付款后发送。",
         )}
         actions={
           campaign ? (
@@ -696,11 +713,15 @@ export function EmailWorkspace() {
                 )}
               </p>
               <div className="studio-row">
+                {campaign.status === "PAUSED" && (
+                  <EmailCampaignPayment key={campaign.id} campaignId={campaign.id} zh={zh}
+                    disabled={busy} onVerified={onPaymentVerified} onError={setError} />
+                )}
                 {(campaign.status === "SENDING" ||
                   campaign.status === "PAUSED") && (
                   <button
                     className="studio-button secondary"
-                    disabled={busy}
+                    disabled={busy || (campaign.status === "PAUSED" && paidCampaignId !== campaign.id)}
                     onClick={() =>
                       act(() =>
                         operation(
@@ -842,6 +863,12 @@ export function EmailWorkspace() {
                         "需要先成功测试当前版本。",
                       )}
                 </p>
+                {!dirty && campaign.audienceCount > 0 &&
+                  campaign.lastTestedVersion === campaign.version &&
+                  campaign.lastSuccessfulTestAt && (
+                  <EmailCampaignPayment key={campaign.id} campaignId={campaign.id} zh={zh}
+                    disabled={busy} onVerified={onPaymentVerified} onError={setError} />
+                )}
                 <Field
                   label={t(
                     "Schedule (your local time; optional)",
@@ -851,7 +878,7 @@ export function EmailWorkspace() {
                   <input
                     type="datetime-local"
                     value={scheduled}
-                    disabled={busy}
+                    disabled={busy || paidCampaignId !== campaign.id}
                     onChange={(e) => {
                       setScheduled(e.target.value);
                       setConfirm(false);
@@ -863,6 +890,7 @@ export function EmailWorkspace() {
                   disabled={
                     busy ||
                     dirty ||
+                    paidCampaignId !== campaign.id ||
                     !campaign.audienceCount ||
                     campaign.lastTestedVersion !== campaign.version ||
                     !campaign.lastSuccessfulTestAt
@@ -901,7 +929,7 @@ export function EmailWorkspace() {
                     <div className="studio-row">
                       <button
                         className="studio-button"
-                        disabled={busy}
+                        disabled={busy || dirty || paidCampaignId !== campaign.id}
                         onClick={() =>
                           act(() =>
                             operation(

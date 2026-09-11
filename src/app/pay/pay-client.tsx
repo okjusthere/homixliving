@@ -150,6 +150,10 @@ const PRODUCT_COPY: Partial<Record<CommerceProductKey, {
     name: "LIBOR",
     description: "由公司代办的 LIBOR 账号服务。",
   },
+  listing_email_blast: {
+    name: "Listing 邮件群发",
+    description: "每个群发任务 $22。先准备房源邮件，付款后发送；同一任务失败重试不重复收费。",
+  },
   transfer_fee: {
     name: "经纪人转入费",
     description: "经纪人转入公司的办理费用。",
@@ -254,6 +258,10 @@ export function PayClient({
 
   async function submit() {
     if (!selectedProduct || submitting) return;
+    if (selectedProduct.key === "listing_email_blast") {
+      window.location.href = "/marketing/email";
+      return;
+    }
     setError(null);
 
     if (!stripeConfigured || !selectedProduct.configured) {
@@ -531,7 +539,7 @@ export function PayClient({
                 </>
               ) : (
                 <>
-                  {t.checkout}
+                  {selectedProduct.key === "listing_email_blast" ? (locale === "zh" ? "选择房源并准备群发" : "Prepare a listing email") : t.checkout}
                   <ArrowRight className="size-4" />
                 </>
               )}

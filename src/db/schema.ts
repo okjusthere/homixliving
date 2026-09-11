@@ -912,6 +912,14 @@ export const commerceOrders = portal.table("commerce_orders", {
   updatedAt: timestamptz("updated_at").$defaultFn(() => new Date().toISOString()),
 });
 
+export const listingEmailPayments = portal.table("listing_email_payments", {
+  campaignId: uuid("campaign_id").primaryKey(),
+  agentId: integer("agent_id").notNull().references(() => agents.id),
+  orderId: integer("order_id").notNull().unique().references(() => commerceOrders.id),
+  checkoutParams: jsonb("checkout_params").notNull(),
+  createdAt: timestamptz("created_at").notNull().defaultNow(),
+}, (table) => [index("idx_listing_email_payments_agent").on(table.agentId)]);
+
 // Every real money movement on a commerce order — one row per Stripe
 // invoice (idempotent on stripe_invoice_id). Subscription renewals arrive via
 // the invoice webhooks; history can be re-pulled with

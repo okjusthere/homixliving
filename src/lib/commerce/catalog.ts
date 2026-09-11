@@ -8,7 +8,8 @@ export type CommerceProductKey =
   | "growth_desk_fee"
   | "libor"
   | "license_transfer_fee"
-  | "transfer_fee";
+  | "transfer_fee"
+  | "listing_email_blast";
 
 export type CommerceProduct = {
   key: CommerceProductKey;
@@ -113,12 +114,23 @@ export const commerceProducts: CommerceProduct[] = [
   },
   {
     key: "transfer_fee",
+    availableForSale: false,
     name: "Transfer Fee",
     description: "Agent transfer fee.",
     amountCents: 2200,
     currency: "usd",
     billingMode: "payment",
     priceEnvVar: "STRIPE_PRICE_TRANSFER_FEE",
+    category: "service",
+  },
+  {
+    key: "listing_email_blast",
+    name: "Listing Email Blast",
+    description: "$22 per campaign. Prepare your listing email, then pay before sending. Retries of the same campaign are included.",
+    amountCents: 2200,
+    currency: "usd",
+    billingMode: "payment",
+    priceEnvVar: "STRIPE_PRICE_LISTING_EMAIL_BLAST",
     category: "service",
   },
 ];
@@ -142,7 +154,7 @@ export function getConfiguredCommerceProducts(): CommerceProductWithPrice[] {
     return {
       ...product,
       stripePriceId,
-      configured: Boolean(stripePriceId),
+      configured: product.key === "listing_email_blast" || Boolean(stripePriceId),
     };
   });
 }
@@ -164,6 +176,7 @@ const ZH_PRODUCT_NAMES: Partial<Record<CommerceProductKey, string>> = {
   libor: "LIBOR",
   license_transfer_fee: "执照转入费",
   transfer_fee: "经纪人转入费",
+  listing_email_blast: "Listing 邮件群发",
 };
 
 export function commerceProductName(

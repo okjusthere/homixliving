@@ -52,5 +52,8 @@ jobs:
       - name: Tests
         run: npm test
 
+      - name: Listing email payment database integration
+        run: npm run test:listing-email-payment:db
+
       - name: Build
         run: npm run build

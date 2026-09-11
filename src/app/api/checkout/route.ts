@@ -87,6 +87,9 @@ export async function POST(request: Request) {
   }
 
   const { product, payload } = result;
+  if (product.key === "listing_email_blast") {
+    return NextResponse.json({ error: "Choose a campaign in Email Marketing before paying / 请先在邮件推广中选择群发任务。" }, { status: 400 });
+  }
   const purchase = canPurchasePlanProduct(agent, product.key);
   if (!purchase.ok) return NextResponse.json({ error: purchase.error }, { status: 409 });
   const isPlanPayment = isPlanPaymentProduct(product.key);

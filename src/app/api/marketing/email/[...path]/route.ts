@@ -1,6 +1,8 @@
 import { contentActor, contentError, jsonBody } from "@/lib/content/api";
 import { emailMarketingRequest } from "@/lib/email-marketing";
 import { ContentError } from "@/lib/content/store";
+import { getListingEmailPayment, requireListingEmailPayment, startListingEmailCheckout } from "@/lib/commerce/listing-email-payment";
+
 export const runtime = "nodejs";
 export const maxDuration = 180;
 async function handle(
@@ -11,6 +13,18 @@ async function handle(
     const actor = await contentActor(req);
     if (actor instanceof Response) return actor;
     const path = (await params).path.map(encodeURIComponent).join("/");
+    const paymentPath = /^campaigns\/([a-f0-9-]{36})\/(payment|checkout)$/.exec(path);
+    if (paymentPath) {
+      const campaignId = paymentPath[1];
+      if (paymentPath[2] === "payment" && req.method === "GET") {
+        await emailMarketingRequest({ ...actor, admin: false }, `campaigns/${campaignId}`);
+        return Response.json(await getListingEmailPayment(actor, campaignId));
+      }
+      if (paymentPath[2] === "checkout" && req.method === "POST") {
+        return Response.json(await startListingEmailCheckout(actor, campaignId, new URL(req.url).origin));
+      }
+      throw new ContentError("Unknown integration operation", 404);
+    }
     const allowed =
       req.method === "GET"
         ? /^(status|listings|listings\/[^/]+|campaigns|campaigns\/[a-f0-9-]{36}(\/stats)?)$/
@@ -24,6 +38,8 @@ async function handle(
     for (const key of ["query", "page"])
       if (incoming.searchParams.has(key))
         search.set(key, incoming.searchParams.get(key)!);
+    const sending = /^campaigns\/([a-f0-9-]{36})\/(publish|resume)$/.exec(path);
+    if (req.method === "POST" && sending) await requireListingEmailPayment(actor, sending[1]);
     const body = req.method === "GET" ? undefined : await jsonBody(req);
     const data = await emailMarketingRequest(
       actor,

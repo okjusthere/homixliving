@@ -782,6 +782,14 @@ export async function ensureSchema(sql: Sql) {
   await run(`ALTER TABLE portal.commerce_orders DROP CONSTRAINT IF EXISTS commerce_orders_offline_evidence_check`);
   await run(`ALTER TABLE portal.commerce_orders ADD CONSTRAINT commerce_orders_offline_evidence_check CHECK (payment_channel <> 'offline' OR (offline_method IN ('cash','check','ach','zelle','wire','other') AND offline_reference IS NOT NULL AND verified_by_email IS NOT NULL AND external_payment_key IS NOT NULL AND paid_at IS NOT NULL))`);
   await run(`CREATE INDEX IF NOT EXISTS idx_commerce_orders_agent ON portal.commerce_orders(agent_id, created_at DESC)`);
+  await run(`CREATE TABLE IF NOT EXISTS portal.listing_email_payments (
+    campaign_id UUID PRIMARY KEY,
+    agent_id INTEGER NOT NULL REFERENCES portal.agents(id),
+    order_id INTEGER NOT NULL UNIQUE REFERENCES portal.commerce_orders(id),
+    checkout_params JSONB NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`);
+  await run(`CREATE INDEX IF NOT EXISTS idx_listing_email_payments_agent ON portal.listing_email_payments(agent_id)`);
   await run(`
     UPDATE portal.commerce_orders AS orders
     SET agent_id = agents.id
