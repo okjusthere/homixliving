@@ -1,0 +1,80 @@
+# Marketing and content center
+
+Status: production email integration and private image storage are operational. The latest release adds separate Chinese/English images and reviewed AI selling-point extraction. Deployment and visual acceptance are recorded below.
+
+## User workflow
+
+- /marketing/email uses the existing service at https://marketing.homixny.com: MLS lookup, drafts, nearby Agent audiences, copy suggestions, preview, self-test eligibility, explicit publish/scheduling, statistics and campaign controls.
+- /content supports Coming Soon, Just Listed, Open House, Under Contract, Offer Accepted and Just Sold; US and China holidays; saved Agent portraits; MLS/manual facts and photos; artwork previews and downloads.
+- Output defaults to **two separate images**, one Simplified Chinese and one English. Either language can also be selected alone. Historical bilingual images remain visible as legacy items.
+- Just Listed and Open House use a dedicated property-information panel. Annual property tax, monthly maintenance and HOA amounts retain explicit billing periods. Missing data is omitted, never inferred to be zero. Coming Soon is a short preview; other listing status and holiday posters remain brief.
+- A text AI first identifies distinctive selling points from the original listing description, separately extracts explicit cost facts, and returns English/Chinese versions with exact source excerpts. This is feature selection rather than paragraph compression. Numeric and evidence checks reject unsupported output.
+- Agents select up to four selling points, edit both versions, then confirm. Source-field changes clear the prior extraction and approval. Detailed posters with a description require this review before generation.
+- The image prompt receives only approved localized points and financial facts, rather than raw MLS remarks. It requests separate non-overlapping text, photo and signature panels, exact supplied property photos and faithful portrait identity. Generated artwork still needs human visual review.
+- /content/admin/templates manages versioned style prompts, publication, holidays/dates, quotas and uncertain-result review. The initial catalog has 28 templates, 31 holidays and 62 dates for 2026–2027.
+
+## Architecture and production resources
+
+| Resource | Configuration |
+|---|---|
+| Portal | https://agents.homixny.com, Vercel project homixliving |
+| Existing Email Service | https://marketing.homixny.com |
+| Text extraction | Existing Azure OpenAI provider, deployment gpt-5.6-terra |
+| Image generation | Azure gpt-image-2, https://kevvrealtime-resource.services.ai.azure.com/openai/v1 |
+| Private artwork bucket | homixliving-content; public access disabled |
+| Recovery | Cloudflare Worker homixliving-content-recovery, every five minutes |
+| Email apps | ca-homix-mkt-dev-web and ca-homix-mkt-dev-worker |
+
+The content-specific Cloudflare token grants Object Read & Write only to homixliving-content. Its key pair is stored as Vercel Production Secrets R2_CONTENT_ACCESS_KEY_ID / R2_CONTENT_SECRET_ACCESS_KEY. A partial pair fails closed. Existing deal-document credentials are preserved. No secret values belong in this document or source control.
+
+Portal /api/content/highlights authenticates the active Agent, checks request origin, validates listing input and calls the signed service endpoint /api/integrations/homix/v1/poster-highlights. The existing Azure text credentials remain service-side. Every integration endpoint retains request-bound HMAC, 90-second expiry, Agent identity and permission checks. Only the user-approved project path is excluded from Azure EasyAuth; the rest of the service keeps its original authentication.
+
+Email campaigns preserve the MLS listing Agent and use a separate immutable Portal marketing identity. Brokerage supplies From display name; the verified sender address stays unchanged; the current Portal Agent supplies Reply-To and signature. Suppression, unsubscribe, pacing, allowlists, version checks and uncertain-delivery handling remain enforced.
+
+Image jobs freeze input, brand, template and provider configuration. A two-image submission reserves two quota slots atomically and uses one batch ID; its English image waits until the Chinese image reaches a terminal state. Duplicate submissions are idempotent. The default limit is 10 image outputs per Agent per day with one active batch. Recovery dispatch uses an atomic claim; ambiguous provider outcomes require review and do not trigger an automatic paid retry.
+
+Private assets enforce Agent ownership and use expiring downloads. References are restricted by HTTPS origin, validated, normalized and stored privately. Azure image sizes are 1024x1024, 1024x1280 and 1152x2048 with one high-quality PNG per request.
+
+## Database and rollout
+
+Applied Portal migrations:
+- 20260910-content-center.sql: content tables, indexes and RLS.
+- 20260911-content-language-pairs.sql: additive batch/predecessor columns and indexes.
+
+Applied Email migration: 20260910180000_homix_portal_integration. AI extraction and fee mapping need no further Email schema migration.
+
+Admin Homix (Agent 1158) was assigned Homix Realty Inc. through a guarded, audited backfill, as explicitly selected by the user. Role, team and lifecycle data were preserved.
+
+Recovery Worker version: 095da6b0-07ff-4767-a458-9f1d77a99d87. It has no public HTTP handler and uses a dedicated recovery secret; the signed recovery endpoint returned 200.
+
+Both Email apps must run the same immutable image. Infrastructure workflows must preserve USE_HOMIX_PORTAL_INTEGRATION=true, the signing secret reference and company map. Before rollback, stop new image dispatch; preserve artwork, additive schema and audit records. Never use a production email publish request as a health check.
+
+## Verification
+
+- Portal domain/provider/storage/prompt tests: 8 passed; TypeScript and scoped lint passed.
+- Local PostgreSQL checks passed for migrations, ownership, RLS, publication uniqueness, provider claims and atomic/idempotent language-pair submission, quota and sequential dispatch.
+- Email unit tests: 78 passed across 15 files; API regression: 9 passed. TypeScript and production build passed.
+- Earlier Email PostgreSQL integration: 45 passed; concurrent Portal account provisioning and disabled-user checks: 2 passed.
+- Production email acceptance: MLS search, draft/save, company sender/Agent signature preview and nearby audience calculation passed for 555 Flushing Avenue Unit 7L (KEY425702536): 119 eligible recipients, zero suppressed. **Zero real emails sent.** Self-test/publish remain subject to the existing allowlist.
+- Production private storage: saved portrait import, MLS photo import, generated image storage, authenticated preview and PNG download passed.
+- Production pre-revision image job c1810ac1-eb88-4b6e-9f58-9a59a0662031 succeeded (Azure request 59015403-f7f8-4420-a9ec-fd98a23e19fa). Its visual issues prompted the separate-language, reference-fidelity and layout changes; it is not evidence of final visual acceptance.
+- The acceptance account's saved portrait is an older recruitment poster containing a cartoon mascot. The app preserves the chosen saved asset; real marketing should use the Agent's intended headshot.
+
+## Current deployment and final acceptance
+
+Portal deployment: dpl_FknPyQSYkPwHkEzbFt9uBBwG9SjP, https://homixliving-658grlb6h-erics-projects-9449aac9.vercel.app, aliased to https://agents.homixny.com. Production build passed with 9 Workflow steps and 1 workflow. This includes explicit approved-copy boundaries, Chinese professional-title mapping and a source-revision check that discards extraction responses if the listing changed while the request was pending.
+
+Email release: ACR cjh succeeded; both apps use sha256:7417eb2091164725ac2518f3bd85cc7152c167c0547beb69883a786e8663ca7d. New revisions: web --0000021, worker --0000019. Health endpoint returned 200. Immediate prior image: sha256:ceb4c27271a8c45f15bddb7119c6a587a71efe958319e1418d3c32a753236ba5.
+
+Real signed UI extraction succeeded on the MLS description. Selected reviewed points: newly renovated condition, huge private deck and laundry room. Cost facts: property tax as low as $8,000/year and management fee $375/month. The source's ambiguous P kitchen item was deselected during review. The model also proposed an unselected deposit item with an imprecise Chinese translation; review remains necessary for semantic meaning beyond source/number matching.
+
+A Chinese/English pair was submitted at 2026-09-11T01:58:16Z. Chinese job 09b6beec-bdb0-4151-819d-77165ba2173d started while English job f24fa5ea-20f4-4237-bc60-861b3a71fbbe remained queued. Both jobs completed successfully and previews were exported from the authenticated UI. The selected selling points, costs and periods were present in both separate-language images. The first Chinese image added an unapproved move-in claim and retained an English professional title; a stricter approved-copy boundary and explicit Chinese title mapping were subsequently deployed and verified. The English image had accurate copy; its portrait frame partly crossed the photo edge, so generation still needs visual review.
+
+## Exclusions
+
+No automatic social publishing, bulk holiday scheduling, layered graphics editor or billing changes. Existing docs/audits/ content is outside this feature.
+
+
+Final Chinese visual acceptance: job 8d0f1fd4-1c52-456d-98de-43e2d8f6a648 completed at 2026-09-11T02:09:59Z, Azure request 60b6c610-d6be-4161-9958-9f980158ca49. Authenticated preview and page-asset export passed. The inspected image has a separate headline/photo/facts/signature layout, the three approved selling points, annual tax with its “as low as” qualifier, monthly management fee, and a Chinese professional title. It does not include the earlier unapproved move-in tagline. The original single property photo is recognizable without invented additional rooms. English job f24fa5ea-20f4-4237-bc60-861b3a71fbbe completed with Azure request 8be09421-4758-4360-b226-0055bc594ce5.
+
+These sample checks verify the implemented workflow and inspected artwork, not a guarantee that every future AI image will reproduce every word or reference perfectly. Agents should continue reviewing the downloadable output. The test account's saved asset remains the recruitment mascot poster rather than a real Agent headshot. Local feature-test Docker container was stopped after verification.

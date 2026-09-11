@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withWorkflow } from "workflow/next";
 import { fileURLToPath } from "node:url";
 
 const isDevelopment = process.env.NODE_ENV === "development";
@@ -11,10 +12,10 @@ const contentSecurityPolicy = [
   "object-src 'none'",
   `script-src 'self' 'unsafe-inline'${isDevelopment ? " 'unsafe-eval'" : ""} https://tally.so https://va.vercel-scripts.com`,
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https://www.homixny.com https://*.supabase.co https://onekey.kevv.ai https://onekeymls.kevv.ai https://*.cloudflarestream.com https://*.videodelivery.net",
+  "img-src 'self' data: blob: https://www.homixny.com https://homixny.com https://*.r2.cloudflarestorage.com https://*.supabase.co https://onekey.kevv.ai https://onekeymls.kevv.ai https://*.cloudflarestream.com https://*.videodelivery.net",
   "font-src 'self' data:",
   `connect-src 'self' https://*.r2.cloudflarestorage.com https://tally.so https://vitals.vercel-insights.com${isDevelopment ? " ws: http: https:" : ""}`,
-  "frame-src https://tally.so https://cloud.fastgpt.io https://iframe.videodelivery.net https://*.cloudflarestream.com",
+  "frame-src 'self' https://tally.so https://cloud.fastgpt.io https://iframe.videodelivery.net https://*.cloudflarestream.com",
   "media-src 'self' blob: https://*.cloudflarestream.com https://*.videodelivery.net",
   "worker-src 'self' blob:",
   "manifest-src 'self'",
@@ -59,10 +60,16 @@ const nextConfig: NextConfig = {
   },
   outputFileTracingIncludes: {
     "/api/invoices/*/send": ["src/assets/homix-living-inc-w9.pdf"],
+    // Sharp's dynamically loaded Linux libvips binaries must travel with both
+    // request handlers and durable Workflow steps in Vercel's function bundles.
+    "/api/content/**": ["node_modules/sharp/**/*", "node_modules/@img/sharp-*/**/*"],
+    "/api/marketing/email/**": ["node_modules/sharp/**/*", "node_modules/@img/sharp-*/**/*"],
+    "/api/cron/content-generations": ["node_modules/sharp/**/*", "node_modules/@img/sharp-*/**/*"],
+    "/.well-known/workflow/**": ["node_modules/sharp/**/*", "node_modules/@img/sharp-*/**/*"],
   },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
 };
 
-export default nextConfig;
+export default withWorkflow(nextConfig);

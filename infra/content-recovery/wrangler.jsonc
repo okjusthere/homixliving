@@ -1,0 +1,10 @@
+{
+  "name": "homixliving-content-recovery",
+  "account_id": "3dece8c6e6159891f5934007a97d81d3",
+  "main": "worker.js",
+  "compatibility_date": "2026-09-10",
+  "workers_dev": false,
+  "preview_urls": false,
+  "triggers": { "crons": ["*/5 * * * *"] },
+  "observability": { "enabled": true }
+}

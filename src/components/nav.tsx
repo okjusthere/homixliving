@@ -13,6 +13,8 @@ import {
   GraduationCap,
   History,
   Library,
+  Image,
+  Mail,
   LineChart,
   Settings2,
   ShieldCheck,
@@ -42,6 +44,13 @@ const navItems = [
 ] as const;
 
 const workspaceGroups = [
+  {
+    key: "personalMarketing",
+    items: [
+      { href: "/content", key: "content", icon: Image, leaderOnly: false },
+      { href: "/marketing/email", key: "emailMarketing", icon: Mail, leaderOnly: false },
+    ],
+  },
   {
     key: "transactionSupport",
     items: [
@@ -97,8 +106,9 @@ const adminGroups = [
 
 const LABELS = {
   en: {
+    personalMarketing: "Personal marketing",
     overview: "Overview", sales: "Sales", rental: "Rental", training: "Training",
-    resources: "Resource library", onboarding: "Onboarding guide", coach: "AI coach", offer: "Offers", share: "Share center",
+    resources: "Resource library", onboarding: "Onboarding guide", coach: "AI coach", offer: "Offers", share: "Share center", content: "Content studio", emailMarketing: "Email marketing",
     agents: "Agents", teams: "Teams", reports: "Performance report", finance: "Finance", payouts: "Payouts", audit: "Audit", feedbackInbox: "Feedback inbox", settings: "Settings",
     search: "Search", signedIn: "Signed in", signOut: "Sign out", admin: "Admin", profile: "Public profile", accountProfile: "My profile",
     menu: "Menu", switchLanguage: "Switch language", userMenu: "User menu", workspace: "Workspace", market: "Market overview", expiredListings: "Expired listings",
@@ -107,8 +117,9 @@ const LABELS = {
     personalWorkspace: "Personal", workspaceMode: "Workspace mode",
   },
   zh: {
+    personalMarketing: "个人营销",
     overview: "概览", sales: "买卖", rental: "租赁", training: "培训",
-    resources: "资料库", onboarding: "入职指南", coach: "AI 教练", offer: "报价", share: "分享中心",
+    resources: "资料库", onboarding: "入职指南", coach: "AI 教练", offer: "报价", share: "分享中心", content: "内容中心", emailMarketing: "邮件营销",
     agents: "经纪人", teams: "团队", reports: "业绩报表", finance: "财务", payouts: "发放", audit: "审计", feedbackInbox: "建议收件箱", settings: "设置",
     search: "搜索", signedIn: "已登录", signOut: "退出登录", admin: "管理员", profile: "个人主页", accountProfile: "我的档案",
     menu: "菜单", switchLanguage: "切换语言", userMenu: "用户菜单", workspace: "工作台", market: "市场概览", expiredListings: "已过期房源",
@@ -178,6 +189,7 @@ export function Nav() {
     if (href === "/agents")
       return pathname === "/agents" || /^\/agents\/\d+/.test(pathname) || pathname.startsWith("/roster/");
     if (href === "/onboarding") return pathname === "/onboarding" || pathname.startsWith("/onboarding/");
+    if (href === "/content" || href === "/marketing/email") return pathname === href || pathname.startsWith(`${href}/`);
     return pathname === href;
   };
 
@@ -198,7 +210,7 @@ export function Nav() {
     >
       <div className="mx-auto max-w-[1280px] px-4 sm:px-8">
         <div className="h-16 flex items-center justify-between">
-          <div className="flex items-center gap-4 xl:gap-10 min-w-0">
+          <div className="flex items-center gap-4 min-w-0">
             {/* Hamburger for the nav items on small screens */}
             <button
               type="button"
@@ -221,7 +233,7 @@ export function Nav() {
             </Link>
             {mayUseTeamWorkspace && (
               <div
-                className="hidden shrink-0 items-center rounded-lg p-1 sm:flex"
+                className="hidden shrink-0 items-center rounded-lg p-1 sm:flex xl:hidden"
                 style={{ background: tone.paperDeep, border: `1px solid ${tone.lineSoft}` }}
                 aria-label={t.workspaceMode}
               >

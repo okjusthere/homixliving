@@ -48,3 +48,4 @@ next-env.d.ts
 local.db
 .env.local
 .stripe-test-smoke.json
+/.swc
