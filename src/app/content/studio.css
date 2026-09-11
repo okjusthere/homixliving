@@ -190,7 +190,10 @@
 }
 .studio-sidebar {
   position: sticky;
-  top: 24px;
+  top: 80px;
+  max-height: calc(100dvh - 96px);
+  overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 .studio-sidebar h2 {
   font-size: 19px;
@@ -433,6 +436,8 @@
   }
   .studio-sidebar {
     position: static;
+    max-height: none;
+    overflow-y: visible;
   }
   .studio-works {
     grid-template-columns: repeat(2, minmax(0, 1fr));
