@@ -53,6 +53,8 @@ export type ESignEnvelope = {
     | "EXPIRED"
     | "FAILED_FINALIZATION";
   completedAt?: string;
+  expiresAt?: string;
+  externalReference?: string;
   recipients?: Array<{
     id: string;
     roleId: string;
@@ -187,7 +189,7 @@ export function teamLeaderESignTemplateConfiguration(
   };
 }
 
-class ESignApiError extends Error {
+export class ESignApiError extends Error {
   constructor(message: string, readonly status: number) {
     super(message);
     this.name = "ESignApiError";
@@ -321,8 +323,9 @@ export function createESignEnvelope(input: {
   externalReference?: string;
   subject?: string;
   message?: string;
+  expiresAt?: string;
 }) {
-  const expiresAt = new Date(Date.now() + 14 * 86_400_000).toISOString();
+  const expiresAt = input.expiresAt || new Date(Date.now() + 14 * 86_400_000).toISOString();
   const externalReference = input.externalReference || `homix-onboarding-agent-${input.agentId}`;
   return esignRequest<ESignEnvelope>("/v1/envelopes", {
     method: "POST",
@@ -340,6 +343,47 @@ export function createESignEnvelope(input: {
       mergeData: input.mergeData,
     }),
   });
+}
+
+export function esignEnvelopeHasExpired(envelope: ESignEnvelope) {
+  return Boolean(envelope.expiresAt && new Date(envelope.expiresAt).getTime() <= Date.now() &&
+    ["DRAFT", "PREPARED", "APPROVAL_PENDING", "READY_TO_SEND", "SENT", "IN_PROGRESS"].includes(envelope.status));
+}
+
+export async function ensureESignEnvelopeReplaceable(envelopeId: string) {
+  const envelope = await getESignEnvelope(envelopeId);
+  if (["DECLINED", "VOIDED", "EXPIRED"].includes(envelope.status)) return;
+  if (esignEnvelopeHasExpired(envelope)) {
+    // Close the expired envelope before creating its replacement. If signing
+    // finished in the meantime, eSign rejects voiding and we leave it intact.
+    await esignRequest(`/v1/envelopes/${encodeURIComponent(envelopeId)}/void`, {
+      method: "POST", body: JSON.stringify({ reason: "Replace expired Homix agreement at the applicant's request." }),
+    });
+    return;
+  }
+  throw new ESignApiError("The agreement cannot be restarted in its current state. Refresh its status.", 409);
+}
+
+export async function findOrCreateESignEnvelope(input: Parameters<typeof createESignEnvelope>[0]) {
+  const reference = input.externalReference || `homix-onboarding-agent-${input.agentId}`;
+  const find = async () => {
+    const envelope = (await esignRequest<ESignEnvelope[]>("/v1/envelopes"))
+      .find((candidate) => candidate.externalReference === reference);
+    if (envelope && (envelope.templateVersionId !== input.expectedTemplateVersionId || envelope.transactionId !== input.transactionId)) {
+      throw new ESignApiError("The existing agreement does not match this preparation attempt.", 409);
+    }
+    return envelope;
+  };
+  const existing = await find();
+  if (existing) return existing;
+  try {
+    return await createESignEnvelope(input);
+  } catch (error) {
+    if (!(error instanceof ESignApiError) || error.status !== 409) throw error;
+    const raced = await find();
+    if (!raced) throw error;
+    return raced;
+  }
 }
 
 export function sendESignEnvelope(envelopeId: string, agentId: number, idempotencyKey?: string) {

@@ -55,5 +55,13 @@ jobs:
       - name: Listing email payment database integration
         run: npm run test:listing-email-payment:db
 
+      - name: Agreement recovery database integration
+        env:
+          PGPASSWORD: postgres
+        run: |
+          createdb -h localhost -p 5432 -U postgres homix_agreement_recovery
+          pg_dump "$DATABASE_URL" --schema-only --no-owner --no-privileges | psql -h localhost -p 5432 -U postgres -d homix_agreement_recovery -v ON_ERROR_STOP=1
+          DATABASE_URL=postgres://postgres:postgres@localhost:5432/homix_agreement_recovery npm run test:agreement-recovery:db
+
       - name: Build
         run: npm run build

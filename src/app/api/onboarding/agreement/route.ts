@@ -10,7 +10,9 @@ import {
   teams,
 } from "@/db/schema";
 import {
-  createESignEnvelope,
+  findOrCreateESignEnvelope,
+  ensureESignEnvelopeReplaceable,
+  ESignApiError,
   findOrCreateESignTransaction,
   getESignTemplate,
   isOnboardingESignConfigured,
@@ -27,6 +29,9 @@ import {
 } from "@/lib/onboarding-esign-policy";
 import { hasPreapprovedTeamRouting } from "@/lib/team-join-requests";
 
+import { canRestartAgreement } from "@/lib/agreement-recovery-policy";
+import { AgreementAttemptChanged, agreementAttemptReference, claimAgreementAttempt, withAgreementAttempt, type AgreementAttempt } from "@/lib/agreement-attempts";
+
 const PREPARATION_STALE_MS = 5 * 60_000;
 
 class AgreementPreparationConflict extends Error {}
@@ -38,7 +43,7 @@ async function currentAgent() {
   return agent || null;
 }
 
-async function claimAgreementPreparation(agentId: number) {
+async function claimAgreementPreparation(agentId: number, restartEnvelopeId?: string) {
   return db.transaction(async (tx) => {
     await lockOnboardingAgent(tx, agentId);
     const [fresh] = await tx.select().from(agents).where(eq(agents.id, agentId)).limit(1);
@@ -79,37 +84,52 @@ async function claimAgreementPreparation(agentId: number) {
       }
     }
 
-    if (fresh.agreementStatus === "preparing" && !fresh.esignEnvelopeId) {
+    const replacing = Boolean(restartEnvelopeId);
+    if (replacing && (fresh.esignEnvelopeId !== restartEnvelopeId || !canRestartAgreement(fresh.agreementStatus))) {
+      throw new AgreementPreparationConflict("The agreement changed. Refresh before trying again.");
+    }
+    if (!replacing && fresh.agreementStatus === "preparing" && !fresh.esignEnvelopeId) {
       const updatedAt = fresh.updatedAt ? new Date(fresh.updatedAt).getTime() : Number.NaN;
       if (Number.isFinite(updatedAt) && Date.now() - updatedAt < PREPARATION_STALE_MS) {
         throw new AgreementPreparationConflict("The onboarding agreement is already being prepared.");
       }
-    } else if (fresh.agreementStatus !== "not_started") {
-      return fresh;
+    } else if (!replacing && fresh.agreementStatus !== "not_started") {
+      return { agent: fresh, attempt: null };
     }
 
+    const attempt = await claimAgreementAttempt(tx, { scope: "onboarding", subjectId: agentId, agentId }, replacing ? {
+      envelopeId: fresh.esignEnvelopeId, transactionId: fresh.esignTransactionId,
+      templateVersionId: fresh.esignTemplateVersionId, evidencePackageId: fresh.esignEvidencePackageId,
+      status: fresh.agreementStatus, agentSignedAt: fresh.agreementAgentSignedAt,
+      countersignedAt: fresh.agreementCountersignedAt, completedAt: fresh.agreementCompletedAt,
+    } : undefined);
     const [claimed] = await tx
       .update(agents)
       .set({
+        ...(replacing ? {
+          esignEnvelopeId: null, esignTransactionId: null, esignTemplateVersionId: null,
+          esignEvidencePackageId: null, agreementAgentSignedAt: null,
+          agreementCountersignedAt: null, agreementCompletedAt: null, teamTermsAcceptedAt: null,
+        } : {}),
         agreementStatus: "preparing",
         onboardingStage: "agreement",
         updatedAt: new Date().toISOString(),
       })
       .where(eq(agents.id, agentId))
       .returning();
-    return claimed;
+    return { agent: claimed, attempt };
   });
 }
 
-async function releaseFailedPreparation(agentId: number) {
-  await db
-    .update(agents)
-    .set({ agreementStatus: "not_started", updatedAt: new Date().toISOString() })
-    .where(and(
-      eq(agents.id, agentId),
-      eq(agents.agreementStatus, "preparing"),
-      isNull(agents.esignEnvelopeId),
+async function releaseFailedPreparation(agentId: number, attempt: AgreementAttempt | null) {
+  if (!attempt) return;
+  await withAgreementAttempt({ scope: "onboarding", subjectId: agentId, agentId }, attempt.id, async (tx) => {
+    // Keep the facts frozen and the attempt ID stable after an uncertain remote
+    // response, but release its lease so an explicit retry can recover it.
+    await tx.update(agents).set({ updatedAt: new Date(Date.now() - PREPARATION_STALE_MS).toISOString() }).where(and(
+      eq(agents.id, agentId), eq(agents.agreementStatus, "preparing"), isNull(agents.esignEnvelopeId),
     ));
+  });
 }
 
 export async function GET() {
@@ -174,9 +194,10 @@ export async function POST() {
   )) {
     return NextResponse.json({ error: "eSign onboarding is not configured." }, { status: 503 });
   }
-  let agent;
+  let agent: typeof agents.$inferSelect;
+  let attempt: AgreementAttempt | null = null;
   try {
-    agent = await claimAgreementPreparation(sessionAgent.id);
+    ({ agent, attempt } = await claimAgreementPreparation(sessionAgent.id));
   } catch (error) {
     if (error instanceof AgreementPreparationConflict) {
       return NextResponse.json({ error: error.message }, { status: 409 });
@@ -187,20 +208,23 @@ export async function POST() {
   try {
     if (agent.esignEnvelopeId) {
       const synced = await syncOnboardingAgreement(agent);
-      if (synced.agreementStatus === "preparing") {
-        await sendESignEnvelope(
-          agent.esignEnvelopeId,
-          agent.id,
-          `homix-onboarding-send-${agent.esignEnvelopeId}`,
-        );
-        await db.update(agents).set({
-          agreementStatus: "sent",
-          onboardingStage: "agreement",
-          updatedAt: new Date().toISOString(),
-        }).where(eq(agents.id, agent.id));
-        return NextResponse.json({ success: true, agreementStatus: "sent" });
+      if (synced.esignEnvelopeId !== agent.esignEnvelopeId) {
+        return NextResponse.json({ error: "The agreement changed. Refresh its status." }, { status: 409 });
       }
-      return NextResponse.json({ success: true, agreementStatus: synced.agreementStatus });
+      if (canRestartAgreement(synced.agreementStatus)) {
+        await ensureESignEnvelopeReplaceable(synced.esignEnvelopeId!);
+        ({ agent, attempt } = await claimAgreementPreparation(agent.id, synced.esignEnvelopeId!));
+      } else {
+        if (synced.agreementStatus === "failed") {
+          return NextResponse.json({ error: "The signed PDF needs recovery. Contact an administrator; your signatures are retained." }, { status: 409 });
+        }
+        if (synced.agreementStatus === "preparing") {
+          await sendESignEnvelope(agent.esignEnvelopeId, agent.id, `homix-onboarding-send-${agent.esignEnvelopeId}`);
+          await db.update(agents).set({ agreementStatus: "sent", onboardingStage: "agreement", updatedAt: new Date().toISOString() })
+            .where(and(eq(agents.id, agent.id), eq(agents.esignEnvelopeId, agent.esignEnvelopeId), eq(agents.agreementStatus, "preparing")));
+        }
+        return NextResponse.json({ success: true, agreementStatus: synced.agreementStatus === "preparing" ? "sent" : synced.agreementStatus });
+      }
     }
     if (agent.agreementStatus !== "preparing") {
       return NextResponse.json({ success: true, agreementStatus: agent.agreementStatus });
@@ -216,6 +240,7 @@ export async function POST() {
         "The licensed company does not have an approved onboarding agreement.",
       );
     }
+    if (!attempt) throw new AgreementPreparationConflict("Agreement preparation has changed.");
     const templateId = templateConfiguration.templateId;
     const template = await getESignTemplate(templateId);
     const effectivePlan = normalizeAgentPlan(agent.plan);
@@ -261,10 +286,6 @@ export async function POST() {
       name: `${agent.legalName || agent.name} onboarding`,
       externalReference: `homix-agent-${agent.id}-template-${version.id}`,
     });
-    await db.update(agents).set({
-      esignTransactionId: transaction.id,
-      updatedAt: new Date().toISOString(),
-    }).where(eq(agents.id, agent.id));
     const recipients = [
       { roleId: signerRole.id, name: agent.legalName || agent.name, email: agent.email },
       ...countersignerRoles.map((role) => ({
@@ -273,7 +294,7 @@ export async function POST() {
         email: countersigner!.email,
       })),
     ];
-    const envelope = await createESignEnvelope({
+    const envelope = await findOrCreateESignEnvelope({
       transactionId: transaction.id,
       templateId,
       legalEntityName: templateConfiguration.legalEntityName,
@@ -317,21 +338,24 @@ export async function POST() {
       },
       expectedTemplateVersionId: version.id,
       expectedTemplateSchemaHash: version.schemaHash!,
-      externalReference: `homix-onboarding-agent-${agent.id}-template-${version.id}`,
+      externalReference: agreementAttemptReference(`homix-onboarding-agent-${agent.id}-template-${version.id}`, attempt),
+      expiresAt: attempt.expiresAt,
     });
     if (envelope.templateVersionId !== version.id) {
       throw new OnboardingESignTemplateError(
         "eSign created the envelope from an unapproved template version.",
       );
     }
-    await db.update(agents).set({
-      esignTransactionId: transaction.id,
-      esignEnvelopeId: envelope.id,
-      esignTemplateVersionId: envelope.templateVersionId,
-      agreementStatus: "preparing",
-      onboardingStage: "agreement",
-      updatedAt: new Date().toISOString(),
-    }).where(eq(agents.id, agent.id));
+    await withAgreementAttempt({ scope: "onboarding", subjectId: agent.id, agentId: agent.id }, attempt.id, async (tx) => {
+      await tx.update(agents).set({
+        esignTransactionId: transaction.id,
+        esignEnvelopeId: envelope.id,
+        esignTemplateVersionId: envelope.templateVersionId,
+        agreementStatus: "preparing",
+        onboardingStage: "agreement",
+        updatedAt: new Date().toISOString(),
+      }).where(and(eq(agents.id, agent.id), isNull(agents.esignEnvelopeId)));
+    });
     await sendESignEnvelope(
       envelope.id,
       agent.id,
@@ -340,13 +364,13 @@ export async function POST() {
     await db.update(agents).set({
       agreementStatus: "sent",
       updatedAt: new Date().toISOString(),
-    }).where(eq(agents.id, agent.id));
+    }).where(and(eq(agents.id, agent.id), eq(agents.esignEnvelopeId, envelope.id), eq(agents.agreementStatus, "preparing")));
     return NextResponse.json({ success: true, agreementStatus: "sent" });
   } catch (error) {
-    await releaseFailedPreparation(agent.id).catch((releaseError) => {
+    await releaseFailedPreparation(agent.id, attempt).catch((releaseError) => {
       console.error("Unable to release failed onboarding preparation", releaseError);
     });
-    if (error instanceof OnboardingESignTemplateError) {
+    if (error instanceof OnboardingESignTemplateError || error instanceof AgreementPreparationConflict || error instanceof AgreementAttemptChanged || (error instanceof ESignApiError && error.status === 409)) {
       return NextResponse.json({ error: error.message }, { status: 409 });
     }
     console.error("Unable to create onboarding agreement", error);
