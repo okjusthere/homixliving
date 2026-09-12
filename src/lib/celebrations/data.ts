@@ -264,9 +264,13 @@ export async function birthdayList(
   const matches = (v: BirthdayRow, f: BirthdayFilter) =>
     f === "all" ||
     (f === "missing"
-      ? !v.month
+      ? v.enabled && !v.month
       : f === "month"
-        ? v.month === todayMonth && (v.years === null || v.years > 0)
+        ? v.enabled &&
+          v.month === todayMonth &&
+          (v.kind !== "anniversary" ||
+            (v.joinedOn !== null &&
+              Number(v.joinedOn.slice(0, 4)) < Number(today.slice(0, 4))))
         : v.enabled &&
           v.days !== null &&
           (f === "today" ? v.days === 0 : v.days >= 0 && v.days <= 7));

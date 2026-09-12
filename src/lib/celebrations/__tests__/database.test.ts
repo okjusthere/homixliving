@@ -112,6 +112,44 @@ async function main() {
     1,
     "Anniversary edit must not invalidate birthday",
   );
+  await saveBirthdays(
+    [
+      {
+        agentId: 6,
+        kind: "anniversary",
+        joinedOn: today,
+        month,
+        day,
+        enabled: true,
+        revision: 0,
+      },
+    ],
+    actor,
+  );
+  const anniversaryToday = await birthdayList(
+    "today",
+    "",
+    1,
+    today,
+    "anniversary",
+  );
+  const anniversaryMonth = await birthdayList(
+    "month",
+    "",
+    1,
+    today,
+    "anniversary",
+  );
+  assert.equal(
+    anniversaryToday.counts.month,
+    anniversaryMonth.counts.month,
+    "Monthly count is independent of selected filter",
+  );
+  assert.equal(
+    anniversaryMonth.rows.some((r) => r.agentId === 6),
+    false,
+    "Joining this month is not a work anniversary",
+  );
   let profile = (await birthdayProfiles())[0];
   const ids = await Promise.all(
     Array.from({ length: 8 }, () => prepareBirthday(profile, { today })),
