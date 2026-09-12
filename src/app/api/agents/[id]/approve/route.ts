@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { agents, commerceOrders, teamJoinRequests, teams } from "@/db/schema";
-import { and, desc, eq, gt, inArray } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, sql } from "drizzle-orm";
+import { lockAgentLedgers, lockOnboardingAgent } from "@/lib/advisory-locks";
 import { requireAdminApi } from "@/lib/auth-guards";
 import { notify } from "@/lib/notify";
 import { logAudit } from "@/lib/audit";
@@ -16,7 +17,7 @@ import {
 } from "@/lib/homixweb";
 import { normalizeAgentPlan, PLAN_SPLIT_PCT } from "@/lib/agent-plans";
 import {
-  hasAgentSignedOnboardingAgreement,
+  onboardingAgreementAllowsPayment,
   isOnboardingV2Enforced,
   onboardingPaymentProduct,
 } from "@/lib/onboarding";
@@ -26,13 +27,15 @@ import { syncPublicAgentProfile } from "@/lib/sync-public-profile";
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const authResult = await requireAdminApi();
   if ("error" in authResult) return authResult.error;
+  if (req.headers.get("origin") !== req.nextUrl.origin)
+    return NextResponse.json({ error: "Invalid origin" }, { status: 403 });
   const { id } = await params;
-  const parsedId = parseInt(String(id), 10);
-  if (!Number.isFinite(parsedId)) {
+  const parsedId = Number(id);
+  if (!/^\d+$/.test(id) || !Number.isSafeInteger(parsedId) || parsedId <= 0) {
     return NextResponse.json({ error: "Invalid agent id" }, { status: 400 });
   }
 
@@ -47,36 +50,51 @@ export async function POST(
   if (!existing) {
     return NextResponse.json({ error: "Agent not found" }, { status: 404 });
   }
+  if (existing.accountStatus === "active")
+    return NextResponse.json({ success: true, replayed: true });
   const [pendingTeamJoinRequest] = await db
     .select({ id: teamJoinRequests.id })
     .from(teamJoinRequests)
-    .where(and(
-      eq(teamJoinRequests.agentId, existing.id),
-      eq(teamJoinRequests.status, "pending"),
-    ))
+    .where(
+      and(
+        eq(teamJoinRequests.agentId, existing.id),
+        eq(teamJoinRequests.status, "pending"),
+      ),
+    )
     .limit(1);
   if (pendingTeamJoinRequest) {
     return NextResponse.json(
-      { error: "The Team Leader must decide the pending team application before approval." },
+      {
+        error:
+          "The Team Leader must decide the pending team application before approval.",
+      },
       { status: 409 },
     );
   }
   if (existing.accountStatus === "pending" && isOnboardingV2Enforced()) {
     if (existing.esignEnvelopeId) {
-      if (!isOnboardingESignConfigured(
-        existing.licensedCompany,
-        existing.plan,
-        existing.liborMembershipStatus,
-      )) {
+      if (
+        !isOnboardingESignConfigured(
+          existing.licensedCompany,
+          existing.plan,
+          existing.liborMembershipStatus,
+        )
+      ) {
         return NextResponse.json(
-          { error: "The agent's licensed company does not have a configured onboarding agreement." },
+          {
+            error:
+              "The agent's licensed company does not have a configured onboarding agreement.",
+          },
           { status: 503 },
         );
       }
       try {
         existing = await syncOnboardingAgreement(existing);
       } catch (error) {
-        console.error("Unable to verify onboarding agreement before approval", error);
+        console.error(
+          "Unable to verify onboarding agreement before approval",
+          error,
+        );
         return NextResponse.json(
           { error: "Unable to verify the latest eSign status. Please retry." },
           { status: 502 },
@@ -88,63 +106,93 @@ export async function POST(
       existing.affiliationTermMonths,
     );
     if (!existing.onboardingCompletedAt) {
-      return NextResponse.json({ error: "The agent has not completed their onboarding profile." }, { status: 409 });
+      return NextResponse.json(
+        { error: "The agent has not completed their onboarding profile." },
+        { status: 409 },
+      );
     }
-    if (!hasAgentSignedOnboardingAgreement(existing)) {
-      return NextResponse.json({ error: "The agent has not signed the affiliation agreement." }, { status: 409 });
+    if (!onboardingAgreementAllowsPayment(existing)) {
+      return NextResponse.json(
+        { error: "The agent has not signed the affiliation agreement." },
+        { status: 409 },
+      );
     }
     if (
       normalizeAgentPlan(existing.plan) === "team_member" &&
       (!existing.teamTermsConfigId || !existing.teamTermsAcceptedAt)
     ) {
       return NextResponse.json(
-        { error: "The agent has not accepted the selected team compensation terms." },
+        {
+          error:
+            "The agent has not accepted the selected team compensation terms.",
+        },
         { status: 409 },
       );
     }
     if (paymentRequired && existing.paymentStatus !== "paid") {
-      return NextResponse.json({ error: "The required affiliation fee has not been paid." }, { status: 409 });
+      return NextResponse.json(
+        { error: "The required affiliation fee has not been paid." },
+        { status: 409 },
+      );
     }
     const [settledOnboardingOrder] = await db
       .select({ paymentChannel: commerceOrders.paymentChannel })
       .from(commerceOrders)
-      .where(and(
-        eq(commerceOrders.agentId, existing.id),
-        gt(commerceOrders.licenseTransferFeeCents, 0),
-        inArray(commerceOrders.status, ["paid", "active"]),
-      ))
+      .where(
+        and(
+          eq(commerceOrders.agentId, existing.id),
+          gt(commerceOrders.licenseTransferFeeCents, 0),
+          inArray(commerceOrders.status, ["paid", "active"]),
+        ),
+      )
       .orderBy(desc(commerceOrders.paidAt), desc(commerceOrders.id))
       .limit(1);
     if (!settledOnboardingOrder) {
       return NextResponse.json(
-        { error: "A verified offline onboarding payment is required before admin approval." },
+        {
+          error:
+            "A verified offline onboarding payment is required before admin approval.",
+        },
         { status: 409 },
       );
     }
     if (settledOnboardingOrder.paymentChannel !== "offline") {
       return NextResponse.json(
-        { error: "Stripe onboarding payments activate automatically. Refresh the agent list." },
+        {
+          error:
+            "Stripe onboarding payments activate automatically. Refresh the agent list.",
+        },
         { status: 409 },
       );
     }
   }
 
-  const agreementFactsFrozen = existing.accountStatus === "pending" && existing.agreementStatus !== "not_started";
+  const agreementFactsFrozen =
+    existing.accountStatus === "pending" &&
+    existing.agreementStatus !== "not_started";
 
   // Roster details are captured here because approval is the one moment an
   // admin is already looking at this person. Collected later they tend never
   // to be filled in at all. All three are optional — approval still works
   // without them.
   const referredByAgentId =
-    body.referredByAgentId === undefined || body.referredByAgentId === null || body.referredByAgentId === ""
+    body.referredByAgentId === undefined ||
+    body.referredByAgentId === null ||
+    body.referredByAgentId === ""
       ? undefined
       : Number(body.referredByAgentId);
   if (referredByAgentId !== undefined) {
     if (!Number.isInteger(referredByAgentId) || referredByAgentId <= 0) {
-      return NextResponse.json({ error: "Invalid referring agent" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid referring agent" },
+        { status: 400 },
+      );
     }
     if (referredByAgentId === parsedId) {
-      return NextResponse.json({ error: "An agent cannot refer themselves" }, { status: 400 });
+      return NextResponse.json(
+        { error: "An agent cannot refer themselves" },
+        { status: 400 },
+      );
     }
     const [referrer] = await db
       .select({ id: agents.id })
@@ -152,11 +200,20 @@ export async function POST(
       .where(eq(agents.id, referredByAgentId))
       .limit(1);
     if (!referrer) {
-      return NextResponse.json({ error: "Referring agent not found" }, { status: 404 });
-    }
-    if (agreementFactsFrozen && referredByAgentId !== existing.referredByAgentId) {
       return NextResponse.json(
-        { error: "Sponsor cannot change after the affiliation agreement is sent." },
+        { error: "Referring agent not found" },
+        { status: 404 },
+      );
+    }
+    if (
+      agreementFactsFrozen &&
+      referredByAgentId !== existing.referredByAgentId
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Sponsor cannot change after the affiliation agreement is sent.",
+        },
         { status: 409 },
       );
     }
@@ -175,8 +232,12 @@ export async function POST(
       .from(teams)
       .where(eq(teams.id, teamId))
       .limit(1);
-    if (!team) return NextResponse.json({ error: "Team not found" }, { status: 404 });
-    if (!existing.licensedCompanyId || team.companyId !== existing.licensedCompanyId) {
+    if (!team)
+      return NextResponse.json({ error: "Team not found" }, { status: 404 });
+    if (
+      !existing.licensedCompanyId ||
+      team.companyId !== existing.licensedCompanyId
+    ) {
       return NextResponse.json(
         { error: "Agent and team must belong to the same licensed company." },
         { status: 409 },
@@ -184,7 +245,9 @@ export async function POST(
     }
     if (agreementFactsFrozen && teamId !== existing.teamId) {
       return NextResponse.json(
-        { error: "Team cannot change after the affiliation agreement is sent." },
+        {
+          error: "Team cannot change after the affiliation agreement is sent.",
+        },
         { status: 409 },
       );
     }
@@ -216,7 +279,9 @@ export async function POST(
     .where(eq(teams.leaderAgentId, parsedId))
     .limit(1)
     .then((rows) => rows.length > 0);
-  const effectivePlan = isTeamLeader ? "solo_pro" : normalizeAgentPlan(existing.plan);
+  const effectivePlan = isTeamLeader
+    ? "solo_pro"
+    : normalizeAgentPlan(existing.plan);
   if (effectivePlan === "team_member" && !effectiveTeamId) {
     return NextResponse.json(
       { error: "Team Member onboarding must select a team before approval." },
@@ -224,9 +289,10 @@ export async function POST(
     );
   }
   const now = new Date().toISOString();
-  const anniversaryStart = existing.accountStatus === "pending"
-    ? existing.affiliationPaidAt || now.slice(0, 10)
-    : existing.anniversaryStart || existing.joinedAt || now.slice(0, 10);
+  const anniversaryStart =
+    existing.accountStatus === "pending"
+      ? existing.affiliationPaidAt || now.slice(0, 10)
+      : existing.anniversaryStart || existing.joinedAt || now.slice(0, 10);
 
   let selectedProfile: PublicProfile | null = null;
   if (publicProfileId) {
@@ -262,39 +328,97 @@ export async function POST(
   const phone = existing.phone || selectedProfile?.phone || null;
   const licenseNumber =
     existing.licenseNumber || selectedProfile?.license_number || null;
-  const [agent] = await db
-    .update(agents)
-    .set({
-      accountStatus: "active",
-      name,
-      phone,
-      licenseNumber,
-      // Only overwrite when the admin actually supplied a value, so
-      // re-approving someone (e.g. after a revoke) can't silently wipe
-      // roster detail set earlier.
-      ...(referredByAgentId !== undefined ? { referredByAgentId } : {}),
-      ...(teamId !== undefined ? { teamId } : {}),
-      plan: effectivePlan,
-      splitPct: PLAN_SPLIT_PCT[effectivePlan],
-      planEffectiveFrom: existing.accountStatus === "pending"
-        ? now.slice(0, 10)
-        : existing.planEffectiveFrom || now.slice(0, 10),
-      anniversaryStart,
-      teamTermsEffectiveFrom: effectivePlan === "team_member"
-        ? anniversaryStart
-        : null,
-      teamTermsConfigId: effectivePlan === "team_member"
-        ? existing.teamTermsConfigId
-        : null,
-      teamTermsAcceptedAt: effectivePlan === "team_member"
-        ? existing.teamTermsAcceptedAt
-        : null,
-      onboardingCompletedAt: existing.onboardingCompletedAt || now,
-      onboardingStage: "complete",
-      updatedAt: now,
-    })
-    .where(eq(agents.id, parsedId))
-    .returning();
+  const agent = await db.transaction(async (tx) => {
+    await lockAgentLedgers(tx, [parsedId]);
+    await lockOnboardingAgent(tx, parsedId);
+    const [fresh] = await tx
+      .select()
+      .from(agents)
+      .where(eq(agents.id, parsedId))
+      .limit(1);
+    if (
+      !fresh ||
+      fresh.updatedAt !== existing.updatedAt ||
+      fresh.accountStatus !== existing.accountStatus
+    )
+      return null;
+    if (existing.accountStatus === "pending" && isOnboardingV2Enforced()) {
+      const [payment] = await tx
+        .select({ id: commerceOrders.id })
+        .from(commerceOrders)
+        .where(
+          and(
+            eq(commerceOrders.agentId, parsedId),
+            eq(commerceOrders.paymentChannel, "offline"),
+            gt(commerceOrders.licenseTransferFeeCents, 0),
+            inArray(commerceOrders.status, ["paid", "active"]),
+          ),
+        )
+        .limit(1);
+      const [pendingTeam] = await tx
+        .select({ id: teamJoinRequests.id })
+        .from(teamJoinRequests)
+        .where(
+          and(
+            eq(teamJoinRequests.agentId, parsedId),
+            eq(teamJoinRequests.status, "pending"),
+          ),
+        )
+        .limit(1);
+      if (
+        !payment ||
+        pendingTeam ||
+        !onboardingAgreementAllowsPayment(fresh) ||
+        fresh.paymentStatus !== "paid"
+      )
+        return null;
+    }
+    const [activated] = await tx
+      .update(agents)
+      .set({
+        accountStatus: "active",
+        name,
+        phone,
+        licenseNumber,
+        // Only overwrite when the admin actually supplied a value, so
+        // re-approving someone (e.g. after a revoke) can't silently wipe
+        // roster detail set earlier.
+        ...(referredByAgentId !== undefined ? { referredByAgentId } : {}),
+        ...(teamId !== undefined ? { teamId } : {}),
+        plan: effectivePlan,
+        splitPct: PLAN_SPLIT_PCT[effectivePlan],
+        planEffectiveFrom:
+          existing.accountStatus === "pending"
+            ? now.slice(0, 10)
+            : existing.planEffectiveFrom || now.slice(0, 10),
+        anniversaryStart,
+        teamTermsEffectiveFrom:
+          effectivePlan === "team_member" ? anniversaryStart : null,
+        teamTermsConfigId:
+          effectivePlan === "team_member" ? existing.teamTermsConfigId : null,
+        teamTermsAcceptedAt:
+          effectivePlan === "team_member" ? existing.teamTermsAcceptedAt : null,
+        onboardingCompletedAt: existing.onboardingCompletedAt || now,
+        onboardingStage: "complete",
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(agents.id, parsedId),
+          sql`${agents.updatedAt} IS NOT DISTINCT FROM ${existing.updatedAt}::timestamptz`,
+        ),
+      )
+      .returning();
+    return activated || null;
+  });
+  if (!agent)
+    return NextResponse.json(
+      {
+        error:
+          "Onboarding changed while approving. Refresh and review the latest status.",
+      },
+      { status: 409 },
+    );
 
   let publicResult = null;
   if (selectedProfile) {
@@ -381,7 +505,7 @@ export async function POST(
     success: true,
     publicProfileLinked: publicResult?.ok ?? false,
     mlsVerification,
-    ...((publicResult && !publicResult.ok)
+    ...(publicResult && !publicResult.ok
       ? {
           warning: String(
             publicResult.body.error || "Public profile sync failed",
@@ -393,7 +517,7 @@ export async function POST(
 
 export async function DELETE(
   _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const authResult = await requireAdminApi();
   if ("error" in authResult) return authResult.error;
@@ -417,6 +541,12 @@ export async function DELETE(
     .update(agents)
     .set({ accountStatus: "inactive", updatedAt: new Date().toISOString() })
     .where(eq(agents.id, parsedId));
-  await logAudit(authResult.session, "revoke", "agent", parsedId, `撤销经纪人 #${parsedId} 账号权限`);
+  await logAudit(
+    authResult.session,
+    "revoke",
+    "agent",
+    parsedId,
+    `撤销经纪人 #${parsedId} 账号权限`,
+  );
   return NextResponse.json({ success: true });
 }

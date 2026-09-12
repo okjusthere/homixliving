@@ -382,6 +382,9 @@ export async function PUT(req: NextRequest) {
     if (body.accountStatus !== undefined && !isAgentAccountStatus(body.accountStatus)) {
       return NextResponse.json({ error: "Invalid account status" }, { status: 400 });
     }
+    if (existing.accountStatus === "pending" && body.accountStatus === "active") {
+      return NextResponse.json({ error: "请通过「处理入职」审批开通账号。Use the onboarding approval flow to activate a pending account." }, { status: 409 });
+    }
 
     if (invalidLicenseExpiry(body)) {
       return NextResponse.json({ error: "licenseExpiresAt must be YYYY-MM-DD" }, { status: 400 });

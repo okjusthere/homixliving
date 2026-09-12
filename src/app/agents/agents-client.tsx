@@ -5,6 +5,8 @@ import Link from "next/link";
 import { CelebrationsConsole } from "@/components/admin/celebrations-console";
 import { useListQuery, ListPagination } from "@/components/admin/list-controls";
 import { EditPanel } from "@/components/admin/edit-panel";
+import { OnboardingPanel } from "@/components/admin/onboarding-panel";
+import { onboardingWorkflow, ONBOARDING_NEXT } from "@/lib/onboarding-workflow";
 import { AgentEmailsPanel } from "@/components/admin/agent-emails-panel";
 import { matchesAgentSearch, paginate } from "@/lib/agent-list";
 import { toast } from "sonner";
@@ -74,7 +76,7 @@ const M = {
     teamPlural: "teams",
     addAgent: "Add Agent",
     searchPlaceholder: "Search name, team, license, email…",
-    pendingApprovals: "Pending approvals",
+    pendingApprovals: "Onboarding tasks",
     pendingSubtitle:
       "Online onboarding activates after Stripe payment; approve only verified offline payments",
     existingPublicProfile: "Existing website profile (optional)",
@@ -186,7 +188,7 @@ const M = {
     teamPlural: "个团队",
     addAgent: "添加经纪人",
     searchPlaceholder: "搜索姓名、团队、执照、邮箱…",
-    pendingApprovals: "待审批",
+    pendingApprovals: "入职处理",
     pendingSubtitle:
       "线上签约在 Stripe 付款后自动开通；这里只审批已核验的线下付款",
     existingPublicProfile: "关联既有官网经纪人（可选）",
@@ -425,9 +427,6 @@ export default function AgentsConsole() {
   const [approvalLinks, setApprovalLinks] = useState<Record<number, string>>(
     {},
   );
-  const [approvalReferrers, setApprovalReferrers] = useState<
-    Record<number, string>
-  >({});
   const [loading, setLoading] = useState(true);
   const [editAgent, setEditAgent] = useState<Partial<Agent> | null>(null);
   const [saving, setSaving] = useState(false);
@@ -506,7 +505,7 @@ export default function AgentsConsole() {
   }, [editingKey, agents]);
   const openAgent = (agent: Partial<Agent>) =>
     updateQuery(
-      { agent: agent.id ? String(agent.id) : "new", emails: null },
+      { agent: agent.id ? String(agent.id) : "new", emails: null, onboarding: null },
       true,
     );
   const selectView = (next: AdminView) =>
@@ -521,6 +520,7 @@ export default function AgentsConsole() {
         page: null,
         agent: null,
         emails: null,
+        onboarding: null,
         profile: null,
         link: null,
         visibility: null,
@@ -539,7 +539,7 @@ export default function AgentsConsole() {
     ]);
 
   const pending = useMemo(
-    () => agents.filter((row) => row.agent.accountStatus === "pending"),
+    () => agents.filter((row) => row.agent.accountStatus === "pending" || (row.agent.accountStatus === "active" && onboardingWorkflow(row.agent, row.onboardingPaymentChannel || null).countersignPending)),
     [agents],
   );
 
@@ -616,9 +616,11 @@ export default function AgentsConsole() {
     const signed = Boolean(
       agent.agreementAgentSignedAt || agent.agreementStatus === "completed",
     );
-    if (taskFilter === "signature") return !signed;
+    if (taskFilter === "signature") return row.agent.accountStatus === "pending" && !signed;
+    if (taskFilter === "profile") return !agent.onboardingCompletedAt;
+    if (taskFilter === "issues") return ["expired", "voided", "declined", "failed"].includes(agent.agreementStatus);
     if (taskFilter === "countersign")
-      return signed && agent.agreementStatus !== "completed";
+      return onboardingWorkflow(agent, onboardingPaymentChannel || null).countersignPending;
     if (taskFilter === "payment") return agent.paymentStatus === "pending";
     if (taskFilter === "offline")
       return (
@@ -638,11 +640,10 @@ export default function AgentsConsole() {
   const handleApprove = async (id: number) => {
     try {
       const publicProfileId = approvalLinks[id] || undefined;
-      const referredByAgentId = approvalReferrers[id] || undefined;
       const res = await fetch(`/api/agents/${id}/approve`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ publicProfileId, referredByAgentId }),
+        body: JSON.stringify({ publicProfileId }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(String(data.error || t.couldNotApprove));
@@ -721,6 +722,7 @@ export default function AgentsConsole() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(String(data.error || t.saveFailed));
       toast.success(t.offlineRecorded);
+      updateQuery({ onboarding: String(offlineAgent.id) });
       setOfflineAgent(null);
       fetchAgents();
     } catch (error) {
@@ -924,10 +926,12 @@ export default function AgentsConsole() {
             >
               {[
                 ["", "全部待办", "All tasks"],
+                ["profile", "待完善资料", "Incomplete profile"],
                 ["signature", "待经纪人签署", "Awaiting agent signature"],
+                ["issues", "签约异常", "Agreement issues"],
                 ["countersign", "待公司会签", "Awaiting countersignature"],
                 ["payment", "待付款", "Awaiting payment"],
-                ["offline", "线下已付待核验", "Offline payment review"],
+                ["offline", "线下已核验待审批", "Verified offline · approve"],
               ].map(([value, zh, en]) => (
                 <option key={value} value={value}>
                   {locale === "zh" ? zh : en}
@@ -1052,11 +1056,7 @@ export default function AgentsConsole() {
                     agent.agreementAgentSignedAt ||
                       agent.agreementStatus === "completed",
                   );
-                  const canApproveOffline = Boolean(
-                    agent.paymentStatus === "paid" &&
-                      onboardingPaymentChannel === "offline",
-                  );
-                  const canApprove = canApproveOffline;
+                  const workflow = onboardingWorkflow(agent, onboardingPaymentChannel || null);
                   return (
                     <div
                       key={agent.id}
@@ -1132,128 +1132,11 @@ export default function AgentsConsole() {
                         </div>
                       </div>
                       <div className="col-span-full flex min-w-0 flex-wrap items-center gap-2 sm:col-span-1 sm:justify-end">
-                        {canApprove && (
-                          <label className="flex w-full min-w-0 flex-col gap-1 sm:w-auto sm:flex-none">
-                            <span
-                              className="text-[10.5px]"
-                              style={{ color: tone.ink50 }}
-                            >
-                              {t.existingPublicProfile}
-                            </span>
-                            <select
-                              value={approvalLinks[agent.id] || ""}
-                              onChange={(event) =>
-                                setApprovalLinks((current) => ({
-                                  ...current,
-                                  [agent.id]: event.target.value,
-                                }))
-                              }
-                              disabled={publicRosterLoading}
-                              className="h-9 w-full rounded border bg-white px-2 text-[12px] disabled:opacity-60 sm:max-w-[260px]"
-                              style={{
-                                borderColor: tone.line,
-                                color: tone.ink,
-                              }}
-                            >
-                              <option value="">
-                                {publicRosterLoading
-                                  ? t.loadingPublicProfiles
-                                  : t.noExistingPublicProfile}
-                              </option>
-                              {unlinkedPublicAgents.map((profile) => (
-                                <option key={profile.id} value={profile.id}>
-                                  {profile.name || profile.slug} · /
-                                  {profile.slug}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                        )}
-                        {/* Captured here because approval is the one moment an admin
-                      is already looking at this person; asked for later, it
-                      rarely gets filled in. Optional. */}
-                        {canApprove && (
-                          <label className="flex w-full min-w-0 flex-col gap-1 sm:w-auto sm:flex-none">
-                            <span
-                              className="text-[10.5px]"
-                              style={{ color: tone.ink50 }}
-                            >
-                              {t.labelReferredBy}
-                            </span>
-                            <select
-                              value={approvalReferrers[agent.id] || ""}
-                              onChange={(event) =>
-                                setApprovalReferrers((current) => ({
-                                  ...current,
-                                  [agent.id]: event.target.value,
-                                }))
-                              }
-                              className="h-9 w-full rounded border bg-white px-2 text-[12px] sm:max-w-[180px]"
-                              style={{
-                                borderColor: tone.line,
-                                color: tone.ink,
-                              }}
-                            >
-                              <option value="">{t.noReferrer}</option>
-                              {agents
-                                .filter(
-                                  ({ agent: a }) =>
-                                    a.accountStatus === "active" &&
-                                    a.id !== agent.id,
-                                )
-                                .map(({ agent: a }) => (
-                                  <option key={a.id} value={a.id}>
-                                    {a.name}
-                                  </option>
-                                ))}
-                            </select>
-                          </label>
-                        )}
-                        <Btn
-                          variant="outline"
-                          size="sm"
-                          onClick={() => openAgent(agent)}
-                        >
-                          {t.edit}
+                        <Pill tone={workflow.canApprove ? "draft" : "neutral"}>{ONBOARDING_NEXT[workflow.next][locale === "zh" ? 0 : 1]}</Pill>
+                        <Btn variant="primary" size="sm" onClick={() => updateQuery({ onboarding: String(agent.id) })}>
+                          {locale === "zh" ? "处理入职" : "Manage onboarding"}
                         </Btn>
-                        {agentSigned &&
-                          agent.paymentStatus !== "paid" &&
-                          (agent.plan !== "team_member" ||
-                            Boolean(agent.teamTermsAcceptedAt)) && (
-                            <Btn
-                              variant="outline"
-                              size="sm"
-                              onClick={() => openOfflinePayment(agent)}
-                            >
-                              {t.recordOffline}
-                            </Btn>
-                          )}
-                        <Btn
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleIgnore(agent.id)}
-                        >
-                          {t.ignore}
-                        </Btn>
-                        {agent.paymentStatus === "paid" &&
-                          onboardingPaymentChannel === "stripe" && (
-                            <span
-                              className="text-[11px]"
-                              style={{ color: tone.accent }}
-                            >
-                              {t.onlineActivationPending}
-                            </span>
-                          )}
-                        {canApprove && (
-                          <Btn
-                            variant="primary"
-                            size="sm"
-                            icon={<Icons.Check />}
-                            onClick={() => handleApprove(agent.id)}
-                          >
-                            {t.approve}
-                          </Btn>
-                        )}
+                        {agent.accountStatus === "pending" && <Btn variant="outline" size="sm" onClick={() => handleIgnore(agent.id)}>{t.ignore}</Btn>}
                       </div>
                     </div>
                   );
@@ -1553,6 +1436,16 @@ export default function AgentsConsole() {
           </div>
         </div>
       )}
+
+      {agents.find((row) => String(row.agent.id) === params.get("onboarding")) && (() => {
+        const row = agents.find((r) => String(r.agent.id) === params.get("onboarding"))!;
+        const close = () => updateQuery({ onboarding: null });
+        return <OnboardingPanel key={row.agent.id} agentId={row.agent.id} onClose={close} onChanged={() => { void fetchAgents(); }}
+          onEdit={() => { close(); openAgent(row.agent); }}
+          onOffline={() => { close(); openOfflinePayment(row.agent); }}
+          onApprove={() => handleApprove(row.agent.id)}
+          approvalFields={<div className="space-y-3"><label className="block text-sm">{t.existingPublicProfile}<select className="admin-control mt-1 w-full" disabled={publicRosterLoading} value={approvalLinks[row.agent.id] || ""} onChange={(e) => setApprovalLinks((current) => ({ ...current, [row.agent.id]: e.target.value }))}><option value="">{t.noExistingPublicProfile}</option>{unlinkedPublicAgents.map((profile) => <option key={profile.id} value={profile.id}>{profile.name || profile.slug}</option>)}</select></label></div>}/>
+      })()}
 
       {emailAgent && (
         <AgentEmailsPanel

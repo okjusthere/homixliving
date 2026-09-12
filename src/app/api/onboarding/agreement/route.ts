@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNull } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "@/db";
 import {
   agents,
+  commerceOrders,
   onboardingInvitations,
   teamCompensationConfigs,
   teamJoinRequests,
@@ -135,6 +136,7 @@ async function releaseFailedPreparation(agentId: number, attempt: AgreementAttem
 export async function GET() {
   const agent = await currentAgent();
   if (!agent) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const [payment] = await db.select({ channel: commerceOrders.paymentChannel }).from(commerceOrders).where(and(eq(commerceOrders.agentId, agent.id), gt(commerceOrders.licenseTransferFeeCents, 0), inArray(commerceOrders.status, ["paid", "active"]))).orderBy(desc(commerceOrders.paidAt), desc(commerceOrders.id)).limit(1);
   try {
     const synced = await syncOnboardingAgreement(agent);
     return NextResponse.json({
@@ -148,6 +150,7 @@ export async function GET() {
       agreementCountersignedAt: synced.agreementCountersignedAt,
       onboardingStage: synced.onboardingStage,
       paymentStatus: synced.paymentStatus,
+      paymentChannel: payment?.channel || null,
       paymentProduct: onboardingPaymentProduct(synced.plan, synced.affiliationTermMonths),
     });
   } catch (error) {
@@ -163,6 +166,7 @@ export async function GET() {
       agreementCountersignedAt: agent.agreementCountersignedAt,
       onboardingStage: agent.onboardingStage,
       paymentStatus: agent.paymentStatus,
+      paymentChannel: payment?.channel || null,
       paymentProduct: onboardingPaymentProduct(agent.plan, agent.affiliationTermMonths),
       syncError: true,
     });

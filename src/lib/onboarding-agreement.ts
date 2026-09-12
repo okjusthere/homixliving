@@ -68,8 +68,12 @@ export async function syncOnboardingAgreement(agent: typeof agents.$inferSelect)
     throw new Error("The licensed company does not have an approved onboarding agreement.");
   }
   const envelope = await getESignEnvelope(agent.esignEnvelopeId);
-  if (envelope.templateVersionId !== templateConfiguration.templateVersionId) {
+  if (envelope.id !== agent.esignEnvelopeId || envelope.templateVersionId !== (agent.esignTemplateVersionId || templateConfiguration.templateVersionId)) {
     throw new Error("The onboarding envelope uses an unapproved template version.");
+  }
+  const signers = envelope.recipients?.filter((recipient) => recipient.kind === "signer") || [];
+  if (signers.length > 0 && (signers.length !== 1 || signers[0].email.trim().toLowerCase() !== agent.email.trim().toLowerCase())) {
+    throw new Error("The onboarding envelope belongs to a different signer.");
   }
   const status = esignEnvelopeHasExpired(envelope) ? "expired" : onboardingAgreementState(envelope.status);
   const signatures = onboardingEnvelopeSignatureProgress(envelope);
