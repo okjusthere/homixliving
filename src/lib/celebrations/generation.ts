@@ -320,7 +320,7 @@ export async function prepareUpcomingBirthdays(today = nyDate()) {
       );
     });
   // Rotate previously blocked rows behind unchecked rows at the same date, so
-  // a large roster cannot starve later agents on every hourly invocation.
+  // a large roster cannot starve later agents on every daily invocation.
   profiles.sort(
     (a, b) =>
       dateFor(a).localeCompare(dateFor(b)) ||

@@ -7,7 +7,7 @@
   "crons": [
     {
       "path": "/api/cron/celebrations",
-      "schedule": "15 * * * *"
+      "schedule": "15 12 * * *"
     },
     {
       "path": "/api/cron/workspace-retention",

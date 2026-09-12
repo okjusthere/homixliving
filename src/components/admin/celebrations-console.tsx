@@ -810,8 +810,8 @@ export function CelebrationsConsole({ kind }: { kind: CelebrationKind }) {
             </label>
             <p className="text-sm text-ink-50">
               {t(
-                "Checks hourly. Pausing stops new automatic preparations; existing jobs finish. Manual generation remains available. Posters are never automatically posted or emailed.",
-                "每小时检查一次。暂停后不再创建自动任务，已排队任务会继续，仍可手动制作。系统不会自动对外发布或发邮件。",
+                "Checks every morning. Pausing stops new automatic preparations; existing jobs finish. Manual generation remains available. Posters are never automatically posted or emailed.",
+                "每天早晨检查一次。暂停后不再创建自动任务，已排队任务会继续，仍可手动制作。系统不会自动对外发布或发邮件。",
               )}
             </p>
             <Link

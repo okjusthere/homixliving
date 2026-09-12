@@ -17,7 +17,7 @@ No real dates are seeded. HR can import the roster after release.
 
 ## Preparation and review
 
-The production cron `/api/cron/celebrations` runs hourly and authenticates with the existing `CRON_SECRET`. Defaults are seven days ahead, Chinese, and ten company generations per New York calendar day. Administrators can pause new automatic preparation, change the lead time/language/limit, or check now. Already queued work continues when automatic preparation is paused.
+The current Vercel Hobby plan supports daily scheduling. The production cron `/api/cron/celebrations` runs daily at 12:15 UTC (07:15/08:15 in New York, depending on daylight saving) and authenticates with the existing `CRON_SECRET`. Defaults are seven days ahead, Chinese, and ten company generations per New York calendar day. Administrators can pause new automatic preparation, change the lead time/language/limit, or check now. Already queued work continues when automatic preparation is paused.
 
 Each agent, occasion and calendar year has one durable event. A company transaction lock serializes budgeting and creation; explicit regeneration compares the previous generation ID. Birthday and anniversary revisions are independent. Changes to eligibility cancel queued work, and the provider claim checks current eligibility again before spending. Uncertain provider outcomes require administrator review; the scheduler never repeats them automatically.
 
