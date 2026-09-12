@@ -36,6 +36,7 @@ export type ESignTemplate = {
 
 export type ESignEnvelope = {
   id: string;
+  documents?: Array<{ id: string; name: string; order: number }>;
   transactionId?: string;
   templateVersionId: string;
   evidencePackageId?: string;
@@ -76,6 +77,7 @@ export type ESignEnvelope = {
 export type ESignEvidence = {
   id: string;
   verificationStatus: "VERIFIED" | "FAILED";
+  files?: Array<{ name: string; contentType: string; bytes: number }>;
 };
 
 export type ESignTransaction = {
@@ -127,7 +129,11 @@ export function resolveOnboardingESignEntity(
   licensedCompany: string | null | undefined,
 ) {
   const normalized = normalizeLegalEntity(licensedCompany);
-  return ONBOARDING_ESIGN_ENTITIES.find((entity) => entity.aliases.includes(normalized)) || null;
+  return (
+    ONBOARDING_ESIGN_ENTITIES.find((entity) =>
+      entity.aliases.includes(normalized),
+    ) || null
+  );
 }
 
 function apiConfig() {
@@ -145,22 +151,30 @@ export function onboardingESignTemplateConfiguration(
   const entity = resolveOnboardingESignEntity(licensedCompany);
   if (!entity) return null;
   const normalizedPlan = normalizeAgentPlan(plan);
-  if (normalizedPlan !== "solo" && normalizedPlan !== "solo_pro" && normalizedPlan !== "team_member") {
+  if (
+    normalizedPlan !== "solo" &&
+    normalizedPlan !== "solo_pro" &&
+    normalizedPlan !== "team_member"
+  ) {
     return null;
   }
   if (entity.key === "homix_realty" && !liborMembershipStatus) return null;
   const planSegment = normalizedPlan.toUpperCase();
-  const liborSegment = entity.key === "homix_realty"
-    ? `_${liborMembershipStatus === "existing_member" ? "EXISTING_MEMBER" : "APPLY_NEW"}`
-    : "";
+  const liborSegment =
+    entity.key === "homix_realty"
+      ? `_${liborMembershipStatus === "existing_member" ? "EXISTING_MEMBER" : "APPLY_NEW"}`
+      : "";
   const templatePrefix = `${entity.envPrefix}_${planSegment}${liborSegment}`;
-  const readTemplate = (suffix: string) => process.env[`${templatePrefix}_${suffix}`]?.trim() || "";
-  const readEntity = (suffix: string) => process.env[`${entity.envPrefix}_${suffix}`]?.trim() || "";
+  const readTemplate = (suffix: string) =>
+    process.env[`${templatePrefix}_${suffix}`]?.trim() || "";
+  const readEntity = (suffix: string) =>
+    process.env[`${entity.envPrefix}_${suffix}`]?.trim() || "";
   return {
     entityKey: entity.key,
     legalEntityName: entity.legalName,
     plan: normalizedPlan,
-    liborMembershipStatus: entity.key === "homix_realty" ? liborMembershipStatus : null,
+    liborMembershipStatus:
+      entity.key === "homix_realty" ? liborMembershipStatus : null,
     templateId: readTemplate("TEMPLATE_ID"),
     templateVersionId: readTemplate("TEMPLATE_VERSION_ID"),
     templateSchemaHash: readTemplate("TEMPLATE_SCHEMA_HASH"),
@@ -174,10 +188,12 @@ export function teamLeaderESignTemplateConfiguration(
 ) {
   const entity = resolveOnboardingESignEntity(licensedCompany);
   if (!entity) return null;
-  const prefix = entity.key === "homix_realty"
-    ? "ESIGN_TEAM_LEADER_HOMIX_REALTY"
-    : "ESIGN_TEAM_LEADER_HOMIX_LIVING";
-  const read = (suffix: string) => process.env[`${prefix}_${suffix}`]?.trim() || "";
+  const prefix =
+    entity.key === "homix_realty"
+      ? "ESIGN_TEAM_LEADER_HOMIX_REALTY"
+      : "ESIGN_TEAM_LEADER_HOMIX_LIVING";
+  const read = (suffix: string) =>
+    process.env[`${prefix}_${suffix}`]?.trim() || "";
   return {
     entityKey: entity.key,
     legalEntityName: entity.legalName,
@@ -190,7 +206,11 @@ export function teamLeaderESignTemplateConfiguration(
 }
 
 export class ESignApiError extends Error {
-  constructor(message: string, readonly status: number) {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly code?: string,
+  ) {
     super(message);
     this.name = "ESignApiError";
   }
@@ -209,13 +229,13 @@ export function isOnboardingESignConfigured(
   );
   return Boolean(
     value &&
-      api.baseUrl &&
-      api.applicationKey &&
-      value.templateId &&
-      value.templateVersionId &&
-      value.templateSchemaHash &&
-      value.countersignerName &&
-      value.countersignerEmail,
+    api.baseUrl &&
+    api.applicationKey &&
+    value.templateId &&
+    value.templateVersionId &&
+    value.templateSchemaHash &&
+    value.countersignerName &&
+    value.countersignerEmail,
   );
 }
 
@@ -226,13 +246,13 @@ export function isTeamLeaderESignConfigured(
   const value = teamLeaderESignTemplateConfiguration(licensedCompany);
   return Boolean(
     value &&
-      api.baseUrl &&
-      api.applicationKey &&
-      value.templateId &&
-      value.templateVersionId &&
-      value.templateSchemaHash &&
-      value.countersignerName &&
-      value.countersignerEmail,
+    api.baseUrl &&
+    api.applicationKey &&
+    value.templateId &&
+    value.templateVersionId &&
+    value.templateSchemaHash &&
+    value.countersignerName &&
+    value.countersignerEmail,
   );
 }
 
@@ -252,24 +272,101 @@ async function esignRequest<T>(path: string, init?: RequestInit): Promise<T> {
       ...init?.headers,
     },
   });
-  const body = await response.json().catch(() => null) as ApiResult<T> | { error?: { message?: string } } | null;
+  const body = (await response.json().catch(() => null)) as
+    ApiResult<T> | { error?: { message?: string; code?: string } } | null;
   if (!response.ok || !body || !("data" in body)) {
     const message = body && "error" in body ? body.error?.message : null;
-    throw new ESignApiError(message || `eSign request failed (${response.status}).`, response.status);
+    throw new ESignApiError(
+      message || `eSign request failed (${response.status}).`,
+      response.status,
+      body && "error" in body ? body.error?.code : undefined,
+    );
   }
   return body.data;
 }
 
 export function getESignTemplate(templateId: string) {
-  return esignRequest<ESignTemplate>(`/v1/templates/${encodeURIComponent(templateId)}`);
+  return esignRequest<ESignTemplate>(
+    `/v1/templates/${encodeURIComponent(templateId)}`,
+  );
 }
 
 export function getESignEnvelope(envelopeId: string) {
-  return esignRequest<ESignEnvelope>(`/v1/envelopes/${encodeURIComponent(envelopeId)}`);
+  return esignRequest<ESignEnvelope>(
+    `/v1/envelopes/${encodeURIComponent(envelopeId)}`,
+  );
 }
 
 export function getESignEvidence(envelopeId: string) {
-  return esignRequest<ESignEvidence>(`/v1/envelopes/${encodeURIComponent(envelopeId)}/evidence`);
+  return esignRequest<ESignEvidence>(
+    `/v1/envelopes/${encodeURIComponent(envelopeId)}/evidence`,
+  );
+}
+
+export async function downloadESignPdf(
+  envelopeId: string,
+  file: { documentId: string } | { filename: string },
+) {
+  const value = apiConfig();
+  if (!value.baseUrl || !value.applicationKey)
+    throw new Error("eSign is not configured");
+  const suffix =
+    "documentId" in file
+      ? `documents/${encodeURIComponent(file.documentId)}`
+      : `evidence/${encodeURIComponent(file.filename)}`;
+  const response = await fetch(
+    `${value.baseUrl}/v1/envelopes/${encodeURIComponent(envelopeId)}/${suffix}`,
+    {
+      cache: "no-store",
+      signal: AbortSignal.timeout(20_000),
+      headers: {
+        "x-esign-key": value.applicationKey,
+        accept: "application/pdf",
+      },
+    },
+  );
+  if (!response.ok)
+    throw new ESignApiError("Contract PDF is unavailable", response.status);
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (
+    bytes.length > 30 * 1024 * 1024 ||
+    new TextDecoder().decode(bytes.slice(0, 5)) !== "%PDF-"
+  )
+    throw new ESignApiError("Invalid contract PDF", 502);
+  return bytes;
+}
+
+export async function createESignSignerAccess(
+  envelopeId: string,
+  recipientId: string,
+  email: string,
+) {
+  const result = await esignRequest<{ url: string }>(
+    `/v1/envelopes/${encodeURIComponent(envelopeId)}/recipients/${encodeURIComponent(recipientId)}/access`,
+    { method: "POST", body: JSON.stringify({ authenticatedEmail: email }) },
+  );
+  const url = new URL(result.url);
+  const expected = new URL(
+    process.env.ESIGN_PUBLIC_URL?.trim() || apiConfig().baseUrl,
+  );
+  if (
+    url.origin !== expected.origin ||
+    !/^\/sign\/[A-Za-z0-9_-]{30,200}$/.test(url.pathname) ||
+    url.search ||
+    url.hash ||
+    url.username ||
+    url.password
+  ) {
+    throw new ESignApiError("Unexpected signing URL", 502);
+  }
+  return url.toString();
+}
+
+export function resendESignRecipient(envelopeId: string, recipientId: string) {
+  return esignRequest<{ sent?: boolean }>(
+    `/v1/envelopes/${encodeURIComponent(envelopeId)}/recipients/${encodeURIComponent(recipientId)}/resend`,
+    { method: "POST", body: "{}" },
+  );
 }
 
 export function listESignTransactions() {
@@ -304,7 +401,8 @@ export async function findOrCreateESignTransaction(input: {
   } catch (error) {
     if (!(error instanceof ESignApiError) || error.status !== 409) throw error;
     const raced = (await listESignTransactions()).find(
-      (transaction) => transaction.externalReference === input.externalReference,
+      (transaction) =>
+        transaction.externalReference === input.externalReference,
     );
     if (!raced) throw error;
     return raced;
@@ -325,8 +423,10 @@ export function createESignEnvelope(input: {
   message?: string;
   expiresAt?: string;
 }) {
-  const expiresAt = input.expiresAt || new Date(Date.now() + 14 * 86_400_000).toISOString();
-  const externalReference = input.externalReference || `homix-onboarding-agent-${input.agentId}`;
+  const expiresAt =
+    input.expiresAt || new Date(Date.now() + 14 * 86_400_000).toISOString();
+  const externalReference =
+    input.externalReference || `homix-onboarding-agent-${input.agentId}`;
   return esignRequest<ESignEnvelope>("/v1/envelopes", {
     method: "POST",
     headers: { "idempotency-key": externalReference },
@@ -336,8 +436,11 @@ export function createESignEnvelope(input: {
       expectedTemplateSchemaHash: input.expectedTemplateSchemaHash,
       transactionId: input.transactionId,
       externalReference,
-      subject: input.subject || `${input.legalEntityName} agent affiliation agreement`,
-      message: input.message || `Please review and sign your ${input.legalEntityName} affiliation agreement.`,
+      subject:
+        input.subject || `${input.legalEntityName} agent affiliation agreement`,
+      message:
+        input.message ||
+        `Please review and sign your ${input.legalEntityName} affiliation agreement.`,
       expiresAt,
       recipients: input.recipients,
       mergeData: input.mergeData,
@@ -346,8 +449,18 @@ export function createESignEnvelope(input: {
 }
 
 export function esignEnvelopeHasExpired(envelope: ESignEnvelope) {
-  return Boolean(envelope.expiresAt && new Date(envelope.expiresAt).getTime() <= Date.now() &&
-    ["DRAFT", "PREPARED", "APPROVAL_PENDING", "READY_TO_SEND", "SENT", "IN_PROGRESS"].includes(envelope.status));
+  return Boolean(
+    envelope.expiresAt &&
+    new Date(envelope.expiresAt).getTime() <= Date.now() &&
+    [
+      "DRAFT",
+      "PREPARED",
+      "APPROVAL_PENDING",
+      "READY_TO_SEND",
+      "SENT",
+      "IN_PROGRESS",
+    ].includes(envelope.status),
+  );
 }
 
 export async function ensureESignEnvelopeReplaceable(envelopeId: string) {
@@ -357,20 +470,37 @@ export async function ensureESignEnvelopeReplaceable(envelopeId: string) {
     // Close the expired envelope before creating its replacement. If signing
     // finished in the meantime, eSign rejects voiding and we leave it intact.
     await esignRequest(`/v1/envelopes/${encodeURIComponent(envelopeId)}/void`, {
-      method: "POST", body: JSON.stringify({ reason: "Replace expired Homix agreement at the applicant's request." }),
+      method: "POST",
+      body: JSON.stringify({
+        reason: "Replace expired Homix agreement at the applicant's request.",
+      }),
     });
     return;
   }
-  throw new ESignApiError("The agreement cannot be restarted in its current state. Refresh its status.", 409);
+  throw new ESignApiError(
+    "The agreement cannot be restarted in its current state. Refresh its status.",
+    409,
+  );
 }
 
-export async function findOrCreateESignEnvelope(input: Parameters<typeof createESignEnvelope>[0]) {
-  const reference = input.externalReference || `homix-onboarding-agent-${input.agentId}`;
+export async function findOrCreateESignEnvelope(
+  input: Parameters<typeof createESignEnvelope>[0],
+) {
+  const reference =
+    input.externalReference || `homix-onboarding-agent-${input.agentId}`;
   const find = async () => {
-    const envelope = (await esignRequest<ESignEnvelope[]>("/v1/envelopes"))
-      .find((candidate) => candidate.externalReference === reference);
-    if (envelope && (envelope.templateVersionId !== input.expectedTemplateVersionId || envelope.transactionId !== input.transactionId)) {
-      throw new ESignApiError("The existing agreement does not match this preparation attempt.", 409);
+    const envelope = (
+      await esignRequest<ESignEnvelope[]>("/v1/envelopes")
+    ).find((candidate) => candidate.externalReference === reference);
+    if (
+      envelope &&
+      (envelope.templateVersionId !== input.expectedTemplateVersionId ||
+        envelope.transactionId !== input.transactionId)
+    ) {
+      throw new ESignApiError(
+        "The existing agreement does not match this preparation attempt.",
+        409,
+      );
     }
     return envelope;
   };
@@ -386,12 +516,19 @@ export async function findOrCreateESignEnvelope(input: Parameters<typeof createE
   }
 }
 
-export function sendESignEnvelope(envelopeId: string, agentId: number, idempotencyKey?: string) {
+export function sendESignEnvelope(
+  envelopeId: string,
+  agentId: number,
+  idempotencyKey?: string,
+) {
   return esignRequest<{ envelope: ESignEnvelope; replayed: boolean }>(
     `/v1/envelopes/${encodeURIComponent(envelopeId)}/send`,
     {
       method: "POST",
-      headers: { "idempotency-key": idempotencyKey || `homix-onboarding-send-agent-${agentId}` },
+      headers: {
+        "idempotency-key":
+          idempotencyKey || `homix-onboarding-send-agent-${agentId}`,
+      },
       body: "{}",
     },
   );

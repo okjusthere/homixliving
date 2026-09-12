@@ -21,6 +21,7 @@ class OfflinePaymentConflictError extends Error {}
 export async function POST(req: NextRequest) {
   const auth = await requireAdminApi();
   if ("error" in auth) return auth.error;
+  if (req.headers.get("origin") !== req.nextUrl.origin) return NextResponse.json({ error: "Invalid origin" }, { status: 403 });
   const body = await req.json().catch(() => null) as Record<string, unknown> | null;
   if (!body) return NextResponse.json({ error: "Invalid body" }, { status: 400 });
 
@@ -29,8 +30,9 @@ export async function POST(req: NextRequest) {
   const reference = String(body.reference || "").trim().slice(0, 120);
   const idempotencyKey = String(body.idempotencyKey || "").trim().slice(0, 120);
   const receivedAtInput = String(body.receivedAt || "").trim();
-  const receivedAt = /^\d{4}-\d{2}-\d{2}$/.test(receivedAtInput)
-    ? new Date(`${receivedAtInput}T12:00:00.000Z`).toISOString()
+  const receivedDate = new Date(`${receivedAtInput}T12:00:00.000Z`);
+  const receivedAt = /^\d{4}-\d{2}-\d{2}$/.test(receivedAtInput) && Number.isFinite(receivedDate.getTime()) && receivedDate.toISOString().slice(0, 10) === receivedAtInput
+    ? receivedDate.toISOString()
     : "";
   if (!Number.isInteger(agentId) || agentId <= 0) {
     return NextResponse.json({ error: "Valid agentId is required" }, { status: 400 });
@@ -117,6 +119,7 @@ export async function POST(req: NextRequest) {
       if (!lockedAgent || lockedAgent.paymentStatus === "paid") {
         return { order: null, replayed: false, alreadyPaid: true as const };
       }
+      if (lockedAgent.updatedAt !== agent.updatedAt || lockedAgent.accountStatus !== "pending" || !onboardingAgreementAllowsPayment(lockedAgent)) throw new OfflinePaymentConflictError("Onboarding changed. Refresh before verifying payment.");
       const now = new Date().toISOString();
       const [order] = await tx.insert(commerceOrders).values({
         agentId: agent.id,
@@ -151,7 +154,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     if (error instanceof OfflinePaymentConflictError) {
-      return NextResponse.json({ error: "Idempotency key belongs to another agent" }, { status: 409 });
+      return NextResponse.json({ error: error.message || "Idempotency key belongs to another agent" }, { status: 409 });
     }
     throw error;
   }

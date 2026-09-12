@@ -1,5 +1,21 @@
 # Onboarding contract handoff
 
+## Daily onboarding operations
+
+Administrators use `/admin/agents?view=onboarding` and the always-visible **Manage onboarding / 处理入职** action. The panel shows profile, agent signature, team consent, verified payment and Portal access separately, with contract PDFs and recipient-specific reminder actions. Company countersign tasks remain visible after account activation. The row filter labelled offline approval means a receipt has already been verified, not that an unpaid applicant is ready for approval.
+
+- Online: profile → agent signature → Stripe payment → automatic activation.
+- Offline: profile → agent signature → administrator verifies the receipt → administrator approves and activates.
+- A disabled approval action explains the remaining requirements. Editing a pending person's account status cannot bypass onboarding. Approval rechecks the agent and settled order under a lock; repeated clicks cannot issue duplicate activation notifications.
+
+The applicant's `/pending` page provides **Continue signing** and **Resend signing email**. Continue opens the existing agreement in another tab, retaining the onboarding page for payment. Resend preserves saved work but replaces older invitation links. An expired or terminated agreement uses the existing restart flow, retaining prior evidence and payment records. A finalization failure does not require another signature.
+
+`ESIGN_PUBLIC_URL` is the allowed origin of returned signing URLs, normally `https://esign.kevv.ai`; it defaults to `ESIGN_API_URL` when omitted. The eSign release must provide the source-application recipient access and envelope document endpoints before the Portal release. Old envelopes retain their pinned template version when new templates are published.
+
+Original contract PDFs are labelled as unsigned originals; completed PDFs come from verified evidence. An administrator can inspect and send reminders but cannot obtain another person's signing session. Signing requests, reminder requests and successful sends are audited without bearer URLs.
+
+Regression commands: `npm run test:onboarding-workflow`, `npm run test:signing-access:db` (dedicated local database `homix_signing_access`), and `npm run test:agreement-recovery:db`. These tests never contact production signing or email services.
+
 `ONBOARDING_V2_ENFORCED` is the production rollback switch. Keep it at `0`
 while preparing templates or payment configuration, and set it to `1` only
 after Homix approves the cutover and the production smoke suite passes.

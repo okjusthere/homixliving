@@ -63,6 +63,11 @@ const M = {
     both: "Rental and sales",
     invitedRoute: (source: string) => `Invitation applied · ${source.toUpperCase()} · locked details cannot be changed`,
     agreementTitle: "Affiliation agreement",
+    continueSigning: "Continue signing",
+    resendSigning: "Resend signing email",
+    openingSigning: "Opening…",
+    resumeHint: "Signing opens in a new tab. Saved progress is retained; return here for payment.",
+    resendHint: "A new email replaces earlier signing links. Your saved progress stays with the agreement.",
     agreementHint: "Your submitted facts are inserted into the agreement. Review and sign before payment.",
     sendAgreement: "Retry sending agreement",
     restartAgreement: "Create a new agreement and send",
@@ -78,6 +83,7 @@ const M = {
     payAnnualFee: "Pay affiliation fee",
     paymentReceived: "Payment received",
     finalReview: "Payment received. Your Portal access is activating automatically.",
+    offlineReview: "Your offline payment has been verified. An administrator will review and activate your account.",
     teamTermsTitle: "Team terms included in your agreement",
     standardTeamSplit: "Standard team split",
     sourcedTeamSplit: "Team-sourced split",
@@ -137,6 +143,11 @@ const M = {
     both: "租赁与买卖",
     invitedRoute: (source: string) => `已应用邀请 · ${source.toUpperCase()} · 被锁定的资料不可修改`,
     agreementTitle: "挂靠协议",
+    continueSigning: "继续签署",
+    resendSigning: "重发签署邮件",
+    openingSigning: "正在打开…",
+    resumeHint: "在新标签页继续原合同，已保存进度会保留。签署后回到本页付款。",
+    resendHint: "重发后请使用最新邮件中的链接，已保存进度会保留。",
     agreementHint: "系统会把已提交的信息带入协议；请先阅读签署，再支付费用。",
     sendAgreement: "重试发送协议",
     restartAgreement: "重新生成并发送协议",
@@ -152,6 +163,7 @@ const M = {
     payAnnualFee: "支付挂靠费用",
     paymentReceived: "费用已支付",
     finalReview: "费用已收到，系统正在自动开通 Portal 权限。",
+    offlineReview: "线下收款已核验，等待管理员审批开通账号。",
     teamTermsTitle: "协议中的团队分佣条款",
     standardTeamSplit: "一般团队分成",
     sourcedTeamSplit: "TL 提供客源分成",
@@ -223,11 +235,16 @@ export function PendingApprovalClient({
   const [onboardingSource, setOnboardingSource] = useState("direct");
   const [agreementStatus, setAgreementStatus] = useState("not_started");
   const [agreementAgentSignedAt, setAgreementAgentSignedAt] = useState<string | null>(null);
+  const [paymentChannel, setPaymentChannel] = useState<string | null>(null);
+  const [agreementDocuments, setAgreementDocuments] = useState<Array<{ id: string; name: string }>>([]);
   const [paymentStatus, setPaymentStatus] = useState("pending");
   const [paymentProduct, setPaymentProduct] = useState<string | null>(null);
   const [esignConfigured, setEsignConfigured] = useState(false);
   const [agreementLoading, setAgreementLoading] = useState(false);
   const [agreementError, setAgreementError] = useState("");
+  const [accessAction, setAccessAction] = useState<"continue" | "resend" | null>(null);
+  const [accessMessage, setAccessMessage] = useState("");
+  const [signingFallbackUrl, setSigningFallbackUrl] = useState<string | null>(null);
   const [teams, setTeams] = useState<TeamOption[]>([]);
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [frozenTeamTerms, setFrozenTeamTerms] = useState<TeamTerms | null>(null);
@@ -239,7 +256,8 @@ export function PendingApprovalClient({
   const agreementAutoStartAttempted = useRef(false);
   const paymentRedirectStarted = useRef(false);
   const effectiveStatus = session?.user?.accountStatus ?? accountStatus;
-  const t = M[useLocale()];
+  const lang = useLocale();
+  const t = M[lang];
 
   const refreshProfile = useCallback(async () => {
     try {
@@ -383,6 +401,7 @@ export function PendingApprovalClient({
       setAgreementStatus(data.agreementStatus || "not_started");
       setAgreementAgentSignedAt(data.agreementAgentSignedAt || null);
       setPaymentStatus(data.paymentStatus || "pending");
+      setPaymentChannel(data.paymentChannel || null);
       setPaymentProduct(data.paymentProduct || null);
     } catch (error) {
       console.error("Unable to load onboarding agreement", error);
@@ -407,6 +426,53 @@ export function PendingApprovalClient({
       setAgreementLoading(false);
     }
   }, [refreshAgreement, t.agreementFailed]);
+
+  useEffect(() => {
+    if (agreementStatus === "not_started") return;
+    let cancelled = false;
+    void fetch("/api/onboarding/agreement/documents", { cache: "no-store" }).then(async (response) => {
+      if (response.ok && !cancelled) setAgreementDocuments((await response.json()).documents || []);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [agreementStatus]);
+
+  const recoverSigning = async (action: "continue" | "resend") => {
+    if (accessAction) return;
+    // Reserve the tab during the click. Keep onboarding open to poll signature
+    // progress and continue to payment, including on mobile browsers.
+    const signingTab = action === "continue" ? window.open("about:blank", "_blank") : null;
+    if (signingTab) signingTab.opener = null;
+    setAccessAction(action);
+    setAccessMessage("");
+    setSigningFallbackUrl(null);
+    try {
+      const response = await fetch("/api/onboarding/agreement/access", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        signingTab?.close();
+        const messages: Record<string, [string, string]> = {
+          TOO_MANY_REQUESTS: ["操作较频繁，请稍后再试；重发邮件间隔为一分钟。", "Please wait before trying again. Signing emails can be resent once per minute."],
+          ALREADY_SIGNED: ["你已完成签署，正在更新入职进度。", "You have already signed. Refreshing your onboarding progress."],
+          AGREEMENT_EXPIRED: ["合同已过期，请刷新状态后重新发起。", "This agreement expired. Refresh its status to restart."],
+          SIGNER_MISMATCH: ["合同签署邮箱与账号不一致，请联系管理员核对。", "The signing email does not match this account. Contact your administrator."],
+          EMAIL_RESUME_REQUIRED: ["请使用签署邮件中的链接，也可点击重发签署邮件。", "Use the signing email link, or request a new signing email."],
+        };
+        const message = messages[data.code] || ["暂时无法连接签署服务，请稍后重试。原合同和进度仍保留。", "Unable to connect to signing. Try again; your agreement and saved progress are retained."];
+        setAccessMessage(message[lang === "zh" ? 0 : 1]);
+        await refreshAgreement();
+      } else if (action === "continue" && typeof data.url === "string") {
+        if (signingTab && !signingTab.closed) signingTab.location.replace(data.url);
+        else setSigningFallbackUrl(data.url);
+      } else {
+        setAccessMessage(lang === "zh" ? `签署邮件已发送至 ${data.email}，请使用最新邮件。` : `Signing email sent to ${data.email}. Open the newest message.`);
+      }
+    } catch {
+      signingTab?.close();
+      setAccessMessage(lang === "zh" ? "连接失败，请稍后重试。" : "Connection failed. Please try again.");
+    } finally { setAccessAction(null); }
+  };
 
   useEffect(() => {
     if (accountStatus === "pending") void refreshAgreement();
@@ -782,7 +848,16 @@ export function PendingApprovalClient({
                       {agreementError && <p className="mt-2 text-[12px]" style={{ color: tone.rose }}>{agreementError}</p>}
                     </div>
                   ) : agreementStatus === "sent" ? (
-                    <p className="mt-3 text-[12px]" style={{ color: tone.green }}>{t.agreementSent}</p>
+                    <div className="mt-3 space-y-3">
+                      <p className="text-[12px]" style={{ color: tone.ink70 }}>{t.resumeHint}</p>
+                      <Btn variant="primary" className="w-full justify-center" disabled={accessAction !== null} onClick={() => void recoverSigning("continue")}>
+                        {accessAction === "continue" ? t.openingSigning : t.continueSigning}
+                      </Btn>
+                      <Btn variant="outline" className="w-full justify-center" disabled={accessAction !== null} onClick={() => void recoverSigning("resend")}>{t.resendSigning}</Btn>
+                      <p className="text-[12px]" style={{ color: tone.ink50 }}>{t.resendHint}</p>
+                      {accessMessage && <p role="status" className="text-[13px]" style={{ color: tone.ink }}>{accessMessage}</p>}
+                      {signingFallbackUrl && <a className="admin-control justify-center" href={signingFallbackUrl} target="_blank" rel="noopener noreferrer">{lang === "zh" ? "点击打开签署页面 ↗" : "Open signing page ↗"}</a>}
+                    </div>
                   ) : (
                     <div className="mt-3">
                       {agreementLoading ? (
@@ -799,6 +874,7 @@ export function PendingApprovalClient({
                       )}
                     </div>
                   )}
+                  {agreementDocuments.map((document) => <a key={document.id} className="mt-3 block text-sm underline underline-offset-4" href={`/api/onboarding/agreement/documents?document=${encodeURIComponent(document.id)}`} target="_blank" rel="noopener noreferrer">{lang === "zh" ? "查看原合同（未含签名）" : "View original agreement (without signatures)"} · {document.name}</a>)}
                   {agreementAgentSignedAt && !agreementNeedsAttention(agreementStatus) && paymentProduct && paymentStatus !== "paid" && (
                     <Btn variant="primary" className="mt-4 w-full justify-center" onClick={() => router.push(`/pay?product=${encodeURIComponent(paymentProduct)}&onboarding=1`)}>
                       {t.payAnnualFee}
@@ -808,7 +884,7 @@ export function PendingApprovalClient({
                     <p className="mt-3 text-[13px]" style={{ color: tone.green }}>{t.paymentReceived}</p>
                   )}
                   {agreementAgentSignedAt && !agreementNeedsAttention(agreementStatus) && (paymentStatus === "paid" || !paymentProduct) && (
-                    <p className="mt-3 text-[12px]" style={{ color: tone.ink70 }}>{t.finalReview}</p>
+                    <p className="mt-3 text-[12px]" style={{ color: tone.ink70 }}>{paymentChannel === "offline" ? t.offlineReview : t.finalReview}</p>
                   )}
                 </div>
               )}
