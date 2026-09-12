@@ -152,7 +152,7 @@ export const inputSchema = z.preprocess(
 export const templateConfigSchema = z.object({
   name: z.object({ en: short.min(1), zh: short.min(1) }),
   description: z.object({ en: short, zh: short }),
-  kind: z.enum(["listing", "holiday"]),
+  kind: z.enum(["listing", "holiday", "birthday", "anniversary"]),
   themes: z.array(short.min(1)).min(1).max(100),
   style: short.min(1),
   prompt: z.string().trim().min(30).max(16000),

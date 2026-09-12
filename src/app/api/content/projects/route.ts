@@ -6,7 +6,7 @@ export async function GET(req: Request) {
     if (actor instanceof Response) return actor;
     return Response.json({
       projects: await query(
-        "SELECT id,title,input,created_at,updated_at FROM portal.content_projects WHERE owner_agent_id=$1 ORDER BY updated_at DESC LIMIT 100",
+        "SELECT id,title,input,created_at,updated_at FROM portal.content_projects WHERE owner_agent_id=$1 AND NOT admin_only ORDER BY updated_at DESC LIMIT 100",
         [actor.agentId],
       ),
     });

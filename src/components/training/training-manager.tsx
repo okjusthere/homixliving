@@ -78,20 +78,6 @@ const M = {
   },
 } as const;
 
-function Chevron({ open }: { open: boolean }) {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 16 16"
-      aria-hidden
-      style={{ transition: "transform .2s", transform: open ? "rotate(180deg)" : "none", color: tone.ink50 }}
-    >
-      <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
 function formatViewDate(value: string | null | undefined, locale: "en" | "zh") {
   const date = parseDbTime(value);
   if (!date) return "—";
@@ -121,7 +107,6 @@ export function TrainingManager({
   const router = useRouter();
   const locale = useLocale();
   const t = M[locale];
-  const [panelOpen, setPanelOpen] = useState(false);
   const [open, setOpen] = useState(false);
   const [openViewers, setOpenViewers] = useState<Record<number, boolean>>({});
   const [title, setTitle] = useState("");
@@ -191,27 +176,10 @@ export function TrainingManager({
 
   return (
     <Card className="p-5 mb-10" style={{ background: tone.paper }}>
-      <button
-        type="button"
-        onClick={() => setPanelOpen((p) => !p)}
-        className="flex w-full items-center justify-between gap-4 text-left"
-      >
-        <div>
-          <div className="font-serif" style={{ fontSize: 16, color: tone.ink }}>
-            {t.manageVideos}
-          </div>
-          <div className="text-[12px] mt-0.5" style={{ color: tone.ink50 }}>
-            {t.videosAdminOnly(initialVideos.length)}
-          </div>
-        </div>
-        <Chevron open={panelOpen} />
-      </button>
-
-      {panelOpen && (
         <div className="mt-4">
           <div className="flex items-center justify-between gap-4">
             <div className="text-[12px]" style={{ color: tone.ink50 }}>
-              {t.bulkImportHint}
+              {locale === "zh" ? `${initialVideos.length} 个培训视频` : `${initialVideos.length} training videos`}
             </div>
             <Btn variant="outline" size="sm" onClick={() => setOpen((o) => !o)}>
               {open ? t.close : t.addVideo}
@@ -400,7 +368,6 @@ export function TrainingManager({
             </div>
           )}
         </div>
-      )}
     </Card>
   );
 }

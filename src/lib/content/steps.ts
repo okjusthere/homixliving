@@ -21,6 +21,7 @@ type Job = {
   status: string;
   reference_asset_ids: string[];
   provider_config: AzureImageSnapshot | null;
+  admin_only: boolean;
 };
 export async function prepareGeneration(id: string) {
   "use step";
@@ -47,6 +48,9 @@ export async function prepareGeneration(id: string) {
       job.owner_agent_id,
       await fetchReferenceImage(job.brand.photoUrl),
       "reference",
+      undefined,
+      true,
+      job.admin_only,
     );
     refs.push(a.id);
   }
@@ -78,10 +82,20 @@ export async function requestGeneration(id: string): Promise<{
       await assetBytes(await getAsset(assetId, job.owner_agent_id, true)),
     );
   const claimed = await query(
-    "UPDATE portal.content_generations SET status='generating',provider_started_at=now(),updated_at=now() WHERE id=$1 AND status='preparing' RETURNING id",
+    `UPDATE portal.content_generations g SET status='generating',provider_started_at=now(),updated_at=now() WHERE id=$1 AND status='preparing'
+      AND (input->>'kind' NOT IN ('birthday','anniversary') OR EXISTS (
+        SELECT 1 FROM portal.agent_celebration_events e JOIN portal.agent_celebration_profiles b ON b.agent_id=e.agent_id AND b.kind=e.kind JOIN portal.agents a ON a.id=b.agent_id
+        WHERE e.generation_id=g.id AND e.profile_revision=b.revision AND b.enabled AND a.account_status='active'
+      )) RETURNING id`,
     [id],
   );
-  if (!claimed.length) return null;
+  if (!claimed.length) {
+    await query(
+      "UPDATE portal.content_generations SET status='failed',error='BIRTHDAY_CHANGED',updated_at=now() WHERE id=$1 AND status='preparing' AND input->>'kind' IN ('birthday','anniversary')",
+      [id],
+    );
+    return null;
+  }
   try {
     const result = await generateAzureImage(
       withoutPosterLicense(job.prompt, job.brand.licenseNumber),
@@ -153,6 +167,7 @@ export async function saveGeneration(
     "output",
     id,
     false,
+    job.admin_only,
   );
   await query(
     "UPDATE portal.content_generations SET status='succeeded',output_asset_id=$1,usage=$2,provider_request_id=$3,error=null,updated_at=now() WHERE id=$1",

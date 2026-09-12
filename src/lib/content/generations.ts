@@ -95,7 +95,7 @@ export async function submitGeneration(
       return again.id;
     }
     const [{ count }] = await query<{ count: string }>(
-      "SELECT count(*) FROM portal.content_generations WHERE owner_agent_id=$1 AND created_at >= ((now() AT TIME ZONE 'America/New_York')::date AT TIME ZONE 'America/New_York')",
+      "SELECT count(*) FROM portal.content_generations WHERE owner_agent_id=$1 AND NOT admin_only AND created_at >= ((now() AT TIME ZONE 'America/New_York')::date AT TIME ZONE 'America/New_York')",
       [agentId],
       c,
     );
@@ -121,7 +121,7 @@ export async function submitGeneration(
     const project = projectId || randomUUID();
     if (projectId) {
       const rows = await query(
-        "UPDATE portal.content_projects SET input=$1,updated_at=now() WHERE id=$2 AND owner_agent_id=$3 RETURNING id",
+        "UPDATE portal.content_projects SET input=$1,updated_at=now() WHERE id=$2 AND owner_agent_id=$3 AND NOT admin_only RETURNING id",
         [JSON.stringify(input), projectId, agentId],
         c,
       );

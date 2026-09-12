@@ -74,6 +74,7 @@ export async function putAsset(
   purpose: ContentAsset["purpose"],
   id: string = randomUUID(),
   normalize = true,
+  adminOnly = false,
 ) {
   const body = normalize ? await normalizeImage(bytes) : bytes;
   const { client, bucket } = storage(),
@@ -87,14 +88,14 @@ export async function putAsset(
     }),
   );
   const [asset] = await query<ContentAsset>(
-    "INSERT INTO portal.content_assets(id,owner_agent_id,object_key,content_type,bytes,purpose) VALUES($1,$2,$3,'image/png',$4,$5) ON CONFLICT(id) DO UPDATE SET bytes=EXCLUDED.bytes RETURNING *",
-    [id, owner, key, body.length, purpose],
+    "INSERT INTO portal.content_assets(id,owner_agent_id,object_key,content_type,bytes,purpose,admin_only) VALUES($1,$2,$3,'image/png',$4,$5,$6) ON CONFLICT(id) DO UPDATE SET bytes=EXCLUDED.bytes RETURNING *",
+    [id, owner, key, body.length, purpose, adminOnly],
   );
   return asset;
 }
 export async function getAsset(id: string, owner: number, admin = false) {
   const [a] = await query<ContentAsset>(
-    "SELECT * FROM portal.content_assets WHERE id=$1 AND (owner_agent_id=$2 OR $3)",
+    "SELECT * FROM portal.content_assets WHERE id=$1 AND ((owner_agent_id=$2 AND NOT admin_only) OR $3)",
     [id, owner, admin],
   );
   if (!a)

@@ -50,7 +50,7 @@ export async function getGeneration(
   admin = false,
 ) {
   const [row] = await query<Generation>(
-    `SELECT ${generationColumns} FROM portal.content_generations WHERE id=$1 AND (owner_agent_id=$2 OR $3)`,
+    `SELECT ${generationColumns} FROM portal.content_generations WHERE id=$1 AND ((owner_agent_id=$2 AND NOT admin_only) OR $3)`,
     [id, agentId, admin],
   );
   if (!row) throw new ContentError("Generation not found", 404, "NOT_FOUND");
