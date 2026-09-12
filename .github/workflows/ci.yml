@@ -70,5 +70,13 @@ jobs:
           createdb -h localhost -p 5432 -U postgres homix_celebration_test
           DATABASE_URL=postgres://postgres:postgres@localhost:5432/homix_celebration_test npm run test:celebrations:db
 
+      - name: Admin email database integration
+        env:
+          PGPASSWORD: postgres
+        run: |
+          createdb -h localhost -p 5432 -U postgres homix_admin_identity_test
+          pg_dump "$DATABASE_URL" --schema-only --no-owner --no-privileges | psql -h localhost -p 5432 -U postgres -d homix_admin_identity_test -v ON_ERROR_STOP=1
+          DATABASE_URL=postgres://postgres:postgres@localhost:5432/homix_admin_identity_test npm run test:admin-agent-emails:db
+
       - name: Build
         run: npm run build
