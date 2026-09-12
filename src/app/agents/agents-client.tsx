@@ -5,6 +5,7 @@ import Link from "next/link";
 import { CelebrationsConsole } from "@/components/admin/celebrations-console";
 import { useListQuery, ListPagination } from "@/components/admin/list-controls";
 import { EditPanel } from "@/components/admin/edit-panel";
+import { AgentEmailsPanel } from "@/components/admin/agent-emails-panel";
 import { matchesAgentSearch, paginate } from "@/lib/agent-list";
 import { toast } from "sonner";
 import {
@@ -483,7 +484,10 @@ export default function AgentsConsole() {
     void fetchPublic();
     void fetchTeams();
   }, []);
-  const editingKey = params.get("agent");
+  const emailAgent = agents.find(
+    (row) => String(row.agent.id) === params.get("emails"),
+  )?.agent;
+  const editingKey = params.get("emails") ? null : params.get("agent");
   useEffect(() => {
     if (editingKey === editingKeyRef.current) return;
     if (!editingKey) {
@@ -501,7 +505,10 @@ export default function AgentsConsole() {
     setEditAgent({ ...agent });
   }, [editingKey, agents]);
   const openAgent = (agent: Partial<Agent>) =>
-    updateQuery({ agent: agent.id ? String(agent.id) : "new" }, true);
+    updateQuery(
+      { agent: agent.id ? String(agent.id) : "new", emails: null },
+      true,
+    );
   const selectView = (next: AdminView) =>
     updateQuery(
       {
@@ -513,6 +520,7 @@ export default function AgentsConsole() {
         plan: null,
         page: null,
         agent: null,
+        emails: null,
         profile: null,
         link: null,
         visibility: null,
@@ -620,6 +628,12 @@ export default function AgentsConsole() {
   });
   const detailHref = (id: number) =>
     `/admin/agents/${id}?returnTo=${encodeURIComponent(listHref)}`;
+  const emailHref = (id: number) => {
+    const query = new URLSearchParams(params);
+    query.delete("agent");
+    query.set("emails", String(id));
+    return `/admin/agents?${query}`;
+  };
 
   const handleApprove = async (id: number) => {
     try {
@@ -1322,6 +1336,16 @@ export default function AgentsConsole() {
                             {agent.email || t.noEmail}
                           </div>
                           <div className="secondary">{agent.phone || "—"}</div>
+                          {(row.loginEmails || [])
+                            .filter((address) => !address.isPrimary)
+                            .map((address) => (
+                              <div
+                                key={address.email}
+                                className="secondary break-all"
+                              >
+                                {address.email}
+                              </div>
+                            ))}
                         </td>
                         <td className="account-team">
                           {row.teamName || t.unassigned}
@@ -1364,6 +1388,12 @@ export default function AgentsConsole() {
                         </td>
                         <td className="account-actions">
                           <div className="flex flex-wrap justify-end gap-1">
+                            <Link
+                              className="row-action"
+                              href={emailHref(agent.id)}
+                            >
+                              {locale === "zh" ? "邮箱" : "Emails"}
+                            </Link>
                             <button
                               className="row-action"
                               onClick={() => openAgent(agent)}
@@ -1524,7 +1554,38 @@ export default function AgentsConsole() {
         </div>
       )}
 
-      {editAgent && (
+      {emailAgent && (
+        <AgentEmailsPanel
+          key={emailAgent.id}
+          agentId={emailAgent.id}
+          name={emailAgent.name}
+          onClose={() => updateQuery({ emails: null })}
+          onMerged={() => {
+            void fetchAccounts();
+          }}
+          onLinked={(email) =>
+            setAgents((rows) =>
+              rows.map((row) =>
+                row.agent.id === emailAgent.id
+                  ? {
+                      ...row,
+                      loginEmails: [
+                        ...(row.loginEmails || []),
+                        {
+                          email,
+                          isPrimary: false,
+                          verifiedAt: new Date().toISOString(),
+                        },
+                      ],
+                    }
+                  : row,
+              ),
+            )
+          }
+        />
+      )}
+
+      {editAgent && !emailAgent && (
         <EditPanel
           title={
             editAgent.id ? editAgent.name || t.editAgentTitle : t.addAgentTitle
@@ -1587,11 +1648,12 @@ export default function AgentsConsole() {
                       value={editAgent.email || ""}
                       readOnly
                     />
-                    <p className="mt-1 text-xs text-ink-50">
-                      {locale === "zh"
-                        ? "登录邮箱需由本人在账号设置中验证变更。"
-                        : "Login email changes require verification in account settings."}
-                    </p>
+                    <Link
+                      className="mt-1 inline-block text-xs underline"
+                      href={emailHref(editAgent.id)}
+                    >
+                      {locale === "zh" ? "管理登录邮箱" : "Manage login emails"}
+                    </Link>
                   </>
                 ) : (
                   <EditorialInput

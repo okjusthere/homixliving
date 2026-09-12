@@ -59,6 +59,13 @@ is dry-run by default and is intentionally restricted to the reviewed ids. Its
 `portal.agent_merge_history`, writes `portal.audit_log`, and aborts the whole
 transaction if any unexpected business reference appears.
 
+Administrators can also manage login aliases and review ordinary duplicate
+accounts from **Admin → Agents → Emails**. The retained account keeps its
+website profile; merge eligibility is checked against every current foreign
+key and sensitive onboarding fields. See [administrator email management](admin-agent-emails.md)
+for the preview, audit, locking and business-data restrictions. The older script
+remains limited to its originally confirmed records.
+
 ## Automated News
 
 `db/migrations/20260730-automated-news.sql` is an additive shared-database

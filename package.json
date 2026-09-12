@@ -68,7 +68,8 @@
     "test:admin-workspace": "node --import tsx src/lib/__tests__/agent-list.test.ts",
     "test:agreement-recovery:db": "node --import ./scripts/test-server-only.mjs --import ./scripts/test-agreement-auth.mjs --import tsx src/lib/__tests__/agreement-recovery-db.test.ts",
     "test:celebrations": "node --import tsx --test src/lib/celebrations/__tests__/calendar-import.test.ts",
-    "test:celebrations:db": "node --import ./scripts/test-server-only.mjs --import tsx src/lib/celebrations/__tests__/database.test.ts"
+    "test:celebrations:db": "node --import ./scripts/test-server-only.mjs --import tsx src/lib/celebrations/__tests__/database.test.ts",
+    "test:admin-agent-emails:db": "node --import ./scripts/test-server-only.mjs --import tsx src/lib/__tests__/admin-agent-emails-db.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1092.0",
