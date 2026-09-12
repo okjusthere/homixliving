@@ -63,5 +63,12 @@ jobs:
           pg_dump "$DATABASE_URL" --schema-only --no-owner --no-privileges | psql -h localhost -p 5432 -U postgres -d homix_agreement_recovery -v ON_ERROR_STOP=1
           DATABASE_URL=postgres://postgres:postgres@localhost:5432/homix_agreement_recovery npm run test:agreement-recovery:db
 
+      - name: Celebration database integration
+        env:
+          PGPASSWORD: postgres
+        run: |
+          createdb -h localhost -p 5432 -U postgres homix_celebration_test
+          DATABASE_URL=postgres://postgres:postgres@localhost:5432/homix_celebration_test npm run test:celebrations:db
+
       - name: Build
         run: npm run build

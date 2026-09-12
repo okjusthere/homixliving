@@ -30,7 +30,7 @@ export async function GET(req: Request) {
         Math.min(10000, Number(url.searchParams.get("page")) || 0),
       );
     const generations = await query<Generation>(
-      `SELECT ${generationColumns} FROM portal.content_generations WHERE owner_agent_id=$1 OR $2 ORDER BY created_at DESC LIMIT 24 OFFSET $3`,
+      `SELECT ${generationColumns} FROM portal.content_generations WHERE (owner_agent_id=$1 AND NOT admin_only) OR $2 ORDER BY created_at DESC LIMIT 24 OFFSET $3`,
       [
         actor.agentId,
         actor.admin && url.searchParams.get("admin") === "1",

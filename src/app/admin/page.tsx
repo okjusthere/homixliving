@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/homix/page-kit";
 import { asc, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { agents, auditLog } from "@/db/schema";
+import { CelebrationSummary } from "@/components/admin/celebration-summary";
 
 export const metadata = { title: "Admin · Homix" };
 export default async function AdminPage() {
@@ -43,6 +44,7 @@ export default async function AdminPage() {
             : "Manage people, content, learning and finance."
         }
       />
+      <CelebrationSummary zh={zh} />
       <div className="grid gap-8 lg:grid-cols-2">
         <section className="rounded-lg border border-line bg-white p-5">
           <div className="mb-3 flex items-center justify-between gap-3">

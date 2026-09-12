@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { CelebrationsConsole } from "@/components/admin/celebrations-console";
 import { useListQuery, ListPagination } from "@/components/admin/list-controls";
 import { EditPanel } from "@/components/admin/edit-panel";
 import { matchesAgentSearch, paginate } from "@/lib/agent-list";
@@ -282,7 +283,12 @@ type AgentRow = {
   hasW9?: boolean;
 };
 
-type AdminView = "accounts" | "onboarding" | "public";
+type AdminView =
+  | "accounts"
+  | "onboarding"
+  | "public"
+  | "birthdays"
+  | "anniversaries";
 
 const emptyAgent: Partial<Agent> = {
   name: "",
@@ -388,11 +394,15 @@ export default function AgentsConsole() {
     if (status && messages[status]) toast.warning(messages[status]);
   };
   const view: AdminView =
-    params.get("view") === "public"
-      ? "public"
-      : params.get("view") === "onboarding"
-        ? "onboarding"
-        : "accounts";
+    params.get("view") === "birthdays"
+      ? "birthdays"
+      : params.get("view") === "anniversaries"
+        ? "anniversaries"
+        : params.get("view") === "public"
+          ? "public"
+          : params.get("view") === "onboarding"
+            ? "onboarding"
+            : "accounts";
   const search = params.get("q") || "";
   const status = ["active", "pending", "inactive", "all"].includes(
     params.get("status") || "",
@@ -496,6 +506,7 @@ export default function AgentsConsole() {
     updateQuery(
       {
         view: next,
+        period: null,
         q: null,
         status: null,
         team: null,
@@ -795,8 +806,8 @@ export default function AgentsConsole() {
         title={t.title}
         description={
           locale === "zh"
-            ? "管理经纪人账号、入职进度与官网展示。"
-            : "Manage agent accounts, onboarding and website profiles."
+            ? "管理经纪人账号、入职进度、公司庆祝与官网展示。"
+            : "Manage agent accounts, onboarding, celebrations and website profiles."
         }
         actions={
           view === "accounts" ? (
@@ -835,6 +846,11 @@ export default function AgentsConsole() {
                 ? undefined
                 : pending.length,
           },
+          { id: "birthdays", label: locale === "zh" ? "生日" : "Birthdays" },
+          {
+            id: "anniversaries",
+            label: locale === "zh" ? "入职纪念日" : "Work anniversaries",
+          },
           {
             id: "public",
             label: locale === "zh" ? "官网展示" : "Website",
@@ -847,6 +863,12 @@ export default function AgentsConsole() {
         ]}
       />
 
+      {(view === "birthdays" || view === "anniversaries") && (
+        <CelebrationsConsole
+          key={view}
+          kind={view === "birthdays" ? "birthday" : "anniversary"}
+        />
+      )}
       {view === "public" && (
         <RosterConsole
           initialAgents={publicAgents}
@@ -866,7 +888,11 @@ export default function AgentsConsole() {
         />
       )}
 
-      <div className={view !== "public" ? "contents" : "hidden"}>
+      <div
+        className={
+          view === "accounts" || view === "onboarding" ? "contents" : "hidden"
+        }
+      >
         <Toolbar>
           <SearchInput
             value={search}

@@ -38,8 +38,16 @@ export function ContentAdmin() {
   const locale = useLocale(),
     t = (en: string, zh: string) => (locale === "zh" ? zh : en);
   const params = useSearchParams();
-  const tab = ["templates", "holidays", "settings", "generations"].includes(params.get("tab") || "") ? params.get("tab")! : "templates";
-  const setTab = (value: string) => { const next = new URLSearchParams(params); next.set("tab", value); window.history.pushState(null, "", `?${next}`); };
+  const tab = ["templates", "holidays", "settings", "generations"].includes(
+    params.get("tab") || "",
+  )
+    ? params.get("tab")!
+    : "templates";
+  const setTab = (value: string) => {
+    const next = new URLSearchParams(params);
+    next.set("tab", value);
+    window.history.pushState(null, "", `?${next}`);
+  };
   const [templates, setTemplates] = useState<ContentTemplate[]>([]),
     [holidays, setHolidays] = useState<Holiday[]>([]),
     [selected, setSelected] = useState<ContentTemplate | null>(null);
@@ -218,12 +226,22 @@ export function ContentAdmin() {
                   patch({
                     kind: e.target.value as TemplateConfig["kind"],
                     themes:
-                      e.target.value === "holiday" ? ["*"] : ["just_listed"],
+                      e.target.value === "holiday"
+                        ? ["*"]
+                        : e.target.value === "listing"
+                          ? ["just_listed"]
+                          : [e.target.value],
                   })
                 }
               >
                 <option value="listing">
                   {t("Listing poster", "房源海报")}
+                </option>
+                <option value="birthday">
+                  {t("Company birthday", "公司生日祝福")}
+                </option>
+                <option value="anniversary">
+                  {t("Work anniversary", "入职周年祝福")}
                 </option>
                 <option value="holiday">
                   {t("Holiday greeting", "节日海报")}
@@ -241,6 +259,11 @@ export function ContentAdmin() {
                       {v[locale]}
                     </option>
                   ))
+                ) : config.kind === "birthday" ||
+                  config.kind === "anniversary" ? (
+                  <option value={config.kind}>
+                    {t("Company celebration", "公司庆祝")}
+                  </option>
                 ) : (
                   <>
                     <option value="*">{t("All holidays", "所有节日")}</option>
@@ -366,9 +389,17 @@ export function ContentAdmin() {
               {selected && (
                 <Link
                   className="studio-button secondary"
-                  href={`/content?template=${selected.id}`}
+                  href={
+                    selected.config.kind === "birthday" ||
+                    selected.config.kind === "anniversary"
+                      ? `/admin/agents?view=${selected.config.kind === "birthday" ? "birthdays" : "anniversaries"}`
+                      : `/content?template=${selected.id}`
+                  }
                 >
-                  {t("Test saved version", "试生成已保存版本")}
+                  {selected.config.kind === "birthday" ||
+                  selected.config.kind === "anniversary"
+                    ? t("Open celebration workspace", "打开庆祝名册")
+                    : t("Test saved version", "试生成已保存版本")}
                 </Link>
               )}
             </div>

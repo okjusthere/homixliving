@@ -6,6 +6,10 @@
   ],
   "crons": [
     {
+      "path": "/api/cron/celebrations",
+      "schedule": "15 * * * *"
+    },
+    {
       "path": "/api/cron/workspace-retention",
       "schedule": "17 13 * * *"
     },

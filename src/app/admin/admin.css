@@ -97,6 +97,118 @@
   border-collapse: collapse;
   font-size: 13px;
 }
+.access-table {
+  width: 100%;
+  table-layout: fixed;
+  min-width: 640px;
+}
+.access-table :is(th, td) {
+  text-align: left;
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+}
+.access-table th {
+  position: static;
+}
+.access-table th:nth-child(1) {
+  width: 24%;
+}
+.access-table th:nth-child(2) {
+  width: 38%;
+}
+.access-table th:nth-child(3) {
+  width: 14%;
+}
+.access-table th:nth-child(4) {
+  width: 24%;
+}
+.access-table :is(th, td),
+.celebration-table :is(th, td) {
+  padding: 16px 20px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.access-table th,
+.celebration-table th {
+  padding-top: 12px;
+  padding-bottom: 12px;
+  background: #f7f4ee;
+  color: #7c7a71;
+  font-size: 12px;
+  font-weight: 500;
+}
+.access-table tbody tr + tr,
+.celebration-table tbody tr + tr {
+  border-top: 1px solid #e4ded2;
+}
+.access-table .secondary {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #8d8a80;
+}
+.celebration-filter-active {
+  background: #e9eedf;
+  border-color: #87916e;
+}
+.celebration-table {
+  width: 100%;
+  table-layout: fixed;
+}
+.celebration-table :is(th, td) {
+  text-align: left;
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+}
+.celebration-table th {
+  position: static;
+}
+.celebration-table th:nth-child(1) {
+  width: 28%;
+}
+.celebration-table th:nth-child(2) {
+  width: 15%;
+}
+.celebration-table th:nth-child(3) {
+  width: 25%;
+}
+.celebration-table th:nth-child(4) {
+  width: 32%;
+}
+.celebration-status {
+  font-size: 12px;
+  color: #66695c;
+}
+.celebration-status.is-ready {
+  color: #466136;
+}
+@media (max-width: 767px) {
+  .celebration-table,
+  .celebration-table tbody {
+    display: block;
+  }
+  .celebration-table thead {
+    display: none;
+  }
+  .celebration-table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 16px;
+    gap: 12px;
+    border-bottom: 1px solid #e4ded2;
+  }
+  .celebration-table tr:last-child {
+    border-bottom: 0;
+  }
+  .celebration-table td {
+    padding: 0;
+    border: 0;
+    min-width: 0;
+  }
+  .celebration-table td:nth-child(3),
+  .celebration-table td:nth-child(4) {
+    grid-column: 1 / -1;
+  }
+}
 .agent-table th {
   text-align: left;
   font-size: 11px;

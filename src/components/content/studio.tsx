@@ -135,7 +135,7 @@ export function ContentStudio() {
             "template",
           );
           const preview = a.templates.find((v) => v.id === previewId);
-          if (preview) {
+          if (preview && (preview.config.kind === "listing" || preview.config.kind === "holiday")) {
             setSelected(preview.id);
             setTab(preview.config.kind);
             setInput({
@@ -615,7 +615,7 @@ export function ContentStudio() {
                           );
                           setProjectId(g.projectId);
                           setSelected(g.templateId);
-                          setTab(g.input.kind);
+                          setTab(g.input.kind === "listing" ? "listing" : "holiday");
                           requestKey.current = null;
                         }}
                       >

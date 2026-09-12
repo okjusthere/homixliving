@@ -55,7 +55,7 @@ export default async function AccessPage() {
         }
       />
       <div className="overflow-x-auto rounded-lg border border-line bg-white">
-        <table className="agent-table">
+        <table className="access-table">
           <thead>
             <tr>
               {(zh

@@ -69,7 +69,8 @@ export type OpenHouseEvent = {
   selected?: boolean;
 };
 export type ContentInput = {
-  kind: "listing" | "holiday";
+  kind: "listing" | "holiday" | "birthday" | "anniversary";
+  birthday?: { eventId: string; profileRevision: number; years?: number };
   theme: string;
   language: ContentLanguage;
   size: ImageSize;
@@ -86,7 +87,7 @@ export type ContentInput = {
 export type TemplateConfig = {
   name: { en: string; zh: string };
   description: { en: string; zh: string };
-  kind: "listing" | "holiday";
+  kind: "listing" | "holiday" | "birthday" | "anniversary";
   themes: string[];
   style: string;
   prompt: string;

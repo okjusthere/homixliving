@@ -18,7 +18,7 @@ export async function GET(req: Request) {
     const all =
       actor.admin && new URL(req.url).searchParams.get("admin") === "1";
     const templates = await query<ContentTemplate>(
-      `SELECT ${templateColumns} FROM portal.content_templates WHERE status='published' OR $1 ORDER BY created_at DESC`,
+      `SELECT ${templateColumns} FROM portal.content_templates WHERE (status='published' AND config->>'kind' NOT IN ('birthday','anniversary')) OR $1 ORDER BY created_at DESC`,
       [all],
     );
     return Response.json({ templates });
