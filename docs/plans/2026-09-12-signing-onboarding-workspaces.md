@@ -132,3 +132,5 @@ Documenso 负责所有电子签署与原生编辑。Portal 管理业务身份、
 - 运行配置、逐人连接 Documenso 账号和故障处理见 eSign 的 `docs/DEPLOYMENT.md`、`docs/SIGNING_OPERATIONS.md`。客户编辑账号需要逐人连接，不能共用 HR 账号；买卖包正式法律文件仍待公司提供。
 
 - 候选验收发现并修复了签署回调被登录中间层拦截的问题：仅放行准确的 POST 回调地址，仍由 HMAC 校验认证；真实本地 Portal HTTP 已验证原生状态同步、持久化与重放防重。修复提交 `950cf19`，新候选 `dpl_DLX4Uq9Yd4uMmYuwJV5dcGEjHV16` 已 Ready，生产 HMAC 认证边界验证通过，官网仍未切换。
+
+- 个性化文件已增加公司必选项，避免静默归属 Homix Realty；Homix Living 的真实原生草稿创建、幂等重试、原件下载、原生字段刷新恢复、发送至本地 Mailpit 及返回同一 Portal 任务均已验证。当前候选 `dpl_5ECwL4pswEqL4UN7BRnSoZBi9q6b` 已 Ready，仍未完成最终签署或切换官网。
