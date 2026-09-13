@@ -59,3 +59,16 @@ Candidate smoke found and fixed a middleware issue: the exact POST `/api/signing
 - Native UI added Synthetic Custom Signer and two fields; both fields persisted after reload. Native Send changed the document to Pending; local Mailpit received one matching synthetic invitation. Portal returned to the same task and displayed the current recipient and waiting status. No final signature has been applied.
 - eSign commit `0ab670e` changes `pnpm dev` and the root environment example to bridge defaults, retaining explicitly named legacy commands only until the retirement gate. CI compiles all seven old/new Bicep entry points. Frozen offline dependency resolution and the matching Bicep/format checks passed.
 - The latest Portal candidate is Ready. Final native signature/seal acceptance, canonical cutover and removal of old native code/runtime remain outstanding pending the previously requested final-sign confirmation.
+
+
+## 2026-09-13 final native signing acceptance
+
+The user confirmed final synthetic signing. Three actual workflows completed in official Documenso 2.18.0: two recipients signing two buyer fixture PDFs; a custom Homix Living upload prepared in the native editor; and an onboarding applicant followed by a separate synthetic company signer. No real company/person contract or payment was executed.
+
+The native `COMPLETED` state, signed timestamps, native certificate and audit downloads were verified. Signed files from Documenso and the bridge were identical; the custom signed file downloaded through Portal was also byte-identical. OpenSSL verified the CMS signature and full-file ByteRange coverage for both multi-file samples. See [synthetic completion evidence](evidence/2026-09-13-native-completion/acceptance.json).
+
+The real native onboarding recipient/completion events passed through the durable bridge inbox/outbox and actual Portal HMAC endpoint. After applicant signing, Portal recorded the applicant timestamp and kept company signature absent. After company signing, both signatures and completion time were populated. The unpaid synthetic account remained pending throughout. Native custom signing redirected to the exact Portal task, visibly showing completed status and signed file/certificate/audit links.
+
+The original low-level buyer fixture redirected to an unused localhost:3000 harness after signing; the actual Portal custom flow correctly returned to localhost:3119. Production return origins are explicit trusted client configuration, not browser parameters.
+
+Old Portal native client, publisher/verifier and unused native policy code were removed. Approved contract files and the Documenso package/geometry export remain. Production domain cutover and old runtime shutdown are being finalized; final release state is recorded in `release-status.json`.
