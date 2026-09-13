@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { agents, agentEmailAddresses } from "@/db/schema";
+import { agents, agentEmailAddresses, licensedCompanies } from "@/db/schema";
 import type { SigningPackage, SigningRequest } from "@/lib/signing-contract";
 
 export function requireSigningTestDatabase() {
@@ -35,6 +35,18 @@ export function session(agent: typeof agents.$inferSelect | null) {
 export async function signingAgent(
   overrides: Partial<typeof agents.$inferInsert> = {},
 ) {
+  requireSigningTestDatabase();
+  await db
+    .insert(licensedCompanies)
+    .values({
+      id: "homix_living",
+      legalName: "Homix Living Inc.",
+      address: "Synthetic only",
+      brokerName: "Synthetic",
+      brokerTitle: "Broker",
+      brokerEmail: "qa-company@example.invalid",
+    })
+    .onConflictDoNothing();
   const [agent] = await db
     .insert(agents)
     .values({
