@@ -7,21 +7,21 @@ import { Btn } from "@/components/homix/primitives";
 import { HomixMark } from "@/components/homix/brand-mark";
 import { tone } from "@/components/homix/tokens";
 import { useLocale } from "@/lib/i18n-client";
-import { canRestartAgreement, agreementNeedsAttention } from "@/lib/agreement-recovery-policy";
+import { canRestartAgreement } from "@/lib/agreement-recovery-policy";
 import { refreshApprovalSession } from "./approval-session";
 
 const M = {
   en: {
     inactiveTitle: "Account inactive",
-    pendingTitle: "Pending approval",
+    pendingTitle: "Complete your onboarding",
     inactiveBody: "This account has been deactivated. Contact a Homix administrator if you believe this is a mistake.",
-    pendingBody: "Your account has been created. An admin needs to activate it before you can start working.",
+    pendingBody: "Confirm your details, sign your agreement, then pay online for automatic activation. An administrator verifies offline payments and activates those accounts.",
     inactiveHint: "Your historical deals and payment records remain retained by the company.",
-    pendingHint: "This page checks automatically. Once approved, you will enter Homix Agents without signing out.",
+    pendingHint: "Your progress is saved. This page checks automatically and opens your workspace when your access is ready.",
     checking: "Checking…",
     signOut: "Sign out",
     setupTitle: "Complete your setup",
-    setupHint: "Choose the facts once. Homix will apply the commission rules automatically after approval.",
+    setupHint: "Choose the facts once. Homix will apply the agreed commission rules after activation.",
     track: "Development track",
     solo: "Solo · 85/15 · $12K cap",
     soloPro: "Solo Pro · 100% · $3,650/year",
@@ -67,7 +67,7 @@ const M = {
     resendSigning: "Resend signing email",
     openingSigning: "Opening…",
     resumeHint: "Signing opens in a new tab. Saved progress is retained; return here for payment.",
-    resendHint: "A new email replaces earlier signing links. Your saved progress stays with the agreement.",
+    resendHint: "The reminder opens the same agreement. Your saved progress is retained.",
     agreementHint: "Your submitted facts are inserted into the agreement. Review and sign before payment.",
     sendAgreement: "Retry sending agreement",
     restartAgreement: "Create a new agreement and send",
@@ -93,15 +93,15 @@ const M = {
   },
   zh: {
     inactiveTitle: "账号已停用",
-    pendingTitle: "等待管理员批准",
+    pendingTitle: "办理入职",
     inactiveBody: "此账号已被停用。如有疑问，请联系 Homix 管理员。",
-    pendingBody: "账号已创建，管理员批准后即可开始使用。",
+    pendingBody: "确认资料、本人签署后，线上付款即可自动开通；线下付款由管理员核验后审批开通。",
     inactiveHint: "公司仍会保留你的历史成交与付款记录。",
-    pendingHint: "本页会自动检查状态；批准后无需退出登录，将直接进入 Homix Agents。",
+    pendingHint: "办理进度会保留。本页自动检查状态，开通后直接进入工作台。",
     checking: "正在检查…",
     signOut: "退出登录",
     setupTitle: "完成入职选择",
-    setupHint: "只需填写一次事实；批准后系统会自动套用分佣、封顶和团队规则。",
+    setupHint: "资料只需填写一次；开通后系统会应用已确认的分佣、封顶和团队规则。",
     track: "发展路径",
     solo: "独立经纪人 · 85/15 · $12K 封顶",
     soloPro: "独立经纪人 Pro · 100% · $3,650/年",
@@ -147,7 +147,7 @@ const M = {
     resendSigning: "重发签署邮件",
     openingSigning: "正在打开…",
     resumeHint: "在新标签页继续原合同，已保存进度会保留。签署后回到本页付款。",
-    resendHint: "重发后请使用最新邮件中的链接，已保存进度会保留。",
+    resendHint: "提醒邮件会打开同一份合同，已保存进度会保留。",
     agreementHint: "系统会把已提交的信息带入协议；请先阅读签署，再支付费用。",
     sendAgreement: "重试发送协议",
     restartAgreement: "重新生成并发送协议",
@@ -205,14 +205,17 @@ type TeamJoinRequest = {
 
 export function PendingApprovalClient({
   accountStatus,
+  limitedCapabilities = [],
 }: {
   accountStatus: "pending" | "active" | "inactive";
+  limitedCapabilities?: string[];
 }) {
   const router = useRouter();
   const { data: session, status, update } = useSession();
   const [setupLoading, setSetupLoading] = useState(accountStatus === "pending");
   const [setupSaving, setSetupSaving] = useState(false);
   const [setupComplete, setSetupComplete] = useState(false);
+  const [showSubmittedSetup, setShowSubmittedSetup] = useState(false);
   const [setupMessage, setSetupMessage] = useState("");
   const [plan, setPlan] = useState("solo");
   const [teamId, setTeamId] = useState("");
@@ -234,9 +237,11 @@ export function PendingApprovalClient({
   });
   const [onboardingSource, setOnboardingSource] = useState("direct");
   const [agreementStatus, setAgreementStatus] = useState("not_started");
+  const [contractSatisfied, setContractSatisfied] = useState(false);
+  const [manualContract, setManualContract] = useState<{ id: string; source: string } | null>(null);
   const [agreementAgentSignedAt, setAgreementAgentSignedAt] = useState<string | null>(null);
   const [paymentChannel, setPaymentChannel] = useState<string | null>(null);
-  const [agreementDocuments, setAgreementDocuments] = useState<Array<{ id: string; name: string }>>([]);
+  const [agreementDocuments, setAgreementDocuments] = useState<Array<{ id: string; name: string; originalUrl: string; signedUrl: string | null }>>([]);
   const [paymentStatus, setPaymentStatus] = useState("pending");
   const [paymentProduct, setPaymentProduct] = useState<string | null>(null);
   const [esignConfigured, setEsignConfigured] = useState(false);
@@ -400,6 +405,8 @@ export function PendingApprovalClient({
       setEsignConfigured(Boolean(data.configured));
       setAgreementStatus(data.agreementStatus || "not_started");
       setAgreementAgentSignedAt(data.agreementAgentSignedAt || null);
+      setContractSatisfied(Boolean(data.contractSatisfied));
+      setManualContract(data.manualContract || null);
       setPaymentStatus(data.paymentStatus || "pending");
       setPaymentChannel(data.paymentChannel || null);
       setPaymentProduct(data.paymentProduct || null);
@@ -408,13 +415,13 @@ export function PendingApprovalClient({
     }
   }, []);
 
-  const startAgreement = useCallback(async () => {
+  const startAgreement = useCallback(async (recover = false) => {
     if (agreementRequestInFlight.current) return false;
     agreementRequestInFlight.current = true;
     setAgreementLoading(true);
     setAgreementError("");
     try {
-      const response = await fetch("/api/onboarding/agreement", { method: "POST" });
+      const response = await fetch("/api/onboarding/agreement", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: recover ? "recover" : "prepare" }) });
       if (!response.ok) throw new Error();
       await refreshAgreement();
       return true;
@@ -453,9 +460,9 @@ export function PendingApprovalClient({
       if (!response.ok) {
         signingTab?.close();
         const messages: Record<string, [string, string]> = {
-          TOO_MANY_REQUESTS: ["操作较频繁，请稍后再试；重发邮件间隔为一分钟。", "Please wait before trying again. Signing emails can be resent once per minute."],
+          TOO_MANY_REQUESTS: ["操作较频繁，请稍后再试；重发邮件间隔为五分钟。", "Please wait before trying again. Signing emails can be resent once every five minutes."],
           ALREADY_SIGNED: ["你已完成签署，正在更新入职进度。", "You have already signed. Refreshing your onboarding progress."],
-          AGREEMENT_EXPIRED: ["合同已过期，请刷新状态后重新发起。", "This agreement expired. Refresh its status to restart."],
+          AGREEMENT_EXPIRED: ["签署链接已过期，请重发签署邮件续期，已保存的签名会保留。", "This signing link expired. Resend the invitation to renew it; saved signatures are retained."],
           SIGNER_MISMATCH: ["合同签署邮箱与账号不一致，请联系管理员核对。", "The signing email does not match this account. Contact your administrator."],
           EMAIL_RESUME_REQUIRED: ["请使用签署邮件中的链接，也可点击重发签署邮件。", "Use the signing email link, or request a new signing email."],
         };
@@ -488,6 +495,7 @@ export function PendingApprovalClient({
     if (
       accountStatus !== "pending" ||
       !setupComplete ||
+      contractSatisfied ||
       !esignConfigured ||
       agreementStatus !== "not_started" ||
       teamJoinRequest?.status === "pending" ||
@@ -501,6 +509,7 @@ export function PendingApprovalClient({
     accountStatus,
     agreementStatus,
     esignConfigured,
+    contractSatisfied,
     setupComplete,
     startAgreement,
     teamJoinRequest?.status,
@@ -509,7 +518,7 @@ export function PendingApprovalClient({
   useEffect(() => {
     if (
       accountStatus !== "pending" ||
-      !agreementAgentSignedAt ||
+      !contractSatisfied ||
       paymentStatus === "paid" ||
       !paymentProduct ||
       paymentRedirectStarted.current
@@ -518,7 +527,7 @@ export function PendingApprovalClient({
     }
     paymentRedirectStarted.current = true;
     router.replace(`/pay?product=${encodeURIComponent(paymentProduct)}&onboarding=1`);
-  }, [accountStatus, agreementAgentSignedAt, paymentProduct, paymentStatus, router]);
+  }, [accountStatus, contractSatisfied, paymentProduct, paymentStatus, router]);
 
   const redirectIfApproved = useCallback(
     (effectiveSession: typeof session) => {
@@ -598,6 +607,7 @@ export function PendingApprovalClient({
   return (
     <div className="flex min-h-[100svh] items-start justify-center px-3 py-4 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:min-h-screen sm:items-center sm:px-6 sm:py-8 sm:pb-8">
       <div className="w-full max-w-2xl">
+        {limitedCapabilities.length > 0 && accountStatus === "pending" && <a href="/limited" className="mb-4 block rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm">{lang === "zh" ? "部分工作台功能已临时开放，入职待办仍需完成。进入有限工作台 →" : "Temporary capabilities are available while onboarding remains outstanding. Open workspace →"}</a>}
         <div className="mb-5 flex justify-center sm:mb-8">
           <HomixMark size={36} />
         </div>
@@ -637,8 +647,9 @@ export function PendingApprovalClient({
 
           {effectiveStatus === "pending" && (
             <div className="mt-5 min-w-0 rounded-none border-0 bg-transparent p-0 text-left sm:mt-6 sm:rounded-xl sm:border sm:border-line sm:bg-paper sm:p-5">
-              <h2 className="font-serif text-[22px]" style={{ color: tone.ink }}>{t.setupTitle}</h2>
-              <p className="mt-1 text-[12px]" style={{ color: tone.ink50 }}>{t.setupHint}</p>
+              <h2 className="font-serif text-[22px]" style={{ color: tone.ink }}>{setupComplete ? (lang === "zh" ? "入职资料已提交" : "Details submitted") : t.setupTitle}</h2>
+              <p className="mt-1 text-[12px]" style={{ color: tone.ink50 }}>{setupComplete ? `${legalName || session?.user.name || ""} · ${selectedCompany?.legalName || licensedCompany}` : t.setupHint}</p>
+              {setupComplete && <button type="button" className="mt-3 text-sm underline underline-offset-4" aria-expanded={showSubmittedSetup} aria-controls="pending-submitted-details" onClick={() => setShowSubmittedSetup(!showSubmittedSetup)}>{showSubmittedSetup ? (lang === "zh" ? "收起资料" : "Hide details") : (lang === "zh" ? "查看已提交资料" : "Review submitted details")}</button>}
               {(routingLocks.plan || routingLocks.team || routingLocks.sponsor || routingLocks.term || routingLocks.company) && (
                 <p className="mt-3 rounded-lg px-3 py-2 text-[12px]" style={{ background: tone.paperDeep, color: tone.green }}>
                   {t.invitedRoute(onboardingSource)}
@@ -647,7 +658,7 @@ export function PendingApprovalClient({
               {setupLoading ? (
                 <p className="mt-5 text-[13px]" style={{ color: tone.ink50 }}>{t.checking}</p>
               ) : (
-                <div className="mt-4 grid min-w-0 gap-3 sm:mt-5 sm:grid-cols-2 sm:gap-4">
+                <div id="pending-submitted-details" className={`mt-4 min-w-0 gap-3 sm:mt-5 sm:grid-cols-2 sm:gap-4 ${setupComplete && !showSubmittedSetup ? "hidden" : "grid"}`}>
                   <div className="grid min-w-0 gap-3 rounded-lg p-3 sm:col-span-2 sm:p-4" style={{ background: tone.paperDeep, border: `1px solid ${tone.line}` }}>
                     <div>
                       <div className="text-[13px] font-medium" style={{ color: tone.ink }}>{t.companyFirst}</div>
@@ -825,15 +836,17 @@ export function PendingApprovalClient({
                 <div className="mt-5 border-t pt-5" style={{ borderColor: tone.line }}>
                   <h3 className="font-serif text-[20px]" style={{ color: tone.ink }}>{t.agreementTitle}</h3>
                   <p className="mt-1 text-[12px]" style={{ color: tone.ink50 }}>{t.agreementHint}</p>
-                  {!esignConfigured ? (
+                  {manualContract ? (
+                    <p className="mt-3 text-sm text-green-800">{lang === "zh" ? "线下 / 历史合同已核验，无需重复电子签署。" : "Offline / historical contract verified. No duplicate electronic signature is required."} <a className="underline" target="_blank" rel="noopener noreferrer" href={`/api/onboarding/contracts/${manualContract.id}`}>{lang === "zh" ? "查看已签合同 ↗" : "View signed contract ↗"}</a></p>
+                  ) : !esignConfigured ? (
                     <p className="mt-3 text-[12px]" style={{ color: tone.amber }}>{t.agreementUnavailable}</p>
                   ) : agreementStatus === "completed" ? (
                     <p className="mt-3 text-[13px]" style={{ color: tone.green }}>{t.agreementCompleted}</p>
                   ) : canRestartAgreement(agreementStatus) ? (
                     <div className="mt-3">
-                      <p className="text-[12px]" style={{ color: tone.rose }}>{t.restartAgreementHint}</p>
-                      <Btn variant="primary" className="mt-3 w-full justify-center" disabled={agreementLoading} onClick={() => void startAgreement()}>
-                        {agreementLoading ? t.sendingAgreement : t.restartAgreement}
+                      <p className="text-[12px]" style={{ color: tone.rose }}>{agreementStatus === "expired" ? (lang === "zh" ? "签署链接已过期，续期会保留原合同和已保存的签名。" : "Renew this link to keep the original agreement and saved signatures.") : t.restartAgreementHint}</p>
+                      <Btn variant="primary" className="mt-3 w-full justify-center" disabled={agreementLoading} onClick={() => void startAgreement(true)}>
+                        {agreementLoading ? t.sendingAgreement : agreementStatus === "expired" ? (lang === "zh" ? "重发并续期签署链接" : "Renew signing link") : t.restartAgreement}
                       </Btn>
                       {agreementError && <p className="mt-2 text-[12px]" style={{ color: tone.rose }}>{agreementError}</p>}
                     </div>
@@ -874,8 +887,8 @@ export function PendingApprovalClient({
                       )}
                     </div>
                   )}
-                  {agreementDocuments.map((document) => <a key={document.id} className="mt-3 block text-sm underline underline-offset-4" href={`/api/onboarding/agreement/documents?document=${encodeURIComponent(document.id)}`} target="_blank" rel="noopener noreferrer">{lang === "zh" ? "查看原合同（未含签名）" : "View original agreement (without signatures)"} · {document.name}</a>)}
-                  {agreementAgentSignedAt && !agreementNeedsAttention(agreementStatus) && paymentProduct && paymentStatus !== "paid" && (
+                  {agreementDocuments.map((document) => <a key={document.id} className="mt-3 block text-sm underline underline-offset-4" href={document.signedUrl || document.originalUrl} target="_blank" rel="noopener noreferrer">{document.signedUrl ? (lang === "zh" ? "查看已签合同" : "View signed agreement") : (lang === "zh" ? "查看原合同（未含签名）" : "View original agreement (without signatures)")} · {document.name}</a>)}
+                  {contractSatisfied && paymentProduct && paymentStatus !== "paid" && (
                     <Btn variant="primary" className="mt-4 w-full justify-center" onClick={() => router.push(`/pay?product=${encodeURIComponent(paymentProduct)}&onboarding=1`)}>
                       {t.payAnnualFee}
                     </Btn>
@@ -883,7 +896,7 @@ export function PendingApprovalClient({
                   {paymentStatus === "paid" && (
                     <p className="mt-3 text-[13px]" style={{ color: tone.green }}>{t.paymentReceived}</p>
                   )}
-                  {agreementAgentSignedAt && !agreementNeedsAttention(agreementStatus) && (paymentStatus === "paid" || !paymentProduct) && (
+                  {contractSatisfied && (paymentStatus === "paid" || !paymentProduct) && (
                     <p className="mt-3 text-[12px]" style={{ color: tone.ink70 }}>{paymentChannel === "offline" ? t.offlineReview : t.finalReview}</p>
                   )}
                 </div>

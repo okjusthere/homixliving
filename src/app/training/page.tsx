@@ -5,7 +5,7 @@ import {
   trainingVideos,
   type TrainingVideo,
 } from "@/db/schema";
-import { requireActiveAgent } from "@/lib/auth-guards";
+import { requireCapability } from "@/lib/auth-guards";
 import { tone } from "@/components/homix/tokens";
 import { Card } from "@/components/homix/server-primitives";
 import { PageHeader } from "@/components/homix/page-kit";
@@ -57,7 +57,7 @@ function groupByCategory(
 }
 
 export default async function TrainingPage() {
-  const session = await requireActiveAgent();
+  const session = await requireCapability("training");
   const locale = await getLocale();
   const t = M[locale];
   const watermark = session.user.email || "Homix agent";

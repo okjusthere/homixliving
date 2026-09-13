@@ -1,177 +1,18 @@
-import { NextRequest, NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
-import { db } from "@/db";
-import { agents, commerceOrders } from "@/db/schema";
+import { NextRequest } from "next/server";
+import { z } from "zod";
 import { requireAdminApi } from "@/lib/auth-guards";
-import { getCommerceProduct } from "@/lib/commerce/catalog";
-import { logAudit } from "@/lib/audit";
-import { onboardingPaymentProduct } from "@/lib/onboarding";
-import { onboardingAgreementAllowsPayment } from "@/lib/onboarding";
-import { syncOnboardingAgreement } from "@/lib/onboarding-agreement";
-import {
-  onboardingLicenseTransferFeeCents,
-  settlePlanPayment,
-} from "@/lib/plan-payments";
-import { lockAgentLedgers } from "@/lib/advisory-locks";
+import { OnboardingCommandError, recordOnboardingReceipt } from "@/lib/onboarding-admin";
 
-const METHODS = new Set(["cash", "check", "ach", "zelle", "wire", "other"]);
-
-class OfflinePaymentConflictError extends Error {}
-
-export async function POST(req: NextRequest) {
+export async function POST(request: NextRequest) {
   const auth = await requireAdminApi();
   if ("error" in auth) return auth.error;
-  if (req.headers.get("origin") !== req.nextUrl.origin) return NextResponse.json({ error: "Invalid origin" }, { status: 403 });
-  const body = await req.json().catch(() => null) as Record<string, unknown> | null;
-  if (!body) return NextResponse.json({ error: "Invalid body" }, { status: 400 });
-
-  const agentId = Number(body.agentId);
-  const method = String(body.method || "").trim().toLowerCase();
-  const reference = String(body.reference || "").trim().slice(0, 120);
-  const idempotencyKey = String(body.idempotencyKey || "").trim().slice(0, 120);
-  const receivedAtInput = String(body.receivedAt || "").trim();
-  const receivedDate = new Date(`${receivedAtInput}T12:00:00.000Z`);
-  const receivedAt = /^\d{4}-\d{2}-\d{2}$/.test(receivedAtInput) && Number.isFinite(receivedDate.getTime()) && receivedDate.toISOString().slice(0, 10) === receivedAtInput
-    ? receivedDate.toISOString()
-    : "";
-  if (!Number.isInteger(agentId) || agentId <= 0) {
-    return NextResponse.json({ error: "Valid agentId is required" }, { status: 400 });
-  }
-  if (!METHODS.has(method)) {
-    return NextResponse.json({ error: "Select a valid payment method" }, { status: 400 });
-  }
-  if (!reference) {
-    return NextResponse.json({ error: "A receipt, check, or transaction reference is required" }, { status: 400 });
-  }
-  if (!receivedAt) {
-    return NextResponse.json({ error: "receivedAt must be YYYY-MM-DD" }, { status: 400 });
-  }
-  if (receivedAtInput > new Date().toISOString().slice(0, 10)) {
-    return NextResponse.json({ error: "receivedAt cannot be in the future" }, { status: 400 });
-  }
-  if (!/^[A-Za-z0-9_-]{8,120}$/.test(idempotencyKey)) {
-    return NextResponse.json({ error: "A valid idempotencyKey is required" }, { status: 400 });
-  }
-  const externalPaymentKey = `offline:${idempotencyKey}`;
-
-  let [agent] = await db.select().from(agents).where(eq(agents.id, agentId)).limit(1);
-  if (!agent) return NextResponse.json({ error: "Agent not found" }, { status: 404 });
-  if (agent.esignEnvelopeId && !onboardingAgreementAllowsPayment(agent)) {
-    try {
-      agent = await syncOnboardingAgreement(agent);
-    } catch (error) {
-      console.error("Unable to verify agent signature before offline payment", error);
-    }
-  }
-  const [existingOrder] = await db
-    .select()
-    .from(commerceOrders)
-    .where(eq(commerceOrders.externalPaymentKey, externalPaymentKey))
-    .limit(1);
-  if (existingOrder) {
-    if (existingOrder.agentId !== agent.id) {
-      return NextResponse.json({ error: "Idempotency key belongs to another agent" }, { status: 409 });
-    }
-    return NextResponse.json({ order: existingOrder, replayed: true });
-  }
-  if (agent.accountStatus !== "pending") {
-    return NextResponse.json({ error: "Offline onboarding payment is only available for pending agents" }, { status: 409 });
-  }
-  if (agent.paymentStatus === "paid") {
-    return NextResponse.json({ error: "The required onboarding fee has already been paid" }, { status: 409 });
-  }
-  if (!agent.onboardingCompletedAt) {
-    return NextResponse.json({ error: "The agent must complete their onboarding profile first" }, { status: 409 });
-  }
-  if (!onboardingAgreementAllowsPayment(agent)) {
-    return NextResponse.json({ error: "The affiliation agreement must be signed before payment" }, { status: 409 });
-  }
-  if (agent.plan === "team_member" && (!agent.teamTermsConfigId || !agent.teamTermsAcceptedAt)) {
-    return NextResponse.json({ error: "The agent must accept the team compensation terms first" }, { status: 409 });
-  }
-  const productKey = onboardingPaymentProduct(agent.plan, agent.affiliationTermMonths);
-  const product = productKey ? getCommerceProduct(productKey) : null;
-  if (!product) return NextResponse.json({ error: "Required onboarding product is unavailable" }, { status: 409 });
-  const licenseTransferFeeCents = onboardingLicenseTransferFeeCents(agent, product.key);
-  const requiredCents = product.amountCents + licenseTransferFeeCents;
-  const amountCents = Math.round(Number(body.amountCents));
-  if (amountCents !== requiredCents) {
-    return NextResponse.json(
-      { error: "Offline onboarding payments must match the plan fee plus the license transfer fee", requiredCents },
-      { status: 409 },
-    );
-  }
-
-  let result;
+  if (request.headers.get("origin") !== request.nextUrl.origin) return Response.json({ error: "Invalid origin" }, { status: 403 });
   try {
-    result = await db.transaction(async (tx) => {
-      await lockAgentLedgers(tx, [agent.id]);
-      const [existing] = await tx
-        .select()
-        .from(commerceOrders)
-        .where(eq(commerceOrders.externalPaymentKey, externalPaymentKey))
-        .limit(1);
-      if (existing) {
-        if (existing.agentId !== agent.id) throw new OfflinePaymentConflictError();
-        return { order: existing, replayed: true, alreadyPaid: false as const };
-      }
-      const [lockedAgent] = await tx.select().from(agents).where(eq(agents.id, agent.id)).limit(1);
-      if (!lockedAgent || lockedAgent.paymentStatus === "paid") {
-        return { order: null, replayed: false, alreadyPaid: true as const };
-      }
-      if (lockedAgent.updatedAt !== agent.updatedAt || lockedAgent.accountStatus !== "pending" || !onboardingAgreementAllowsPayment(lockedAgent)) throw new OfflinePaymentConflictError("Onboarding changed. Refresh before verifying payment.");
-      const now = new Date().toISOString();
-      const [order] = await tx.insert(commerceOrders).values({
-        agentId: agent.id,
-        productKey: product.key,
-        productName: product.name,
-        billingMode: product.billingMode,
-        amountCents,
-        licenseTransferFeeCents,
-        currency: product.currency,
-        status: "paid",
-        paymentChannel: "offline",
-        offlineMethod: method,
-        offlineReference: reference,
-        verifiedByEmail: auth.session.user.email || null,
-        externalPaymentKey,
-        customerName: agent.legalName || agent.name,
-        customerEmail: agent.email,
-        referralHasAgent: agent.referredByAgentId ? "yes" : "no",
-        workspaceStatus: "not_required",
-        paidAt: receivedAt,
-        createdAt: now,
-        updatedAt: now,
-      }).returning();
-      await settlePlanPayment(tx, {
-        order,
-        sourceKey: externalPaymentKey,
-        amountCents,
-        rewardEligibleAmountCents: product.amountCents,
-        earnedAt: receivedAt,
-      });
-      return { order, replayed: false, alreadyPaid: false as const };
-    });
+    return Response.json(await recordOnboardingReceipt(auth.session.user.agentId!, await request.json()), { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
-    if (error instanceof OfflinePaymentConflictError) {
-      return NextResponse.json({ error: error.message || "Idempotency key belongs to another agent" }, { status: 409 });
-    }
-    throw error;
+    if (error instanceof OnboardingCommandError) return Response.json({ error: error.message }, { status: error.status });
+    if (error instanceof z.ZodError || error instanceof SyntaxError) return Response.json({ error: "Enter a valid amount, payment reference and date" }, { status: 400 });
+    console.error("Receipt recording failed", error);
+    return Response.json({ error: "Unable to record receipt. Please retry with the same request." }, { status: 500 });
   }
-
-  if (result.alreadyPaid || !result.order) {
-    return NextResponse.json({ error: "The required onboarding fee has already been paid" }, { status: 409 });
-  }
-
-  if (!result.replayed) {
-    await logAudit(
-      auth.session,
-      "record_offline_payment",
-      "commerce_order",
-      result.order.id,
-      `管理员核验 ${agent.name} 线下入职付款 $${(amountCents / 100).toFixed(2)}（${method}）`,
-      { agentId, method, reference, receivedAt, productKey, licenseTransferFeeCents },
-    );
-  }
-  return NextResponse.json({ order: result.order, replayed: result.replayed });
 }

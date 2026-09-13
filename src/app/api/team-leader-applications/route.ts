@@ -1,3 +1,4 @@
+import { affiliationContractComplete } from "@/lib/onboarding-requirements";
 import { after, NextRequest, NextResponse } from "next/server";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
@@ -25,7 +26,8 @@ export async function GET() {
   const authResult = await requireActiveAgentApi();
   if ("error" in authResult) return authResult.error;
   const agentId = authResult.session.user.agentId;
-  if (!agentId) return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+  if (!agentId)
+    return NextResponse.json({ error: "Agent not found" }, { status: 404 });
 
   const rows = await db
     .select({
@@ -39,9 +41,11 @@ export async function GET() {
     .from(teamLeaderApplications)
     .innerJoin(agents, eq(agents.id, teamLeaderApplications.applicantAgentId))
     .leftJoin(teams, eq(teams.id, teamLeaderApplications.teamId))
-    .where(authResult.session.user.isAdmin
-      ? undefined
-      : eq(teamLeaderApplications.applicantAgentId, agentId))
+    .where(
+      authResult.session.user.isAdmin
+        ? undefined
+        : eq(teamLeaderApplications.applicantAgentId, agentId),
+    )
     .orderBy(desc(teamLeaderApplications.createdAt));
   return NextResponse.json(rows);
 }
@@ -50,7 +54,8 @@ export async function POST(request: NextRequest) {
   const authResult = await requireActiveAgentApi();
   if ("error" in authResult) return authResult.error;
   const agentId = authResult.session.user.agentId;
-  if (!agentId) return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+  if (!agentId)
+    return NextResponse.json({ error: "Agent not found" }, { status: 404 });
 
   let input;
   try {
@@ -65,7 +70,11 @@ export async function POST(request: NextRequest) {
   try {
     const application = await db.transaction(async (tx) => {
       await lockOnboardingAgent(tx, agentId);
-      const [agent] = await tx.select().from(agents).where(eq(agents.id, agentId)).limit(1);
+      const [agent] = await tx
+        .select()
+        .from(agents)
+        .where(eq(agents.id, agentId))
+        .limit(1);
       if (!agent) throw new Error("AGENT_NOT_FOUND");
       const [leadership] = await tx
         .select({ id: teams.id })
@@ -75,38 +84,48 @@ export async function POST(request: NextRequest) {
       const [openApplication] = await tx
         .select({ status: teamLeaderApplications.status })
         .from(teamLeaderApplications)
-        .where(and(
-          eq(teamLeaderApplications.applicantAgentId, agentId),
-          inArray(teamLeaderApplications.status, [...OPEN_STATUSES]),
-        ))
+        .where(
+          and(
+            eq(teamLeaderApplications.applicantAgentId, agentId),
+            inArray(teamLeaderApplications.status, [...OPEN_STATUSES]),
+          ),
+        )
         .limit(1);
-      const licensedCompany = resolveLicensedCompany(agent.licensedCompanyId || agent.licensedCompany);
+      const licensedCompany = resolveLicensedCompany(
+        agent.licensedCompanyId || agent.licensedCompany,
+      );
       const ineligible = teamLeaderApplicationEligibility({
         accountStatus: agent.accountStatus,
         agentAgreementStatus: agent.agreementStatus,
+        affiliationContractComplete: affiliationContractComplete(agent),
         plan: normalizeAgentPlan(agent.plan),
         licensedCompanySupported: Boolean(licensedCompany),
         alreadyLeadsTeam: Boolean(leadership),
         openApplicationStatus: openApplication?.status,
       });
       if (ineligible) throw new Error(ineligible);
-      const [created] = await tx.insert(teamLeaderApplications).values({
-        applicantAgentId: agentId,
-        licensedCompany: licensedCompany!.legalName,
-        companyId: licensedCompany!.id,
-        ...input,
-      }).returning();
-      await tx.insert(onboardingEvents).values(onboardingEventValues({
-        eventType: "team_leader_application_submitted",
-        session: authResult.session,
-        agentId,
-        detail: {
-          applicationId: created.id,
-          proposedTeamName: input.proposedTeamName,
-          expectedMemberCount: input.expectedMemberCount,
-          proposedTeamSplitPct: input.proposedTeamSplitPct,
-        },
-      }));
+      const [created] = await tx
+        .insert(teamLeaderApplications)
+        .values({
+          applicantAgentId: agentId,
+          licensedCompany: licensedCompany!.legalName,
+          companyId: licensedCompany!.id,
+          ...input,
+        })
+        .returning();
+      await tx.insert(onboardingEvents).values(
+        onboardingEventValues({
+          eventType: "team_leader_application_submitted",
+          session: authResult.session,
+          agentId,
+          detail: {
+            applicationId: created.id,
+            proposedTeamName: input.proposedTeamName,
+            expectedMemberCount: input.expectedMemberCount,
+            proposedTeamSplitPct: input.proposedTeamSplitPct,
+          },
+        }),
+      );
       return created;
     });
     await logAudit(
@@ -133,14 +152,21 @@ export async function POST(request: NextRequest) {
     const messages: Record<string, string> = {
       AGENT_NOT_FOUND: "Agent not found.",
       account_not_active: "Only active agents may apply.",
-      agent_agreement_required: "Complete your Agent Affiliation Agreement before applying.",
+      agent_agreement_required:
+        "Complete your Agent Affiliation Agreement before applying.",
       solo_pro_required: "The Solo Pro plan is required before applying.",
-      licensed_company_required: "Select Homix Realty Inc. or Homix Living Inc. before applying.",
+      licensed_company_required:
+        "Select Homix Realty Inc. or Homix Living Inc. before applying.",
       already_team_leader: "You already lead a team.",
-      application_already_open: "You already have an open Team Leader application.",
+      application_already_open:
+        "You already have an open Team Leader application.",
     };
-    if (messages[code]) return NextResponse.json({ error: messages[code] }, { status: 409 });
+    if (messages[code])
+      return NextResponse.json({ error: messages[code] }, { status: 409 });
     console.error("Unable to submit Team Leader application", error);
-    return NextResponse.json({ error: "Unable to submit application." }, { status: 500 });
+    return NextResponse.json(
+      { error: "Unable to submit application." },
+      { status: 500 },
+    );
   }
 }

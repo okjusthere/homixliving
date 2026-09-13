@@ -1,3 +1,5 @@
+import { verifiedManualContract } from "@/lib/onboarding-requirements";
+import { onboardingAccessGrants } from "@/db/onboarding-schema";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { agents, commerceOrders, teamJoinRequests, teams } from "@/db/schema";
@@ -18,10 +20,8 @@ import {
 import { normalizeAgentPlan, PLAN_SPLIT_PCT } from "@/lib/agent-plans";
 import {
   onboardingAgreementAllowsPayment,
-  isOnboardingV2Enforced,
   onboardingPaymentProduct,
 } from "@/lib/onboarding";
-import { isOnboardingESignConfigured } from "@/lib/esign";
 import { syncOnboardingAgreement } from "@/lib/onboarding-agreement";
 import { syncPublicAgentProfile } from "@/lib/sync-public-profile";
 
@@ -52,6 +52,7 @@ export async function POST(
   }
   if (existing.accountStatus === "active")
     return NextResponse.json({ success: true, replayed: true });
+  if (existing.accountStatus === "inactive") return NextResponse.json({ error: "Restore the account to onboarding and review the current contract and billing basis before activating." }, { status: 409 });
   const [pendingTeamJoinRequest] = await db
     .select({ id: teamJoinRequests.id })
     .from(teamJoinRequests)
@@ -71,23 +72,8 @@ export async function POST(
       { status: 409 },
     );
   }
-  if (existing.accountStatus === "pending" && isOnboardingV2Enforced()) {
-    if (existing.esignEnvelopeId) {
-      if (
-        !isOnboardingESignConfigured(
-          existing.licensedCompany,
-          existing.plan,
-          existing.liborMembershipStatus,
-        )
-      ) {
-        return NextResponse.json(
-          {
-            error:
-              "The agent's licensed company does not have a configured onboarding agreement.",
-          },
-          { status: 503 },
-        );
-      }
+  if (existing.accountStatus === "pending") {
+    if (existing.signingRequestId && !verifiedManualContract(existing)) {
       try {
         existing = await syncOnboardingAgreement(existing);
       } catch (error) {
@@ -342,7 +328,7 @@ export async function POST(
       fresh.accountStatus !== existing.accountStatus
     )
       return null;
-    if (existing.accountStatus === "pending" && isOnboardingV2Enforced()) {
+    if (existing.accountStatus === "pending") {
       const [payment] = await tx
         .select({ id: commerceOrders.id })
         .from(commerceOrders)
@@ -409,6 +395,7 @@ export async function POST(
         ),
       )
       .returning();
+    if (activated) await tx.update(onboardingAccessGrants).set({ status: "completed", endedBy: authResult.session.user.agentId, endedAt: now }).where(and(eq(onboardingAccessGrants.agentId, parsedId), eq(onboardingAccessGrants.status, "open")));
     return activated || null;
   });
   if (!agent)

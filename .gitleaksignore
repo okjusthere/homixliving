@@ -1,0 +1,3 @@
+# Reviewed false positive: ordinary QA prose about expiring permissions.
+# Excludes this exact historical text finding only, not future commits.
+6058df3b47f8c402a7e463be694f0630cd620943:docs/qa/2026-09-12-signing-integration/README.md:generic-api-key:18

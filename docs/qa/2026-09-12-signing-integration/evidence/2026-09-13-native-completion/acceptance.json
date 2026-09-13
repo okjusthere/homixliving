@@ -1,0 +1,162 @@
+{
+  "proofs": [
+    {
+      "scenario": "custom",
+      "requestId": "1ec92d21-1647-49e2-afcd-da73a673e4aa",
+      "completed": true,
+      "recipients": [
+        {
+          "name": "Synthetic Custom Signer",
+          "signingOrder": 1,
+          "signedAt": "2026-09-13T03:57:13.655Z",
+          "signingStatus": "SIGNED"
+        }
+      ],
+      "files": [
+        {
+          "kind": "signed",
+          "path": "custom-envelope_item_eyocxdybhueebrvt-signed.pdf",
+          "bytes": 233751,
+          "sha256": "0165ab5ae788e5c285a46ea5108b4387211a8a245c50f456d5aa52d3a0e7ef69"
+        },
+        {
+          "kind": "audit-log",
+          "path": "custom-audit-log.pdf",
+          "bytes": 523496
+        },
+        {
+          "kind": "certificate",
+          "path": "custom-certificate.pdf",
+          "bytes": 196969
+        }
+      ]
+    },
+    {
+      "scenario": "onboarding",
+      "requestId": "8f3f9ad0-ef39-4f0e-b4f8-2fe0e6627ad7",
+      "completed": true,
+      "recipients": [
+        {
+          "name": "Synthetic signing applicant",
+          "signingOrder": 1,
+          "signedAt": "2026-09-13T03:58:36.982Z",
+          "signingStatus": "SIGNED"
+        },
+        {
+          "name": "Synthetic Homix Admin",
+          "signingOrder": 2,
+          "signedAt": "2026-09-13T04:02:14.464Z",
+          "signingStatus": "SIGNED"
+        }
+      ],
+      "files": [
+        {
+          "kind": "signed",
+          "path": "onboarding-envelope_item_zeniyilmbazlntdb-signed.pdf",
+          "bytes": 244618,
+          "sha256": "093745e031412f4dfa778c83a33a2042630436fe1daf1472a42797465d7a5ca1"
+        },
+        {
+          "kind": "audit-log",
+          "path": "onboarding-audit-log.pdf",
+          "bytes": 626143
+        },
+        {
+          "kind": "certificate",
+          "path": "onboarding-certificate.pdf",
+          "bytes": 206091
+        }
+      ]
+    }
+  ],
+  "agent": {
+    "account_status": "pending",
+    "agreement_status": "completed",
+    "agreement_agent_signed_at": "2026-09-13T03:58:36.982Z",
+    "agreement_countersigned_at": "2026-09-13T04:02:14.464Z",
+    "agreement_completed_at": "2026-09-13T04:02:15.110Z",
+    "payment_status": "pending"
+  },
+  "events": [
+    {
+      "id": "c28c2c59-61df-4d2f-aae3-ad1c887fd373",
+      "processed_at": "2026-09-13T03:18:34.410Z",
+      "last_error": null
+    },
+    {
+      "id": "fb58a603-1184-4b3d-a4a5-006c27c40251",
+      "processed_at": "2026-09-13T03:58:51.475Z",
+      "last_error": null
+    },
+    {
+      "id": "4c283220-aa0d-47ff-8c65-6ed8998f4b63",
+      "processed_at": "2026-09-13T04:02:51.830Z",
+      "last_error": null
+    }
+  ],
+  "files": [
+    {
+      "file": "envelope_item_nmnzfilysdhxkubs-signed.pdf",
+      "bytes": 234540,
+      "sha256": "2e61dd9a59efb2cafa64f9f141f9ffa1191e7ac420562c32da24a90731d738de"
+    },
+    {
+      "file": "envelope_item_wrfcdlehdmiokzwb-signed.pdf",
+      "bytes": 231714,
+      "sha256": "4a15915d39b7d8fe31f58cecce606a248f6e5b5e696ae9a106e43ff2f5f5a6ba"
+    },
+    {
+      "file": "certificate.pdf",
+      "bytes": 202809,
+      "sha256": "254cb30b460f2ee74ee380b8cbf91c955446fa40ab463dc42bc15fca95efca5f"
+    },
+    {
+      "file": "envelope_item_wrfcdlehdmiokzwb-original.pdf",
+      "bytes": 609,
+      "sha256": "ad8152cc939b738084ef11d673b2f0441084744e4988fcebe7d066617d405643"
+    },
+    {
+      "file": "envelope_item_nmnzfilysdhxkubs-original.pdf",
+      "bytes": 600,
+      "sha256": "93713b4247dae432771bb55e89ccbb711dc7ea360f005532feeee7e21d8a1754"
+    },
+    {
+      "file": "audit-log.pdf",
+      "bytes": 551476,
+      "sha256": "3f9e995c470631719f64afa1986711991c6c8565ddf04f4c820580381e22493e"
+    },
+    {
+      "file": "onboarding-audit-log.pdf",
+      "bytes": 626143,
+      "sha256": "ef1035991a9dd61d771859b6c0aac789fbce61aeb17f212799377e4488da9357"
+    },
+    {
+      "file": "onboarding-certificate.pdf",
+      "bytes": 206091,
+      "sha256": "2da5694e7796c6078d047e6f19d5f4a4b252c15b7844c41c83febcc64ab21029"
+    },
+    {
+      "file": "custom-certificate.pdf",
+      "bytes": 196969,
+      "sha256": "49619ac24181d0b6a4adc423e82975f57302ce171b698cfeacefc91ec6183e9a"
+    },
+    {
+      "file": "custom-audit-log.pdf",
+      "bytes": 523496,
+      "sha256": "2727f9e22015c230578ef2f6ea09eb98d29deac21bba1921af9c0fe316fb424a"
+    },
+    {
+      "file": "onboarding-envelope_item_zeniyilmbazlntdb-signed.pdf",
+      "bytes": 244618,
+      "sha256": "093745e031412f4dfa778c83a33a2042630436fe1daf1472a42797465d7a5ca1"
+    },
+    {
+      "file": "custom-envelope_item_eyocxdybhueebrvt-signed.pdf",
+      "bytes": 233751,
+      "sha256": "0165ab5ae788e5c285a46ea5108b4387211a8a245c50f456d5aa52d3a0e7ef69"
+    }
+  ],
+  "syntheticOnly": true,
+  "cryptographicSealVerified": true,
+  "trust": "Self-signed service integrity seal; no public CA or personal identity assertion"
+}

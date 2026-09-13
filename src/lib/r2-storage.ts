@@ -8,6 +8,7 @@ import {
   S3Client,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { documentStorageEndpoint } from "./document-storage-endpoint";
 
 const UPLOAD_URL_TTL_SECONDS = 5 * 60;
 const DOWNLOAD_URL_TTL_SECONDS = 60;
@@ -50,7 +51,7 @@ function getClient() {
   if (!client) {
     client = new S3Client({
       region: "auto",
-      endpoint: `https://${config.accountId}.r2.cloudflarestorage.com`,
+      ...documentStorageEndpoint(config.accountId),
       credentials: {
         accessKeyId: config.accessKeyId,
         secretAccessKey: config.secretAccessKey,
@@ -232,4 +233,13 @@ export async function getCompanyDocument(objectKey: string): Promise<Buffer> {
 export async function deleteCompanyDocument(objectKey: string): Promise<void> {
   const { client, bucket } = getClient();
   await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: objectKey }));
+}
+
+export async function readPrivatePdf(objectKey: string, maxBytes = 25 * 1024 * 1024) {
+  const { client, bucket } = getClient();
+  const result = await client.send(new GetObjectCommand({ Bucket: bucket, Key: objectKey }));
+  if (!result.Body || !result.ContentLength || result.ContentLength > maxBytes) throw new Error("Invalid PDF size");
+  const bytes = Buffer.from(await result.Body.transformToByteArray());
+  if (bytes.length > maxBytes || bytes.subarray(0, 5).toString() !== "%PDF-") throw new Error("A valid PDF is required");
+  return bytes;
 }

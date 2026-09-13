@@ -1,9 +1,9 @@
-import { auth } from "@/auth";
+import { currentSession } from "@/lib/auth-guards";
 import { redirect } from "next/navigation";
 import { PendingApprovalClient } from "./pending-approval-client";
 
 export default async function PendingApprovalPage() {
-  const session = await auth();
+  const session = await currentSession();
 
   if (!session?.user?.email) {
     redirect("/login");
@@ -12,6 +12,7 @@ export default async function PendingApprovalPage() {
   return (
     <PendingApprovalClient
       accountStatus={session.user.accountStatus}
+      limitedCapabilities={session.user.limitedCapabilities || []}
     />
   );
 }

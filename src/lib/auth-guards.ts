@@ -5,12 +5,15 @@ import { cache } from "react";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { agents } from "@/db/schema";
+import type { LimitedCapability } from "@/db/schema";
+import { onboardingAccessGrants } from "@/db/onboarding-schema";
+import { effectiveAccess } from "@/lib/onboarding-requirements";
 
 // A cached JWT must not preserve administrator access after it is revoked.
 // Read only the current access fields, and deduplicate within a server render.
-const currentSession = cache(async () => {
+export const currentSession = cache(async () => {
   const session = await auth();
-  if (!session?.user?.isAdmin) return session;
+  if (!session?.user) return session;
   const id = session.user.agentId;
   const [access] = id
     ? await db
@@ -23,6 +26,10 @@ const currentSession = cache(async () => {
         .limit(1)
     : [];
   if (!access) return null;
+  const grants = access.accountStatus === "pending"
+    ? await db.select().from(onboardingAccessGrants).where(eq(onboardingAccessGrants.agentId, id!))
+    : [];
+  const effective = effectiveAccess(access, grants);
   return {
     ...session,
     user: {
@@ -30,9 +37,24 @@ const currentSession = cache(async () => {
       ...access,
       isAdmin: access.isAdmin && access.accountStatus === "active",
       isActive: access.accountStatus === "active",
+      limitedCapabilities: effective.capabilities,
     },
   };
 });
+
+export async function requireCapability(capability: LimitedCapability) {
+  const session = await currentSession();
+  if (!session?.user?.email) redirect("/login");
+  if (!session.user.limitedCapabilities?.includes(capability)) redirect("/pending");
+  return session;
+}
+
+export async function requireCapabilityApi(capability: LimitedCapability) {
+  const session = await currentSession();
+  if (!session?.user?.email) return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+  if (!session.user.limitedCapabilities?.includes(capability)) return { error: NextResponse.json({ error: "This capability is unavailable or its temporary grant has expired" }, { status: 403 }) };
+  return { session };
+}
 
 export async function requireActiveAgent() {
   const session = await currentSession();

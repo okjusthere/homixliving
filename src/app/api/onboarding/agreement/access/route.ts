@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { auth } from "@/auth";
-import { ESignApiError } from "@/lib/esign";
+import { SigningBridgeError } from "@/lib/signing-bridge";
 import { requestBytes, RequestBodyTooLarge } from "@/lib/content/request-body";
 import {
   requestOnboardingSigning,
@@ -37,15 +37,13 @@ export async function POST(request: Request) {
       error instanceof RequestBodyTooLarge
     )
       return Response.json({ code: "INVALID_REQUEST" }, { status: 400 });
-    if (error instanceof ESignApiError)
+    if (error instanceof SigningBridgeError)
       return Response.json(
         {
           code:
-            error.code === "email_resume_required"
-              ? "EMAIL_RESUME_REQUIRED"
-              : "SIGNING_UNAVAILABLE",
+            error.code,
         },
-        { status: error.status === 429 ? 429 : 502 },
+        { status: error.status },
       );
     console.error("Signing access failed", {
       type: error instanceof Error ? error.name : "unknown",

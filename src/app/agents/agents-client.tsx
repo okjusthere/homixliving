@@ -5,6 +5,10 @@ import Link from "next/link";
 import { CelebrationsConsole } from "@/components/admin/celebrations-console";
 import { useListQuery, ListPagination } from "@/components/admin/list-controls";
 import { EditPanel } from "@/components/admin/edit-panel";
+import {
+  TASK_LABELS,
+  type OnboardingTaskSummary,
+} from "@/lib/onboarding-tasks";
 import { OnboardingPanel } from "@/components/admin/onboarding-panel";
 import { onboardingWorkflow, ONBOARDING_NEXT } from "@/lib/onboarding-workflow";
 import { AgentEmailsPanel } from "@/components/admin/agent-emails-panel";
@@ -41,9 +45,7 @@ import type { Agent, Team } from "@/db/schema";
 import type { AdminAgentRow } from "@/lib/homixweb";
 import type { MlsVerificationStatus } from "@/lib/public-identity-status";
 import { RosterConsole } from "../roster/console";
-import { onboardingPaymentProduct } from "@/lib/onboarding";
-import { getCommerceProduct } from "@/lib/commerce/catalog";
-import { onboardingLicenseTransferFeeCents } from "@/lib/plan-payments";
+import { nyDate } from "@/lib/celebrations/calendar";
 
 const M = {
   en: {
@@ -78,7 +80,7 @@ const M = {
     searchPlaceholder: "Search name, team, license, email…",
     pendingApprovals: "Onboarding tasks",
     pendingSubtitle:
-      "Online onboarding activates after Stripe payment; approve only verified offline payments",
+      "Track outstanding contracts, receipts and access, including after activation",
     existingPublicProfile: "Existing website profile (optional)",
     noExistingPublicProfile: "No existing profile — approve and create one",
     loadingPublicProfiles: "Loading website profiles…",
@@ -139,15 +141,15 @@ const M = {
     source: "Source",
     websiteSource: "Homix website",
     recordOffline: "Record offline payment",
-    offlineTitle: "Verify offline onboarding payment",
+    offlineTitle: "Record money received",
     offlineLead:
-      "Use only after the signed fee was actually received. This creates the same finance and sponsor-reward records as Stripe.",
+      "Record the amount the company actually received. Fee matching is a separate step; this does not activate the account or issue rewards.",
     offlineMethod: "Payment method",
     offlineDate: "Received date",
     offlineReference: "Receipt / check / transaction reference",
-    offlineAmount: "Total received (plan + $20 license transfer)",
-    offlineSave: "Verify payment",
-    offlineRecorded: "Offline payment verified",
+    offlineAmount: "Amount actually received (USD)",
+    offlineSave: "Record receipt",
+    offlineRecorded: "Receipt recorded; review and match the fee next",
     agentSignatureDone: "Agent signed; company countersign pending",
     onlineActivationPending:
       "Stripe payment received; automatic activation is processing",
@@ -189,8 +191,7 @@ const M = {
     addAgent: "添加经纪人",
     searchPlaceholder: "搜索姓名、团队、执照、邮箱…",
     pendingApprovals: "入职处理",
-    pendingSubtitle:
-      "线上签约在 Stripe 付款后自动开通；这里只审批已核验的线下付款",
+    pendingSubtitle: "按未完成事项跟进合同、收款和权限，已开通后的待办仍会保留",
     existingPublicProfile: "关联既有官网经纪人（可选）",
     noExistingPublicProfile: "没有既有档案——批准并创建官网主页",
     loadingPublicProfiles: "正在读取官网经纪人…",
@@ -250,15 +251,15 @@ const M = {
     source: "来源",
     websiteSource: "Homix 官网",
     recordOffline: "登记线下付款",
-    offlineTitle: "核验线下入职付款",
+    offlineTitle: "登记实际收款",
     offlineLead:
-      "仅在公司确实收到签约费用后登记；系统会像 Stripe 一样更新财务台账和 10% 推荐奖励。",
+      "照实登记公司已经收到的金额。之后再匹配入职费用；此操作不会开通账号或结算推荐奖励。",
     offlineMethod: "付款方式",
     offlineDate: "收款日期",
     offlineReference: "收据 / 支票号 / 交易参考号",
-    offlineAmount: "实收总额（方案费 + $20 执照转入费）",
+    offlineAmount: "实际收到的金额（美元）",
     offlineSave: "确认已收款",
-    offlineRecorded: "线下付款已核验",
+    offlineRecorded: "已登记收款，请继续核对并匹配费用",
     agentSignatureDone: "经纪人已签署；等待公司会签",
     onlineActivationPending: "Stripe 已收款，系统正在自动开通",
     mlsUnavailable: "MLS 暂时无法验证，系统会自动重试。",
@@ -274,6 +275,7 @@ type AgentRow = {
   agent: Agent;
   teamName: string | null;
   onboardingPaymentChannel?: string | null;
+  onboardingTasks?: OnboardingTaskSummary;
   loginEmails?: Array<{
     email: string;
     isPrimary: boolean;
@@ -287,11 +289,7 @@ type AgentRow = {
 };
 
 type AdminView =
-  | "accounts"
-  | "onboarding"
-  | "public"
-  | "birthdays"
-  | "anniversaries";
+  "accounts" | "onboarding" | "public" | "birthdays" | "anniversaries";
 
 const emptyAgent: Partial<Agent> = {
   name: "",
@@ -433,9 +431,7 @@ export default function AgentsConsole() {
   const [offlineAgent, setOfflineAgent] = useState<Agent | null>(null);
   const [offlineMethod, setOfflineMethod] = useState("check");
   const [offlineReference, setOfflineReference] = useState("");
-  const [offlineDate, setOfflineDate] = useState(() =>
-    new Date().toISOString().slice(0, 10),
-  );
+  const [offlineDate, setOfflineDate] = useState(() => nyDate());
   const [offlineAmount, setOfflineAmount] = useState("");
   const [offlineKey, setOfflineKey] = useState("");
   const [offlineSaving, setOfflineSaving] = useState(false);
@@ -505,7 +501,11 @@ export default function AgentsConsole() {
   }, [editingKey, agents]);
   const openAgent = (agent: Partial<Agent>) =>
     updateQuery(
-      { agent: agent.id ? String(agent.id) : "new", emails: null, onboarding: null },
+      {
+        agent: agent.id ? String(agent.id) : "new",
+        emails: null,
+        onboarding: null,
+      },
       true,
     );
   const selectView = (next: AdminView) =>
@@ -539,7 +539,14 @@ export default function AgentsConsole() {
     ]);
 
   const pending = useMemo(
-    () => agents.filter((row) => row.agent.accountStatus === "pending" || (row.agent.accountStatus === "active" && onboardingWorkflow(row.agent, row.onboardingPaymentChannel || null).countersignPending)),
+    () =>
+      agents
+        .filter((row) => Boolean(row.onboardingTasks?.tasks.length))
+        .sort(
+          (a, b) =>
+            a.onboardingTasks!.priority - b.onboardingTasks!.priority ||
+            String(a.agent.createdAt).localeCompare(String(b.agent.createdAt)),
+        ),
     [agents],
   );
 
@@ -612,19 +619,13 @@ export default function AgentsConsole() {
   const taskFilter = params.get("task") || "";
   const visiblePending = pending.filter((row) => {
     if (!matchesRow(row)) return false;
-    const { agent, onboardingPaymentChannel } = row;
-    const signed = Boolean(
-      agent.agreementAgentSignedAt || agent.agreementStatus === "completed",
-    );
-    if (taskFilter === "signature") return row.agent.accountStatus === "pending" && !signed;
-    if (taskFilter === "profile") return !agent.onboardingCompletedAt;
-    if (taskFilter === "issues") return ["expired", "voided", "declined", "failed"].includes(agent.agreementStatus);
-    if (taskFilter === "countersign")
-      return onboardingWorkflow(agent, onboardingPaymentChannel || null).countersignPending;
-    if (taskFilter === "payment") return agent.paymentStatus === "pending";
-    if (taskFilter === "offline")
-      return (
-        agent.paymentStatus === "paid" && onboardingPaymentChannel === "offline"
+    if (taskFilter === "deferred")
+      return Boolean(row.onboardingTasks?.deferred);
+    if (taskFilter)
+      return Boolean(
+        row.onboardingTasks?.tasks.includes(
+          taskFilter as keyof typeof TASK_LABELS,
+        ),
       );
     return true;
   });
@@ -655,37 +656,12 @@ export default function AgentsConsole() {
     }
   };
 
-  const handleIgnore = async (id: number) => {
-    if (!confirm(t.confirmIgnore)) return;
-    try {
-      const res = await fetch(`/api/agents/${id}/ignore`, { method: "POST" });
-      if (!res.ok) throw new Error();
-      toast.success(t.agentIgnored);
-      fetchAgents();
-    } catch {
-      toast.error(t.couldNotIgnore);
-    }
-  };
-
   const openOfflinePayment = (agent: Agent) => {
-    const productKey = onboardingPaymentProduct(
-      agent.plan,
-      agent.affiliationTermMonths,
-    );
-    const product = productKey ? getCommerceProduct(productKey) : null;
     setOfflineAgent(agent);
     setOfflineMethod("check");
     setOfflineReference("");
-    setOfflineDate(new Date().toISOString().slice(0, 10));
-    setOfflineAmount(
-      product
-        ? (
-            (product.amountCents +
-              onboardingLicenseTransferFeeCents(agent, product.key)) /
-            100
-          ).toFixed(2)
-        : "",
-    );
+    setOfflineDate(nyDate());
+    setOfflineAmount("");
     setOfflineKey(crypto.randomUUID());
     offlineSignatureRef.current = null;
   };
@@ -856,7 +832,8 @@ export default function AgentsConsole() {
           },
           {
             id: "onboarding",
-            label: locale === "zh" ? "入职待办" : "Onboarding",
+            label:
+              locale === "zh" ? "入职待办人数" : "People with onboarding tasks",
             count:
               (loading || loadError) && !agents.length
                 ? undefined
@@ -931,7 +908,12 @@ export default function AgentsConsole() {
                 ["issues", "签约异常", "Agreement issues"],
                 ["countersign", "待公司会签", "Awaiting countersignature"],
                 ["payment", "待付款", "Awaiting payment"],
-                ["offline", "线下已核验待审批", "Verified offline · approve"],
+                ["offline", "可审批开通", "Ready for approval"],
+                ["contract_review", "线下合同待核验", "Verify contract"],
+                ["receipt", "收款待匹配", "Reconcile receipt"],
+                ["exception", "例外待补齐", "Temporary access · due"],
+                ["expired", "例外已到期", "Temporary access expired"],
+                ["deferred", "已暂缓 / 已关闭", "Deferred / closed intake"],
               ].map(([value, zh, en]) => (
                 <option key={value} value={value}>
                   {locale === "zh" ? zh : en}
@@ -1047,16 +1029,29 @@ export default function AgentsConsole() {
             <CardHeader
               title={t.pendingApprovals}
               subtitle={t.pendingSubtitle}
-              action={<Pill tone="draft">{pending.length}</Pill>}
+              action={
+                <Pill tone="draft">
+                  {visiblePending.length} {locale === "zh" ? "人" : "people"} ·{" "}
+                  {visiblePending.reduce(
+                    (total, row) =>
+                      total + (row.onboardingTasks?.tasks.length || 0),
+                    0,
+                  )}{" "}
+                  {locale === "zh" ? "项待办" : "tasks"}
+                </Pill>
+              }
             />
             <div className="divide-y" style={{ borderColor: tone.lineSoft }}>
               {visiblePending.map(
                 ({ agent, loginEmails, onboardingPaymentChannel }) => {
                   const agentSigned = Boolean(
                     agent.agreementAgentSignedAt ||
-                      agent.agreementStatus === "completed",
+                    agent.agreementStatus === "completed",
                   );
-                  const workflow = onboardingWorkflow(agent, onboardingPaymentChannel || null);
+                  const workflow = onboardingWorkflow(
+                    agent,
+                    onboardingPaymentChannel || null,
+                  );
                   return (
                     <div
                       key={agent.id}
@@ -1132,11 +1127,29 @@ export default function AgentsConsole() {
                         </div>
                       </div>
                       <div className="col-span-full flex min-w-0 flex-wrap items-center gap-2 sm:col-span-1 sm:justify-end">
-                        <Pill tone={workflow.canApprove ? "draft" : "neutral"}>{ONBOARDING_NEXT[workflow.next][locale === "zh" ? 0 : 1]}</Pill>
-                        <Btn variant="primary" size="sm" onClick={() => updateQuery({ onboarding: String(agent.id) })}>
+                        <Pill tone={workflow.canApprove ? "draft" : "neutral"}>
+                          {(
+                            agents.find((r) => r.agent.id === agent.id)
+                              ?.onboardingTasks?.tasks || []
+                          )
+                            .map(
+                              (task) =>
+                                TASK_LABELS[task][locale === "zh" ? 0 : 1],
+                            )
+                            .join(" · ") ||
+                            ONBOARDING_NEXT[workflow.next][
+                              locale === "zh" ? 0 : 1
+                            ]}
+                        </Pill>
+                        <Btn
+                          variant="primary"
+                          size="sm"
+                          onClick={() =>
+                            updateQuery({ onboarding: String(agent.id) })
+                          }
+                        >
                           {locale === "zh" ? "处理入职" : "Manage onboarding"}
                         </Btn>
-                        {agent.accountStatus === "pending" && <Btn variant="outline" size="sm" onClick={() => handleIgnore(agent.id)}>{t.ignore}</Btn>}
                       </div>
                     </div>
                   );
@@ -1356,96 +1369,149 @@ export default function AgentsConsole() {
       </div>
 
       {offlineAgent && (
-        <div
-          className="fixed inset-0 z-[60] flex items-center justify-center p-4"
-          style={{ background: "rgba(26, 24, 20, 0.45)" }}
-          onClick={() => setOfflineAgent(null)}
-        >
-          <div
-            className="w-full max-w-lg rounded-xl p-6"
-            style={{ background: tone.card, border: `1px solid ${tone.line}` }}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="font-serif text-[26px]" style={{ color: tone.ink }}>
-              {t.offlineTitle}
-            </div>
-            <p
-              className="mt-2 text-[13px] leading-6"
-              style={{ color: tone.ink50 }}
+        <EditPanel
+          title={t.offlineTitle}
+          description={`${offlineAgent.name} · ${offlineAgent.email}`}
+          onClose={() => setOfflineAgent(null)}
+          saving={offlineSaving}
+          dirty={Boolean(offlineReference || offlineAmount)}
+          footer={
+            <Btn
+              variant="primary"
+              onClick={() => void recordOfflinePayment()}
+              disabled={
+                offlineSaving ||
+                offlineReference.trim().length < 3 ||
+                !offlineDate || offlineDate > nyDate() || Number(offlineAmount) > 1000000 ||
+                !/^\d+(\.\d{1,2})?$/.test(offlineAmount) ||
+                Number(offlineAmount) <= 0
+              }
             >
-              {t.offlineLead}
-            </p>
-            <div className="mt-5 grid gap-4 sm:grid-cols-2">
-              <LabeledField label={t.offlineMethod}>
-                <select
-                  className="h-11 w-full rounded-lg bg-white px-3 text-[13px]"
-                  style={{ border: `1px solid ${tone.line}`, color: tone.ink }}
-                  value={offlineMethod}
-                  onChange={(event) => setOfflineMethod(event.target.value)}
-                >
-                  <option value="check">
-                    {locale === "zh" ? "支票" : "Check"}
-                  </option>
-                  <option value="cash">
-                    {locale === "zh" ? "现金" : "Cash"}
-                  </option>
-                  <option value="ach">ACH</option>
-                  <option value="zelle">Zelle</option>
-                  <option value="wire">
-                    {locale === "zh" ? "电汇" : "Wire"}
-                  </option>
-                  <option value="other">
-                    {locale === "zh" ? "其他" : "Other"}
-                  </option>
-                </select>
-              </LabeledField>
-              <LabeledField label={t.offlineDate}>
-                <EditorialInput
-                  type="date"
-                  value={offlineDate}
-                  onChange={setOfflineDate}
-                />
-              </LabeledField>
-              <LabeledField label={t.offlineAmount}>
-                <div
-                  className="flex h-11 items-center rounded-lg bg-white px-3 font-mono text-[13px]"
-                  style={{ border: `1px solid ${tone.line}`, color: tone.ink }}
-                >
-                  ${offlineAmount}
-                </div>
-              </LabeledField>
-              <LabeledField label={t.offlineReference}>
-                <EditorialInput
-                  value={offlineReference}
-                  onChange={setOfflineReference}
-                />
-              </LabeledField>
-            </div>
-            <div className="mt-6 flex justify-end gap-2">
-              <Btn variant="outline" onClick={() => setOfflineAgent(null)}>
-                {t.cancel}
-              </Btn>
-              <Btn
-                variant="primary"
-                onClick={() => void recordOfflinePayment()}
-                disabled={offlineSaving || !offlineReference.trim()}
+              {offlineSaving ? t.saving : t.offlineSave}
+            </Btn>
+          }
+        >
+          <p className="mb-5 text-sm text-stone-600">{t.offlineLead}</p>
+          <fieldset
+            disabled={offlineSaving}
+            className="grid gap-4 sm:grid-cols-2"
+          >
+            <label className="text-sm">
+              {t.offlineMethod}
+              <select
+                className="admin-control mt-2 w-full"
+                value={offlineMethod}
+                onChange={(event) => setOfflineMethod(event.target.value)}
               >
-                {offlineSaving ? t.saving : t.offlineSave}
-              </Btn>
-            </div>
-          </div>
-        </div>
+                <option value="check">
+                  {locale === "zh" ? "支票" : "Check"}
+                </option>
+                <option value="cash">
+                  {locale === "zh" ? "现金" : "Cash"}
+                </option>
+                <option value="ach">ACH</option>
+                <option value="zelle">Zelle</option>
+                <option value="wire">
+                  {locale === "zh" ? "电汇" : "Wire"}
+                </option>
+                <option value="other">
+                  {locale === "zh" ? "其他" : "Other"}
+                </option>
+              </select>
+            </label>
+            <label className="text-sm">
+              {t.offlineDate}
+              <input
+                className="admin-control mt-2 w-full"
+                type="date"
+                max={nyDate()}
+                value={offlineDate}
+                onChange={(event) => setOfflineDate(event.target.value)}
+              />
+            </label>
+            <label className="text-sm">
+              {t.offlineAmount}
+              <input
+                className="admin-control mt-2 w-full"
+                type="number"
+                inputMode="decimal"
+                min="0.01"
+                max="1000000"
+                step="0.01"
+                value={offlineAmount}
+                onChange={(event) => setOfflineAmount(event.target.value)}
+                placeholder="0.00"
+              />
+            </label>
+            <label className="text-sm">
+              {t.offlineReference}
+              <input
+                className="admin-control mt-2 w-full"
+                maxLength={120}
+                value={offlineReference}
+                onChange={(event) => setOfflineReference(event.target.value)}
+              />
+            </label>
+          </fieldset>
+        </EditPanel>
       )}
 
-      {agents.find((row) => String(row.agent.id) === params.get("onboarding")) && (() => {
-        const row = agents.find((r) => String(r.agent.id) === params.get("onboarding"))!;
-        const close = () => updateQuery({ onboarding: null });
-        return <OnboardingPanel key={row.agent.id} agentId={row.agent.id} onClose={close} onChanged={() => { void fetchAgents(); }}
-          onEdit={() => { close(); openAgent(row.agent); }}
-          onOffline={() => { close(); openOfflinePayment(row.agent); }}
-          onApprove={() => handleApprove(row.agent.id)}
-          approvalFields={<div className="space-y-3"><label className="block text-sm">{t.existingPublicProfile}<select className="admin-control mt-1 w-full" disabled={publicRosterLoading} value={approvalLinks[row.agent.id] || ""} onChange={(e) => setApprovalLinks((current) => ({ ...current, [row.agent.id]: e.target.value }))}><option value="">{t.noExistingPublicProfile}</option>{unlinkedPublicAgents.map((profile) => <option key={profile.id} value={profile.id}>{profile.name || profile.slug}</option>)}</select></label></div>}/>
-      })()}
+      {agents.find(
+        (row) => String(row.agent.id) === params.get("onboarding"),
+      ) &&
+        (() => {
+          const row = agents.find(
+            (r) => String(r.agent.id) === params.get("onboarding"),
+          )!;
+          const close = () => {
+            updateQuery({ onboarding: null });
+            void fetchAgents();
+          };
+          return (
+            <OnboardingPanel
+              key={row.agent.id}
+              agentId={row.agent.id}
+              onClose={close}
+              onChanged={() => {
+                void fetchAgents();
+              }}
+              onEdit={() => {
+                close();
+                openAgent(row.agent);
+              }}
+              onOffline={() => {
+                close();
+                openOfflinePayment(row.agent);
+              }}
+              onApprove={() => handleApprove(row.agent.id)}
+              approvalFields={
+                <div className="space-y-3">
+                  <label className="block text-sm">
+                    {t.existingPublicProfile}
+                    <select
+                      className="admin-control mt-1 w-full"
+                      disabled={publicRosterLoading}
+                      value={approvalLinks[row.agent.id] || ""}
+                      onChange={(e) =>
+                        setApprovalLinks((current) => ({
+                          ...current,
+                          [row.agent.id]: e.target.value,
+                        }))
+                      }
+                    >
+                      <option value="">{t.noExistingPublicProfile}</option>
+                      {unlinkedPublicAgents.map((profile) => (
+                        <option key={profile.id} value={profile.id}>
+                          {profile.name || profile.slug}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              }
+            />
+          );
+        })()}
 
       {emailAgent && (
         <AgentEmailsPanel

@@ -86,5 +86,13 @@ jobs:
           pg_dump "$DATABASE_URL" --schema-only --no-owner --no-privileges | psql -h localhost -p 5432 -U postgres -d homix_signing_access -v ON_ERROR_STOP=1
           DATABASE_URL=postgres://postgres:postgres@localhost:5432/homix_signing_access npm run test:signing-access:db
 
+      - name: Onboarding administrator database integration
+        env:
+          PGPASSWORD: postgres
+        run: |
+          createdb -h localhost -p 5432 -U postgres homix_onboarding_integration
+          pg_dump "$DATABASE_URL" --schema-only --no-owner --no-privileges | psql -h localhost -p 5432 -U postgres -d homix_onboarding_integration -v ON_ERROR_STOP=1
+          DATABASE_URL=postgres://postgres:postgres@localhost:5432/homix_onboarding_integration npm run test:onboarding-admin:db
+
       - name: Build
         run: npm run build

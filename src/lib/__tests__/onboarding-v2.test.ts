@@ -8,8 +8,8 @@ import {
 } from "../onboarding";
 import { normalizeAgentPlan } from "../agent-plans";
 import { LICENSED_COMPANIES } from "../licensed-companies";
-import { onboardingEnvelopeSignatureProgress } from "../onboarding-agreement";
-import type { ESignEnvelope } from "../esign";
+import { hrSigningProgress } from "../signing-hr-projection";
+import type { SigningRequest } from "../signing-contract";
 
 assert.equal(onboardingPaymentProduct("solo", 12), "one_year_membership");
 assert.equal(onboardingPaymentProduct("solo", 24), "two_year_membership");
@@ -48,6 +48,7 @@ assert.equal(soloProUpgradeCreditCents({
 function onboardingAgent(overrides: Partial<Agent> = {}) {
   return {
     accountStatus: "pending",
+    signingRequestId: "00000000-0000-4000-8000-000000000001",
     onboardingCompletedAt: "2026-09-10T12:00:00.000Z",
     agreementAgentSignedAt: "2026-09-10T12:05:00.000Z",
     agreementStatus: "sent",
@@ -60,6 +61,7 @@ function onboardingAgent(overrides: Partial<Agent> = {}) {
 }
 
 assert.equal(onboardingAgreementAllowsPayment(onboardingAgent()), true);
+assert.equal(onboardingAgreementAllowsPayment(onboardingAgent({ signingRequestId: null })), false, "Retired native tasks cannot activate pending accounts");
 assert.equal(onboardingAgreementAllowsPayment(onboardingAgent({ agreementAgentSignedAt: null })), false);
 assert.equal(onboardingAgreementAllowsPayment(onboardingAgent({ agreementStatus: "declined" })), false);
 const originalEnforcementFlag = process.env.ONBOARDING_V2_ENFORCED;
@@ -114,32 +116,11 @@ if (originalEnforcementFlag === undefined) {
   process.env.ONBOARDING_V2_ENFORCED = originalEnforcementFlag;
 }
 
-const signatureProgress = onboardingEnvelopeSignatureProgress({
-  id: "env_1",
-  templateId: "tpl_1",
-  templateVersionId: "ver_1",
-  status: "IN_PROGRESS",
-  recipients: [
-    {
-      id: "recipient_agent",
-      roleId: "role_agent",
-      name: "Agent Test",
-      email: "agent@example.com",
-      kind: "signer",
-      status: "COMPLETED",
-      completedAt: "2026-09-10T12:05:00.000Z",
-    },
-    {
-      id: "recipient_broker",
-      roleId: "role_broker",
-      name: "Broker Test",
-      email: "hr@example.com",
-      kind: "countersigner",
-      status: "ACTIVE",
-    },
-  ],
-} as ESignEnvelope);
+const signatureProgress = hrSigningProgress({ scenario: "onboarding", parts: [{ operationState: "linked", error: null, document: { status: "PENDING", recipients: [
+  { actor: "owner", role: "SIGNER", signingStatus: "SIGNED", signedAt: "2026-09-10T12:05:00.000Z" },
+  { actor: "company", role: "SIGNER", signingStatus: "NOT_SIGNED", signedAt: null },
+] } }] } as SigningRequest);
 assert.equal(signatureProgress.agentSignedAt, "2026-09-10T12:05:00.000Z");
-assert.equal(signatureProgress.countersignedAt, null);
+assert.equal(signatureProgress.companySignedAt, null);
 
 console.log("onboarding v2 tests passed");

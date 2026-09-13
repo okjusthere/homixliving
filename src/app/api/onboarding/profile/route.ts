@@ -39,12 +39,11 @@ class OnboardingProfileConflict extends Error {}
 
 async function currentAgent() {
   const session = await auth();
-  if (!session?.user?.email) return null;
-  const email = session.user.email.trim().toLowerCase();
+  if (!session?.user?.agentId) return null;
   return db
     .select()
     .from(agents)
-    .where(sql`lower(${agents.email}) = ${email}`)
+    .where(eq(agents.id, session.user.agentId))
     .limit(1)
     .then((rows) => rows[0] || null);
 }

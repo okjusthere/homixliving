@@ -24,7 +24,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (status !== "authenticated" || !session) return;
     const onPending = pathname === "/pending";
     const onPublic = NAV_FREE_PREFIXES.some((p) => isPathOrChild(pathname, p));
-    if (onPublic) return;
+    if (onPublic || ["/limited", "/training", "/resources"].includes(pathname)) return;
     if (session.user.accountStatus !== "active" && !session.user.isAdmin && !onPending) {
       router.replace("/pending");
     }

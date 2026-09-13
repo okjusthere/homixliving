@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { reconcileOnboardingAgreements } from "@/lib/onboarding-agreement-reconciliation";
+import { reconcileOnboardingAgreements, reconcileTeamLeaderAgreements } from "@/lib/onboarding-agreement-reconciliation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,6 +10,6 @@ export async function GET(request: Request) {
   if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const result = await reconcileOnboardingAgreements();
-  return NextResponse.json(result, { status: result.failed > 0 ? 500 : 200 });
+  const [result, teamLeader] = await Promise.all([reconcileOnboardingAgreements(), reconcileTeamLeaderAgreements()]);
+  return NextResponse.json({ ...result, teamLeader }, { status: result.failed + teamLeader.failed > 0 ? 500 : 200 });
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { canRestartAgreement } from "@/lib/agreement-recovery-policy";
+import { TeamAgreement } from "@/components/signing/team-agreement";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -25,7 +25,8 @@ const M = {
   en: {
     eyebrow: "Team leadership",
     title: "Team workspace",
-    description: "Recruit, follow onboarding progress, and publish future team terms without exposing private payment or compliance files.",
+    description:
+      "Recruit, follow onboarding progress, and publish future team terms without exposing private payment or compliance files.",
     team: "Team",
     leader: "Team Leader",
     active: "Active",
@@ -39,7 +40,8 @@ const M = {
     noCap: "No cap",
     effective: "Effective",
     inviteTitle: "Invite to my team",
-    inviteLead: "The recruit joins this team and accepts the frozen terms shown below. Sponsor defaults to you and may be another active member of this team.",
+    inviteLead:
+      "The recruit joins this team and accepts the frozen terms shown below. Sponsor defaults to you and may be another active member of this team.",
     email: "Specific email (optional)",
     sponsor: "Sponsor",
     source: "Recruiting source",
@@ -54,7 +56,8 @@ const M = {
     copied: "Link copied",
     inviteFailed: "Could not create the invitation",
     invitationHistory: "Recruiting links",
-    invitationHistoryLead: "For security, existing links are not stored in plaintext. Regenerate a link when you need a new copy.",
+    invitationHistoryLead:
+      "For security, existing links are not stored in plaintext. Regenerate a link when you need a new copy.",
     general: "General team link",
     createdAt: "Created",
     usage: "Usage",
@@ -63,10 +66,12 @@ const M = {
     regenerate: "Regenerate",
     revoked: "Invitation disabled",
     revokeFailed: "Could not disable the invitation",
-    regeneratedWithWarning: "New link created, but the previous link could not be disabled. Disable it manually.",
+    regeneratedWithWarning:
+      "New link created, but the previous link could not be disabled. Disable it manually.",
     noInvites: "No team recruiting links yet.",
     joinRequests: "Team applications",
-    joinRequestsLead: "Direct and personally referred applicants need your approval. Accepting freezes the current team terms; Sponsor attribution stays unchanged.",
+    joinRequestsLead:
+      "Direct and personally referred applicants need your approval. Accepting freezes the current team terms; Sponsor attribution stays unchanged.",
     noJoinRequests: "No team applications yet.",
     requestedAt: "Requested",
     acceptRequest: "Accept with current terms",
@@ -82,10 +87,12 @@ const M = {
       superseded: "Replaced",
     },
     progress: "New agent onboarding",
-    progressLead: "Business progress only. W-9, ACH, card details, evidence files, and internal notes remain admin-only.",
+    progressLead:
+      "Business progress only. W-9, ACH, card details, evidence files, and internal notes remain admin-only.",
     noCandidates: "No recruits are onboarding for this team.",
     members: "Team members",
-    membersLead: "Current roster, Sponsor attribution, and accepted terms version.",
+    membersLead:
+      "Current roster, Sponsor attribution, and accepted terms version.",
     noMembers: "No members assigned to this team.",
     sponsorNone: "No Sponsor",
     joined: "Joined",
@@ -93,27 +100,46 @@ const M = {
     complete: "Complete",
     incomplete: "Incomplete",
     publishTerms: "Publish a future terms version",
-    publishLead: "Historical and signed terms are never overwritten. Team Leader changes must start in the future.",
+    publishLead:
+      "Historical and signed terms are never overwritten. Team Leader changes must start in the future.",
     publish: "Publish version",
     publishing: "Publishing…",
     published: "Team terms published",
     publishFailed: "Could not publish team terms",
     versionHistory: "Version history",
     formingTitle: "Finish Team Leader setup",
-    formingLead: "The office approved this forming team and published v1 terms. Sign the Team Leader agreement before creating recruiting links.",
+    formingLead:
+      "The office approved this forming team and published v1 terms. Sign the Team Leader agreement before creating recruiting links.",
     agreement: "Agreement",
     prepareAgreement: "Prepare and send agreement",
     restartAgreement: "Create and send a replacement agreement",
-    finalizationFailed: "Your signatures are retained. Contact an administrator to recover the final document.",
+    finalizationFailed:
+      "Your signatures are retained. Contact an administrator to recover the final document.",
     agreementChecked: "Agreement status refreshed.",
     agreementPreparing: "Preparing…",
-    agreementSent: "Agreement sent. Complete it from the eSign email, then check again.",
+    agreementSent:
+      "Agreement sent. Complete it from the eSign email, then check again.",
     checkAgreement: "Check agreement status",
-    agreementComplete: "Team Leader agreement completed. Recruiting is unlocked.",
-    activationLead: "The team becomes active when the first Team Member completes their agreement.",
+    agreementComplete:
+      "Team Leader agreement completed. Recruiting is unlocked.",
+    activationLead:
+      "The team becomes active when the first Team Member completes their agreement.",
     agreementFailed: "Could not prepare or refresh the Team Leader agreement.",
-    agreementStatus: { not_started: "Not started", preparing: "Preparing", sent: "Sent", completed: "Completed", declined: "Declined", voided: "Voided", expired: "Expired", failed: "Failed" },
-    memberStatus: { active: "Active", pending: "Pending", inactive: "Inactive" },
+    agreementStatus: {
+      not_started: "Not started",
+      preparing: "Preparing",
+      sent: "Sent",
+      completed: "Completed",
+      declined: "Declined",
+      voided: "Voided",
+      expired: "Expired",
+      failed: "Failed",
+    },
+    memberStatus: {
+      active: "Active",
+      pending: "Pending",
+      inactive: "Inactive",
+    },
     version: (value: number) => `v${value}`,
     stage: {
       profile: "Profile incomplete",
@@ -135,7 +161,8 @@ const M = {
   zh: {
     eyebrow: "团队管理",
     title: "Team Leader 工作台",
-    description: "集中处理团队招聘、入职进度与未来分佣版本，不显示成员的收款、税务或合规隐私材料。",
+    description:
+      "集中处理团队招聘、入职进度与未来分佣版本，不显示成员的收款、税务或合规隐私材料。",
     team: "团队",
     leader: "Team Leader",
     active: "在职",
@@ -149,7 +176,8 @@ const M = {
     noCap: "不封顶",
     effective: "生效日",
     inviteTitle: "邀请加入我的团队",
-    inviteLead: "新人将加入本团队并接受下方锁定条款。介绍人默认是你，也可以指定实际完成招聘的本团队在职成员。",
+    inviteLead:
+      "新人将加入本团队并接受下方锁定条款。介绍人默认是你，也可以指定实际完成招聘的本团队在职成员。",
     email: "限定邮箱（可选）",
     sponsor: "介绍人 Sponsor",
     source: "招聘来源",
@@ -164,7 +192,8 @@ const M = {
     copied: "链接已复制",
     inviteFailed: "无法生成团队邀请",
     invitationHistory: "团队招聘链接",
-    invitationHistoryLead: "出于安全考虑，系统不保存链接明文；需要再次复制时请重新生成。",
+    invitationHistoryLead:
+      "出于安全考虑，系统不保存链接明文；需要再次复制时请重新生成。",
     general: "团队通用链接",
     createdAt: "创建时间",
     usage: "使用次数",
@@ -173,10 +202,12 @@ const M = {
     regenerate: "重新生成",
     revoked: "邀请已停用",
     revokeFailed: "无法停用邀请",
-    regeneratedWithWarning: "新链接已生成，但旧链接未能自动停用，请手动停用旧链接。",
+    regeneratedWithWarning:
+      "新链接已生成，但旧链接未能自动停用，请手动停用旧链接。",
     noInvites: "尚未创建团队招聘链接。",
     joinRequests: "团队加入申请",
-    joinRequestsLead: "自行注册或个人推荐的新人需要你确认。接受时锁定当前团队条款，Sponsor 归因保持不变。",
+    joinRequestsLead:
+      "自行注册或个人推荐的新人需要你确认。接受时锁定当前团队条款，Sponsor 归因保持不变。",
     noJoinRequests: "目前没有团队加入申请。",
     requestedAt: "申请时间",
     acceptRequest: "按当前条款接受",
@@ -192,7 +223,8 @@ const M = {
       superseded: "已替换",
     },
     progress: "新人入职进度",
-    progressLead: "这里只显示业务进度。W-9、ACH、银行卡、证据文件和管理员内部备注仍仅管理员可见。",
+    progressLead:
+      "这里只显示业务进度。W-9、ACH、银行卡、证据文件和管理员内部备注仍仅管理员可见。",
     noCandidates: "本团队暂无正在入职的新人。",
     members: "团队成员",
     membersLead: "查看成员状态、Sponsor 归因及其接受的团队条款版本。",
@@ -203,14 +235,16 @@ const M = {
     complete: "已完成",
     incomplete: "未完成",
     publishTerms: "发布未来团队条款",
-    publishLead: "历史及已签署条款不会被覆盖；Team Leader 发布的变更必须从未来日期开始生效。",
+    publishLead:
+      "历史及已签署条款不会被覆盖；Team Leader 发布的变更必须从未来日期开始生效。",
     publish: "发布新版本",
     publishing: "正在发布…",
     published: "团队条款已发布",
     publishFailed: "无法发布团队条款",
     versionHistory: "版本记录",
     formingTitle: "完成 Team Leader 启用准备",
-    formingLead: "公司已批准筹备中的团队并发布 v1 条款。签署 Team Leader 协议后，系统才开放团队招聘链接。",
+    formingLead:
+      "公司已批准筹备中的团队并发布 v1 条款。签署 Team Leader 协议后，系统才开放团队招聘链接。",
     agreement: "协议",
     prepareAgreement: "生成并发送协议",
     restartAgreement: "重新生成并发送协议",
@@ -220,9 +254,19 @@ const M = {
     agreementSent: "协议已发送，请在 eSign 邮件中完成签署后再检查状态。",
     checkAgreement: "检查协议状态",
     agreementComplete: "Team Leader 协议已完成，团队招聘已开放。",
-    activationLead: "首名 Team Member 完成协议后，团队与 Team Leader 才正式启用。",
+    activationLead:
+      "首名 Team Member 完成协议后，团队与 Team Leader 才正式启用。",
     agreementFailed: "无法生成或刷新 Team Leader 协议。",
-    agreementStatus: { not_started: "未开始", preparing: "生成中", sent: "已发送", completed: "已完成", declined: "已拒签", voided: "已作废", expired: "已过期", failed: "失败" },
+    agreementStatus: {
+      not_started: "未开始",
+      preparing: "生成中",
+      sent: "已发送",
+      completed: "已完成",
+      declined: "已拒签",
+      voided: "已作废",
+      expired: "已过期",
+      failed: "失败",
+    },
     memberStatus: { active: "在职", pending: "入职中", inactive: "已停用" },
     version: (value: number) => `v${value}`,
     stage: {
@@ -266,8 +310,9 @@ export function TeamWorkspaceClient({
   const t = M[locale];
   const [termsBusy, setTermsBusy] = useState(false);
   const [decisionBusy, setDecisionBusy] = useState<number | null>(null);
-  const [leaderAgreementBusy, setLeaderAgreementBusy] = useState(false);
-  const [declineReasons, setDeclineReasons] = useState<Record<number, string>>({});
+  const [declineReasons, setDeclineReasons] = useState<Record<number, string>>(
+    {},
+  );
   const [terms, setTerms] = useState({
     defaultTeamSplitPct: data.currentConfig?.defaultTeamSplitPct ?? 10,
     teamLeadSplitPct: data.currentConfig?.teamLeadSplitPct ?? 10,
@@ -297,7 +342,8 @@ export function TeamWorkspaceClient({
         body: JSON.stringify(terms),
       });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(String(payload.error || t.publishFailed));
+      if (!response.ok)
+        throw new Error(String(payload.error || t.publishFailed));
       toast.success(t.published);
       router.refresh();
     } catch (error) {
@@ -307,7 +353,10 @@ export function TeamWorkspaceClient({
     }
   }
 
-  async function decideJoinRequest(requestId: number, action: "accept" | "decline") {
+  async function decideJoinRequest(
+    requestId: number,
+    action: "accept" | "decline",
+  ) {
     const reason = declineReasons[requestId]?.trim() || "";
     if (action === "decline" && !reason) {
       toast.error(t.declineReason);
@@ -315,13 +364,17 @@ export function TeamWorkspaceClient({
     }
     setDecisionBusy(requestId);
     try {
-      const response = await fetch(`/api/team-workspace/join-requests/${requestId}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action, reason: reason || null }),
-      });
+      const response = await fetch(
+        `/api/team-workspace/join-requests/${requestId}`,
+        {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ action, reason: reason || null }),
+        },
+      );
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(String(payload.error || t.decisionFailed));
+      if (!response.ok)
+        throw new Error(String(payload.error || t.decisionFailed));
       toast.success(t.decisionSaved);
       router.refresh();
     } catch (error) {
@@ -331,23 +384,11 @@ export function TeamWorkspaceClient({
     }
   }
 
-  async function updateLeaderAgreement(method: "GET" | "POST") {
-    if (!data.leaderApplication) return;
-    setLeaderAgreementBusy(true);
-    try {
-      const response = await fetch(`/api/team-leader-applications/${data.leaderApplication.id}/agreement`, { method });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(String(payload.error || t.agreementFailed));
-      toast.success(payload.agreementStatus === "completed" ? t.agreementComplete : method === "POST" ? t.agreementSent : t.agreementChecked);
-      router.refresh();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : t.agreementFailed);
-    } finally {
-      setLeaderAgreementBusy(false);
-    }
-  }
-
-  const fieldStyle = { background: tone.card, border: `1px solid ${tone.line}`, color: tone.ink };
+  const fieldStyle = {
+    background: tone.card,
+    border: `1px solid ${tone.line}`,
+    color: tone.ink,
+  };
   const statCards = [
     [t.active, data.counts.active, tone.green],
     [t.pending, data.counts.pending, tone.amber],
@@ -356,82 +397,127 @@ export function TeamWorkspaceClient({
 
   return (
     <div className="space-y-7">
-      <PageHeader eyebrow={t.eyebrow} title={t.title} description={t.description} />
+      <PageHeader
+        eyebrow={t.eyebrow}
+        title={t.title}
+        description={t.description}
+      />
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <label className="w-full max-w-sm space-y-1 text-[11px] uppercase tracking-[0.1em]" style={{ color: tone.ink50 }}>
+        <label
+          className="w-full max-w-sm space-y-1 text-[11px] uppercase tracking-[0.1em]"
+          style={{ color: tone.ink50 }}
+        >
           <span>{t.team}</span>
           <select
             value={data.team.id}
-            onChange={(event) => router.replace(`/team-workspace?team=${event.target.value}`)}
+            onChange={(event) =>
+              router.replace(`/team-workspace?team=${event.target.value}`)
+            }
             className={selectClass}
             style={fieldStyle}
           >
-            {data.teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
+            {data.teams.map((team) => (
+              <option key={team.id} value={team.id}>
+                {team.name}
+              </option>
+            ))}
           </select>
         </label>
         <div className="text-[13px]" style={{ color: tone.ink50 }}>
-          {t.leader}: <span style={{ color: tone.ink }}>{data.leaderName || "—"}</span>
+          {t.leader}:{" "}
+          <span style={{ color: tone.ink }}>{data.leaderName || "—"}</span>
         </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
         {statCards.map(([label, value, color]) => (
           <Card key={label} className="p-5">
-            <div className="text-[11px] uppercase tracking-[0.1em]" style={{ color: tone.ink50 }}>{label}</div>
-            <div className="mt-2 font-serif text-[34px]" style={{ color }}>{value}</div>
+            <div
+              className="text-[11px] uppercase tracking-[0.1em]"
+              style={{ color: tone.ink50 }}
+            >
+              {label}
+            </div>
+            <div className="mt-2 font-serif text-[34px]" style={{ color }}>
+              {value}
+            </div>
           </Card>
         ))}
       </div>
 
-      {data.team.status === "forming" && data.leaderApplication && (
+      {data.leaderApplication && (
         <Card>
-          <CardHeader title={t.formingTitle} subtitle={t.formingLead} />
+          <CardHeader
+            title={
+              data.team.status === "forming"
+                ? t.formingTitle
+                : locale === "zh"
+                  ? "Team Leader 合同"
+                  : "Team Leader agreement"
+            }
+            subtitle={
+              data.team.status === "forming" ? t.formingLead : undefined
+            }
+          />
           <div className="space-y-3 p-5">
-            {data.leaderApplication.agreementStatus === "failed" && <p className="text-[13px]" style={{ color: tone.rose }}>{t.finalizationFailed}</p>}
-            <div className="flex flex-wrap items-center gap-3">
-              <Pill tone={data.leaderApplication.agreementStatus === "completed" ? "sent" : "draft"}>
-                {t.agreement}: {t.agreementStatus[data.leaderApplication.agreementStatus]}
-              </Pill>
-              {data.leaderApplication.agreementStatus === "completed" ? (
-                <span className="text-[13px]" style={{ color: tone.green }}>{t.agreementComplete}</span>
-              ) : (
-                <Btn
-                  variant="primary"
-                  size="sm"
-                  onClick={() => void updateLeaderAgreement((data.leaderApplication?.agreementStatus === "not_started" || data.leaderApplication?.agreementStatus === "preparing" || canRestartAgreement(data.leaderApplication?.agreementStatus || "")) ? "POST" : "GET")}
-                  disabled={leaderAgreementBusy}
-                >
-                  {leaderAgreementBusy ? t.agreementPreparing : canRestartAgreement(data.leaderApplication.agreementStatus) ? t.restartAgreement : ["not_started", "preparing"].includes(data.leaderApplication.agreementStatus) ? t.prepareAgreement : t.checkAgreement}
-                </Btn>
-              )}
-            </div>
-            <p className="text-[12.5px]" style={{ color: tone.ink50 }}>{t.activationLead}</p>
+            <TeamAgreement applicationId={data.leaderApplication.id} />
+            {data.team.status === "forming" && (
+              <p className="text-[12.5px]" style={{ color: tone.ink50 }}>
+                {t.activationLead}
+              </p>
+            )}
           </div>
         </Card>
       )}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="p-5">
-          <div className="text-[11px] uppercase tracking-[0.1em]" style={{ color: tone.ink50 }}>{t.currentTerms}</div>
-          <div className="mt-3 text-[15px] leading-7" style={{ color: tone.ink }}>
+          <div
+            className="text-[11px] uppercase tracking-[0.1em]"
+            style={{ color: tone.ink50 }}
+          >
+            {t.currentTerms}
+          </div>
+          <div
+            className="mt-3 text-[15px] leading-7"
+            style={{ color: tone.ink }}
+          >
             {data.currentConfig ? (
               <>
-                <strong>{t.version(data.currentConfig.version)}</strong> · {t.standardSplit} {data.currentConfig.defaultTeamSplitPct}% · {t.sourcedSplit} {data.currentConfig.teamLeadSplitPct}%<br />
-                {t.cap} {capLabel(data.currentConfig.teamCapCents, t.noCap)} · {t.effective} {fmtDate(data.currentConfig.effectiveFrom)}
+                <strong>{t.version(data.currentConfig.version)}</strong> ·{" "}
+                {t.standardSplit} {data.currentConfig.defaultTeamSplitPct}% ·{" "}
+                {t.sourcedSplit} {data.currentConfig.teamLeadSplitPct}%<br />
+                {t.cap} {capLabel(data.currentConfig.teamCapCents, t.noCap)} ·{" "}
+                {t.effective} {fmtDate(data.currentConfig.effectiveFrom)}
               </>
-            ) : "—"}
+            ) : (
+              "—"
+            )}
           </div>
         </Card>
         <Card className="p-5">
-          <div className="text-[11px] uppercase tracking-[0.1em]" style={{ color: tone.ink50 }}>{t.nextTerms}</div>
-          <div className="mt-3 text-[15px] leading-7" style={{ color: tone.ink }}>
+          <div
+            className="text-[11px] uppercase tracking-[0.1em]"
+            style={{ color: tone.ink50 }}
+          >
+            {t.nextTerms}
+          </div>
+          <div
+            className="mt-3 text-[15px] leading-7"
+            style={{ color: tone.ink }}
+          >
             {data.scheduledConfig ? (
               <>
-                <strong>{t.version(data.scheduledConfig.version)}</strong> · {t.standardSplit} {data.scheduledConfig.defaultTeamSplitPct}% · {t.sourcedSplit} {data.scheduledConfig.teamLeadSplitPct}%<br />
-                {t.cap} {capLabel(data.scheduledConfig.teamCapCents, t.noCap)} · {t.effective} {fmtDate(data.scheduledConfig.effectiveFrom)}
+                <strong>{t.version(data.scheduledConfig.version)}</strong> ·{" "}
+                {t.standardSplit} {data.scheduledConfig.defaultTeamSplitPct}% ·{" "}
+                {t.sourcedSplit} {data.scheduledConfig.teamLeadSplitPct}%<br />
+                {t.cap} {capLabel(data.scheduledConfig.teamCapCents, t.noCap)} ·{" "}
+                {t.effective} {fmtDate(data.scheduledConfig.effectiveFrom)}
               </>
-            ) : "—"}
+            ) : (
+              "—"
+            )}
           </div>
         </Card>
       </div>
@@ -440,74 +526,178 @@ export function TeamWorkspaceClient({
         <CardHeader title={t.joinRequests} subtitle={t.joinRequestsLead} />
         <div className="divide-y" style={{ borderColor: tone.lineSoft }}>
           {!data.joinRequests.length && (
-            <p className="p-5 text-[13px]" style={{ color: tone.ink50 }}>{t.noJoinRequests}</p>
+            <p className="p-5 text-[13px]" style={{ color: tone.ink50 }}>
+              {t.noJoinRequests}
+            </p>
           )}
           {data.joinRequests.map((request) => (
-            <div key={request.id} className="grid gap-4 p-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.7fr)_minmax(240px,0.9fr)] lg:items-center">
+            <div
+              key={request.id}
+              className="grid gap-4 p-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.7fr)_minmax(240px,0.9fr)] lg:items-center"
+            >
               <div className="min-w-0">
-                <div className="truncate text-[14px] font-medium" style={{ color: tone.ink }}>{request.name}</div>
-                <div className="truncate text-[12px]" style={{ color: tone.ink50 }}>{request.email}</div>
+                <div
+                  className="truncate text-[14px] font-medium"
+                  style={{ color: tone.ink }}
+                >
+                  {request.name}
+                </div>
+                <div
+                  className="truncate text-[12px]"
+                  style={{ color: tone.ink50 }}
+                >
+                  {request.email}
+                </div>
                 <div className="mt-2 text-[12px]" style={{ color: tone.ink50 }}>
-                  {t.sponsor}: <span style={{ color: tone.ink70 }}>{request.sponsorName || t.sponsorNone}</span>
+                  {t.sponsor}:{" "}
+                  <span style={{ color: tone.ink70 }}>
+                    {request.sponsorName || t.sponsorNone}
+                  </span>
                 </div>
               </div>
-              <div className="space-y-2 text-[12px]" style={{ color: tone.ink50 }}>
-                <Pill tone={request.status === "accepted" ? "sent" : request.status === "declined" ? "failed" : "draft"}>
+              <div
+                className="space-y-2 text-[12px]"
+                style={{ color: tone.ink50 }}
+              >
+                <Pill
+                  tone={
+                    request.status === "accepted"
+                      ? "sent"
+                      : request.status === "declined"
+                        ? "failed"
+                        : "draft"
+                  }
+                >
                   {t.requestStatus[request.status]}
                 </Pill>
-                <div>{t.requestedAt}: <span className="font-mono" style={{ color: tone.ink70 }}>{fmtDate(request.requestedAt.slice(0, 10))}</span></div>
-                {request.acceptedConfigVersion && <div>{t.termsVersion}: {t.version(request.acceptedConfigVersion)}</div>}
-                {request.decisionReason && <div style={{ color: tone.ink70 }}>{request.decisionReason}</div>}
+                <div>
+                  {t.requestedAt}:{" "}
+                  <span className="font-mono" style={{ color: tone.ink70 }}>
+                    {fmtDate(request.requestedAt.slice(0, 10))}
+                  </span>
+                </div>
+                {request.acceptedConfigVersion && (
+                  <div>
+                    {t.termsVersion}: {t.version(request.acceptedConfigVersion)}
+                  </div>
+                )}
+                {request.decisionReason && (
+                  <div style={{ color: tone.ink70 }}>
+                    {request.decisionReason}
+                  </div>
+                )}
               </div>
               {request.status === "pending" ? (
                 <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto] lg:grid-cols-1">
                   <EditorialInput
                     value={declineReasons[request.id] || ""}
-                    onChange={(value) => setDeclineReasons((old) => ({ ...old, [request.id]: value }))}
+                    onChange={(value) =>
+                      setDeclineReasons((old) => ({
+                        ...old,
+                        [request.id]: value,
+                      }))
+                    }
                     placeholder={t.declineReason}
                   />
                   <Btn
                     variant="primary"
                     size="sm"
                     onClick={() => void decideJoinRequest(request.id, "accept")}
-                    disabled={decisionBusy === request.id || !data.currentConfig}
+                    disabled={
+                      decisionBusy === request.id || !data.currentConfig
+                    }
                   >
                     {t.acceptRequest}
                   </Btn>
                   <Btn
                     variant="outline"
                     size="sm"
-                    onClick={() => void decideJoinRequest(request.id, "decline")}
+                    onClick={() =>
+                      void decideJoinRequest(request.id, "decline")
+                    }
                     disabled={decisionBusy === request.id}
                   >
                     {t.declineRequest}
                   </Btn>
                 </div>
-              ) : <div />}
+              ) : (
+                <div />
+              )}
             </div>
           ))}
         </div>
       </Card>
 
       <Card>
-        <CardHeader title={t.invitationHistory} subtitle={t.invitationHistoryLead} />
+        <CardHeader
+          title={t.invitationHistory}
+          subtitle={t.invitationHistoryLead}
+        />
         <div className="divide-y" style={{ borderColor: tone.lineSoft }}>
-          {!data.invitations.length && <p className="p-5 text-[13px]" style={{ color: tone.ink50 }}>{t.noInvites}</p>}
+          {!data.invitations.length && (
+            <p className="p-5 text-[13px]" style={{ color: tone.ink50 }}>
+              {t.noInvites}
+            </p>
+          )}
           {data.invitations.map((invite) => (
-            <div key={invite.id} className="grid gap-3 p-5 md:grid-cols-[minmax(0,1.6fr)_repeat(3,minmax(0,0.7fr))_auto] md:items-center">
+            <div
+              key={invite.id}
+              className="grid gap-3 p-5 md:grid-cols-[minmax(0,1.6fr)_repeat(3,minmax(0,0.7fr))_auto] md:items-center"
+            >
               <div className="min-w-0">
-                <div className="truncate text-[14px] font-medium" style={{ color: tone.ink }}>{invite.email || t.general}</div>
-                <div className="mt-1 text-[12px]" style={{ color: tone.ink50 }}>{t.sponsor}: {invite.sponsorName || t.sponsorNone}</div>
+                <div
+                  className="truncate text-[14px] font-medium"
+                  style={{ color: tone.ink }}
+                >
+                  {invite.email || t.general}
+                </div>
+                <div className="mt-1 text-[12px]" style={{ color: tone.ink50 }}>
+                  {t.sponsor}: {invite.sponsorName || t.sponsorNone}
+                </div>
               </div>
-              <div className="text-[12px]" style={{ color: tone.ink50 }}>{t.createdAt}<br /><span className="font-mono" style={{ color: tone.ink70 }}>{fmtDate(invite.createdAt?.slice(0, 10))}</span></div>
-              <div className="text-[12px]" style={{ color: tone.ink50 }}>{t.usage}<br /><span className="font-mono" style={{ color: tone.ink70 }}>{invite.useCount}/{invite.maxUses}</span></div>
-              <div className="space-y-1 text-[12px]" style={{ color: tone.ink50 }}>
-                <Pill tone={invite.state === "active" ? "sent" : invite.state === "revoked" ? "failed" : "neutral"}>{t.inviteState[invite.state]}</Pill>
-                <div>{t.termsVersion}: {invite.configVersion ? t.version(invite.configVersion) : "—"}</div>
+              <div className="text-[12px]" style={{ color: tone.ink50 }}>
+                {t.createdAt}
+                <br />
+                <span className="font-mono" style={{ color: tone.ink70 }}>
+                  {fmtDate(invite.createdAt?.slice(0, 10))}
+                </span>
+              </div>
+              <div className="text-[12px]" style={{ color: tone.ink50 }}>
+                {t.usage}
+                <br />
+                <span className="font-mono" style={{ color: tone.ink70 }}>
+                  {invite.useCount}/{invite.maxUses}
+                </span>
+              </div>
+              <div
+                className="space-y-1 text-[12px]"
+                style={{ color: tone.ink50 }}
+              >
+                <Pill
+                  tone={
+                    invite.state === "active"
+                      ? "sent"
+                      : invite.state === "revoked"
+                        ? "failed"
+                        : "neutral"
+                  }
+                >
+                  {t.inviteState[invite.state]}
+                </Pill>
+                <div>
+                  {t.termsVersion}:{" "}
+                  {invite.configVersion ? t.version(invite.configVersion) : "—"}
+                </div>
               </div>
               <div className="flex flex-wrap gap-2 md:justify-end">
                 {invite.state === "active" && (
-                  <Btn variant="ghost" size="sm" onClick={() => void revokeInvitation(invite.id)}>{t.revoke}</Btn>
+                  <Btn
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => void revokeInvitation(invite.id)}
+                  >
+                    {t.revoke}
+                  </Btn>
                 )}
               </div>
             </div>
@@ -518,15 +708,47 @@ export function TeamWorkspaceClient({
       <Card>
         <CardHeader title={t.progress} subtitle={t.progressLead} />
         <div className="divide-y" style={{ borderColor: tone.lineSoft }}>
-          {!data.candidates.length && <p className="p-5 text-[13px]" style={{ color: tone.ink50 }}>{t.noCandidates}</p>}
+          {!data.candidates.length && (
+            <p className="p-5 text-[13px]" style={{ color: tone.ink50 }}>
+              {t.noCandidates}
+            </p>
+          )}
           {data.candidates.map((candidate) => (
-            <div key={candidate.id} className="grid gap-2 p-5 sm:grid-cols-[minmax(0,1fr)_minmax(0,0.7fr)_auto] sm:items-center">
+            <div
+              key={candidate.id}
+              className="grid gap-2 p-5 sm:grid-cols-[minmax(0,1fr)_minmax(0,0.7fr)_auto] sm:items-center"
+            >
               <div className="min-w-0">
-                <div className="truncate text-[14px] font-medium" style={{ color: tone.ink }}>{candidate.name}</div>
-                <div className="truncate text-[12px]" style={{ color: tone.ink50 }}>{candidate.email}</div>
+                <div
+                  className="truncate text-[14px] font-medium"
+                  style={{ color: tone.ink }}
+                >
+                  {candidate.name}
+                </div>
+                <div
+                  className="truncate text-[12px]"
+                  style={{ color: tone.ink50 }}
+                >
+                  {candidate.email}
+                </div>
               </div>
-              <div className="text-[12px]" style={{ color: tone.ink50 }}>{t.sponsor}: <span style={{ color: tone.ink70 }}>{candidate.sponsorName || t.sponsorNone}</span></div>
-              <Pill tone={candidate.stage === "complete" ? "sent" : candidate.stage === "attention" ? "failed" : "draft"}>{t.stage[candidate.stage]}</Pill>
+              <div className="text-[12px]" style={{ color: tone.ink50 }}>
+                {t.sponsor}:{" "}
+                <span style={{ color: tone.ink70 }}>
+                  {candidate.sponsorName || t.sponsorNone}
+                </span>
+              </div>
+              <Pill
+                tone={
+                  candidate.stage === "complete"
+                    ? "sent"
+                    : candidate.stage === "attention"
+                      ? "failed"
+                      : "draft"
+                }
+              >
+                {t.stage[candidate.stage]}
+              </Pill>
             </div>
           ))}
         </div>
@@ -535,18 +757,61 @@ export function TeamWorkspaceClient({
       <Card>
         <CardHeader title={t.members} subtitle={t.membersLead} />
         <div className="divide-y" style={{ borderColor: tone.lineSoft }}>
-          {!data.members.length && <p className="p-5 text-[13px]" style={{ color: tone.ink50 }}>{t.noMembers}</p>}
+          {!data.members.length && (
+            <p className="p-5 text-[13px]" style={{ color: tone.ink50 }}>
+              {t.noMembers}
+            </p>
+          )}
           {data.members.map((member) => (
-            <div key={member.id} className="grid gap-2 p-5 sm:grid-cols-[minmax(0,1fr)_repeat(3,minmax(0,0.65fr))] sm:items-center">
+            <div
+              key={member.id}
+              className="grid gap-2 p-5 sm:grid-cols-[minmax(0,1fr)_repeat(3,minmax(0,0.65fr))] sm:items-center"
+            >
               <div className="min-w-0">
-                <div className="truncate text-[14px] font-medium" style={{ color: tone.ink }}>{member.name}</div>
-                <div className="truncate text-[12px]" style={{ color: tone.ink50 }}>{member.email}</div>
+                <div
+                  className="truncate text-[14px] font-medium"
+                  style={{ color: tone.ink }}
+                >
+                  {member.name}
+                </div>
+                <div
+                  className="truncate text-[12px]"
+                  style={{ color: tone.ink50 }}
+                >
+                  {member.email}
+                </div>
               </div>
-              <div className="text-[12px]" style={{ color: tone.ink50 }}>{t.sponsor}<br /><span style={{ color: tone.ink70 }}>{member.sponsorName || t.sponsorNone}</span></div>
-              <div className="text-[12px]" style={{ color: tone.ink50 }}>{t.joined}<br /><span className="font-mono" style={{ color: tone.ink70 }}>{fmtDate(member.joinedAt)}</span></div>
+              <div className="text-[12px]" style={{ color: tone.ink50 }}>
+                {t.sponsor}
+                <br />
+                <span style={{ color: tone.ink70 }}>
+                  {member.sponsorName || t.sponsorNone}
+                </span>
+              </div>
+              <div className="text-[12px]" style={{ color: tone.ink50 }}>
+                {t.joined}
+                <br />
+                <span className="font-mono" style={{ color: tone.ink70 }}>
+                  {fmtDate(member.joinedAt)}
+                </span>
+              </div>
               <div className="flex flex-wrap items-center gap-2">
-                <Pill tone={member.accountStatus === "active" ? "sent" : member.accountStatus === "pending" ? "draft" : "neutral"}>{t.memberStatus[member.accountStatus]}</Pill>
-                <span className="text-[12px]" style={{ color: tone.ink50 }}>{member.configVersion ? t.version(member.configVersion) : "—"} · {t.onboarding} {member.onboardingComplete ? t.complete : t.incomplete}</span>
+                <Pill
+                  tone={
+                    member.accountStatus === "active"
+                      ? "sent"
+                      : member.accountStatus === "pending"
+                        ? "draft"
+                        : "neutral"
+                  }
+                >
+                  {t.memberStatus[member.accountStatus]}
+                </Pill>
+                <span className="text-[12px]" style={{ color: tone.ink50 }}>
+                  {member.configVersion ? t.version(member.configVersion) : "—"}{" "}
+                  · {t.onboarding}{" "}
+                  {member.onboardingComplete ? t.complete : t.incomplete}
+                </span>
               </div>
             </div>
           ))}
@@ -557,28 +822,106 @@ export function TeamWorkspaceClient({
         <CardHeader title={t.publishTerms} subtitle={t.publishLead} />
         <div className="space-y-4 p-5">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <select value={terms.defaultTeamSplitPct} onChange={(event) => setTerms((old) => ({ ...old, defaultTeamSplitPct: Number(event.target.value) }))} className={selectClass} style={fieldStyle} aria-label={t.standardSplit}>
-              {TEAM_SPLIT_PRESETS.map((value) => <option key={value} value={value}>{t.standardSplit}: {value}%</option>)}
+            <select
+              value={terms.defaultTeamSplitPct}
+              onChange={(event) =>
+                setTerms((old) => ({
+                  ...old,
+                  defaultTeamSplitPct: Number(event.target.value),
+                }))
+              }
+              className={selectClass}
+              style={fieldStyle}
+              aria-label={t.standardSplit}
+            >
+              {TEAM_SPLIT_PRESETS.map((value) => (
+                <option key={value} value={value}>
+                  {t.standardSplit}: {value}%
+                </option>
+              ))}
             </select>
-            <select value={terms.teamLeadSplitPct} onChange={(event) => setTerms((old) => ({ ...old, teamLeadSplitPct: Number(event.target.value) }))} className={selectClass} style={fieldStyle} aria-label={t.sourcedSplit}>
-              {TEAM_SOURCED_SPLIT_PRESETS.map((value) => <option key={value} value={value}>{t.sourcedSplit}: {value}%</option>)}
+            <select
+              value={terms.teamLeadSplitPct}
+              onChange={(event) =>
+                setTerms((old) => ({
+                  ...old,
+                  teamLeadSplitPct: Number(event.target.value),
+                }))
+              }
+              className={selectClass}
+              style={fieldStyle}
+              aria-label={t.sourcedSplit}
+            >
+              {TEAM_SOURCED_SPLIT_PRESETS.map((value) => (
+                <option key={value} value={value}>
+                  {t.sourcedSplit}: {value}%
+                </option>
+              ))}
             </select>
-            <select value={terms.teamCapCents ?? ""} onChange={(event) => setTerms((old) => ({ ...old, teamCapCents: event.target.value ? Number(event.target.value) : null }))} className={selectClass} style={fieldStyle} aria-label={t.cap}>
-              <option value="">{t.cap}: {t.noCap}</option>
-              {TEAM_CAP_CENTS_PRESETS.map((value) => <option key={value} value={value}>{t.cap}: ${(value / 100).toLocaleString()}</option>)}
+            <select
+              value={terms.teamCapCents ?? ""}
+              onChange={(event) =>
+                setTerms((old) => ({
+                  ...old,
+                  teamCapCents: event.target.value
+                    ? Number(event.target.value)
+                    : null,
+                }))
+              }
+              className={selectClass}
+              style={fieldStyle}
+              aria-label={t.cap}
+            >
+              <option value="">
+                {t.cap}: {t.noCap}
+              </option>
+              {TEAM_CAP_CENTS_PRESETS.map((value) => (
+                <option key={value} value={value}>
+                  {t.cap}: ${(value / 100).toLocaleString()}
+                </option>
+              ))}
             </select>
-            <EditorialInput value={terms.effectiveFrom} onChange={(value) => setTerms((old) => ({ ...old, effectiveFrom: value }))} type="date" mono />
+            <EditorialInput
+              value={terms.effectiveFrom}
+              onChange={(value) =>
+                setTerms((old) => ({ ...old, effectiveFrom: value }))
+              }
+              type="date"
+              mono
+            />
           </div>
-          <Btn variant="primary" icon={<Link2 size={16} />} onClick={() => void publishTerms()} disabled={termsBusy}>{termsBusy ? t.publishing : t.publish}</Btn>
+          <Btn
+            variant="primary"
+            icon={<Link2 size={16} />}
+            onClick={() => void publishTerms()}
+            disabled={termsBusy}
+          >
+            {termsBusy ? t.publishing : t.publish}
+          </Btn>
         </div>
         <div style={{ borderTop: `1px solid ${tone.lineSoft}` }}>
-          <div className="px-5 pt-4 text-[11px] uppercase tracking-[0.1em]" style={{ color: tone.ink50 }}>{t.versionHistory}</div>
+          <div
+            className="px-5 pt-4 text-[11px] uppercase tracking-[0.1em]"
+            style={{ color: tone.ink50 }}
+          >
+            {t.versionHistory}
+          </div>
           <div className="divide-y" style={{ borderColor: tone.lineSoft }}>
             {data.configs.map((config) => (
-              <div key={config.id} className="grid gap-1 px-5 py-3 text-[12.5px] sm:grid-cols-[100px_120px_1fr]" style={{ color: tone.ink70 }}>
-                <strong style={{ color: tone.ink }}>{t.version(config.version)}</strong>
+              <div
+                key={config.id}
+                className="grid gap-1 px-5 py-3 text-[12.5px] sm:grid-cols-[100px_120px_1fr]"
+                style={{ color: tone.ink70 }}
+              >
+                <strong style={{ color: tone.ink }}>
+                  {t.version(config.version)}
+                </strong>
                 <span className="font-mono">{config.effectiveFrom}</span>
-                <span>{config.defaultTeamSplitPct}% · {t.sourcedSplit} {config.teamLeadSplitPct}% · {capLabel(config.teamCapCents, t.noCap)}</span>
+                <span>
+                  {config.defaultTeamSplitPct}% · {t.sourcedSplit}{" "}
+                  {config.teamLeadSplitPct}% ·{" "}
+                  {capLabel(config.teamCapCents, t.noCap)}
+                </span>
               </div>
             ))}
           </div>

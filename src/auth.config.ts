@@ -47,6 +47,10 @@ export const authConfig: NextAuthConfig = {
     },
     async authorized({ request, auth }) {
       const { pathname } = request.nextUrl;
+      // Backend callbacks have no browser session. Only this exact endpoint
+      // bypasses the login gate; its handler verifies the HMAC before reading
+      // or changing signing state. Customer signing APIs stay protected.
+      if (pathname === "/api/signing/events" && request.method === "POST") return true;
       // Genuinely public — no session required. Cron routes are unauthenticated
       // at the edge and enforce their own CRON_SECRET; the Stripe webhook
       // verifies its signature; checkout/pay is public by design.
@@ -76,6 +80,11 @@ export const authConfig: NextAuthConfig = {
       const isPublic = PUBLIC_PATHS.some((p) => isPathOrChild(pathname, p));
       if (isPublic) return true;
       if (!auth) return false;
+      // These exact routes have fresh, database-backed capability guards.
+      // This is routing admission only; a JWT never grants limited access.
+      const capabilityPage = ["/limited", "/training", "/resources"].some((p) => pathname === p);
+      const capabilityApi = ["/api/training", "/api/resources", "/api/onboarding/access"].includes(pathname) || /^\/api\/training\/\d+\/view$/.test(pathname);
+      if (capabilityPage || capabilityApi) return true;
       // Default-DENY for data APIs: only active/admin users clear the edge, so a
       // route that forgets its own guard is no longer wide open to any signed-in
       // (including pending, self-registered) Google account.

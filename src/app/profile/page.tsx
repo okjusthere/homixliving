@@ -1,3 +1,6 @@
+import { affiliationContractComplete } from "@/lib/onboarding-requirements";
+import { ProfileAgreement } from "@/components/signing/profile-agreement";
+import { verifiedManualContract } from "@/lib/onboarding-requirements";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { and, desc, eq } from "drizzle-orm";
@@ -70,7 +73,11 @@ export default async function ProfilePage() {
         .limit(1)
     : [];
   const [ledTeam] = agentId
-    ? await db.select({ id: teams.id }).from(teams).where(eq(teams.leaderAgentId, agentId)).limit(1)
+    ? await db
+        .select({ id: teams.id })
+        .from(teams)
+        .where(eq(teams.leaderAgentId, agentId))
+        .limit(1)
     : [];
   const loginEmails = agentId
     ? await db
@@ -80,10 +87,12 @@ export default async function ProfilePage() {
           verifiedAt: agentEmailAddresses.verifiedAt,
         })
         .from(agentEmailAddresses)
-        .where(and(
-          eq(agentEmailAddresses.agentId, agentId),
-          eq(agentEmailAddresses.canSignIn, true),
-        ))
+        .where(
+          and(
+            eq(agentEmailAddresses.agentId, agentId),
+            eq(agentEmailAddresses.canSignIn, true),
+          ),
+        )
         .orderBy(desc(agentEmailAddresses.isPrimary), agentEmailAddresses.email)
     : [];
 
@@ -95,7 +104,9 @@ export default async function ProfilePage() {
         payeeName: profile.payeeName,
         bankName: profile.bankName,
         accountType: profile.accountType,
-        accountLast4: profile.accountNumber ? profile.accountNumber.slice(-4) : null,
+        accountLast4: profile.accountNumber
+          ? profile.accountNumber.slice(-4)
+          : null,
         hasAch: Boolean(profile.routingNumber && profile.accountNumber),
         hasW9: Boolean(profile.w9ObjectKey),
         w9FileName: profile.w9FileName,
@@ -126,7 +137,10 @@ export default async function ProfilePage() {
     licenseNumber: agent?.licenseNumber,
     hasPublicProfile: publicProfile?.linked ?? false,
     publicProfile: publicProfile?.profile
-      ? { photoUrl: publicProfile.profile.photo_url, bio: publicProfile.profile.bio }
+      ? {
+          photoUrl: publicProfile.profile.photo_url,
+          bio: publicProfile.profile.bio,
+        }
       : null,
     payment: profile
       ? {
@@ -140,7 +154,11 @@ export default async function ProfilePage() {
 
   return (
     <div className="space-y-7">
-      <PageHeader eyebrow={t.eyebrow} title={t.title} description={t.description} />
+      <PageHeader
+        eyebrow={t.eyebrow}
+        title={t.title}
+        description={t.description}
+      />
       <OnboardingProgressCard {...onboarding} locale={locale} />
       <Link
         href="/profile/public"
@@ -148,11 +166,15 @@ export default async function ProfilePage() {
         style={{ background: "#FCFAF5", border: "1px solid #E4DED2" }}
       >
         <div>
-          <div className="font-serif" style={{ fontSize: 17, color: "#1A1814" }}>
+          <div
+            className="font-serif"
+            style={{ fontSize: 17, color: "#1A1814" }}
+          >
             对外主页 · Public profile
           </div>
           <div className="mt-0.5 text-[12.5px]" style={{ color: "#7A756C" }}>
-            编辑访客在 www.homixny.com 上看到的照片、简介、评价——直接同步,无需管理员链接。
+            编辑访客在 www.homixny.com
+            上看到的照片、简介、评价——直接同步,无需管理员链接。
           </div>
         </div>
         <span aria-hidden style={{ color: "#5C6B3A", fontSize: 18 }}>
@@ -165,27 +187,43 @@ export default async function ProfilePage() {
           eligibility={teamLeaderApplicationEligibility({
             accountStatus: agent.accountStatus,
             agentAgreementStatus: agent.agreementStatus,
+            affiliationContractComplete: affiliationContractComplete(agent),
             plan: normalizeAgentPlan(agent.plan),
             licensedCompanySupported: Boolean(
-              resolveLicensedCompany(agent.licensedCompanyId || agent.licensedCompany),
+              resolveLicensedCompany(
+                agent.licensedCompanyId || agent.licensedCompany,
+              ),
             ),
             alreadyLeadsTeam: Boolean(ledTeam),
             openApplicationStatus: leaderApplication?.status || null,
           })}
-          application={leaderApplication ? {
-            id: leaderApplication.id,
-            proposedTeamName: leaderApplication.proposedTeamName,
-            expectedMemberCount: leaderApplication.expectedMemberCount,
-            positioning: leaderApplication.positioning,
-            proposedTeamSplitPct: leaderApplication.proposedTeamSplitPct,
-            status: leaderApplication.status,
-            agreementStatus: leaderApplication.agreementStatus,
-            decisionReason: leaderApplication.decisionReason,
-            teamId: leaderApplication.teamId,
-          } : null}
+          application={
+            leaderApplication
+              ? {
+                  id: leaderApplication.id,
+                  proposedTeamName: leaderApplication.proposedTeamName,
+                  expectedMemberCount: leaderApplication.expectedMemberCount,
+                  positioning: leaderApplication.positioning,
+                  proposedTeamSplitPct: leaderApplication.proposedTeamSplitPct,
+                  status: leaderApplication.status,
+                  agreementStatus: leaderApplication.agreementStatus,
+                  decisionReason: leaderApplication.decisionReason,
+                  teamId: leaderApplication.teamId,
+                }
+              : null
+          }
         />
       )}
-      <ProfileClient agent={safeAgent} profile={safeProfile} payouts={payouts} />
+      {agent && (agent.signingRequestId || verifiedManualContract(agent)) && (
+        <ProfileAgreement
+          manualContractId={verifiedManualContract(agent)?.id}
+        />
+      )}
+      <ProfileClient
+        agent={safeAgent}
+        profile={safeProfile}
+        payouts={payouts}
+      />
     </div>
   );
 }

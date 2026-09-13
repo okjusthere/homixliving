@@ -1,4 +1,5 @@
-import { eq, sql } from "drizzle-orm";
+import { onboardingAccessGrants } from "@/db/onboarding-schema";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   agents,
@@ -119,6 +120,7 @@ export async function settlePlanPayment(
   }).where(eq(agents.id, agent.id));
 
   if (automaticallyActivated) {
+    await executor.update(onboardingAccessGrants).set({ status: "completed", endedAt: updatedAt }).where(and(eq(onboardingAccessGrants.agentId, agent.id), eq(onboardingAccessGrants.status, "open")));
     await executor.insert(onboardingEvents).values(onboardingEventValues({
       eventType: "online_payment_auto_activated",
       agentId: agent.id,

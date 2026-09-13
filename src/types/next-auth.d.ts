@@ -11,6 +11,7 @@ declare module "next-auth" {
       accountStatus: AgentAccountStatus;
       /** Derived from accountStatus for legacy access helpers. */
       isActive: boolean;
+      limitedCapabilities?: import("@/db/schema").LimitedCapability[];
     } & DefaultSession["user"];
   }
 }
