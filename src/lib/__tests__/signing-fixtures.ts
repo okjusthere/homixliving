@@ -9,7 +9,11 @@ export function requireSigningTestDatabase() {
   const url = new URL(process.env.DATABASE_URL || "");
   assert.ok(
     ["localhost", "127.0.0.1"].includes(url.hostname) &&
-      url.pathname === "/homix_onboarding_integration",
+      [
+        "/homix_onboarding_integration",
+        "/homix_agreement_recovery",
+        "/homix_signing_access",
+      ].includes(url.pathname),
     "Dedicated synthetic database only",
   );
 }
