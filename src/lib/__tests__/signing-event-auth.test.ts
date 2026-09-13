@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { verifySigningEvent } from "../signing-event-auth";
+import { NextRequest } from "next/server";
+import { authConfig } from "../../auth.config";
 
 const secret = "synthetic-callback-secret-".repeat(2);
 const now = Date.now();
@@ -48,3 +50,21 @@ assert.equal(verifySigningEvent(body, "NaN", signature, secret, now), false);
 console.log(
   "PASS: callback authentication rejects tampering, wrong secrets, replay windows and malformed signatures",
 );
+
+async function verifyCallbackRouting() {
+  const authorized = authConfig.callbacks!.authorized!;
+  for (const [path, method, allowed] of [
+    ["/api/signing/events", "POST", true],
+    ["/api/signing/events", "GET", false],
+    ["/api/signing/events/extra", "POST", false],
+    ["/api/signing/requests", "POST", false],
+    ["/api/signing/requests", "GET", false],
+  ] as const) {
+    assert.equal(await authorized({ request: new NextRequest(`https://portal.example${path}`, { method }), auth: null }), allowed);
+  }
+  console.log("PASS: only the exact POST callback reaches HMAC validation without a browser session");
+}
+void verifyCallbackRouting().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});

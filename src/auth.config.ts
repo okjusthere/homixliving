@@ -47,6 +47,10 @@ export const authConfig: NextAuthConfig = {
     },
     async authorized({ request, auth }) {
       const { pathname } = request.nextUrl;
+      // Backend callbacks have no browser session. Only this exact endpoint
+      // bypasses the login gate; its handler verifies the HMAC before reading
+      // or changing signing state. Customer signing APIs stay protected.
+      if (pathname === "/api/signing/events" && request.method === "POST") return true;
       // Genuinely public — no session required. Cron routes are unauthenticated
       // at the edge and enforce their own CRON_SECRET; the Stripe webhook
       // verifies its signature; checkout/pay is public by design.
