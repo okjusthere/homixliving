@@ -18,6 +18,7 @@ export const adminGroups = [
       },
       { href: "/admin/training", en: "Training", zh: "培训管理" },
       { href: "/admin/resources", en: "Resources", zh: "资料与公司文件" },
+      { href: "/admin/signing", en: "Signing management", zh: "签署管理" },
       { href: "/admin/buildings", en: "Buildings", zh: "楼宇资料" },
     ],
   },

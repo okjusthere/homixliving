@@ -76,6 +76,11 @@ export const authConfig: NextAuthConfig = {
       const isPublic = PUBLIC_PATHS.some((p) => isPathOrChild(pathname, p));
       if (isPublic) return true;
       if (!auth) return false;
+      // These exact routes have fresh, database-backed capability guards.
+      // This is routing admission only; a JWT never grants limited access.
+      const capabilityPage = ["/limited", "/training", "/resources"].some((p) => pathname === p);
+      const capabilityApi = ["/api/training", "/api/resources", "/api/onboarding/access"].includes(pathname) || /^\/api\/training\/\d+\/view$/.test(pathname);
+      if (capabilityPage || capabilityApi) return true;
       // Default-DENY for data APIs: only active/admin users clear the edge, so a
       // route that forgets its own guard is no longer wide open to any signed-in
       // (including pending, self-registered) Google account.

@@ -10,6 +10,7 @@ import {
   BriefcaseBusiness,
   ChevronDown,
   ClipboardCheck,
+  FileSignature,
   GraduationCap,
   History,
   Library,
@@ -45,6 +46,7 @@ const workspaceGroups = [
   {
     key: "transactionSupport",
     items: [
+      { href: "/signing", key: "signing", icon: FileSignature, leaderOnly: false },
       { href: "/market", key: "market", icon: LineChart, leaderOnly: false },
       { href: "/expired-listings", key: "expiredListings", icon: History, leaderOnly: false },
     ],
@@ -69,6 +71,7 @@ const workspaceGroups = [
 
 const LABELS = {
   en: {
+    signing: "File signing",
     personalMarketing: "Personal marketing",
     overview: "Overview", sales: "Sales", rental: "Rental", training: "Training",
     resources: "Resource library", onboarding: "Onboarding guide", coach: "AI coach", offer: "Offers", share: "Share center", content: "Content studio", emailMarketing: "Email marketing",
@@ -80,6 +83,7 @@ const LABELS = {
     personalWorkspace: "Personal", workspaceMode: "Workspace mode",
   },
   zh: {
+    signing: "文件签署",
     personalMarketing: "个人营销",
     overview: "概览", sales: "买卖", rental: "租赁", training: "培训",
     resources: "资料库", onboarding: "入职指南", coach: "AI 教练", offer: "报价", share: "分享中心", content: "内容中心", emailMarketing: "邮件营销",
@@ -102,8 +106,9 @@ function getInitials(name: string | null | undefined, email: string | null | und
 
 export function Nav() {
   const pathname = usePathname();
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const router = useRouter();
+  const [limitedCapabilities, setLimitedCapabilities] = useState<string[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [toolsMenuOpen, setToolsMenuOpen] = useState(false);
@@ -132,6 +137,16 @@ export function Nav() {
     return () => document.removeEventListener("mousedown", handler);
   }, [menuOpen, toolsMenuOpen]);
 
+  useEffect(() => {
+    if (!session?.user?.agentId || session.user.accountStatus === "active") return;
+    let cancelled = false;
+    const refresh = () => { void fetch("/api/onboarding/access", { cache: "no-store" }).then(async (r) => {
+      if (!cancelled) setLimitedCapabilities(r.ok ? (await r.json()).capabilities || [] : []);
+    }).catch(() => {}); };
+    refresh(); window.addEventListener("focus", refresh);
+    return () => { cancelled = true; window.removeEventListener("focus", refresh); };
+  }, [session?.user?.agentId, session?.user?.accountStatus]);
+
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/";
     if (href === "/rental")
@@ -159,6 +174,19 @@ export function Nav() {
   );
   const initials = getInitials(session?.user?.name, session?.user?.email);
 
+  if (status === "loading") return (
+    <nav aria-busy="true" className="flex h-16 items-center border-b bg-white px-5">
+      <HomixMark />
+    </nav>
+  );
+  if (session?.user && session.user.accountStatus !== "active" && !session.user.isAdmin) return (
+    <nav className="flex flex-wrap items-center gap-4 border-b bg-white px-5 py-4 text-sm">
+      <Link href="/limited"><HomixMark /></Link><Link href="/pending">{locale === "zh" ? "入职进度" : "Onboarding"}</Link>
+      {limitedCapabilities.includes("training") && <Link href="/training">{t.training}</Link>}
+      {limitedCapabilities.includes("resources") && <Link href="/resources">{t.resources}</Link>}
+      <button className="ml-auto" onClick={() => signOut({ callbackUrl: "/login" })}>{t.signOut}</button>
+    </nav>
+  );
   return (
     <nav
       className="sticky top-0 z-30"

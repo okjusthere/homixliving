@@ -56,7 +56,7 @@ export async function POST(request: Request) {
   }
   if (
     agent.accountStatus === "pending" &&
-    agent.esignEnvelopeId &&
+    agent.signingRequestId &&
     !onboardingAgreementAllowsPayment(agent)
   ) {
     try {

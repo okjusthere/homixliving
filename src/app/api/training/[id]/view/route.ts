@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { trainingVideoViews, trainingVideos } from "@/db/schema";
-import { requireActiveAgentApi } from "@/lib/auth-guards";
+import { requireCapabilityApi } from "@/lib/auth-guards";
 
 function parseId(value: string) {
   if (!/^\d+$/.test(value)) return null;
@@ -14,7 +14,7 @@ export async function POST(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await requireActiveAgentApi();
+  const auth = await requireCapabilityApi("training");
   if ("error" in auth) return auth.error;
 
   const { id } = await params;

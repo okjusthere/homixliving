@@ -1,5 +1,6 @@
 import type { Agent } from "@/db/schema";
 import { onboardingAgreementAllowsPayment } from "@/lib/onboarding";
+import { verifiedManualContract, type ManualContractBasis } from "@/lib/onboarding-requirements";
 
 export function onboardingWorkflow(
   agent: Pick<
@@ -9,13 +10,13 @@ export function onboardingWorkflow(
     | "agreementAgentSignedAt"
     | "agreementCountersignedAt"
     | "agreementStatus"
-    | "esignEnvelopeId"
+    | "signingRequestId"
     | "paymentStatus"
     | "plan"
     | "teamId"
     | "teamTermsConfigId"
     | "teamTermsAcceptedAt"
-  >,
+  > & ManualContractBasis,
   paymentChannel: string | null,
   pendingTeam = false,
 ) {
@@ -27,18 +28,15 @@ export function onboardingWorkflow(
         agent.teamId && agent.teamTermsConfigId && agent.teamTermsAcceptedAt,
       ));
   const profileReady = Boolean(agent.onboardingCompletedAt);
-  const countersignPending = Boolean(
-    agent.esignEnvelopeId &&
+  const manual = verifiedManualContract(agent);
+  const countersignPending = manual ? !manual.companySignedAt : Boolean(
+    agent.signingRequestId &&
     agent.agreementAgentSignedAt &&
     !agent.agreementCountersignedAt &&
     agent.agreementStatus !== "completed",
   );
-  const canRecordPayment =
-    agent.accountStatus === "pending" &&
-    profileReady &&
-    signed &&
-    teamReady &&
-    agent.paymentStatus !== "paid";
+  // Recording money never asserts eligibility, creates benefits or activates.
+  const canRecordPayment = true;
   const canApprove =
     agent.accountStatus === "pending" &&
     profileReady &&

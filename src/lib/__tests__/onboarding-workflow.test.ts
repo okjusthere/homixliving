@@ -7,7 +7,7 @@ const agent: Subject = {
   agreementAgentSignedAt: null,
   agreementCountersignedAt: null,
   agreementStatus: "sent",
-  esignEnvelopeId: "agreement",
+  signingRequestId: "00000000-0000-4000-8000-000000000001",
   paymentStatus: "pending",
   plan: "solo",
   teamId: null,
@@ -32,7 +32,7 @@ for (const agreementStatus of [
 ] as const) {
   const result = onboardingWorkflow({ ...paid, agreementStatus }, "offline");
   assert.equal(result.canApprove, false, agreementStatus);
-  assert.equal(result.canRecordPayment, false, agreementStatus);
+  assert.equal(result.canRecordPayment, true, agreementStatus);
   assert.equal(result.next, "agreement_issue");
 }
 assert.equal(

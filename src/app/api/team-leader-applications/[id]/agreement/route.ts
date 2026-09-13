@@ -1,283 +1,191 @@
-import { NextResponse } from "next/server";
-import { and, eq, isNull } from "drizzle-orm";
+import { z } from "zod";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import {
-  agents,
-  teamCompensationConfigs,
-  teamLeaderApplications,
-  teams,
-} from "@/db/schema";
-import { lockOnboardingAgent } from "@/lib/advisory-locks";
+import { teamLeaderApplications } from "@/db/schema";
 import { requireActiveAgentApi } from "@/lib/auth-guards";
 import {
-  findOrCreateESignEnvelope,
-  ensureESignEnvelopeReplaceable,
-  ESignApiError,
-  findOrCreateESignTransaction,
-  getESignTemplate,
-  isTeamLeaderESignConfigured,
-  sendESignEnvelope,
-  teamLeaderESignTemplateConfiguration,
-} from "@/lib/esign";
+  availableTeamLeaderPackage,
+  getTeamLeaderSigningRequest,
+  prepareTeamLeaderSigning,
+  recoverTeamLeaderSigning,
+} from "@/lib/signing-team-leader";
+import { syncTeamLeaderAgreement } from "@/lib/team-leader-agreement";
 import {
-  OnboardingESignTemplateError,
-  validateTeamLeaderESignTemplate,
-} from "@/lib/onboarding-esign-policy";
-import {
-  markTeamLeaderAgreementSent,
-  syncTeamLeaderAgreement,
-} from "@/lib/team-leader-agreement";
+  signingActor,
+  signingApiError,
+  signingBridgeFetch,
+  signingBridgeJson,
+  SigningBridgeError,
+} from "@/lib/signing-bridge";
+import { signingRequestSchema } from "@/lib/signing-contract";
+import { hrFileManifest } from "@/lib/signing-hr-files";
 
-import { canRestartAgreement } from "@/lib/agreement-recovery-policy";
-import { AgreementAttemptChanged, agreementAttemptReference, claimAgreementAttempt, withAgreementAttempt, type AgreementAttempt } from "@/lib/agreement-attempts";
-
-const PREPARATION_STALE_MS = 5 * 60_000;
-
-async function ownedApplication(id: number, agentId: number, isAdmin: boolean) {
-  const [row] = await db
-    .select({ application: teamLeaderApplications, agent: agents })
+export const runtime = "nodejs";
+export const maxDuration = 300;
+const headers = { "Cache-Control": "private, no-store" };
+type Context = { params: Promise<{ id: string }> };
+async function ownedApplication(id: number, agentId: number, admin: boolean) {
+  if (!Number.isSafeInteger(id) || id <= 0)
+    throw new SigningBridgeError("NOT_FOUND", 404);
+  const [application] = await db
+    .select()
     .from(teamLeaderApplications)
-    .innerJoin(agents, eq(agents.id, teamLeaderApplications.applicantAgentId))
-    .where(and(
-      eq(teamLeaderApplications.id, id),
-      isAdmin ? undefined : eq(teamLeaderApplications.applicantAgentId, agentId),
-    ))
+    .where(
+      and(
+        eq(teamLeaderApplications.id, id),
+        admin
+          ? undefined
+          : eq(teamLeaderApplications.applicantAgentId, agentId),
+      ),
+    )
     .limit(1);
-  return row || null;
+  if (!application) throw new SigningBridgeError("NOT_FOUND", 404);
+  return application;
 }
-
-export async function GET(
-  _request: Request,
-  context: { params: Promise<{ id: string }> },
-) {
-  const authResult = await requireActiveAgentApi();
-  if ("error" in authResult) return authResult.error;
-  const agentId = authResult.session.user.agentId;
-  const { id: rawId } = await context.params;
-  const id = Number(rawId);
-  if (!agentId || !Number.isInteger(id)) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  const row = await ownedApplication(id, agentId, authResult.session.user.isAdmin);
-  if (!row) return NextResponse.json({ error: "Not found" }, { status: 404 });
+export async function GET(request: Request, context: Context) {
+  const auth = await requireActiveAgentApi();
+  if ("error" in auth) return auth.error;
   try {
-    const application = await syncTeamLeaderAgreement(row.application, row.application.licensedCompany);
-    return NextResponse.json({
-      configured: isTeamLeaderESignConfigured(row.application.licensedCompany),
-      agreementStatus: application.agreementStatus,
-      teamId: application.teamId,
-    });
-  } catch (error) {
-    console.error("Unable to sync Team Leader agreement", error);
-    return NextResponse.json({
-      configured: isTeamLeaderESignConfigured(row.application.licensedCompany),
-      agreementStatus: row.application.agreementStatus,
-      syncError: true,
-    });
-  }
-}
-
-export async function POST(
-  _request: Request,
-  context: { params: Promise<{ id: string }> },
-) {
-  const authResult = await requireActiveAgentApi();
-  if ("error" in authResult) return authResult.error;
-  const agentId = authResult.session.user.agentId;
-  const { id: rawId } = await context.params;
-  const id = Number(rawId);
-  if (!agentId || !Number.isInteger(id)) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  const sessionRow = await ownedApplication(id, agentId, false);
-  if (!sessionRow) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  const templateConfiguration = teamLeaderESignTemplateConfiguration(sessionRow.application.licensedCompany);
-  if (!templateConfiguration) {
-    return NextResponse.json({ error: "Select a supported licensed company before signing." }, { status: 409 });
-  }
-  if (!isTeamLeaderESignConfigured(sessionRow.application.licensedCompany)) {
-    return NextResponse.json({ error: "Team Leader eSign is not configured." }, { status: 503 });
-  }
-
-  const claim = async (restartEnvelopeId?: string) => db.transaction(async (tx) => {
-      await lockOnboardingAgent(tx, agentId);
-      const [fresh] = await tx
-        .select({ application: teamLeaderApplications, agent: agents })
-        .from(teamLeaderApplications)
-        .innerJoin(agents, eq(agents.id, teamLeaderApplications.applicantAgentId))
-        .where(and(
-          eq(teamLeaderApplications.id, id),
-          eq(teamLeaderApplications.applicantAgentId, agentId),
-        ))
-        .limit(1);
-      if (!fresh || fresh.application.status !== "approved" || !fresh.application.teamId || !fresh.application.teamCompensationConfigId) {
-        throw new Error("APPLICATION_NOT_READY");
-      }
+    const actor = await signingActor(),
+      id = Number((await context.params).id);
+    const application = await ownedApplication(id, actor.agentId, actor.admin);
+    const synced = await syncTeamLeaderAgreement(application);
+    const signing = synced.signingRequestId
+      ? await getTeamLeaderSigningRequest(synced)
+      : null;
+    const query = new URL(request.url).searchParams,
+      document = query.get("document"),
+      partId = query.get("part"),
+      kind = query.get("kind") || "original";
+    if (document || partId) {
+      if (!signing) throw new SigningBridgeError("AGREEMENT_NOT_STARTED", 404);
+      const part = signing.parts.find((p) =>
+        partId
+          ? p.id === partId
+          : p.document?.files.some((f) => `${p.id}:${f.id}` === document),
+      );
+      const file = part?.document?.files.find(
+        (f) => `${part.id}:${f.id}` === document,
+      );
       if (
-        !fresh.application.companyId ||
-        fresh.agent.accountStatus !== "active" ||
-        fresh.agent.agreementStatus !== "completed" ||
-        fresh.agent.licensedCompanyId !== fresh.application.companyId ||
-        fresh.agent.plan !== "solo_pro"
-      ) {
-        throw new Error("COMPANY_OR_PLAN_CHANGED");
+        !part ||
+        !["original", "signed", "certificate", "audit-log"].includes(kind) ||
+        (["original", "signed"].includes(kind) && !file)
+      )
+        throw new SigningBridgeError("DOCUMENT_NOT_FOUND", 404);
+      const response = await signingBridgeFetch(
+        `/v1/requests/${signing.id}/parts/${part.id}/files?${new URLSearchParams({ kind, ...(file ? { itemId: file.id } : {}) })}`,
+        actor,
+      );
+      return new Response(response.body, {
+        headers: {
+          ...headers,
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `inline; filename="team-leader-${kind}.pdf"`,
+          "X-Content-Type-Options": "nosniff",
+        },
+      });
+    }
+    let configured = Boolean(synced.signingPreparation);
+    if (!configured) {
+      try {
+        configured = Boolean(await availableTeamLeaderPackage(application));
+      } catch {
+        configured = false;
       }
-      const replacing = Boolean(restartEnvelopeId);
-      if (replacing && (fresh.application.esignEnvelopeId !== restartEnvelopeId || !canRestartAgreement(fresh.application.agreementStatus))) throw new Error("AGREEMENT_CHANGED");
-      if (!replacing && fresh.application.agreementStatus === "preparing" && !fresh.application.esignEnvelopeId) {
-        const updatedAt = new Date(fresh.application.updatedAt).getTime();
-        if (Number.isFinite(updatedAt) && Date.now() - updatedAt < PREPARATION_STALE_MS) {
-          throw new Error("PREPARING");
-        }
-      } else if (!replacing && fresh.application.agreementStatus !== "not_started") {
-        return { ...fresh, attempt: null };
-      }
-      const attempt = await claimAgreementAttempt(tx, { scope: "team_leader", subjectId: id, agentId }, replacing ? {
-        envelopeId: fresh.application.esignEnvelopeId, transactionId: fresh.application.esignTransactionId,
-        templateVersionId: fresh.application.esignTemplateVersionId, evidencePackageId: fresh.application.esignEvidencePackageId,
-        status: fresh.application.agreementStatus, completedAt: fresh.application.agreementCompletedAt,
-      } : undefined);
-      const [claimed] = await tx.update(teamLeaderApplications).set({
-        ...(replacing ? { esignEnvelopeId: null, esignTransactionId: null, esignTemplateVersionId: null,
-          esignEvidencePackageId: null, agreementCompletedAt: null } : {}),
-        agreementStatus: "preparing",
-        updatedAt: new Date().toISOString(),
-      }).where(eq(teamLeaderApplications.id, id)).returning();
-      return { application: claimed, agent: fresh.agent, attempt };
-    });
-
-  let row;
-  let attempt: AgreementAttempt | null = null;
-  try {
-    row = await claim();
-    attempt = row.attempt;
+    }
+    return Response.json(
+      {
+        configured,
+        agreementStatus: signing ? synced.agreementStatus : "not_started",
+        teamId: synced.teamId,
+        signing,
+        files: signing
+          ? hrFileManifest(
+              signing,
+              `/api/team-leader-applications/${id}/agreement`,
+            )
+          : null,
+      },
+      { headers },
+    );
   } catch (error) {
-    const code = error instanceof Error ? error.message : "";
-    if (code === "APPLICATION_NOT_READY") return NextResponse.json({ error: "Application is not ready for signing." }, { status: 409 });
-    if (code === "COMPANY_OR_PLAN_CHANGED") {
-      return NextResponse.json(
-        { error: "Agent onboarding, licensed company, or Solo Pro eligibility changed. Re-submit the Team Leader application." },
-        { status: 409 },
+    return signingApiError(error);
+  }
+}
+export async function POST(request: Request, context: Context) {
+  const auth = await requireActiveAgentApi();
+  if ("error" in auth) return auth.error;
+  if (request.headers.get("origin") !== new URL(request.url).origin)
+    return Response.json({ error: "INVALID_ORIGIN" }, { status: 403 });
+  try {
+    const actor = await signingActor(),
+      id = Number((await context.params).id);
+    const application = await ownedApplication(id, actor.agentId, actor.admin);
+    const body = z
+      .object({
+        action: z
+          .enum(["prepare", "recover", "continue", "resend"])
+          .default("prepare"),
+        recipient: z.enum(["owner", "company"]).default("owner"),
+      })
+      .strict()
+      .parse(
+        request.headers.get("content-type")?.includes("application/json")
+          ? await request.json()
+          : {},
+      );
+    if (body.action === "prepare" || body.action === "recover") {
+      if (application.applicantAgentId !== actor.agentId)
+        throw new SigningBridgeError("FORBIDDEN", 403);
+      const updated =
+        body.action === "recover"
+          ? await recoverTeamLeaderSigning(application)
+          : await prepareTeamLeaderSigning(application);
+      return Response.json(
+        { success: true, agreementStatus: updated.agreementStatus },
+        { headers },
       );
     }
-    if (code === "PREPARING") return NextResponse.json({ error: "Agreement preparation is already in progress." }, { status: 409 });
-    console.error("Unable to claim Team Leader agreement preparation", error);
-    return NextResponse.json({ error: "Unable to freeze Team Leader agreement facts." }, { status: 500 });
-  }
-
-  try {
-    if (row.application.esignEnvelopeId) {
-      const synced = await syncTeamLeaderAgreement(row.application, row.application.licensedCompany);
-      if (synced.esignEnvelopeId !== row.application.esignEnvelopeId) {
-        return NextResponse.json({ error: "The agreement changed. Refresh its status." }, { status: 409 });
-      }
-      if (canRestartAgreement(synced.agreementStatus)) {
-        await ensureESignEnvelopeReplaceable(synced.esignEnvelopeId!);
-        row = await claim(synced.esignEnvelopeId!);
-        attempt = row.attempt;
-      } else {
-        if (synced.agreementStatus === "failed") {
-          return NextResponse.json({ error: "The signed PDF needs recovery. Contact an administrator; your signatures are retained." }, { status: 409 });
-        }
-        if (synced.agreementStatus === "preparing") {
-          await sendESignEnvelope(synced.esignEnvelopeId!, agentId, `homix-team-leader-send-${synced.esignEnvelopeId}`);
-          const sent = await markTeamLeaderAgreementSent(id, synced.esignEnvelopeId!);
-          return NextResponse.json({ success: true, agreementStatus: sent?.agreementStatus || "sent" });
-        }
-        return NextResponse.json({ success: true, agreementStatus: synced.agreementStatus });
-      }
-    }
-    if (row.application.agreementStatus !== "preparing") {
-      return NextResponse.json({ success: true, agreementStatus: row.application.agreementStatus });
-    }
-    if (!attempt) throw new Error("AGREEMENT_CHANGED");
-    const [team] = await db.select().from(teams).where(eq(teams.id, row.application.teamId!)).limit(1);
-    const [terms] = await db.select().from(teamCompensationConfigs).where(eq(
-      teamCompensationConfigs.id,
-      row.application.teamCompensationConfigId!,
-    )).limit(1);
     if (
-      !team ||
-      team.status !== "forming" ||
-      team.companyId !== row.application.companyId ||
-      !terms ||
-      terms.teamId !== team.id
-    ) {
-      throw new OnboardingESignTemplateError("The forming team terms are no longer valid.");
+      (body.recipient === "company" ||
+        application.applicantAgentId !== actor.agentId) &&
+      !actor.admin
+    )
+      throw new SigningBridgeError("FORBIDDEN", 403);
+    const signing = await getTeamLeaderSigningRequest(application);
+    if (body.action === "resend") {
+      await signingBridgeJson(
+        `/v1/requests/${signing.id}/commands`,
+        actor,
+        signingRequestSchema,
+        { action: "remind", recipientActor: body.recipient },
+      );
+      return Response.json({ sent: true }, { headers });
     }
-    const template = await getESignTemplate(templateConfiguration.templateId);
-    const { version, signerRole, countersignerRoles } = validateTeamLeaderESignTemplate({
-      template,
-      expectedVersionId: templateConfiguration.templateVersionId,
-      expectedSchemaHash: templateConfiguration.templateSchemaHash,
-      entityKey: templateConfiguration.entityKey,
-    });
-    const countersigner = templateConfiguration.countersignerName && templateConfiguration.countersignerEmail
-      ? { name: templateConfiguration.countersignerName, email: templateConfiguration.countersignerEmail }
-      : null;
-    if (countersignerRoles.length && !countersigner) {
-      throw new OnboardingESignTemplateError("The company countersigner is not configured.");
+    for (const part of signing.parts) {
+      const recipient =
+        part.document?.status === "PENDING" &&
+        part.document.recipients.find(
+          (r) =>
+            r.actor === body.recipient &&
+            r.role === "SIGNER" &&
+            r.signingStatus === "NOT_SIGNED" &&
+            actor.verifiedEmails.includes(r.email.toLowerCase()),
+        );
+      if (recipient)
+        return Response.json(
+          await signingBridgeJson(
+            `/v1/requests/${signing.id}/parts/${part.id}/access`,
+            actor,
+            z.object({ url: z.url() }),
+            { kind: "signer", recipientId: recipient.id },
+          ),
+          { headers },
+        );
     }
-    const transaction = await findOrCreateESignTransaction({
-      name: `${row.agent.legalName || row.agent.name} Team Leader agreement`,
-      externalReference: `homix-team-leader-${id}`,
-    });
-    const externalReference = agreementAttemptReference(`homix-team-leader-application-${id}`, attempt);
-    const envelope = await findOrCreateESignEnvelope({
-      transactionId: transaction.id,
-      templateId: templateConfiguration.templateId,
-      legalEntityName: templateConfiguration.legalEntityName,
-      agentId,
-      externalReference,
-      expiresAt: attempt.expiresAt,
-      subject: `${templateConfiguration.legalEntityName} Team Leader agreement`,
-      message: `Please review and sign the Team Leader agreement for ${team.name}.`,
-      recipients: [
-        { roleId: signerRole.id, name: row.agent.legalName || row.agent.name, email: row.agent.email },
-        ...countersignerRoles.map((role) => ({ roleId: role.id, name: countersigner!.name, email: countersigner!.email })),
-      ],
-      mergeData: {
-        agent_id: row.agent.id,
-        agent_name: row.agent.legalName || row.agent.name,
-        agent_email: row.agent.email,
-        agent_phone: row.agent.phone || "",
-        license_number: row.agent.licenseNumber || "",
-        licensed_company: templateConfiguration.legalEntityName,
-        compensation_plan: "solo_pro",
-        team_name: team.name,
-        expected_member_count: row.application.expectedMemberCount,
-        team_positioning: row.application.positioning,
-        team_split_pct: terms.defaultTeamSplitPct,
-        team_sourced_split_pct: terms.teamLeadSplitPct,
-        team_cap_usd: terms.teamCapCents == null ? "No cap" : terms.teamCapCents / 100,
-        team_terms_effective_from: terms.effectiveFrom,
-        team_config_version: terms.version,
-      },
-      expectedTemplateVersionId: version.id,
-      expectedTemplateSchemaHash: version.schemaHash!,
-    });
-    await withAgreementAttempt({ scope: "team_leader", subjectId: id, agentId }, attempt.id, async (tx) => {
-      await tx.update(teamLeaderApplications).set({
-        esignTransactionId: transaction.id,
-        esignEnvelopeId: envelope.id,
-        esignTemplateVersionId: envelope.templateVersionId,
-        agreementStatus: "preparing",
-        updatedAt: new Date().toISOString(),
-      }).where(and(eq(teamLeaderApplications.id, id), isNull(teamLeaderApplications.esignEnvelopeId)));
-    });
-    await sendESignEnvelope(envelope.id, agentId, `homix-team-leader-send-${envelope.id}`);
-    await markTeamLeaderAgreementSent(id, envelope.id);
-    return NextResponse.json({ success: true, agreementStatus: "sent" });
+    throw new SigningBridgeError("SIGNER_ACCESS_DENIED", 403);
   } catch (error) {
-    if (attempt) await withAgreementAttempt({ scope: "team_leader", subjectId: id, agentId }, attempt.id, async (tx) => {
-      await tx.update(teamLeaderApplications).set({
-        updatedAt: new Date(Date.now() - PREPARATION_STALE_MS).toISOString(),
-      }).where(and(
-        eq(teamLeaderApplications.id, id),
-        eq(teamLeaderApplications.agreementStatus, "preparing"),
-        isNull(teamLeaderApplications.esignEnvelopeId),
-      ));
-    }).catch(() => undefined);
-    if (error instanceof OnboardingESignTemplateError || error instanceof AgreementAttemptChanged || (error instanceof ESignApiError && error.status === 409) || (error instanceof Error && ["AGREEMENT_CHANGED", "PREPARING", "APPLICATION_NOT_READY", "COMPANY_OR_PLAN_CHANGED"].includes(error.message))) {
-      return NextResponse.json({ error: error.message }, { status: 409 });
-    }
-    console.error("Unable to prepare Team Leader agreement", error);
-    return NextResponse.json({ error: "Unable to prepare Team Leader agreement." }, { status: 502 });
+    return signingApiError(error);
   }
 }

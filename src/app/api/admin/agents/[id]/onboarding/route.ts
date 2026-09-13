@@ -7,7 +7,8 @@ import {
   teamJoinRequests,
 } from "@/db/schema";
 import { requireAdminApi } from "@/lib/auth-guards";
-import { ESignApiError, getESignEvidence } from "@/lib/esign";
+import { SigningBridgeError } from "@/lib/signing-bridge";
+import { hrFileManifest } from "@/lib/signing-hr-files";
 import { syncOnboardingAgreement } from "@/lib/onboarding-agreement";
 import {
   inspectOnboardingSigning,
@@ -16,6 +17,8 @@ import {
 } from "@/lib/onboarding-signing-access";
 import { onboardingWorkflow } from "@/lib/onboarding-workflow";
 import { z } from "zod";
+import { onboardingAdminRecords } from "@/lib/onboarding-admin";
+import { onboardingTasks } from "@/lib/onboarding-tasks";
 
 const parseId = (id: string) =>
   /^\d+$/.test(id) && Number.isSafeInteger(Number(id)) && Number(id) > 0
@@ -38,7 +41,7 @@ export async function GET(
   if (!agent)
     return Response.json({ error: "Agent not found" }, { status: 404 });
   let warning = false;
-  if (agent.esignEnvelopeId) {
+  if (agent.signingRequestId) {
     try {
       agent = await syncOnboardingAgreement(agent);
     } catch {
@@ -80,49 +83,22 @@ export async function GET(
         id: onboardingEvents.id,
         type: onboardingEvents.eventType,
         at: onboardingEvents.createdAt,
+        actorId: onboardingEvents.actorAgentId,
+        detail: onboardingEvents.detail,
       })
       .from(onboardingEvents)
       .where(eq(onboardingEvents.agentId, id))
       .orderBy(desc(onboardingEvents.createdAt))
-      .limit(12),
+      .limit(50),
   ]);
   let signing = null;
   try {
-    const { envelope, signer, countersigner } =
-      await inspectOnboardingSigning(id);
-    if (envelope) {
-      const evidence =
-        envelope.status === "COMPLETED"
-          ? await getESignEvidence(envelope.id)
-          : null;
-      signing = {
-        status: envelope.status,
-        expiresAt: envelope.expiresAt,
-        signer: signer && {
-          name: signer.name,
-          email: signer.email,
-          status: signer.status,
-        },
-        countersigner: countersigner && {
-          name: countersigner.name,
-          email: countersigner.email,
-          status: countersigner.status,
-        },
-        documents: (envelope.documents || []).map((d) => ({
-          id: d.id,
-          name: d.name,
-        })),
-        completedFiles:
-          evidence?.verificationStatus === "VERIFIED"
-            ? (evidence.files || [])
-                .filter((f) => f.contentType === "application/pdf")
-                .map((f) => f.name)
-            : [],
-      };
-    }
+    const { request } = await inspectOnboardingSigning(id);
+    if (request) signing = { request, ...hrFileManifest(request, `/api/onboarding/agreement/documents?agentId=${id}`) };
   } catch {
     warning = true;
   }
+  const records = await onboardingAdminRecords(id);
   return Response.json(
     {
       agent: {
@@ -134,6 +110,9 @@ export async function GET(
         agreementAgentSignedAt: agent.agreementAgentSignedAt,
         agreementCountersignedAt: agent.agreementCountersignedAt,
         paymentStatus: agent.paymentStatus,
+        licensedCompany: agent.licensedCompany,
+        manualContract: agent.onboardingManualContract,
+        disposition: agent.onboardingDisposition,
       },
       workflow: onboardingWorkflow(
         agent,
@@ -144,6 +123,8 @@ export async function GET(
       signing,
       warning,
       events,
+      records,
+      tasks: onboardingTasks(agent, orders[0]?.channel || null, records, requests.length > 0),
     },
     { headers },
   );
@@ -183,7 +164,7 @@ export async function POST(
       { code: "SIGNING_UNAVAILABLE" },
       {
         status:
-          error instanceof ESignApiError && error.status === 429 ? 429 : 502,
+          error instanceof SigningBridgeError && error.status === 429 ? 429 : 502,
       },
     );
   }

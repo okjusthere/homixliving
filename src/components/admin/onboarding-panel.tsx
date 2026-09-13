@@ -1,4 +1,10 @@
 "use client";
+import {
+  OnboardingSpecialActions,
+  type OnboardingRecords,
+} from "@/components/admin/onboarding-special-actions";
+import type { VerifiedManualContract } from "@/db/schema";
+import { fmtTimestamp } from "@/lib/db-time";
 import { useCallback, useEffect, useState } from "react";
 import { CheckCircle2, Circle, RefreshCw, ExternalLink } from "lucide-react";
 import { EditPanel } from "@/components/admin/edit-panel";
@@ -8,7 +14,8 @@ import {
   type OnboardingWorkflow,
 } from "@/lib/onboarding-workflow";
 
-type Recipient = { name: string; email: string; status: string };
+import type { SigningRequest } from "@/lib/signing-contract";
+import type { HrFileManifest } from "@/lib/signing-hr-files";
 type Detail = {
   agent: {
     name: string;
@@ -16,7 +23,17 @@ type Detail = {
     accountStatus: string;
     agreementStatus: string;
     paymentStatus: string;
+    licensedCompany: string | null;
+    manualContract: VerifiedManualContract | null;
   };
+  records: OnboardingRecords;
+  events: Array<{
+    id: number;
+    type: string;
+    at: string;
+    actorId: number | null;
+    detail: Record<string, unknown> | null;
+  }>;
   workflow: OnboardingWorkflow;
   payment: {
     channel: string;
@@ -25,14 +42,7 @@ type Detail = {
     reference: string | null;
     verifiedBy: string | null;
   } | null;
-  signing: {
-    status: string;
-    expiresAt?: string;
-    signer: Recipient | null;
-    countersigner: Recipient | null;
-    documents: Array<{ id: string; name: string }>;
-    completedFiles: string[];
-  } | null;
+  signing: ({ request: SigningRequest } & HrFileManifest) | null;
   warning: boolean;
 };
 
@@ -125,17 +135,76 @@ export function OnboardingPanel({
     }
   };
   const signing = detail?.signing;
-  const activeRecipient = (recipient: Recipient | null | undefined) =>
+  const needsReminder = (actor: "owner" | "company") =>
     Boolean(
-      recipient &&
-      ["ACTIVE", "VIEWED", "IN_PROGRESS"].includes(recipient.status) &&
-      signing &&
-      ["SENT", "IN_PROGRESS"].includes(signing.status) &&
-      (!signing.expiresAt ||
-        new Date(signing.expiresAt).getTime() > Date.now()),
+      signing?.request.parts.some((part) => {
+        if (part.document?.status !== "PENDING") return false;
+        const unsigned = part.document.recipients.filter(
+          (r) => r.role !== "CC" && r.signingStatus === "NOT_SIGNED",
+        );
+        const first =
+          part.document.signingOrder === "SEQUENTIAL"
+            ? Math.min(...unsigned.map((r) => r.signingOrder ?? 1))
+            : null;
+        return unsigned.some(
+          (r) =>
+            r.actor === actor &&
+            (first === null || (r.signingOrder ?? 1) === first),
+        );
+      }),
     );
-  const documentUrl = (key: string, value: string) =>
-    `/api/onboarding/agreement/documents?${new URLSearchParams({ agentId: String(agentId), [key]: value })}`;
+  const eventLabel = (type: string) => {
+    const names: Record<string, [string, string]> = {
+      documenso_agreement_prepared: [
+        "已准备电子合同",
+        "Electronic agreement prepared",
+      ],
+      documenso_agreement_refreshed: [
+        "已核对电子签署状态",
+        "Electronic signing status checked",
+      ],
+      documenso_agreement_restarted: [
+        "已重新发起电子合同",
+        "Electronic agreement restarted",
+      ],
+      documenso_agreement_superseded: [
+        "已用新合同替代旧任务",
+        "Agreement replaced",
+      ],
+      online_invitations_close_requested: [
+        "已请求取消不再使用的邀请",
+        "Unused invitation cancellation requested",
+      ],
+      online_invitations_closed: [
+        "已取消不再使用的邀请",
+        "Unused invitations closed",
+      ],
+      online_invitations_close_failed: [
+        "邀请取消失败，需重试",
+        "Invitation cancellation failed; retry required",
+      ],
+      review_contract: ["已记录合同核验决定", "Contract review recorded"],
+      manual_contract_uploaded: ["已上传合同，等待核验", "Contract uploaded; awaiting verification"],
+      grant_access: ["已授予有限权限", "Limited access granted"],
+      revoke_access: ["已撤销有限权限", "Limited access revoked"],
+      existing_staff: [
+        "已按既有人员办理",
+        "Existing staff recognition recorded",
+      ],
+      match_receipt: [
+        "已核对收款与入职费用",
+        "Receipt matched to onboarding fees",
+      ],
+      void_receipt: ["已作废收款登记", "Receipt record voided"],
+      disposition: ["已更新办理安排", "Intake disposition updated"],
+      receipt_recorded: ["已登记实际收款", "Payment receipt recorded"],
+    };
+    return (
+      names[type]?.[zh ? 0 : 1] ||
+      (zh ? "已记录办理操作" : "Onboarding action recorded")
+    );
+  };
+
   return (
     <EditPanel
       title={zh ? "处理入职" : "Manage onboarding"}
@@ -207,9 +276,14 @@ export function OnboardingPanel({
                     : "Agent completes identity, license, company and plan",
                 ],
                 [
-                  zh ? "本人签署" : "Agent signature",
+                  zh ? "本人合同要求" : "Agent contract requirement",
                   detail.workflow.signed,
-                  signing?.signer?.email ||
+                  signing?.request.parts.flatMap(
+                    (p) =>
+                      p.document?.recipients
+                        .filter((r) => r.actor === "owner")
+                        .map((r) => r.email) || [],
+                  )[0] ||
                     (zh
                       ? "本人从待办页继续签署"
                       : "Continue from the onboarding page"),
@@ -265,7 +339,7 @@ export function OnboardingPanel({
                 <a
                   key={d.id}
                   className="flex items-center gap-2 text-sm underline underline-offset-4"
-                  href={documentUrl("document", d.id)}
+                  href={d.originalUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                 >
@@ -276,17 +350,64 @@ export function OnboardingPanel({
                   · {d.name}
                 </a>
               ))}
-              {signing?.completedFiles.map((name) => (
+              {signing?.documents
+                .filter((d) => d.signedUrl)
+                .map((d) => (
+                  <a
+                    key={`signed-${d.id}`}
+                    className="block text-sm underline"
+                    href={d.signedUrl!}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {zh ? "已签署文件" : "Signed document"} · {d.name}
+                  </a>
+                ))}
+              {signing?.completionFiles.map((file) => (
                 <a
-                  key={name}
-                  className="flex items-center gap-2 text-sm underline underline-offset-4"
-                  href={documentUrl("completed", name)}
+                  key={file.url}
+                  className="block text-sm underline"
+                  href={file.url}
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  <ExternalLink size={14} />
-                  {zh ? "已签署文件" : "Completed document"} · {name}
+                  {file.kind === "certificate"
+                    ? zh
+                      ? "完成证书"
+                      : "Completion certificate"
+                    : zh
+                      ? "签署审计"
+                      : "Signing audit"}{" "}
+                  · {file.name}
                 </a>
+              ))}
+              {signing?.request.parts.map((part) => (
+                <div key={part.id} className="rounded-lg border p-3 text-sm">
+                  <p className="font-medium">{part.document?.title}</p>
+                  {part.document?.recipients
+                    .filter((r) => r.role !== "CC")
+                    .map((r) => (
+                      <p key={r.id} className="mt-1 text-stone-600">
+                        {r.name} · {r.email} ·{" "}
+                        {r.signingStatus === "SIGNED"
+                          ? zh
+                            ? "已签署"
+                            : "Signed"
+                          : r.signingStatus === "REJECTED"
+                            ? zh
+                              ? "已拒绝"
+                              : "Rejected"
+                            : r.expiresAt &&
+                                Date.parse(r.expiresAt) <= Date.now()
+                              ? zh
+                                ? "链接过期，可重发续期"
+                                : "Link expired; resend to renew"
+                              : zh
+                                ? "待签署"
+                                : "Awaiting signature"}
+                      </p>
+                    ))}
+                </div>
               ))}
               {!signing && (
                 <p className="text-sm text-stone-500">
@@ -299,10 +420,7 @@ export function OnboardingPanel({
                 <button
                   className="admin-control"
                   disabled={
-                    busy ||
-                    loading ||
-                    detail.warning ||
-                    !activeRecipient(signing?.signer)
+                    busy || loading || detail.warning || !needsReminder("owner")
                   }
                   onClick={() => void resend("agent")}
                 >
@@ -314,7 +432,7 @@ export function OnboardingPanel({
                     busy ||
                     loading ||
                     detail.warning ||
-                    !activeRecipient(signing?.countersigner)
+                    !needsReminder("company")
                   }
                   onClick={() => void resend("company")}
                 >
@@ -324,8 +442,28 @@ export function OnboardingPanel({
               {detail.workflow.countersignPending && (
                 <p className="text-sm text-stone-600">
                   {zh
-                    ? `公司会签待办：${signing?.countersigner?.email || "等待公司签署人"}。账号开通后仍会保留这项待办。`
-                    : `Company signature due: ${signing?.countersigner?.email || "awaiting company signer"}. This task remains after activation.`}
+                    ? `公司会签待办：${
+                        signing?.request.parts
+                          .flatMap(
+                            (p) =>
+                              p.document?.recipients
+                                .filter((r) => r.actor === "company")
+                                .map((r) => r.email) || [],
+                          )
+                          .filter((email, i, all) => all.indexOf(email) === i)
+                          .join(", ") || "等待公司签署人"
+                      }。账号开通后仍会保留这项待办。`
+                    : `Company signature due: ${
+                        signing?.request.parts
+                          .flatMap(
+                            (p) =>
+                              p.document?.recipients
+                                .filter((r) => r.actor === "company")
+                                .map((r) => r.email) || [],
+                          )
+                          .filter((email, i, all) => all.indexOf(email) === i)
+                          .join(", ") || "awaiting company signer"
+                      }. This task remains after activation.`}
                 </p>
               )}
               {["declined", "expired", "voided"].includes(
@@ -333,8 +471,8 @@ export function OnboardingPanel({
               ) && (
                 <p className="text-sm text-amber-800">
                   {zh
-                    ? "原合同已终止，请本人登录待办页重新生成并签署。旧记录及已支付费用会保留。"
-                    : "The agreement ended. The agent can restart it from their onboarding page; history and payments are retained."}
+                    ? "链接过期可重发续期并保留签名；已取消或拒签的任务由本人确认重新发起。旧记录及已支付费用会保留。"
+                    : "Expired links can be renewed without losing signatures. Cancelled or rejected requests need an explicit restart; history and payments are retained."}
                 </p>
               )}
               {detail.agent.agreementStatus === "failed" && (
@@ -358,14 +496,11 @@ export function OnboardingPanel({
                 <button
                   className="admin-control"
                   disabled={
-                    busy ||
-                    loading ||
-                    detail.warning ||
-                    !detail.workflow.canRecordPayment
+                    busy || loading || !detail.workflow.canRecordPayment
                   }
                   onClick={onOffline}
                 >
-                  {zh ? "核验线下收款" : "Verify offline receipt"}
+                  {zh ? "登记实际收款" : "Record money received"}
                 </button>
                 <button
                   className="admin-control"
@@ -389,6 +524,36 @@ export function OnboardingPanel({
                       : "Approval requires a complete profile, agent signature, team terms and a verified offline receipt. Stripe payments do not need another approval."}
                   </p>
                 )}
+            </section>
+            <OnboardingSpecialActions
+              agentId={agentId}
+              company={detail.agent.licensedCompany}
+              manual={detail.agent.manualContract}
+              records={detail.records}
+              onChanged={async () => {
+                await load();
+                onChanged();
+              }}
+            />
+            <section className="space-y-3 border-t pt-4">
+              <h3 className="font-medium">{zh ? "处理记录" : "Activity"}</h3>
+              <ol className="space-y-3">
+                {detail.events.map((event) => (
+                  <li
+                    key={event.id}
+                    className="border-l-2 border-stone-200 pl-3 text-sm"
+                  >
+                    <p>{eventLabel(event.type)}</p>
+                    <p className="text-xs text-stone-500">
+                      {fmtTimestamp(event.at)}
+                      {event.actorId ? ` · #${event.actorId}` : ""}
+                    </p>
+                    {typeof event.detail?.reason === "string" && (
+                      <p>{event.detail.reason}</p>
+                    )}
+                  </li>
+                ))}
+              </ol>
             </section>
           </>
         )}

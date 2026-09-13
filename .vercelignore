@@ -1,0 +1,15 @@
+.git
+node_modules
+.next
+coverage
+test-results
+playwright-report
+docs
+output
+tmp
+.env*
+**/*.local
+**/*.local.*
+**/*.p12
+**/*.pem
+**/*.key

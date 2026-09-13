@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { documentStorageEndpoint } from "../document-storage-endpoint";
 import {
   buildDealDocumentKey,
   isDealDocumentKeyForDeal,
@@ -7,6 +8,18 @@ import {
 } from "../deal-document-storage";
 
 function main() {
+  assert.deepEqual(documentStorageEndpoint("account", "", "production"), {
+    endpoint: "https://account.r2.cloudflarestorage.com",
+  });
+  assert.deepEqual(documentStorageEndpoint("account", "http://127.0.0.1:4569", "development"), {
+    endpoint: "http://127.0.0.1:4569", forcePathStyle: true,
+  });
+  for (const endpoint of ["http://127.0.0.1:4569", "https://external.example", "http://localhost@external.example", "http://localhost:4569/path"]) {
+    assert.throws(() => documentStorageEndpoint("account", endpoint, "production"));
+  }
+  for (const endpoint of ["https://external.example", "http://localhost@external.example", "http://localhost:4569/path"]) {
+    assert.throws(() => documentStorageEndpoint("account", endpoint, "development"));
+  }
   const valid = validateDealDocumentMetadata({
     fileName: "signed lease.pdf",
     contentType: "application/pdf",

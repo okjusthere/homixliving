@@ -1,6 +1,7 @@
 import type { Agent } from "@/db/schema";
 import type { AgentPlan } from "@/lib/agent-plans";
 import type { CommerceProductKey } from "@/lib/commerce/catalog";
+import { verifiedManualContract, type ManualContractBasis } from "@/lib/onboarding-requirements";
 
 export const SOLO_PRO_UPGRADE_CREDIT_DAYS = 90;
 
@@ -42,19 +43,19 @@ const NON_PAYABLE_AGREEMENT_STATUSES = new Set([
 ]);
 
 export function hasAgentSignedOnboardingAgreement(
-  agent: Pick<Agent, "agreementAgentSignedAt" | "agreementStatus">,
+  agent: Pick<Agent, "agreementAgentSignedAt" | "agreementStatus" | "accountStatus" | "signingRequestId">,
 ) {
-  // Completed legacy envelopes predate the separate signer timestamp. The
-  // additive migration backfills them, while this fallback keeps rolling
-  // deploys safe if application code arrives before the migration.
-  return Boolean(agent.agreementAgentSignedAt || agent.agreementStatus === "completed");
+  // Existing active staff retain their historical facts. A new pending
+  // onboarding can advance only from the current Documenso request.
+  if (agent.accountStatus === "pending" && !agent.signingRequestId) return false;
+  return Boolean(agent.agreementAgentSignedAt || (agent.accountStatus === "active" && agent.agreementStatus === "completed"));
 }
 
 export function onboardingAgreementAllowsPayment(
-  agent: Pick<Agent, "agreementAgentSignedAt" | "agreementStatus">,
+  agent: Pick<Agent, "agreementAgentSignedAt" | "agreementStatus" | "accountStatus" | "signingRequestId"> & ManualContractBasis,
 ) {
-  return hasAgentSignedOnboardingAgreement(agent) &&
-    !NON_PAYABLE_AGREEMENT_STATUSES.has(agent.agreementStatus);
+  return Boolean(verifiedManualContract(agent)) ||
+    (hasAgentSignedOnboardingAgreement(agent) && !NON_PAYABLE_AGREEMENT_STATUSES.has(agent.agreementStatus));
 }
 
 export function shouldAutomaticallyActivatePaidOnboarding(
@@ -64,11 +65,12 @@ export function shouldAutomaticallyActivatePaidOnboarding(
     | "onboardingCompletedAt"
     | "agreementAgentSignedAt"
     | "agreementStatus"
+    | "signingRequestId"
     | "plan"
     | "teamId"
     | "teamTermsConfigId"
     | "teamTermsAcceptedAt"
-  >,
+  > & ManualContractBasis,
   paymentChannel: string,
 ) {
   if (!isOnboardingV2Enforced()) return false;

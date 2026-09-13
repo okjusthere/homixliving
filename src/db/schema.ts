@@ -162,6 +162,26 @@ export type OnboardingPaymentStatus = "pending" | "paid" | "not_required";
 export type OnboardingInvitationKind = "personal_referral" | "team_recruiting" | "admin";
 export type LiborMembershipStatus = "apply_new" | "existing_member";
 
+export type LimitedCapability = "profile" | "training" | "resources";
+export type VerifiedManualContract = {
+  id: string;
+  source: "paper" | "historic";
+  company: string;
+  plan: string;
+  teamTermsConfigId: number | null;
+  legalName: string;
+  licenseNumber: string;
+  agentSignedAt: string;
+  companySignedAt: string | null;
+  verifiedAt: string;
+};
+export type SigningPreparation = {
+  id: string;
+  contextHash: string;
+  packageId: string;
+  payload: Record<string, unknown>;
+};
+
 export const agents = portal.table("agents", {
   id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
   name: text("name").notNull(),
@@ -205,6 +225,18 @@ export const agents = portal.table("agents", {
   affiliationTermMonths: integer("affiliation_term_months"),
   affiliationPaidAt: dateCol("affiliation_paid_at"),
   onboardingCompletedAt: timestamptz("onboarding_completed_at"),
+  signingRequestId: uuid("signing_request_id"),
+  signingPreparation: jsonb("signing_preparation").$type<SigningPreparation>(),
+  // Projection of the currently verified HR document. Only the verification
+  // command may write it; electronic signature fields remain provider facts.
+  onboardingManualContract: jsonb("onboarding_manual_contract").$type<VerifiedManualContract>(),
+  onboardingSigningClosure: jsonb("onboarding_signing_closure").$type<{ requestId: string; status: "requested" | "failed" | "completed"; reason: string; actorId: number; at: string; error?: string }>(),
+  onboardingDisposition: jsonb("onboarding_disposition").$type<{
+    status: "deferred" | "closed";
+    reason: string;
+    at: string;
+    actorId: number;
+  }>(),
   onboardingStage: text("onboarding_stage")
     .$type<OnboardingStage>()
     .notNull()
@@ -434,6 +466,8 @@ export const teamLeaderApplications = portal.table(
       .notNull()
       .default("not_started"),
     esignTransactionId: text("esign_transaction_id"),
+    signingRequestId: uuid("signing_request_id"),
+    signingPreparation: jsonb("signing_preparation").$type<SigningPreparation>(),
     esignEnvelopeId: text("esign_envelope_id"),
     esignTemplateVersionId: text("esign_template_version_id"),
     esignEvidencePackageId: text("esign_evidence_package_id"),

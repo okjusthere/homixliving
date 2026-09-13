@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { resources } from "@/db/schema";
-import { requireActiveAgentApi, requireAdminApi } from "@/lib/auth-guards";
+import { requireCapabilityApi, requireAdminApi } from "@/lib/auth-guards";
 import { logAudit } from "@/lib/audit";
 
 export async function GET() {
-  const auth = await requireActiveAgentApi();
+  const auth = await requireCapabilityApi("resources");
   if ("error" in auth) return auth.error;
   const rows = await db
     .select()

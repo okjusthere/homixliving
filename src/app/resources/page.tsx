@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { type Resource } from "@/db/schema";
 import { loadLibrary } from "@/lib/resource-library";
-import { requireActiveAgent } from "@/lib/auth-guards";
+import { requireCapability } from "@/lib/auth-guards";
 import { tone } from "@/components/homix/tokens";
 import { Card, Pill } from "@/components/homix/server-primitives";
 import { PageHeader, CardHeader } from "@/components/homix/page-kit";
@@ -49,7 +49,7 @@ function groupByCategory(items: Resource[]): [string, Resource[]][] {
 }
 
 export default async function ResourcesPage() {
-  await requireActiveAgent();
+  await requireCapability("resources");
   const t = M[await getLocale()];
 
   const [[all, checklist], companyW9s] = await Promise.all([

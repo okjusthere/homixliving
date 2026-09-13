@@ -1,4 +1,5 @@
 import type { Sql } from "postgres";
+import { ensureOnboardingWorkspace } from "./ensure-onboarding-workspace";
 
 export type AgentLifecycleSchemaState = {
   portal: {
@@ -1642,5 +1643,6 @@ export async function ensureSchema(sql: Sql) {
   // ---- Future column additions go here, mirroring the old pattern: ----
   // await run(`ALTER TABLE portal.xxx ADD COLUMN IF NOT EXISTS yyy TEXT`);
 
+  await ensureOnboardingWorkspace(sql);
   console.log("Portal schema ensured.");
 }

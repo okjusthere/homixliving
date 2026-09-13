@@ -41,7 +41,7 @@ export default async function PayPage({
   if (!agent || agent.accountStatus === "inactive") redirect("/pending");
   if (
     agent.accountStatus === "pending" &&
-    agent.esignEnvelopeId &&
+    agent.signingRequestId &&
     !onboardingAgreementAllowsPayment(agent)
   ) {
     try {

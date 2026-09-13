@@ -1,3 +1,5 @@
+import { onboardingContracts, onboardingReceipts, onboardingAccessGrants } from "@/db/onboarding-schema";
+import { onboardingTasks } from "@/lib/onboarding-tasks";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import {
@@ -23,12 +25,11 @@ import {
 import { DEFAULT_AGENT_SPLIT_PCT } from "@/lib/splits";
 import { logAudit } from "@/lib/audit";
 import { syncPublicAgentProfile } from "@/lib/sync-public-profile";
-import { interpretPublicIdentityResult } from "@/lib/public-identity-status";
 import {
   isAgentAccountStatus,
   normalizeAgentAccountStatus,
 } from "@/lib/agent-lifecycle";
-import { hidePublicProfileForOffboarding, publishPublicProfile } from "@/lib/homixweb";
+import { hidePublicProfileForOffboarding } from "@/lib/homixweb";
 import { dateOrNull } from "@/lib/db-time";
 import { resolveLicensedCompany } from "@/lib/licensed-companies";
 
@@ -199,6 +200,11 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  const [manualContracts, receipts, grants] = await Promise.all([
+    db.select({ agentId: onboardingContracts.agentId, status: onboardingContracts.status }).from(onboardingContracts),
+    db.select({ agentId: onboardingReceipts.agentId, status: onboardingReceipts.status }).from(onboardingReceipts),
+    db.select({ agentId: onboardingAccessGrants.agentId, status: onboardingAccessGrants.status, expiresAt: onboardingAccessGrants.expiresAt }).from(onboardingAccessGrants),
+  ]);
   const result = visibleRows.map((row) => {
     const monthDealIds = new Set(
       allDealAgents
@@ -229,6 +235,11 @@ export async function GET(req: NextRequest) {
     const payment = paymentByAgent.get(row.agent.id);
     return {
       ...row,
+      onboardingTasks: onboardingTasks(row.agent, onboardingPaymentChannelByAgent.get(row.agent.id) || null, {
+        contracts: manualContracts.filter((c) => c.agentId === row.agent.id),
+        receipts: receipts.filter((c) => c.agentId === row.agent.id),
+        grants: grants.filter((c) => c.agentId === row.agent.id),
+      }),
       loginEmails: loginEmailsByAgent.get(row.agent.id) || [],
       mtdDeals: monthDeals.length,
       mtdTake,
@@ -256,7 +267,7 @@ export async function POST(req: NextRequest) {
     if (invalidLicenseExpiry(body)) {
       return NextResponse.json({ error: "licenseExpiresAt must be YYYY-MM-DD" }, { status: 400 });
     }
-    const data = { ...cleanAdminAgentPayload(body), accountStatus: "active" as const };
+    const data = { ...cleanAdminAgentPayload(body), accountStatus: "pending" as const };
     if (!data.name) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
     }
@@ -307,28 +318,9 @@ export async function POST(req: NextRequest) {
       created.id,
       `创建经纪人 ${created.name} (#${created.id})`,
     );
-    const publicResult = await publishPublicProfile({
-      agentId: created.id,
-      name: created.name,
-      email: created.email,
-      phone: created.phone,
-      license: created.licenseNumber,
-    });
-    const mlsVerification = interpretPublicIdentityResult(publicResult);
-    return NextResponse.json(
-      {
-        ...created,
-        mlsVerification,
-        ...(!publicResult.ok
-          ? {
-              warning: String(
-                publicResult.body.error || "Public profile creation failed",
-              ),
-            }
-          : {}),
-      },
-      { status: 201 },
-    );
+    // New accounts enter the reviewed onboarding path; publishing happens on
+    // activation, never simply because an administrator entered an email.
+    return NextResponse.json(created, { status: 201 });
   } catch {
     return NextResponse.json({ error: "Agent creation failed" }, { status: 500 });
   }
@@ -382,7 +374,7 @@ export async function PUT(req: NextRequest) {
     if (body.accountStatus !== undefined && !isAgentAccountStatus(body.accountStatus)) {
       return NextResponse.json({ error: "Invalid account status" }, { status: 400 });
     }
-    if (existing.accountStatus === "pending" && body.accountStatus === "active") {
+    if (existing.accountStatus !== "active" && body.accountStatus === "active") {
       return NextResponse.json({ error: "请通过「处理入职」审批开通账号。Use the onboarding approval flow to activate a pending account." }, { status: 409 });
     }
 

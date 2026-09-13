@@ -31,28 +31,44 @@ export function validateTeamLeaderApplicationInput(input: {
     throw new Error("Expected member count must be between 1 and 500.");
   }
   if (positioning.length < 10 || positioning.length > 1200) {
-    throw new Error("Team positioning must be between 10 and 1,200 characters.");
+    throw new Error(
+      "Team positioning must be between 10 and 1,200 characters.",
+    );
   }
   if (!isTeamSplitPreset(proposedTeamSplitPct)) {
     throw new Error("Proposed Team Split must be 10%, 15%, or 20%.");
   }
-  return { proposedTeamName, expectedMemberCount, positioning, proposedTeamSplitPct };
+  return {
+    proposedTeamName,
+    expectedMemberCount,
+    positioning,
+    proposedTeamSplitPct,
+  };
 }
 
 export function teamLeaderApplicationEligibility(input: {
   accountStatus: AgentAccountStatus;
   agentAgreementStatus: OnboardingAgreementStatus;
+  affiliationContractComplete?: boolean;
   plan: AgentPlan;
   licensedCompanySupported: boolean;
   alreadyLeadsTeam: boolean;
   openApplicationStatus?: TeamLeaderApplicationStatus | null;
 }) {
   if (input.accountStatus !== "active") return "account_not_active" as const;
-  if (!input.licensedCompanySupported) return "licensed_company_required" as const;
-  if (input.agentAgreementStatus !== "completed") return "agent_agreement_required" as const;
+  if (!input.licensedCompanySupported)
+    return "licensed_company_required" as const;
+  if (!(
+    input.affiliationContractComplete ??
+    input.agentAgreementStatus === "completed"
+  ))
+    return "agent_agreement_required" as const;
   if (input.plan !== "solo_pro") return "solo_pro_required" as const;
   if (input.alreadyLeadsTeam) return "already_team_leader" as const;
-  if (input.openApplicationStatus === "submitted" || input.openApplicationStatus === "approved") {
+  if (
+    input.openApplicationStatus === "submitted" ||
+    input.openApplicationStatus === "approved"
+  ) {
     return "application_already_open" as const;
   }
   return null;
@@ -71,8 +87,12 @@ export function shouldActivateFormingTeam(input: {
   teamStatus: TeamLifecycleStatus;
   leaderAgreementStatus: OnboardingAgreementStatus;
   memberAgreementStatus: OnboardingAgreementStatus;
+  memberContractComplete?: boolean;
 }) {
-  return input.teamStatus === "forming" &&
+  return (
+    input.teamStatus === "forming" &&
     input.leaderAgreementStatus === "completed" &&
-    input.memberAgreementStatus === "completed";
+    (input.memberContractComplete ??
+      input.memberAgreementStatus === "completed")
+  );
 }
