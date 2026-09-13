@@ -2,7 +2,7 @@
 
 日期：2026-09-12
 
-状态：原生多文件双人、顺序入职和个性化文件签署均已完成，完成文件、证书、审计及真实回调验证通过；esign.kevv.ai 已切到 Documenso，自建签署代码已删除。Portal 最终部署与旧 API/finalizer 运行退役仍待完成。
+状态：已完成 Documenso 集成、两仓库 GitHub PR/CI 合并及正式站上线验证；旧签署 API 已停用、旧 PDF 自动触发已关闭，50 项旧 Portal 签署配置已移除。公司正式买卖文件及逐人原生账号连接按业务配置补充。
 主计划：相邻 eSign 仓库的 `docs/DOCUMENSO_PORTAL_PLAN.md`；本文件记录 Portal 侧交付与回归边界。
 
 ## 用户已确定的入口
@@ -119,7 +119,7 @@ Documenso 负责所有电子签署与原生编辑。Portal 管理业务身份、
 仍需完成：最终合成签署与封存下载证明、其余原生场景验收、生产切换验证及 native 代码/资源退役。生产 Documenso 身份、私网数据库、服务证书及 SMTP 认证配置已经完成。最终合成签署按钮仍在等待之前发出的用户确认；不能将模板导入或模拟签署测试当成已经完成电子签署验收。
 
 
-## 生产候选与浏览器补充验收
+## 历史生产候选与浏览器补充验收
 
 - 新生产 Documenso 与 bridge 均健康；两家公司绑定 Si Zhang / hr@homixny.com，11 个批准的空白 HR 包已发布。专用 SMTP 已通过 TLS/认证检查，未向真实收件人发送测试邮件。服务证书为自签完整性证书，不是个人或 AATL 证书。
 - Supabase 已应用新增迁移；五个新表启用 RLS，匿名和普通客户端无直接读写授权。旧业务数据未被改写。
@@ -135,10 +135,21 @@ Documenso 负责所有电子签署与原生编辑。Portal 管理业务身份、
 
 - 个性化文件已增加公司必选项，避免静默归属 Homix Realty；Homix Living 的真实原生草稿创建、幂等重试、原件下载、原生字段刷新恢复、发送至本地 Mailpit 及返回同一 Portal 任务均已验证。当前候选 `dpl_5ECwL4pswEqL4UN7BRnSoZBi9q6b` 已 Ready，仍未完成最终签署或切换官网。
 
-## 2026-09-13 实施状态
+## 2026-09-13 签署完成时的历史检查点
 
 - 用户已允许最终合成签署，三个实际原生流程均完成。完成 PDF 的 CMS/ByteRange、原生完成证书、审计和跨服务下载一致性通过；真实入职回调正确分开本人签署、公司会签及账号开通，未付款账号保持 pending。
 - `esign.kevv.ai` 已提供官方 Documenso 2.18.0，11 个批准的 HR 包及两家公司 Si Zhang / hr@homixny.com 的身份连接已核验。
 - 两仓库的自建签署实现及专用依赖已退役；保留原合同文件、导出工具、业务数据与历史存储。
-- Portal 最终源码上传因自动审批要求具体代码上传授权而暂停，授权问题已向用户发出。既有候选未提升为正式域名；旧 API 和 PDF Event Job 的停止将与 Portal 切换协调完成。
+- 当时 Portal 发布尚未完成；现已通过下方 GitHub PR/CI 上线记录完成，旧运行时也已停止。
 - 当前证据与准确待办以 `docs/qa/2026-09-12-signing-integration/release-status.json` 为准。早期条目中“等待最终 Sign”已由本次真实签署结果替代。
+
+
+## 2026-09-13 正式上线与退役完成
+
+- Portal PR #27 合并 `main` 为 `1f8e810`；eSign PR #12 合并 `main` 为 `b9fa161`。两个 PR 与合并后的 CI 全部通过，包括新加入 CI 的管理员入职数据库回归；环境文件和密钥未提交。
+- 已先核实 Vercel `homixliving` 关联 `okjusthere/homixliving`、Git 自动部署开启及生产分支 `main`，再按功能分支、CI、合并流程发布。Git 部署 `dpl_JCKosGCrTxwEgf3Dfsx697MTC37n` 已 Ready 并实际绑定 `agents.homixny.com`。
+- 正式站现有管理员会话验证了文件签署工作台、11 个 HR 包、两家公司连接和入职四区面板。未签署人员可登记真实收款，不满足条件的审批开通仍被禁用；没有提交真实人员或合同变更。
+- 旧 API `ca-api-kevvesign-prod` 最后活动版本已停用，副本数为 0。旧 `job-pdf-kevvesign-prod` 改为 Manual，运行中任务为 0；资源组无旧 Function app。旧 web 资源现承担 Nginx 入口，继续运行并转发官方 Documenso。
+- 已移除 Vercel 生产项目的 50 个旧签署环境配置，只保留 3 个 Documenso bridge 配置。历史业务 SQL、合同文件、存储及旧资源定义保留，Email Service 继续独立运行；保留资源仍可能产生费用。
+- 停用后再次通过正式域名验证官方原生登录、11 个模板读取、bridge 鉴权及 Portal 回调 HMAC。三条完整电子签署验收使用合成身份与文件，未代真实公司或客户签字。
+- 技术上线与退役无剩余发布阻塞。后续业务准备是公司提供正式买卖包文件，以及为实际使用原生编辑的经纪人逐人连接独立账号。证据见 QA 报告与 `evidence/2026-09-13-production-release/`。
