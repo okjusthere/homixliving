@@ -28,6 +28,7 @@ export function SigningCreate({
     { data: session } = useSession();
   const [packages, setPackages] = useState<SigningPackage[]>([]),
     [packageId, setPackageId] = useState("");
+  const [customCompany, setCustomCompany] = useState("");
   const [title, setTitle] = useState(""),
     [customer, setCustomer] = useState(""),
     [property, setProperty] = useState("");
@@ -123,7 +124,7 @@ export function SigningCreate({
       title,
       scenario: mode,
       packageId: selected?.id,
-      companyKey: selected?.company_key || "homix_realty",
+      companyKey: mode === "custom" ? customCompany : selected?.company_key,
       idempotencyKey: id,
       externalReference: `workspace:${id}`,
       business: { customer, property, reference: "" },
@@ -232,6 +233,21 @@ export function SigningCreate({
             className="space-y-5 disabled:opacity-70"
           >
             <div className="grid gap-4 sm:grid-cols-2">
+              {mode === "custom" && (
+                <label className="text-sm">
+                  {zh ? "所属公司" : "Company"}
+                  <select
+                    required
+                    className={signingInput}
+                    value={customCompany}
+                    onChange={(e) => setCustomCompany(e.target.value)}
+                  >
+                    <option value="">{zh ? "选择所属公司" : "Select company"}</option>
+                    <option value="homix_realty">Homix Realty Inc.</option>
+                    <option value="homix_living">Homix Living Inc.</option>
+                  </select>
+                </label>
+              )}
               {mode !== "custom" && (
                 <label className="text-sm">
                   {zh ? "公司签署包" : "Company package"}
