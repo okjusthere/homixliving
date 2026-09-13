@@ -2,7 +2,7 @@
 
 日期：2026-09-12
 
-状态：实施中。Portal 与 eSign bridge 的代码、数据库回归、原生 API/回调和模板导入已完成首轮验证；真实双人最终签署、完整上线切换及旧引擎退役仍在进行。
+状态：原生多文件双人、顺序入职和个性化文件签署均已完成，完成文件、证书、审计及真实回调验证通过；esign.kevv.ai 已切到 Documenso，自建签署代码已删除。Portal 最终部署与旧 API/finalizer 运行退役仍待完成。
 主计划：相邻 eSign 仓库的 `docs/DOCUMENSO_PORTAL_PLAN.md`；本文件记录 Portal 侧交付与回归边界。
 
 ## 用户已确定的入口
@@ -105,7 +105,7 @@ Documenso 负责所有电子签署与原生编辑。Portal 管理业务身份、
 以上为实施前规划。实际执行状态见下方实施记录及两仓库的验收报告。
 
 
-## 2026-09-12 实施记录
+## 2026-09-12 历史实施记录（后续状态见文末）
 
 - 两家公司入职及 Team Leader 公司会签人已由用户确定：**Si Zhang，hr@homixny.com**。从核实过的 Documenso 身份取得姓名与邮箱，不把 Portal 管理员显示名当作签名身份。
 - 新接口只调用 `esign/apps/bridge` 的 Documenso v2.18.0 API；包配置不再依靠旧模板环境变量。
@@ -134,3 +134,11 @@ Documenso 负责所有电子签署与原生编辑。Portal 管理业务身份、
 - 候选验收发现并修复了签署回调被登录中间层拦截的问题：仅放行准确的 POST 回调地址，仍由 HMAC 校验认证；真实本地 Portal HTTP 已验证原生状态同步、持久化与重放防重。修复提交 `950cf19`，新候选 `dpl_DLX4Uq9Yd4uMmYuwJV5dcGEjHV16` 已 Ready，生产 HMAC 认证边界验证通过，官网仍未切换。
 
 - 个性化文件已增加公司必选项，避免静默归属 Homix Realty；Homix Living 的真实原生草稿创建、幂等重试、原件下载、原生字段刷新恢复、发送至本地 Mailpit 及返回同一 Portal 任务均已验证。当前候选 `dpl_5ECwL4pswEqL4UN7BRnSoZBi9q6b` 已 Ready，仍未完成最终签署或切换官网。
+
+## 2026-09-13 实施状态
+
+- 用户已允许最终合成签署，三个实际原生流程均完成。完成 PDF 的 CMS/ByteRange、原生完成证书、审计和跨服务下载一致性通过；真实入职回调正确分开本人签署、公司会签及账号开通，未付款账号保持 pending。
+- `esign.kevv.ai` 已提供官方 Documenso 2.18.0，11 个批准的 HR 包及两家公司 Si Zhang / hr@homixny.com 的身份连接已核验。
+- 两仓库的自建签署实现及专用依赖已退役；保留原合同文件、导出工具、业务数据与历史存储。
+- Portal 最终源码上传因自动审批要求具体代码上传授权而暂停，授权问题已向用户发出。既有候选未提升为正式域名；旧 API 和 PDF Event Job 的停止将与 Portal 切换协调完成。
+- 当前证据与准确待办以 `docs/qa/2026-09-12-signing-integration/release-status.json` 为准。早期条目中“等待最终 Sign”已由本次真实签署结果替代。
