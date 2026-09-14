@@ -1,4 +1,5 @@
 "use client";
+import { verifiedManualContract } from "@/lib/onboarding-requirements";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -1112,7 +1113,9 @@ export default function AgentsConsole() {
                         >
                           <span>
                             {t.agreement}:{" "}
-                            {agentSigned &&
+                            {verifiedManualContract(agent)
+                              ? (locale === "zh" ? "线下 / 历史合同已核验" : "Paper / historical contract verified")
+                              : agentSigned &&
                             agent.agreementStatus !== "completed"
                               ? t.agentSignatureDone
                               : agreementStatusLabel(agent.agreementStatus)}

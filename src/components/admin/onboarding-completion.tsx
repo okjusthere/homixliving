@@ -133,6 +133,9 @@ export function OnboardingCompletion({
     ? fullWaiver ? fee?.originalAmountCents ?? 0 : parseMoneyCents(waiverAmount ?? String((fee?.waivedAmountCents ?? 0) / 100))
     : fee?.waivedAmountCents ?? 0;
   const due = fee && totalWaiver !== null ? fee.originalAmountCents - totalWaiver : null;
+  const previewFee = accountStatus === "pending" && !verified;
+  const shownWaiver = previewFee ? totalWaiver : fee?.waivedAmountCents;
+  const shownDue = previewFee ? due : fee?.dueAmountCents;
   const waiverReason = reason ?? fee?.adjustment?.reason ?? "";
   const requiresReason = !verified && (fullWaiver || (totalWaiver ?? 0) > 0 || totalWaiver !== fee?.waivedAmountCents);
   const unmatched = receipts.filter((r) => r.status === "unmatched");
@@ -205,8 +208,8 @@ export function OnboardingCompletion({
     {fee ? <>
       <dl className="grid grid-cols-3 gap-3 text-sm">
         <div><dt className="text-stone-500">{zh ? "原费用" : "Original fee"}</dt><dd className="mt-1 font-medium">{dollars(fee.originalAmountCents)}</dd></div>
-        <div><dt className="text-stone-500">{zh ? "公司减免" : "Company waiver"}</dt><dd className="mt-1 font-medium">{dollars(fee.waivedAmountCents)}</dd></div>
-        <div><dt className="text-stone-500">{zh ? "应收金额" : "Fee due"}</dt><dd className="mt-1 font-medium">{dollars(fee.dueAmountCents)}</dd></div>
+        <div><dt className="text-stone-500">{previewFee ? (zh ? "本次减免 · 待确认" : "Proposed waiver") : (zh ? "公司减免" : "Company waiver")}</dt><dd className="mt-1 font-medium">{shownWaiver != null && shownWaiver >= 0 && shownWaiver <= fee.originalAmountCents ? dollars(shownWaiver) : "—"}</dd></div>
+        <div><dt className="text-stone-500">{zh ? "应收金额" : "Fee due"}</dt><dd className="mt-1 font-medium">{shownDue != null && shownDue >= 0 && shownDue <= fee.originalAmountCents ? dollars(shownDue) : "—"}</dd></div>
       </dl>
       {fee.adjustment && <p className="text-xs text-stone-500">{fee.adjustment.reason} · {fee.adjustment.approvedBy} · {fmtTimestamp(fee.adjustment.approvedAt)}</p>}
     </> : <p className="text-sm text-amber-800">{zh ? "费用报价尚未取得。" : "Fee quote unavailable."}</p>}

@@ -4,7 +4,7 @@ import { mock as testMock } from "node:test";
 import type Stripe from "stripe";
 import { and, eq } from "drizzle-orm";
 import { db, closeDatabaseConnections } from "@/db";
-import { agents, commerceOrders, onboardingEvents, sponsorPlanRewards, type Agent, type CommerceOrder } from "@/db/schema";
+import { agents, commerceCharges, commerceOrders, onboardingEvents, sponsorPlanRewards, type Agent, type CommerceOrder } from "@/db/schema";
 import { onboardingReceipts } from "@/db/onboarding-schema";
 import { completeOnboarding, recordOnboardingReceipt, runOnboardingCommand } from "@/lib/onboarding-admin";
 import { onboardingFeeQuote } from "@/lib/onboarding-fees";
@@ -197,11 +197,16 @@ async function main() {
   await settleOnboardingStripePayment(invoicedOrder, { sourceKey: `invoice:initial-${randomUUID()}`, eventId: `evt_mock_${randomUUID()}`,
     amountCents: 30800, currency: "usd", earnedAt: new Date().toISOString(), kind: "initial_invoice", patch: { status: "active" } });
   assert.equal((await rewards(invoiced.id)).length, 0);
-  await settle(invoicedOrder, session(invoicedOrder));
+  assert.equal((await fresh(invoiced.id)).accountStatus, "pending");
+  await assert.rejects(reservePlanCheckout(await fresh(invoiced.id), orderValues(invoiced)), /already paid|awaiting/);
+  assert.equal((await db.select().from(commerceOrders).where(eq(commerceOrders.agentId, invoiced.id))).length, 1);
+  const originalSession = session(invoicedOrder);
+  await settle(invoicedOrder, originalSession);
+  await settle(invoicedOrder, originalSession);
   assert.equal((await rewards(invoiced.id)).length, 1);
   assert.equal((await fresh(invoiced.id)).paymentStatus, "paid");
   assert.equal(onboardingFeeQuote(await fresh(invoiced.id)).waivedAmountCents, 0);
-  console.log("PASS initial invoice before checkout produces one initial settlement/reward");
+  console.log("PASS initial invoice blocks a second checkout while agent is pending; original completion/replay yields one reward");
 
   const foreign = await subject();
   const foreignOrder = await reservePlanCheckout(foreign, orderValues(foreign));
@@ -215,7 +220,9 @@ async function main() {
   await import(authBootstrap);
   const globals = globalThis as typeof globalThis & { __agreementTestSession: unknown };
   const savedKey = process.env.STRIPE_SECRET_KEY;
+  const savedWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
   process.env.STRIPE_SECRET_KEY = "sk_test_synthetic_mock_only";
+  process.env.STRIPE_WEBHOOK_SECRET = "whsec_synthetic_mock_only";
   globals.__agreementTestSession = { user: { agentId: admin.id, email: admin.email, accountStatus: "active", isAdmin: true } };
   try {
     const { POST: approve } = await import("@/app/api/agents/[id]/approve/route");
@@ -245,9 +252,68 @@ async function main() {
     response = await call(); assert.equal(response.status, 409); assert.match((await response.json()).error, /not completed their onboarding profile/);
     assert.equal((await db.select().from(commerceOrders).where(eq(commerceOrders.id, checkout.id)))[0].status, "expired");
     assert.equal((await fresh(legacy.id)).accountStatus, "pending", "Expiry proof does not bypass contract/profile eligibility");
+
+    const { POST: webhook } = await import("@/app/api/stripe/webhook/route");
+    const invoiceEvent = async (invoice: Stripe.Invoice, type: "invoice.payment_succeeded" | "invoice.payment_failed") => {
+      const payload = JSON.stringify({ id: `evt_mock_${randomUUID()}`, type, data: { object: invoice } });
+      const signature = getStripe().webhooks.generateTestHeaderString({ payload, secret: "whsec_synthetic_mock_only" });
+      const response = await webhook(new Request("http://localhost/api/stripe/webhook", {
+        method: "POST", headers: { "stripe-signature": signature }, body: payload,
+      }));
+      assert.equal(response.status, 200, JSON.stringify(await response.json()));
+    };
+    for (const onboarding of [true, false]) {
+      const agent = await subject({ plan: "solo_pro" });
+      const subscriptionId = `sub_mock_${randomUUID()}`;
+      const [order] = await db.insert(commerceOrders).values({ ...orderValues(agent),
+        productKey: onboarding ? "elite_desk_fee" : "libor", billingMode: "subscription",
+        amountCents: 367000, licenseTransferFeeCents: onboarding ? 2000 : 0, stripeSubscriptionId: subscriptionId }).returning();
+      const paidInvoice = {
+        id: `in_mock_${randomUUID()}`, object: "invoice", amount_paid: 367000, amount_due: 367000, currency: "usd",
+        billing_reason: "subscription_create", parent: { subscription_details: {
+          subscription: subscriptionId, metadata: withStripeAppMetadata({ orderId: String(order.id) }),
+        } }, status_transitions: { paid_at: 1789401600 }, period_start: 1789401600, period_end: 1820937600,
+        lines: { data: [{ period: { start: 1789401600, end: 1820937600 }, description: "Synthetic invoice" }] },
+      } as unknown as Stripe.Invoice;
+      const failedInvoice = { ...paidInvoice, amount_paid: 0, amount_due: 1, status_transitions: { paid_at: null } } as Stripe.Invoice;
+      const charge = async (id: string) => (await db.select().from(commerceCharges).where(eq(commerceCharges.stripeInvoiceId, id)))[0];
+      const currentOrder = async () => (await db.select().from(commerceOrders).where(eq(commerceOrders.id, order.id)))[0];
+      await invoiceEvent(paidInvoice, "invoice.payment_succeeded");
+      const paidCharge = await charge(paidInvoice.id);
+      const paidOrder = await currentOrder();
+      await invoiceEvent(failedInvoice, "invoice.payment_failed");
+      assert.equal((await charge(paidInvoice.id)).status, "paid");
+      assert.equal((await charge(paidInvoice.id)).amountCents, paidCharge.amountCents);
+      assert.equal((await charge(paidInvoice.id)).paidAt, paidCharge.paidAt);
+      assert.equal((await currentOrder()).status, "active");
+      assert.equal((await currentOrder()).paidAt, paidOrder.paidAt);
+
+      // Same invoice concurrent deliveries must converge to paid, independent of invocation order.
+      for (const paidFirst of [false, true]) {
+        const id = `in_mock_${randomUUID()}`;
+        const paid = () => invoiceEvent({ ...paidInvoice, id }, "invoice.payment_succeeded");
+        const failed = () => invoiceEvent({ ...failedInvoice, id }, "invoice.payment_failed");
+        await Promise.all(paidFirst ? [paid(), failed()] : [failed(), paid()]);
+        assert.equal((await charge(id)).status, "paid");
+        assert.equal((await charge(id)).amountCents, 367000);
+        assert.ok((await charge(id)).paidAt);
+        assert.equal((await currentOrder()).status, "active");
+      }
+
+      const laterFailure = { ...failedInvoice, id: `in_mock_${randomUUID()}`, billing_reason: "subscription_cycle" as const };
+      await invoiceEvent(laterFailure, "invoice.payment_failed");
+      assert.equal((await charge(laterFailure.id)).status, "failed");
+      assert.equal((await currentOrder()).status, "past_due", "A different unpaid renewal invoice must still report failure");
+      await invoiceEvent(failedInvoice, "invoice.payment_failed");
+      assert.equal((await currentOrder()).status, "past_due", "An old failed delivery must neither restore nor downgrade current subscription status");
+      assert.equal((await charge(paidInvoice.id)).status, "paid");
+      assert.equal((await rewards(agent.id)).length, 0, "Invoice ordering alone must not mint initial sponsor rewards");
+    }
+    console.log("PASS signed webhook invoice paid facts are monotone across late/concurrent failures; distinct renewal failures remain past_due");
   } finally {
     testMock.restoreAll(); globals.__agreementTestSession = null;
     if (savedKey === undefined) delete process.env.STRIPE_SECRET_KEY; else process.env.STRIPE_SECRET_KEY = savedKey;
+    if (savedWebhookSecret === undefined) delete process.env.STRIPE_WEBHOOK_SECRET; else process.env.STRIPE_WEBHOOK_SECRET = savedWebhookSecret;
   }
   console.log("PASS legacy approval uses bounded fresh Stripe reads, maps open/unavailable to 409, and preserves eligibility gates");
 }

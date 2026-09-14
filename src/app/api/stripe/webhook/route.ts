@@ -1,6 +1,6 @@
 import type Stripe from "stripe";
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull, ne } from "drizzle-orm";
 import { db } from "@/db";
 import {
   commerceCharges,
@@ -19,6 +19,7 @@ import {
   settleOnboardingStripePayment, withOnboardingStripeOrder,
 } from "@/lib/onboarding-stripe-guard";
 import { adminAgentIds, notify } from "@/lib/notify";
+import type { DbTransaction } from "@/lib/advisory-locks";
 import {
   invoiceSubscriptionMetadata,
   shouldHandleStripeScope,
@@ -290,8 +291,9 @@ async function recordInvoiceCharge(
   invoice: Stripe.Invoice,
   status: "paid" | "failed",
   order: CommerceOrder | null,
+  executor: typeof db | DbTransaction = db,
 ) {
-  if (!invoice.id) return;
+  if (!invoice.id) return false;
   const transitions = invoice.status_transitions as { paid_at?: number | null } | null;
   const values = {
     orderId: order?.id ?? null,
@@ -308,7 +310,7 @@ async function recordInvoiceCharge(
     periodEnd: epochToIso(invoice.period_end),
     paidAt: status === "paid" ? epochToIso(transitions?.paid_at) ?? new Date().toISOString() : null,
   };
-  await db
+  const [written] = await executor
     .insert(commerceCharges)
     .values(values)
     .onConflictDoUpdate({
@@ -319,7 +321,11 @@ async function recordInvoiceCharge(
         paidAt: values.paidAt,
         orderId: values.orderId,
       },
-    });
+      // ON CONFLICT holds the invoice row lock, including concurrent first insertions.
+      // A delayed failure cannot replace an actual paid amount/timestamp.
+      setWhere: status === "failed" ? and(ne(commerceCharges.status, "paid"), isNull(commerceCharges.paidAt)) : undefined,
+    }).returning({ id: commerceCharges.id });
+  return Boolean(written);
 }
 
 async function handleInvoicePaid(invoice: Stripe.Invoice, eventId: string): Promise<number | null> {
@@ -370,21 +376,27 @@ async function handleInvoicePaid(invoice: Stripe.Invoice, eventId: string): Prom
 async function handleInvoiceFailed(invoice: Stripe.Invoice): Promise<number | null> {
   const subscriptionId = invoiceSubscriptionId(invoice);
   const order = subscriptionId ? await findOrderBySubscription(subscriptionId) : null;
-  await recordInvoiceCharge(invoice, "failed", order);
-  if (!order) return null;
+  if (!order) {
+    await recordInvoiceCharge(invoice, "failed", null);
+    return null;
+  }
 
   if (isOnboardingStripeOrder(order)) {
     await withOnboardingStripeOrder(order, async (tx, _agent, current) => {
+      // Keep the invoice row locked until its corresponding order update commits.
+      if (!await recordInvoiceCharge(invoice, "failed", current, tx)) return;
       // A failed first invoice is unresolved, not proof the Checkout expired.
       await tx.update(commerceOrders).set({ status: "past_due", updatedAt: new Date().toISOString() }).where(eq(commerceOrders.id, current.id));
     });
     return order.id;
   }
 
-  await db
-    .update(commerceOrders)
-    .set({ status: "past_due", updatedAt: new Date().toISOString() })
-    .where(eq(commerceOrders.id, order.id));
+  await db.transaction(async (tx) => {
+    if (!await recordInvoiceCharge(invoice, "failed", order, tx)) return;
+    await tx.update(commerceOrders)
+      .set({ status: "past_due", updatedAt: new Date().toISOString() })
+      .where(eq(commerceOrders.id, order.id));
+  });
   return order.id;
 }
 

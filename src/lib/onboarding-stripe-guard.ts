@@ -1,6 +1,6 @@
 import "server-only";
 import type Stripe from "stripe";
-import { and, desc, eq, gt, inArray, ne, notInArray, sql } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNotNull, ne, notInArray, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { agents, commerceOrders, onboardingEvents, teamJoinRequests, type Agent, type CommerceOrder } from "@/db/schema";
 import { lockAgentLedgers, lockOnboardingAgent, type DbTransaction } from "@/lib/advisory-locks";
@@ -73,8 +73,14 @@ export async function reservePlanCheckout(expected: Agent, values: typeof commer
       if (!onboardingAgreementAllowsPayment(fresh)) throw new OnboardingStripeConflict("Sign the affiliation agreement before paying.");
       if (fresh.onboardingFeeAdjustment || fullyWaivedOnboarding(fresh))
         throw new OnboardingStripeConflict("The office must confirm the company fee adjustment before another Stripe checkout is opened.");
-      const block = await onboardingCheckoutBlockReason(tx, fresh.id);
-      if (block) throw new OnboardingStripeConflict(block);
+      // An initial invoice may be paid/active before Checkout activates the agent.
+      // For a NEW checkout, only proven closure without payment evidence releases an old order.
+      const [existingOrder] = await tx.select({ id: commerceOrders.id }).from(commerceOrders).where(and(
+        eq(commerceOrders.agentId, fresh.id), gt(commerceOrders.licenseTransferFeeCents, 0),
+        or(isNotNull(commerceOrders.paidAt), notInArray(commerceOrders.status, CLOSED_CHECKOUT_STATUSES)),
+      )).limit(1);
+      if (existingOrder) throw new OnboardingStripeConflict(
+        `Stripe checkout cannot start: onboarding order #${existingOrder.id} is already paid or awaiting resolution. Refresh the existing payment; do not collect again.`);
     }
     const [order] = await tx.insert(commerceOrders).values(values).returning();
     return order;
