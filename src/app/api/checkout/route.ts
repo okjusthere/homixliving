@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { db } from "@/db";
-import { agents, commerceOrders } from "@/db/schema";
+import { agents, commerceOrders, type CommerceOrder } from "@/db/schema";
 import { validateCheckoutPayload } from "@/lib/commerce/checkout";
 import {
   formatProductAmount,
@@ -30,6 +30,10 @@ import {
 } from "@/lib/commerce/stripe-customer";
 import { buildCheckoutSessionParams } from "@/lib/commerce/checkout-session";
 import { withStripeAppMetadata } from "@/lib/commerce/stripe-app";
+import {
+  attachOnboardingCheckout, isOnboardingStripeOrder, markOnboardingCheckoutCreationFailed,
+  OnboardingStripeConflict, reservePlanCheckout,
+} from "@/lib/onboarding-stripe-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -135,9 +139,7 @@ export async function POST(request: Request) {
   }
 
   const now = new Date().toISOString();
-  const [order] = await db
-    .insert(commerceOrders)
-    .values({
+  const orderValues = {
       agentId: agent.id,
       productKey: product.key,
       productName: product.name,
@@ -157,14 +159,24 @@ export async function POST(request: Request) {
       workspaceStatus: product.requiresWorkspaceEmail ? "pending" : "not_required",
       createdAt: now,
       updatedAt: now,
-    })
-    .returning();
+    };
+  let order: CommerceOrder;
+  try {
+    order = isPlanPayment
+      ? await reservePlanCheckout(agent, orderValues)
+      : (await db.insert(commerceOrders).values(orderValues).returning())[0];
+  } catch (error) {
+    if (error instanceof OnboardingStripeConflict)
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    throw error;
+  }
 
   if (!order) {
     return NextResponse.json({ error: "Could not create checkout order." }, { status: 500 });
   }
 
   let resolvedStripeCustomerId: string | null = null;
+  let stripeCreateAttempted = false;
   try {
     const baseUrl = getBaseUrl(request);
     const stripeCustomerId = await resolveStripeCustomerForAgent({ agent, stripe });
@@ -227,6 +239,7 @@ export async function POST(request: Request) {
       ? `${product.name} + ${licenseTransferProduct!.name} - ${formatProductAmount(order.amountCents)}`
       : `${product.name} - ${formatProductAmount(product.amountCents)}`;
 
+    stripeCreateAttempted = true;
     const session = await stripe.checkout.sessions.create(buildCheckoutSessionParams({
       billingMode: product.billingMode,
       lineItems,
@@ -238,9 +251,11 @@ export async function POST(request: Request) {
       hasLicenseTransferFee: licenseTransferFeeCents > 0,
       automaticTaxEnabled: process.env.STRIPE_AUTOMATIC_TAX === "1",
       baseUrl,
-    }));
+    }), { idempotencyKey: `homix-checkout-order-${order.id}` });
 
-    await db
+    if (isOnboardingStripeOrder(order)) {
+      await attachOnboardingCheckout(order, session);
+    } else await db
       .update(commerceOrders)
       .set({
         stripeCheckoutSessionId: session.id,
@@ -259,7 +274,9 @@ export async function POST(request: Request) {
       stripeCustomerId: resolvedStripeCustomerId || agent.stripeCustomerId,
       error,
     });
-    await db
+    if (isOnboardingStripeOrder(order)) {
+      await markOnboardingCheckoutCreationFailed(order, stripeCreateAttempted);
+    } else await db
       .update(commerceOrders)
       .set({ status: "failed", updatedAt: new Date().toISOString() })
       .where(eq(commerceOrders.id, order.id));
@@ -271,7 +288,9 @@ export async function POST(request: Request) {
       {
         error: billingProfileError
           ? "Your Stripe billing profile needs attention. Contact support before retrying."
-          : "Could not start Stripe checkout. Please try again.",
+          : isOnboardingStripeOrder(order) && stripeCreateAttempted
+            ? "Stripe checkout creation could not be confirmed. Do not pay again; ask the office to reconcile the existing checkout before retrying."
+            : "Could not start Stripe checkout. Please try again.",
       },
       { status: billingProfileError ? 409 : 500 }
     );

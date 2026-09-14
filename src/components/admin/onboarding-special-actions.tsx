@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, type ComponentProps } from "react";
 import { useSession } from "next-auth/react";
 import { useLocale } from "@/lib/i18n-client";
 import { fmtTimestamp, dbTimeMs, dbDatePart } from "@/lib/db-time";
@@ -37,18 +37,27 @@ const actionErrors: Record<string, string> = {
   "Check the PDF, contract details and signing dates": "请检查 PDF、合同资料及签署日期",
   "Unable to register this PDF. No verification was recorded.": "PDF 登记失败，尚未记录核验结果，请重试",
 };
+function ExplainedAction({ disabledReason = "", children, ...props }: ComponentProps<"button"> & { disabledReason?: string }) {
+  return <span className="inline-flex max-w-full flex-col items-start gap-1">
+    <button {...props} disabled={Boolean(disabledReason)} title={disabledReason || undefined}>{children}</button>
+    {disabledReason && <span className="max-w-xs text-xs text-stone-500">{disabledReason}</span>}
+  </span>;
+}
+
 export function OnboardingSpecialActions({
   agentId,
   company,
   manual,
   records,
   onChanged,
+  onBusyChange,
 }: {
   agentId: number;
   company: string | null;
   manual: VerifiedManualContract | null;
   records: OnboardingRecords;
   onChanged: () => Promise<void>;
+  onBusyChange?: (busy: boolean) => void;
 }) {
   const zh = useLocale() === "zh";
   const describeError = (e: unknown) => {
@@ -68,6 +77,8 @@ export function OnboardingSpecialActions({
   const [capabilities, setCapabilities] = useState<LimitedCapability[]>([
     "training",
   ]);
+  const savingReason = busy ? (zh ? "正在保存，请稍候。" : "Saving; please wait.") : "";
+  const decisionReason = savingReason || (reason.trim().length < 5 ? (zh ? "请填写上述处理依据，至少 5 个字符。" : "Enter a decision reason above (at least 5 characters).") : "");
   const labels = {
     uploaded: zh ? "待核验" : "Awaiting verification",
     accepted: zh ? "已核验" : "Verified",
@@ -77,6 +88,7 @@ export function OnboardingSpecialActions({
   };
   const run = async (action: Record<string, unknown>) => {
     setBusy(true);
+    onBusyChange?.(true);
     setError("");
     try {
       const response = await fetch(
@@ -84,7 +96,7 @@ export function OnboardingSpecialActions({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...action, reason }),
+          body: JSON.stringify({ ...action, ...(action.action === "match_receipt" ? {} : { reason }) }),
         },
       );
       const body = await response.json();
@@ -96,6 +108,7 @@ export function OnboardingSpecialActions({
       setError(describeError(e));
     } finally {
       setBusy(false);
+      onBusyChange?.(false);
     }
   };
   const upload = async (form: HTMLFormElement) => {
@@ -106,6 +119,7 @@ export function OnboardingSpecialActions({
       return;
     }
     setBusy(true);
+    onBusyChange?.(true);
     setError("");
     try {
       const endpoint = `/api/admin/agents/${agentId}/onboarding/contracts`;
@@ -152,6 +166,7 @@ export function OnboardingSpecialActions({
       setError(describeError(e));
     } finally {
       setBusy(false);
+      onBusyChange?.(false);
     }
   };
   const field = (
@@ -184,8 +199,8 @@ export function OnboardingSpecialActions({
       )}
       <label className="block space-y-1 text-sm font-medium">
         {zh
-          ? "本次处理说明（核验、匹配、授权均需填写）"
-          : "Reason for this decision (required for verification, matching and access)"}
+          ? "高级核验、更正或授权说明（普通收款匹配不需要）"
+          : "Advanced verification, correction or access reason (not needed for receipt matching)"}
         <textarea
           className={inputClass}
           value={reason}
@@ -205,13 +220,13 @@ export function OnboardingSpecialActions({
           <h3 className="font-medium">
             {zh ? "线下与历史合同" : "Paper & historical contracts"}
           </h3>
-          <button
+          <ExplainedAction
             className="admin-control"
-            disabled={busy}
+            disabledReason={savingReason}
             onClick={() => setMode(mode === "upload" ? "" : "upload")}
           >
             {zh ? "登记已签合同" : "Register signed contract"}
-          </button>
+          </ExplainedAction>
         </div>
         {records.contracts.length === 0 && (
           <p className="text-sm text-stone-500">
@@ -276,11 +291,9 @@ export function OnboardingSpecialActions({
             <div className="flex flex-wrap gap-2">
               {["uploaded", "returned"].includes(c.status) && (
                 <>
-                  <button
+                  <ExplainedAction
                     className="admin-control"
-                    disabled={
-                      busy || reason.trim().length < 5 || !verifiedTerms[c.id]
-                    }
+                    disabledReason={decisionReason || (!verifiedTerms[c.id] ? (zh ? "请先确认已核对签名、公司及适用条款。" : "Confirm the signature, company and applicable terms first.") : "")}
                     onClick={() =>
                       void run({
                         action: "review_contract",
@@ -291,10 +304,10 @@ export function OnboardingSpecialActions({
                     }
                   >
                     {zh ? "核验通过" : "Verify"}
-                  </button>
-                  <button
+                  </ExplainedAction>
+                  <ExplainedAction
                     className="admin-control"
-                    disabled={busy || reason.trim().length < 5}
+                    disabledReason={decisionReason}
                     onClick={() =>
                       void run({
                         action: "review_contract",
@@ -304,13 +317,13 @@ export function OnboardingSpecialActions({
                     }
                   >
                     {zh ? "退回补充" : "Return for correction"}
-                  </button>
+                  </ExplainedAction>
                 </>
               )}
               {c.status === "accepted" && (
-                <button
+                <ExplainedAction
                   className="admin-control"
-                  disabled={busy || reason.trim().length < 5}
+                  disabledReason={decisionReason}
                   onClick={() =>
                     void run({
                       action: "review_contract",
@@ -320,7 +333,7 @@ export function OnboardingSpecialActions({
                   }
                 >
                   {zh ? "撤销核验" : "Revoke verification"}
-                </button>
+                </ExplainedAction>
               )}
             </div>
           </article>
@@ -331,13 +344,13 @@ export function OnboardingSpecialActions({
               records.agreementStatus,
             )) ||
             records.signingClosure?.status === "failed") && (
-            <button
+            <ExplainedAction
               className="admin-control"
-              disabled={busy}
+              disabledReason={savingReason}
               onClick={() => setMode("close_online")}
             >
               {zh ? "取消已不用的线上邀请" : "Close unused online invitations"}
-            </button>
+            </ExplainedAction>
           )}
         {records.signingClosure && (
           <p className="text-sm">
@@ -361,16 +374,16 @@ export function OnboardingSpecialActions({
                 ? "这会取消尚未完成的线上签署邀请并放弃未发送草稿。已完成合同、线下核验、实际收款和账号权限会保留。请在上方填写原因。"
                 : "This cancels outstanding online invitations and discards unsent drafts. Completed contracts, offline verification, receipts and account access are retained. Enter a reason above."}
             </p>
-            <button
+            <ExplainedAction
               className="admin-control"
-              disabled={busy || reason.trim().length < 5}
+              disabledReason={decisionReason}
               onClick={() => void run({ action: "close_online" })}
             >
               {zh ? "确认关闭线上邀请" : "Confirm closing online invitations"}
-            </button>
-            <button className="admin-control ml-2" onClick={() => setMode("")}>
+            </ExplainedAction>
+            <ExplainedAction className="admin-control ml-2" disabledReason={savingReason} onClick={() => setMode("")}>
               {zh ? "返回" : "Back"}
-            </button>
+            </ExplainedAction>
           </div>
         )}
         {mode === "upload" && (
@@ -441,7 +454,7 @@ export function OnboardingSpecialActions({
                 required
               />
             </label>
-            <button className="admin-control" disabled={busy}>
+            <ExplainedAction className="admin-control" disabledReason={savingReason}>
               {busy
                 ? zh
                   ? "正在上传…"
@@ -449,7 +462,7 @@ export function OnboardingSpecialActions({
                 : zh
                   ? "上传并等待核验"
                   : "Upload for verification"}
-            </button>
+            </ExplainedAction>
           </form>
         )}
       </section>
@@ -485,24 +498,24 @@ export function OnboardingSpecialActions({
             {r.reason && <p>{r.reason}</p>}
             {r.status === "unmatched" && (
               <div className="flex flex-wrap gap-2">
-                <button
+                <ExplainedAction
                   className="admin-control"
-                  disabled={busy || reason.trim().length < 5}
+                  disabledReason={savingReason}
                   onClick={() =>
                     void run({ action: "match_receipt", receiptId: r.id })
                   }
                 >
                   {zh ? "核对并匹配入职费用" : "Match onboarding fee"}
-                </button>
-                <button
+                </ExplainedAction>
+                <ExplainedAction
                   className="admin-control"
-                  disabled={busy || reason.trim().length < 5}
+                  disabledReason={decisionReason}
                   onClick={() =>
                     void run({ action: "void_receipt", receiptId: r.id })
                   }
                 >
                   {zh ? "更正错误记录" : "Void incorrect record"}
-                </button>
+                </ExplainedAction>
               </div>
             )}
           </article>
@@ -561,42 +574,40 @@ export function OnboardingSpecialActions({
                     : "Revoked"}
             </p>
             {g.status === "open" && (
-              <button
+              <ExplainedAction
                 className="admin-control mt-2"
-                disabled={busy || reason.trim().length < 5}
+                disabledReason={decisionReason}
                 onClick={() =>
                   void run({ action: "revoke_access", grantId: g.id })
                 }
               >
                 {zh ? "撤销有限权限" : "Revoke limited access"}
-              </button>
+              </ExplainedAction>
             )}
           </div>
         ))}
         <div className="flex flex-wrap gap-2">
-          <button
+          <ExplainedAction
             className="admin-control"
-            disabled={busy || records.access?.full}
+            disabledReason={savingReason || (records.access?.full ? (zh ? "账号已有完整权限。" : "The account already has full access.") : "")}
             onClick={() => setMode(mode === "grant" ? "" : "grant")}
           >
             {zh ? "设置有限权限" : "Set limited access"}
-          </button>
-          <button
+          </ExplainedAction>
+          <ExplainedAction
             className="admin-control"
-            disabled={
-              busy || records.access?.full || manual?.source !== "historic"
-            }
+            disabledReason={savingReason || (records.access?.full ? (zh ? "账号已有完整权限。" : "The account already has full access.") : manual?.source !== "historic" ? (zh ? "请先核验适用的历史合同。" : "Verify the applicable historical contract first.") : "")}
             onClick={() => setMode(mode === "existing" ? "" : "existing")}
           >
             {zh ? "按既有人员开通" : "Activate existing staff"}
-          </button>
-          <button
+          </ExplainedAction>
+          <ExplainedAction
             className="admin-control"
-            disabled={busy}
+            disabledReason={savingReason}
             onClick={() => setMode(mode === "disposition" ? "" : "disposition")}
           >
             {zh ? "暂缓 / 恢复办理" : "Defer / resume intake"}
-          </button>
+          </ExplainedAction>
         </div>
         {mode === "grant" && (
           <form
@@ -654,14 +665,12 @@ export function OnboardingSpecialActions({
               zh ? "需补齐的事项" : "Outstanding requirements",
               "outstandingRequirements",
             )}
-            <button
+            <ExplainedAction
               className="admin-control"
-              disabled={
-                busy || reason.trim().length < 5 || !capabilities.length
-              }
+              disabledReason={decisionReason || (!capabilities.length ? (zh ? "至少选择一项有限功能。" : "Select at least one limited capability.") : "")}
             >
               {zh ? "保存有限权限" : "Save limited access"}
-            </button>
+            </ExplainedAction>
           </form>
         )}
         {mode === "existing" && (
@@ -707,14 +716,14 @@ export function OnboardingSpecialActions({
               zh ? "财务核验依据 / 凭据说明" : "Financial evidence / reference",
               "billingEvidence",
             )}
-            <button
+            <ExplainedAction
               className="admin-control"
-              disabled={busy || reason.trim().length < 5}
+              disabledReason={decisionReason}
             >
               {zh
                 ? "确认既有人员并开通"
                 : "Recognize & activate existing staff"}
-            </button>
+            </ExplainedAction>
           </form>
         )}
         {mode === "disposition" && (
@@ -726,14 +735,14 @@ export function OnboardingSpecialActions({
                 ["open", zh ? "恢复办理" : "Resume"],
               ] as const
             ).map(([disposition, label]) => (
-              <button
+              <ExplainedAction
                 key={disposition}
                 className="admin-control"
-                disabled={busy || reason.trim().length < 5}
+                disabledReason={decisionReason}
                 onClick={() => void run({ action: "disposition", disposition })}
               >
                 {label}
-              </button>
+              </ExplainedAction>
             ))}
           </div>
         )}

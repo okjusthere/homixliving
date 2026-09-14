@@ -19,6 +19,7 @@ import { onboardingWorkflow } from "@/lib/onboarding-workflow";
 import { z } from "zod";
 import { onboardingAdminRecords } from "@/lib/onboarding-admin";
 import { onboardingTasks } from "@/lib/onboarding-tasks";
+import { onboardingFeeQuote } from "@/lib/onboarding-fees";
 
 const parseId = (id: string) =>
   /^\d+$/.test(id) && Number.isSafeInteger(Number(id)) && Number(id) > 0
@@ -111,7 +112,9 @@ export async function GET(
         agreementCountersignedAt: agent.agreementCountersignedAt,
         paymentStatus: agent.paymentStatus,
         licensedCompany: agent.licensedCompany,
+        plan: agent.plan,
         manualContract: agent.onboardingManualContract,
+        websiteSync: agent.onboardingWebsiteSync,
         disposition: agent.onboardingDisposition,
       },
       workflow: onboardingWorkflow(
@@ -120,6 +123,7 @@ export async function GET(
         requests.length > 0,
       ),
       payment: orders[0] || null,
+      fee: onboardingFeeQuote(agent),
       signing,
       warning,
       events,

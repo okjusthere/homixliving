@@ -4,6 +4,8 @@ import type { Sql } from "postgres";
 export async function ensureOnboardingWorkspace(sql: Sql) {
   await sql.unsafe(`-- Additive; no existing contract/account data is migrated or deleted.
 ALTER TABLE portal.agents ADD COLUMN IF NOT EXISTS onboarding_manual_contract JSONB;
+ALTER TABLE portal.agents ADD COLUMN IF NOT EXISTS onboarding_fee_adjustment JSONB;
+ALTER TABLE portal.agents ADD COLUMN IF NOT EXISTS onboarding_website_sync JSONB;
 ALTER TABLE portal.agents ADD COLUMN IF NOT EXISTS onboarding_disposition JSONB;
 ALTER TABLE portal.agents ADD COLUMN IF NOT EXISTS signing_request_id UUID;
 ALTER TABLE portal.agents ADD COLUMN IF NOT EXISTS onboarding_signing_closure JSONB;

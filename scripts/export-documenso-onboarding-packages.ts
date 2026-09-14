@@ -16,6 +16,7 @@ type Field = {
   required: boolean;
   readOnly?: boolean;
   mergeKey?: string;
+  label?: string;
 };
 type Contract = {
   file: string;
@@ -29,6 +30,7 @@ export type NativeImportField = {
   key: string;
   actor: "owner" | "company";
   mergeKey?: string;
+  readOnly?: boolean;
   required: boolean;
   page: number;
   rect: Rect;
@@ -63,11 +65,12 @@ export function onboardingImportFields(
         ? ("company" as const)
         : ("owner" as const),
     mergeKey: field.mergeKey,
+    readOnly: field.readOnly,
     required: field.required,
     page: field.page,
     rect: stableFieldRect(field.fieldKey),
     type: field.type === "merge" ? "TEXT" : field.type.toUpperCase(),
-    label: field.fieldKey.replace(/[._]/g, " "),
+    label: field.label || field.fieldKey.replace(/[._]/g, " "),
   }));
   for (const [index, placement] of mergePlacements(
     contract.agreement,
@@ -81,6 +84,7 @@ export function onboardingImportFields(
       key: `business_${index}`,
       actor: "owner",
       mergeKey: placement.mergeKey,
+      readOnly: true,
       required: false,
       page: placement.page,
       rect: placement.rect,
@@ -101,6 +105,9 @@ export function onboardingImportFields(
   return fields;
 }
 export function nativeFieldInput(field: NativeImportField) {
+  // Missing contact data remains editable/required. Authoritative business
+  // facts and internal identifiers are filled by the server and read-only.
+  const readOnly = field.readOnly ?? Boolean(field.mergeKey);
   return {
     identifier: 0,
     type: field.type,
@@ -112,8 +119,8 @@ export function nativeFieldInput(field: NativeImportField) {
     fieldMeta: {
       type: field.type.toLowerCase(),
       label: field.label,
-      required: field.mergeKey ? false : field.required,
-      readOnly: Boolean(field.mergeKey),
+      required: readOnly ? false : field.required,
+      readOnly,
       fontSize: 10,
       ...(field.type === "CHECKBOX"
         ? {
@@ -182,7 +189,7 @@ async function main() {
           key: field.key,
           actor: field.actor,
           mergeKey: field.mergeKey,
-          required: field.required,
+          required: field.mergeKey && field.readOnly === false ? false : field.required,
           label: field.label,
           native: nativeFieldInput(field),
         })),

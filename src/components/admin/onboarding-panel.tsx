@@ -5,6 +5,8 @@ import {
 } from "@/components/admin/onboarding-special-actions";
 import type { VerifiedManualContract } from "@/db/schema";
 import { fmtTimestamp } from "@/lib/db-time";
+import { OnboardingCompletion, type OnboardingFee } from "./onboarding-completion";
+import { TASK_LABELS, type OnboardingTaskSummary } from "@/lib/onboarding-tasks";
 import { useCallback, useEffect, useState } from "react";
 import { CheckCircle2, Circle, RefreshCw, ExternalLink } from "lucide-react";
 import { EditPanel } from "@/components/admin/edit-panel";
@@ -24,7 +26,9 @@ type Detail = {
     agreementStatus: string;
     paymentStatus: string;
     licensedCompany: string | null;
+    plan: string;
     manualContract: VerifiedManualContract | null;
+    websiteSync?: { status: "pending" | "complete"; attemptedAt: string } | null;
   };
   records: OnboardingRecords;
   events: Array<{
@@ -34,7 +38,9 @@ type Detail = {
     actorId: number | null;
     detail: Record<string, unknown> | null;
   }>;
-  workflow: OnboardingWorkflow;
+  workflow: OnboardingWorkflow & { canComplete?: boolean };
+  fee: OnboardingFee | null;
+  tasks?: OnboardingTaskSummary;
   payment: {
     channel: string;
     amountCents: number;
@@ -114,8 +120,8 @@ export function OnboardingPanel({
         );
       setMessage(
         zh
-          ? `签署邮件已发送至 ${body.email}。已保存进度会保留，请使用最新邮件。`
-          : `Sent to ${body.email}. Saved progress is retained; use the newest email.`,
+          ? `已请求手动提醒${body.email ? `：${body.email}` : ""}。签署进度保留；此结果不代表邮件已送达。`
+          : `Manual reminder requested${body.email ? ` for ${body.email}` : ""}. Signing progress is retained; this does not confirm email delivery.`,
       );
       await load();
       onChanged();
@@ -127,14 +133,46 @@ export function OnboardingPanel({
   };
   const approve = async () => {
     setBusy(true);
+    setError("");
     try {
       await onApprove();
       await load();
+    } catch (error) {
+      setError(error instanceof Error ? error.message : (zh ? "开通失败，请重试。" : "Activation failed; please retry."));
     } finally {
       setBusy(false);
     }
   };
   const signing = detail?.signing;
+  const retryWebsite = async () => {
+    setBusy(true); setError("");
+    try {
+      const response = await fetch(`/api/admin/agents/${agentId}/onboarding/commands`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "retry_website_sync" }),
+      });
+      if (!response.ok) throw new Error(zh ? "账号已开通，但官网仍未同步。待办会保留，请稍后重试。" : "The account is active, but website sync still needs a retry.");
+      await load(); onChanged();
+    } catch (error) { setError((error as Error).message); }
+    finally { setBusy(false); }
+  };
+  const waiting = busy || loading;
+  const fullyWaived = Boolean(detail?.agent.paymentStatus === "not_required" && detail.fee?.adjustment && detail.fee.dueAmountCents === 0 && detail.fee.waivedAmountCents === detail.fee.originalAmountCents);
+  const approvalReasons: string[] = [];
+  if (waiting) approvalReasons.push(zh ? "正在处理或刷新，请稍候。" : "An operation or refresh is in progress.");
+  if (detail?.warning) approvalReasons.push(zh ? "请先刷新并核实签署状态。" : "Refresh and verify signing status first.");
+  if (detail) {
+    if (detail.agent.accountStatus !== "pending") approvalReasons.push(zh ? "仅待开通账号需要审批。" : "Only pending accounts need approval.");
+    if (!detail.workflow.profileReady) approvalReasons.push(zh ? "本人资料尚未补齐。" : "The agent profile is incomplete.");
+    if (!detail.workflow.signed) approvalReasons.push(zh ? "本人合同要求尚未完成。" : "The agent contract requirement is incomplete.");
+    if (!detail.workflow.teamReady) approvalReasons.push(zh ? "团队归属或分佣条款尚未确认。" : "Team membership or compensation terms are not confirmed.");
+    if (!fullyWaived && !(detail.agent.paymentStatus === "paid" && detail.payment?.channel === "offline")) approvalReasons.push(zh ? "请先核验线下付款，或使用上方费用确认与开通流程。" : "Verify the offline payment first, or use Confirm fee & activate above.");
+    if (!detail.workflow.canApprove && !approvalReasons.length) approvalReasons.push(zh ? "服务端尚未确认可审批，请刷新状态。" : "Approval is not available yet. Refresh the current status.");
+  }
+  const reminderReason = (actor: "owner" | "company") => waiting
+    ? (zh ? "正在处理或刷新，请稍候。" : "An operation or refresh is in progress.")
+    : detail?.warning ? (zh ? "须先刷新并核实签署状态。" : "Refresh and verify signing status first.")
+    : !needsReminder(actor) ? (zh ? "当前没有轮到此签署人的未完成签署。" : "No unsigned step is currently available for this signer.") : "";
   const needsReminder = (actor: "owner" | "company") =>
     Boolean(
       signing?.request.parts.some((part) => {
@@ -198,6 +236,12 @@ export function OnboardingPanel({
       void_receipt: ["已作废收款登记", "Receipt record voided"],
       disposition: ["已更新办理安排", "Intake disposition updated"],
       receipt_recorded: ["已登记实际收款", "Payment receipt recorded"],
+      "agreement.reminder_sent": ["管理员已请求签署提醒", "Manual signing reminder requested"],
+      "agreement.reminder_requested": ["管理员已请求签署提醒", "Manual signing reminder requested"],
+      complete_onboarding: ["已确认费用并开通", "Fee confirmed and account activated"],
+      onboarding_completed_by_admin: ["已确认费用并开通", "Fee confirmed and account activated"],
+      onboarding_fee_reduced: ["已批准公司费用减免", "Company fee waiver approved"],
+      onboarding_test_payments_corrected: ["已清理测试金额并登记真实减免", "Test payments corrected to an approved waiver"],
     };
     return (
       names[type]?.[zh ? 0 : 1] ||
@@ -221,6 +265,7 @@ export function OnboardingPanel({
           <button className="admin-control" onClick={onClose} disabled={busy}>
             {zh ? "关闭" : "Close"}
           </button>
+          {busy && <p className="w-full text-xs text-stone-500">{zh ? "正在保存，请完成后再编辑或关闭。" : "Saving; wait before editing or closing."}</p>}
         </div>
       }
     >
@@ -232,7 +277,9 @@ export function OnboardingPanel({
                 ? "正在核对最新状态…"
                 : "Checking current status…"
               : detail
-                ? ONBOARDING_NEXT[detail.workflow.next][zh ? 0 : 1]
+                ? detail.agent.accountStatus === "active" && detail.tasks?.tasks.length
+                  ? (zh ? "账号已开通 · 仍有待办" : "Account active · tasks remain")
+                  : ONBOARDING_NEXT[detail.workflow.next][zh ? 0 : 1]
                 : ""}
           </p>
           <button
@@ -240,10 +287,12 @@ export function OnboardingPanel({
             onClick={() => void load()}
             disabled={loading || busy}
             aria-label={zh ? "刷新状态" : "Refresh status"}
+            title={waiting ? (zh ? "正在处理或刷新，请稍候。" : "An operation or refresh is in progress.") : undefined}
           >
             <RefreshCw size={16} />
           </button>
         </div>
+        {waiting && <p className="text-xs text-stone-500">{zh ? "当前操作完成后即可刷新或继续办理。" : "Wait for the current operation before refreshing or continuing."}</p>}
         {error && (
           <p role="alert" className="text-sm text-red-700">
             {error}
@@ -266,19 +315,29 @@ export function OnboardingPanel({
         )}
         {detail && (
           <>
+            {detail.agent.accountStatus === "active" && detail.agent.websiteSync?.status === "pending" && <section className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
+              <p>{zh ? "账号已开通，官网同步尚未完成。无需重新审批或付款。" : "Account active; website sync is incomplete. No new approval or payment is needed."}</p>
+              <button className="admin-control mt-2" disabled={waiting} onClick={() => void retryWebsite()}>{zh ? "重试官网同步" : "Retry website sync"}</button>
+            </section>}
+            {detail.agent.accountStatus === "active" && Boolean(detail.tasks?.tasks.length) && <p className="rounded-lg bg-stone-100 p-3 text-sm">{detail.tasks!.tasks.map((task) => TASK_LABELS[task][zh ? 0 : 1]).join(" · ")}</p>}
+            {Boolean(detail.records.staleSettlements?.length) && <section role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
+              <p className="font-medium">{zh ? "实际 Stripe 付款需财务核对" : "Actual Stripe payment needs finance review"}</p>
+              <p className="mt-1">{zh ? "已保留真实到账，但未覆盖已批准的减免，也未重复发放推荐奖励。请先核对，勿再次收款或直接退款。" : "Actual income is retained without replacing an approved waiver or duplicating sponsor rewards. Reconcile before collecting again or issuing a refund."}</p>
+              <ul className="mt-2 list-disc pl-5">{detail.records.staleSettlements.map((item) => <li key={item.id}>#{item.orderId} · {(item.actualAmountCents / 100).toFixed(2)} {item.currency.toUpperCase()} · {fmtTimestamp(item.createdAt)}</li>)}</ul>
+            </section>}
             <ol className="divide-y rounded-xl border border-stone-200">
               {[
                 [
                   zh ? "本人资料" : "Agent profile",
                   detail.workflow.profileReady,
-                  zh
+                  detail.workflow.profileReady ? (zh ? "资料已补齐，将用于待签署文件" : "Profile complete; saved facts carry into signing documents") : zh
                     ? "本人补全姓名、执照、公司及方案"
                     : "Agent completes identity, license, company and plan",
                 ],
                 [
                   zh ? "本人合同要求" : "Agent contract requirement",
                   detail.workflow.signed,
-                  signing?.request.parts.flatMap(
+                  detail.agent.manualContract && detail.workflow.signed ? (zh ? "已核验线下 / 历史签署合同" : "Verified paper / historical signed contract") : signing?.request.parts.flatMap(
                     (p) =>
                       p.document?.recipients
                         .filter((r) => r.actor === "owner")
@@ -289,27 +348,27 @@ export function OnboardingPanel({
                       : "Continue from the onboarding page"),
                 ],
                 [
-                  zh ? "团队确认" : "Team & terms",
-                  detail.workflow.teamReady,
-                  zh
+                  detail.agent.plan === "solo" || detail.agent.plan === "solo_pro" ? (zh ? "团队确认 · 不适用" : "Team & terms · not applicable") : (zh ? "团队确认" : "Team & terms"),
+                  detail.agent.plan === "solo" || detail.agent.plan === "solo_pro" || detail.workflow.teamReady,
+                  detail.agent.plan === "solo" || detail.agent.plan === "solo_pro" ? (zh ? "Solo 方案无需团队确认。" : "Solo plans do not require team approval.") : zh
                     ? "团队成员须完成入组及分佣条款确认"
                     : "Team members need an accepted team and compensation terms",
                 ],
                 [
-                  zh ? "费用到账" : "Payment",
-                  Boolean(detail.payment),
+                  zh ? "费用处理" : "Fee settlement",
+                  Boolean(detail.payment) || fullyWaived,
                   detail.payment
                     ? `${detail.payment.channel === "offline" ? (zh ? "管理员已核验" : "Admin verified") : "Stripe"} · $${(detail.payment.amountCents / 100).toFixed(2)}`
-                    : zh
+                    : fullyWaived ? (zh ? "公司已全额减免；无收款记录" : "Fully waived by the company; no receipt") : zh
                       ? "线上付款，或由管理员核验线下收款"
                       : "Online payment or admin-verified offline receipt",
                 ],
                 [
                   zh ? "账号开通" : "Portal access",
                   detail.agent.accountStatus === "active",
-                  zh
-                    ? "线上付款自动开通；线下收款后管理员审批"
-                    : "Online payments activate automatically; offline payments require admin approval",
+                  detail.agent.accountStatus === "active" ? (zh ? "账号已开通，可以进入 Portal" : "Account active; Portal access is available") : zh
+                    ? "确认收款或减免后一次完成审批；线上付款按自动流程开通"
+                    : "Confirm receipt or waiver and approve in one step; online payments use automatic activation",
                 ],
               ].map(([label, done, help]) => (
                 <li key={String(label)} className="flex gap-3 p-4">
@@ -331,6 +390,24 @@ export function OnboardingPanel({
                 </li>
               ))}
             </ol>
+            <OnboardingCompletion
+              agentId={agentId}
+              fee={detail.fee ?? null}
+              accountStatus={detail.agent.accountStatus}
+              paymentStatus={detail.agent.paymentStatus}
+              paymentChannel={detail.payment?.channel ?? null}
+              canComplete={detail.workflow.canComplete === true}
+              profileReady={detail.workflow.profileReady}
+              signed={detail.workflow.signed}
+              teamReady={detail.workflow.teamReady}
+              warning={detail.warning}
+              loading={loading}
+              busy={busy}
+              receipts={detail.records.receipts}
+              onBusyChange={setBusy}
+              onRecordOnly={onOffline}
+              onChanged={async () => { onChanged(); await load(); }}
+            />
             <section className="space-y-3">
               <h3 className="font-medium">
                 {zh ? "合同与签署" : "Agreement & signatures"}
@@ -411,14 +488,16 @@ export function OnboardingPanel({
               ))}
               {!signing && (
                 <p className="text-sm text-stone-500">
-                  {zh
+                  {detail.agent.manualContract && detail.workflow.signed ? (zh ? "已核验线下 / 历史合同，无需重新生成电子协议。合同档案见高级办理。" : "A paper / historical contract is verified. A new electronic agreement is not required; see contract records under advanced handling.") : zh
                     ? "合同尚未生成。本人完善资料后，系统会生成并发送。"
                     : "Complete the onboarding profile to prepare and send the agreement."}
                 </p>
               )}
-              <div className="flex flex-wrap gap-2">
+              {signing && <><div className="flex flex-wrap gap-2">
                 <button
                   className="admin-control"
+                  title={reminderReason("owner") || undefined}
+                  aria-describedby="owner-reminder-reason"
                   disabled={
                     busy || loading || detail.warning || !needsReminder("owner")
                   }
@@ -428,6 +507,8 @@ export function OnboardingPanel({
                 </button>
                 <button
                   className="admin-control"
+                  title={reminderReason("company") || undefined}
+                  aria-describedby="company-reminder-reason"
                   disabled={
                     busy ||
                     loading ||
@@ -439,6 +520,15 @@ export function OnboardingPanel({
                   {zh ? "提醒公司会签" : "Remind company signer"}
                 </button>
               </div>
+              {reminderReason("owner") && <p id="owner-reminder-reason" className="text-xs text-stone-500">{zh ? "本人提醒：" : "Agent reminder: "}{reminderReason("owner")}</p>}
+              {reminderReason("company") && <p id="company-reminder-reason" className="text-xs text-stone-500">{zh ? "公司提醒：" : "Company reminder: "}{reminderReason("company")}</p>}
+              <div className="space-y-2 text-xs text-stone-600">
+                {detail.events.filter((event) => ["agreement.reminder_sent", "agreement.reminder_requested"].includes(event.type)).map((event) => <p key={event.id}>
+                  {zh ? "手动提醒" : "Manual reminder"} · {fmtTimestamp(event.at)} · {zh ? "操作人" : "Requested by"} {event.actorId ? `#${event.actorId}` : (zh ? "未记录" : "not recorded")} · {zh ? "对象" : "Target"}: {event.detail?.recipientActor === "company" ? (zh ? "公司签署人" : "Company signer") : event.detail?.recipientActor === "owner" ? (zh ? "本人" : "Agent") : (zh ? "未记录" : "not recorded")}
+                </p>)}
+                <p>{zh ? "本人完成电子签署后，系统自动邀请 hr@homixny.com 会签，无需点击提醒。以上按钮仅供手动补发；邮件的 Reminder 标题表示提醒，不是首次邀请。本页不显示收件箱投递确认。" : "After the agent signs electronically, the system automatically invites hr@homixny.com. These buttons are only for manual reminders; Reminder is not the first invitation. Inbox delivery confirmation is not shown here."}</p>
+              </div>
+              </>}
               {detail.workflow.countersignPending && (
                 <p className="text-sm text-stone-600">
                   {zh
@@ -483,25 +573,14 @@ export function OnboardingPanel({
                 </p>
               )}
             </section>
-            <section className="space-y-3 border-t border-stone-200 pt-4">
-              <h3 className="font-medium">
-                {zh ? "收款与审批" : "Payment & approval"}
-              </h3>
+            <details className="space-y-3 border-t border-stone-200 pt-4">
+              <summary className="cursor-pointer text-sm font-medium">{zh ? "高级办理：档案关联、历史合同及有限权限" : "Advanced: profile linking, historical contracts & limited access"}</summary>
               {detail.payment?.reference && (
                 <p className="text-sm text-stone-600">
                   {detail.payment.reference} · {detail.payment.verifiedBy}
                 </p>
               )}
               <div className="flex flex-wrap gap-2">
-                <button
-                  className="admin-control"
-                  disabled={
-                    busy || loading || !detail.workflow.canRecordPayment
-                  }
-                  onClick={onOffline}
-                >
-                  {zh ? "登记实际收款" : "Record money received"}
-                </button>
                 <button
                   className="admin-control"
                   disabled={
@@ -512,29 +591,26 @@ export function OnboardingPanel({
                   }
                   onClick={() => void approve()}
                 >
-                  {zh ? "审批并开通账号" : "Approve & activate"}
+                  {zh ? "使用指定官网档案审批" : "Approve with selected website profile"}
                 </button>
               </div>
               {detail.workflow.canApprove && approvalFields}
-              {!detail.workflow.canApprove &&
-                detail.agent.accountStatus !== "active" && (
-                  <p className="text-sm text-stone-500">
-                    {zh
-                      ? "审批条件：资料完成、本人已签署、团队条款确认及线下收款已核验。线上 Stripe 付款无须再次审批。"
-                      : "Approval requires a complete profile, agent signature, team terms and a verified offline receipt. Stripe payments do not need another approval."}
-                  </p>
-                )}
-            </section>
+              {approvalReasons.length > 0 && <ul className="space-y-1 text-xs text-stone-500">{approvalReasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>}
+              <fieldset disabled={waiting}>
+                {waiting && <p className="text-xs text-stone-500">{zh ? "正在处理，请稍候再使用高级操作。" : "An operation is in progress; advanced actions will be available afterward."}</p>}
             <OnboardingSpecialActions
               agentId={agentId}
               company={detail.agent.licensedCompany}
               manual={detail.agent.manualContract}
               records={detail.records}
+              onBusyChange={setBusy}
               onChanged={async () => {
                 await load();
                 onChanged();
               }}
             />
+              </fieldset>
+            </details>
             <section className="space-y-3 border-t pt-4">
               <h3 className="font-medium">{zh ? "处理记录" : "Activity"}</h3>
               <ol className="space-y-3">
