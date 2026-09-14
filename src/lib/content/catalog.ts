@@ -8,35 +8,19 @@ import {
 const styles = [
   {
     id: "editorial",
-    en: "Editorial residence",
-    zh: "建筑杂志",
-    colors: ["#F6F2EA", "#222A26", "#BA6243"],
+    en: "Homix Classic",
+    zh: "Homix 经典",
+    colors: ["#F7F3EB", "#262521", "#A88B55"],
     prompt:
-      "Design an architectural magazine cover. Warm ivory paper, deep forest typography, disciplined asymmetric grid, generous margins and elegant serif headlines with a clean sans-serif contact block. Let authentic property photography dominate. A small rectangular agent portrait sits within the editorial grid. Use one restrained terracotta rule; no fake awards, decorative badges or generic gradients.",
-  },
-  {
-    id: "luxury",
-    en: "Evening collection",
-    zh: "典雅黑金",
-    colors: ["#191C20", "#E6D5B5", "#B38A4F"],
-    prompt:
-      "Create a restrained premium real estate campaign. Charcoal, warm champagne and subtle brass accents; a cinematic but faithful treatment of supplied property photographs. Large elegant title, refined hairline borders and exceptional typographic spacing. Place the recognizable agent portrait in a quiet signature area with legible contact information. No glitter, crowns, invented views or ostentatious gold effects.",
+      "HOMIX CLASSIC: Create a bright, composed real estate magazine advertisement with warm ivory, charcoal type and a small matte champagne accent. A large, faithful property photograph is the visual anchor. Use confident editorial serif headlines, compact clean sans-serif facts, and generous but purposeful negative space. Chinese headlines use substantial Song-style strokes rather than fragile hairlines. Make the agent a natural photographic cutout integrated with the signature area; a shoulder may cross the photo boundary without obscuring the building. Align the agent name, phone and official logo as a balanced brand signature. Keep the name on one line when practical; give long names room rather than breaking them arbitrarily. Use subtle straight rules only when needed. No gold waves, metallic gradients, ornamental frames, floating price stickers, glossy badges, oversized icons or separate white logo strip.",
   },
   {
     id: "modern",
-    en: "Modern city",
-    zh: "都市现代",
-    colors: ["#F8F8F4", "#153D51", "#DF694C"],
+    en: "Homix Minimal",
+    zh: "Homix 极简",
+    colors: ["#F8F8F5", "#252A2C", "#777C78"],
     prompt:
-      "Build a contemporary city real estate poster with bold architectural typography, sharp rectangular photo crops, off-white and midnight blue, and one vivid coral accent. Use a strong information hierarchy and crisp geometric alignment. Keep the agent portrait integrated into a spacious bottom contact strip. Prioritize readability on a phone; avoid tiny print, heavy shadows and crowded icon rows.",
-  },
-  {
-    id: "warm",
-    en: "Welcome home",
-    zh: "温暖生活",
-    colors: ["#F4EEE3", "#59685B", "#BD8064"],
-    prompt:
-      "Create a welcoming lifestyle real estate poster in oatmeal, sage and muted clay. Soft natural light and tactile paper details frame the actual supplied property photography without changing its features. Use an inviting headline, airy rounded photo framing and a friendly, recognizable agent portrait. The layout feels personal and carefully designed rather than corporate. Keep every essential fact and contact detail crisp and easy to read.",
+      "HOMIX MINIMAL: Design a contemporary architectural publication in warm white and graphite, with precise grid alignment and almost no ornament. Use strong, clean sans-serif typography with clearly differentiated sizes; never over-space letters or use ultra-thin body text. Let one large, crisp rectangular property photograph lead the composition, with smaller supplied photos subordinate in the given order. Group related facts into one compact editorial area instead of separate cards. Integrate a restrained photographic agent portrait, agent name and contact details into the continuous page background, balanced by the official logo. Create interest through proportion, whitespace and photography, not colored badges, rounded containers, heavy borders, gradients or repeated icon rows.",
   },
 ] as const;
 
@@ -46,7 +30,7 @@ const directions: Record<string, string> = {
   just_listed:
     "Celebrate a newly listed property, emphasizing the actual home and supplied asking price. No urgency claims or invented amenities.",
   open_house:
-    "Make the exact open-house date and local start/end time the main practical callout after the property photograph. Include a clear invitation to visit.",
+    "Make the exact open-house date and local start/end time the main practical callout after the property photograph. Prioritize every supplied session and only the approved invitation copy; do not invent a tagline.",
   under_contract:
     "Announce that a contract has been signed; the transaction has NOT closed. Use a composed celebratory tone without sold stamps.",
   offer_accepted:
@@ -77,36 +61,20 @@ export function initialTemplates(): { key: string; config: TemplateConfig }[] {
   );
   const holidayStyles = [
     {
-      id: "paper",
-      en: "Paper celebration",
-      zh: "纸艺节庆",
-      colors: ["#FAF3E7", "#A94236", "#B99957"],
-      prompt:
-        "Create an artful layered-paper holiday greeting. Use exquisite cut-paper shapes, fine tactile shadows and culturally appropriate motifs specific to the named holiday. Use contemporary negative space instead of filling every corner. Integrate the agent portrait naturally in a reserved signature panel. Adapt the palette to the holiday rather than making every holiday red and gold.",
-    },
-    {
-      id: "botanical",
-      en: "Seasonal watercolor",
-      zh: "四季水彩",
-      colors: ["#F4F1E9", "#546B55", "#CB8976"],
-      prompt:
-        "Paint a sophisticated seasonal watercolor holiday greeting. Delicate botanicals and atmospheric hand-painted scenery surround a clear typography area. Choose flora, seasonal light and symbols appropriate to the holiday and its cultural setting. Keep the agent's face photographic and recognizable while gently integrating the portrait with the artwork. Avoid painting over facial features.",
-    },
-    {
       id: "minimal",
-      en: "Quiet celebration",
-      zh: "极简祝福",
-      colors: ["#EFECE4", "#253E48", "#B58452"],
+      en: "Simple greetings",
+      zh: "简约祝福",
+      colors: ["#F7F3EB", "#262521", "#A88B55"],
       prompt:
-        "Design a minimal editorial holiday card. One meaningful, finely crafted holiday symbol; exquisite typographic balance; ample warm negative space; restrained seasonal color. Set the greeting large enough for mobile viewing. Give the agent portrait a clean intentional frame and the brand signature a separate readable area. No stock clip-art collages.",
+        "Create an elegant Homix editorial greeting with one finely crafted symbol of the named holiday, generous warm negative space and a clear, expressive headline. Adapt the understated accent color and motif to the holiday and its culture; never apply red and gold to every occasion. Use robust Song-style Chinese or refined English serif headlines and clean supporting typography. Balance the real photographic agent portrait and official logo in a quiet signature area on the same continuous background. No separate portrait card, decorative frame, stock clip-art collage, metallic gradients or sales badges.",
     },
     {
       id: "festive",
-      en: "Festive illustration",
-      zh: "缤纷插画",
-      colors: ["#F4DFCB", "#97463A", "#4C7473"],
+      en: "Seasonal illustration",
+      zh: "节庆插画",
+      colors: ["#FAF3E7", "#813F36", "#B39765"],
       prompt:
-        "Create a vibrant bespoke illustrated holiday greeting with premium hand-drawn details and a joyful but organized composition. Build a scene around the named holiday, using its actual cultural symbols. Place the real agent portrait into a deliberate photo frame within the illustration without cartoonizing the face. Use highly legible type and a harmonious seasonal palette. Do not invent claims of affiliation or endorsements.",
+        "Create a bespoke illustrated Homix holiday greeting with one cohesive seasonal scene and finely crafted paper or painted details. Choose authentic cultural motifs and an appropriate palette for the named holiday, rather than a generic festive collage. Keep the greeting as the main focal point and leave uncluttered space for readable copy. Integrate the agent as the exact real photographic person, never a cartoon or painted face, with a modest official logo and coherent brand signature. Limit decorative elements to the single scene; no scattered stickers, glitter, 3D lettering or heavy frames. For remembrance occasions use a restrained, respectful scene without celebratory effects.",
     },
   ];
   return [

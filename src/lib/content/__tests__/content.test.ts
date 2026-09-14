@@ -52,7 +52,7 @@ test("initial catalog validates and preserves both years' exact lunar dates", ()
     holidays = initialHolidays();
   templates.forEach((t) => templateConfigSchema.parse(t.config));
   holidays.forEach((h) => holidaySchema.parse(h));
-  assert.equal(templates.length, 28);
+  assert.equal(templates.length, 14);
   assert.equal(holidays.length, 31);
   const expected: Record<string, [string, string]> = {
     laba: ["01-26", "01-15"],

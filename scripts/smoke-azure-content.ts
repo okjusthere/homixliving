@@ -1,6 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { generateAzureImage, AzureImageError } from "../src/lib/content/azure";
 import { initialTemplates } from "../src/lib/content/catalog";
+import { buildPosterPrompt } from "../src/lib/content/prompts";
 
 async function main() {
   const env = await readFile(".env.local", "utf8");
@@ -15,7 +16,16 @@ async function main() {
     process.env.CONTENT_SMOKE_OUTPUT ||
     "/private/tmp/homix-azure-content-smoke.png";
   const reference = process.env.CONTENT_SMOKE_REFERENCE;
-  const prompt = `${initialTemplates().find((t) => t.key === "holiday-paper")!.config.prompt}\nCreate a finished Mid-Autumn Festival greeting for Homix Realty, in English and Simplified Chinese. Main text: Happy Mid-Autumn Festival / 中秋快乐. Restrained ivory and terracotta paper art, elegant moon and delicate rabbits. This is a template verification image: OMIT ALL HUMAN PORTRAITS, contact details and unresolved template placeholders. Use exact name Homix Realty in a modest signature block. No watermark.`;
+  const prompt = buildPosterPrompt(
+    initialTemplates().find((t) => t.key === "holiday-minimal")!.config,
+    {
+      kind: "holiday", theme: "mid-autumn", language: "zh", size: "1024x1280",
+      includePortrait: false, headline: "中秋快乐", message: "月圆人团圆",
+      additionalInstructions: "",
+    },
+    { agentId: 0, name: "Homix Realty", title: "", email: "", phone: "",
+      licenseNumber: "", companyId: "homix_realty", companyName: "Homix Realty", photoUrl: null },
+  );
   const result = await generateAzureImage(
     prompt,
     "1024x1280",

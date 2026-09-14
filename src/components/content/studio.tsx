@@ -27,6 +27,7 @@ import {
   type StudioListing,
 } from "@/lib/content/listing-source";
 import { listingDetailLevel } from "@/lib/content/output-plan";
+import { chooseStudioTemplate, orderStudioTemplates } from "@/lib/content/template-choice";
 import {
   IMAGE_SIZES,
   LISTING_THEMES,
@@ -177,12 +178,12 @@ export function ContentStudio() {
     );
     return () => clearInterval(timer);
   }, [running, tab, refreshWorks, reportRefreshError]);
-  const applicable = templates.filter(
+  const applicable = orderStudioTemplates(templates.filter(
     (v) =>
       v.config.kind === input.kind &&
       (v.config.themes.includes("*") || v.config.themes.includes(input.theme)),
-  );
-  const template = applicable.find((v) => v.id === selected) || applicable[0];
+  ));
+  const template = chooseStudioTemplate(applicable, templates, selected);
   const availableSizes = template?.config.sizes || [...IMAGE_SIZES];
   const selectedSize = availableSizes.includes(input.size)
     ? input.size
@@ -681,7 +682,6 @@ export function ContentStudio() {
                                     }
                                   : {}),
                               });
-                              setSelected("");
                             }}
                           >
                             {s.en}
@@ -764,7 +764,13 @@ export function ContentStudio() {
               <div className="studio-kicker">
                 02 / {t("Art direction", "选择风格")}
               </div>
-              <h2>{t("Make it feel like you", "选一种你的风格")}</h2>
+              <h2>{t("Your Homix style", "你的 Homix 风格")}</h2>
+              <p className="studio-note">
+                {t(
+                  "A style is already selected. Keep it or switch below; the layout adapts to your content.",
+                  "已为你选好默认风格，也可以切换。排版会根据主题和信息量自动调整。",
+                )}
+              </p>
               <div className="studio-styles">
                 {applicable.map((v) => (
                   <button
