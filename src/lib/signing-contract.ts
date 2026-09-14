@@ -76,6 +76,7 @@ export const signingPackageSchema = z.object({
   title: z.string(),
   scenario: z.enum(["onboarding", "team_leader", "buyer", "seller"]),
   company_key: z.string(),
+  applicable_company_keys: z.array(z.string()).optional(),
   company_signer_email: z.string().optional(),
   company_signer_name: z.string().optional(),
   selectors: z.record(z.string(), z.string()),
@@ -92,12 +93,14 @@ export const signingPackageSchema = z.object({
           templateRecipientId: z.number(),
           actor: z.enum(["owner", "company", "customer"]),
           label: z.string(),
+          optional: z.boolean().optional(),
         }),
       ),
       prefill: z.array(
         z.object({
           key: z.string(),
           templateFieldId: z.number(),
+          recipientKey: z.string().optional(),
           required: z.boolean(),
           label: z.string(),
           valueType: z.string().optional(),
