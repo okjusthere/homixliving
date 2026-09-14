@@ -2,11 +2,14 @@ import { z } from "zod";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { agents } from "@/db/schema";
+import { randomUUID } from "node:crypto";
+import { createDealDocumentUploadUrl, readPrivatePdf } from "@/lib/r2-storage";
 import { requireAdminApi } from "@/lib/auth-guards";
 import {
   signingActor,
   signingApiError,
   signingBridgeJson,
+  signingBridgeFetch,
   SigningBridgeError,
   verifiedSigningEmails,
 } from "@/lib/signing-bridge";
@@ -59,6 +62,114 @@ export async function POST(request: Request, context: Context) {
     const { path } = await context.params,
       actor = await signingActor();
     if (
+      path.length === 3 &&
+      path[0] === "connections" &&
+      uuid.test(path[1]) &&
+      ["template-uploads", "templates"].includes(path[2])
+    ) {
+      // Validate the company connection before allocating storage or forwarding PDFs.
+      const catalog = await signingBridgeJson(
+        "/v1/connections",
+        actor,
+        z.object({
+          items: z.array(
+            z.object({
+              id: z.string(),
+              scope: z.string(),
+              revokedAt: z.string().nullable(),
+            }),
+          ),
+        }),
+      );
+      if (
+        !catalog.items.some(
+          (c) => c.id === path[1] && c.scope === "company" && !c.revokedAt,
+        )
+      )
+        throw new SigningBridgeError("COMPANY_SIGNING_NOT_CONFIGURED", 409);
+      if (path[2] === "template-uploads") {
+        z.object({
+          fileName: z
+            .string()
+            .min(1)
+            .max(180)
+            .regex(/\.pdf$/i),
+          byteSize: z
+            .number()
+            .int()
+            .positive()
+            .max(25 * 1024 * 1024),
+        })
+          .strict()
+          .parse(await request.json());
+        const uploadId = randomUUID();
+        const uploadUrl = await createDealDocumentUploadUrl(
+          `signing-company-staging/${actor.agentId}/${path[1]}/${uploadId}.pdf`,
+          "application/pdf",
+        );
+        return Response.json(
+          { uploadId, uploadUrl },
+          { headers: { "Cache-Control": "private, no-store" } },
+        );
+      }
+      const input = z
+        .object({
+          uploadId: z.string().uuid(),
+          title: z.string().trim().min(1).max(200),
+          uploads: z
+            .array(
+              z
+                .object({
+                  id: z.string().uuid(),
+                  name: z
+                    .string()
+                    .min(1)
+                    .max(180)
+                    .regex(/\.pdf$/i),
+                })
+                .strict(),
+            )
+            .min(1)
+            .max(10),
+        })
+        .strict()
+        .parse(await request.json());
+      const form = new FormData();
+      form.set(
+        "payload",
+        JSON.stringify({ uploadId: input.uploadId, title: input.title }),
+      );
+      let total = 0;
+      for (const file of input.uploads) {
+        const bytes = await readPrivatePdf(
+          `signing-company-staging/${actor.agentId}/${path[1]}/${file.id}.pdf`,
+        );
+        total += bytes.length;
+        if (bytes.length > 25 * 1024 * 1024 || total > 100 * 1024 * 1024)
+          throw new SigningBridgeError("UPLOAD_TOO_LARGE", 413);
+        form.append(
+          "files",
+          new Blob([new Uint8Array(bytes)], { type: "application/pdf" }),
+          file.name,
+        );
+      }
+      const response = await signingBridgeFetch(
+        `/v1/connections/${path[1]}/templates`,
+        actor,
+        { method: "POST", body: form },
+      );
+      return Response.json(
+        z
+          .object({
+            id: z.string(),
+            title: z.string(),
+            editorUrl: z.string().url(),
+          })
+          .parse(await response.json()),
+        { status: 201 },
+      );
+    }
+    if (
       path.join("/") === "connections" ||
       (path.length === 3 &&
         path[0] === "connections" &&
@@ -77,6 +188,8 @@ export async function POST(request: Request, context: Context) {
         })
         .strict()
         .parse(await request.json());
+      if (path.length === 1 && input.scope === "customer")
+        throw new SigningBridgeError("PERSONAL_SIGNING_UNAVAILABLE", 403);
       const [subject] = await db
         .select({ id: agents.id, isAdmin: agents.isAdmin })
         .from(agents)

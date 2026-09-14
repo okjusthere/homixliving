@@ -2,6 +2,10 @@ import "server-only";
 import { z } from "zod";
 import { pgPool } from "@/db";
 import { currentSession } from "@/lib/auth-guards";
+import {
+  LICENSED_COMPANIES,
+  resolveLicensedCompany,
+} from "@/lib/licensed-companies";
 
 export class SigningBridgeError extends Error {
   constructor(
@@ -30,10 +34,27 @@ export async function signingActor(agentId?: number) {
   const verifiedEmails = await verifiedSigningEmails(session.user.agentId);
   if (!verifiedEmails.length)
     throw new SigningBridgeError("VERIFIED_EMAIL_REQUIRED", 403);
+  const {
+    rows: [agent],
+  } = await pgPool.query<{
+    licensed_company_id: string | null;
+    licensed_company: string | null;
+  }>(
+    "SELECT licensed_company_id,licensed_company FROM portal.agents WHERE id=$1",
+    [session.user.agentId],
+  );
+  const company = resolveLicensedCompany(
+    agent?.licensed_company_id || agent?.licensed_company,
+  );
   return {
     agentId: session.user.agentId,
     admin: Boolean(session.user.isAdmin),
     verifiedEmails,
+    allowedCompanyKeys: session.user.isAdmin
+      ? LICENSED_COMPANIES.map((company) => company.id)
+      : company
+        ? [company.id]
+        : [],
   };
 }
 type Actor = Awaited<ReturnType<typeof signingActor>>;
@@ -47,7 +68,7 @@ export async function signingSystemActor(agentId: number): Promise<Actor> {
   const verifiedEmails = await verifiedSigningEmails(agentId);
   if (!verifiedEmails.length)
     throw new SigningBridgeError("VERIFIED_EMAIL_REQUIRED", 403);
-  return { agentId, admin: false, verifiedEmails };
+  return { agentId, admin: false, verifiedEmails, allowedCompanyKeys: [] };
 }
 export async function signingBridgeFetch(
   path: string,

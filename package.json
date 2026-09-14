@@ -72,7 +72,9 @@
     "test:onboarding-admin:db": "node --import ./scripts/test-server-only.mjs --import tsx src/lib/__tests__/onboarding-admin-db.test.ts",
     "test:signing": "node --import tsx src/lib/__tests__/signing-event-auth.test.ts && node --import tsx src/lib/__tests__/signing-hr-projection.test.ts",
     "signing:export-onboarding": "node --import tsx scripts/export-documenso-onboarding-packages.ts",
-    "test:signing:native-http": "node --import ./scripts/test-server-only.mjs --import tsx src/lib/__tests__/signing-native-http.integration.ts"
+    "test:signing:native-http": "node --import ./scripts/test-server-only.mjs --import tsx src/lib/__tests__/signing-native-http.integration.ts",
+    "predev": "node scripts/prepare-signing-pdf.mjs",
+    "prebuild": "node scripts/prepare-signing-pdf.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1092.0",
@@ -88,6 +90,7 @@
     "next": "16.2.3",
     "next-auth": "^5.0.0-beta.31",
     "next-themes": "^0.4.6",
+    "pdfjs-dist": "5.4.296",
     "pg": "^8.22.0",
     "postgres": "^3.4.9",
     "qrcode": "^1.5.4",

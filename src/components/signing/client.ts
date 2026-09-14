@@ -1,5 +1,14 @@
 import { signingErrorMessage } from "@/lib/signing-contract";
 
+export class SigningFetchError extends Error {
+  constructor(
+    message: string,
+    public status: number,
+  ) {
+    super(message);
+  }
+}
+
 export async function signingFetch<T>(
   path: string,
   body?: unknown,
@@ -16,8 +25,9 @@ export async function signingFetch<T>(
   });
   const result = await response.json();
   if (!response.ok)
-    throw new Error(
+    throw new SigningFetchError(
       typeof result.error === "string" ? result.error : "SIGNING_UNAVAILABLE",
+      response.status,
     );
   return result as T;
 }

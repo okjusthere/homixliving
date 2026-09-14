@@ -1,0 +1,22 @@
+{
+  "date": "2026-09-13",
+  "environment": "local-synthetic-only",
+  "portalBase": "8d053d9",
+  "bridgeBase": "db66095",
+  "branch": "codex/company-standard-packages",
+  "nativeVersion": "2.18.0",
+  "integrationRun": "990ad736-05a9-45fe-949d-fdf588d37e7c",
+  "cases": [
+    { "clients": 1, "requestId": "2368a6db-8203-47e3-b91b-49df94692e89", "nativeId": "envelope_bonlhydtvlnhtamh" },
+    { "clients": 2, "requestId": "6193293f-bbb6-4dc1-89ac-5946a872b88e", "nativeId": "envelope_xkccnvxywtiyowac" }
+  ],
+  "browserRequestId": "9003ff11-d739-4382-ab84-6c0b2d4951f2",
+  "mobileViewport": { "width": 390, "height": 844 },
+  "bridgeContractTestsPassed": 14,
+  "pagination": { "rows": 615, "pages": 21, "categoryCount": 123, "categories": 5 },
+  "poisonedWebhooksBeforeHealthy": 101,
+  "portalProductionBuildPassed": true,
+  "bridgeBuildPassed": true,
+  "productionDeployed": false,
+  "formalCompanyPdfsValidated": false
+}

@@ -38,6 +38,7 @@ export const signingRequestSchema = z.object({
     reference: z.string(),
   }),
   ownerAgentId: z.number(),
+  predecessorRequestId: z.string().uuid().nullable().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
   category: z.enum(["mine", "draft", "waiting", "completed", "attention"]),
@@ -116,6 +117,42 @@ export type SigningRequest = z.infer<typeof signingRequestSchema>;
 export type SigningPackage = z.infer<typeof signingPackageSchema>;
 
 const ERROR_MESSAGES: Record<string, [string, string]> = {
+  SEQUENTIAL_ORDER_MUST_BE_DISTINCT: [
+    "顺序签署的每位参与人必须使用不同顺序号；需要同时签时请选择并行模式。",
+    "Sequential signers must have distinct order numbers. Use parallel mode for simultaneous signing.",
+  ],
+  STANDARD_PACKAGE_SINGLE_ENVELOPE: [
+    "标准客户包应使用一个含多份 PDF 的模板；不同收件范围请分别发布文件包。",
+    "Use one multi-PDF template for a standard client package. Publish different recipient groups as separate packages.",
+  ],
+  REVIEW_REQUIRED: [
+    "请重新预览文件并核对收件人后发送。",
+    "Review the files and recipients again before sending.",
+  ],
+  PREVIOUS_REQUEST_STILL_OPEN: [
+    "原任务仍在处理，请先核对状态并撤销或放弃，避免重复邀请。",
+    "The previous request is still open. Reconcile and close it before starting another.",
+  ],
+  REISSUE_REASON_REQUIRED: [
+    "请填写重新准备的原因。",
+    "Enter a reason for preparing a replacement.",
+  ],
+  PERSONAL_SIGNING_UNAVAILABLE: [
+    "个性化文件签署暂未开放，请选择公司标准文件包。",
+    "Personal uploads are not available. Choose a company package.",
+  ],
+  COMPANY_ACCESS_DENIED: [
+    "此文件包不适用于你当前所属公司，请联系管理员核对。",
+    "This package is not available for your company. Contact an administrator.",
+  ],
+  PACKAGE_COMPANY_MISMATCH: [
+    "文件包的公司配置不一致，请管理员检查模板。",
+    "The package company configuration does not match. Contact an administrator.",
+  ],
+  PACKAGE_RETIRED: [
+    "公司已停用此版本，请使用当前版本重新准备。",
+    "This version has been retired. Prepare a new request using the current version.",
+  ],
   SIGNING_NOT_CONFIGURED: [
     "文件签署尚未配置，请联系管理员。",
     "Signing is not configured. Contact an administrator.",
@@ -205,3 +242,32 @@ export function signingErrorMessage(code: string | undefined, zh: boolean) {
       : "The operation could not be completed. Check the details or retry shortly.")
   );
 }
+
+export const signingReviewSchema = z.object({
+  reviewHash: z.string().regex(/^[a-f0-9]{64}$/),
+  files: z.array(
+    z.object({
+      partId: z.string().uuid(),
+      id: z.string(),
+      title: z.string(),
+      fields: z.array(
+        z.object({
+          id: z.number(),
+          page: z.number(),
+          x: z.number(),
+          y: z.number(),
+          width: z.number(),
+          height: z.number(),
+          type: z.string(),
+          value: z.string(),
+          readOnly: z.boolean(),
+          required: z.boolean(),
+          recipient: z.string(),
+          label: z.string(),
+        }),
+      ),
+    }),
+  ),
+});
+export type SigningReview = z.infer<typeof signingReviewSchema>;
+export type SigningReviewFile = SigningReview["files"][number];
