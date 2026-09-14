@@ -28,7 +28,10 @@ const M = {
     ccEmail: "CC email (always)",
     verifyDomain: "Verify the sending domain with Resend before sending.",
     companyTitle: "Company",
-    companySubtitle: "Shown on every invoice",
+    companySubtitle: "Invoice details and brokerage licenses",
+    realtyLicense: "Homix Realty Inc. · Broker license #",
+    livingLicense: "Homix Living Inc. · Broker license #",
+    licenseHelp: "Signing packages use the license of the agent’s current company.",
     companyName: "Company name",
     companyAddress: "Company address",
     defaultYear: "Default year",
@@ -64,7 +67,10 @@ const M = {
     ccEmail: "抄送邮箱（每封）",
     verifyDomain: "发送前请先在 Resend 验证发送域名。",
     companyTitle: "公司",
-    companySubtitle: "显示在每张发票上",
+    companySubtitle: "发票信息及公司执照",
+    realtyLicense: "Homix Realty Inc. · Broker 执照号",
+    livingLicense: "Homix Living Inc. · Broker 执照号",
+    licenseHelp: "签署文件按经纪人所属公司自动带入这里的执照号。",
     companyName: "公司名称",
     companyAddress: "公司地址",
     defaultYear: "默认年份",
@@ -197,6 +203,13 @@ export default function SettingsConsole() {
                 mono
               />
             </LabeledField>
+            <LabeledField label={t.realtyLicense}>
+              <EditorialInput value={settings.homix_realty_broker_license || ""} onChange={(v) => update("homix_realty_broker_license", v)} mono />
+            </LabeledField>
+            <LabeledField label={t.livingLicense}>
+              <EditorialInput value={settings.homix_living_broker_license || ""} onChange={(v) => update("homix_living_broker_license", v)} mono />
+            </LabeledField>
+            <p className="text-sm text-ink-50">{t.licenseHelp}</p>
           </div>
         </Card>
 

@@ -46,6 +46,7 @@ type DraftPart = {
     templateRecipientId: number;
     actor: "owner" | "company" | "customer";
     label: string;
+    optional?: boolean;
   }[];
   prefill: {
     key: string;
@@ -72,6 +73,7 @@ async function adminFetch<T>(path: string, body?: unknown): Promise<T> {
 
 export function SigningAdministration() {
   const zh = useLocale() === "zh";
+  const [sharedCompanies, setSharedCompanies] = useState(false);
   const [tab, setTab] = useState("packages"),
     [packages, setPackages] = useState<SigningPackage[]>([]),
     [connections, setConnections] = useState<Connection[]>([]),
@@ -214,6 +216,18 @@ export function SigningAdministration() {
       title,
       scenario,
       companyKey: connection.companyKey,
+      ...((scenario === "buyer" || scenario === "seller") && sharedCompanies
+        ? {
+            applicableCompanyKeys: [
+              ...new Set(
+                connections
+                  .filter((c) => c.scope === "company" && !c.revokedAt)
+                  .map((c) => c.companyKey)
+                  .filter(Boolean),
+              ),
+            ],
+          }
+        : {}),
       selectors: {
         ...(plan ? { plan } : {}),
         ...(libor ? { liborMembershipStatus: libor } : {}),
@@ -843,6 +857,20 @@ export function SigningAdministration() {
                   </p>
                 </div>
               )}
+              {(scenario === "buyer" || scenario === "seller") && (
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={sharedCompanies}
+                    onChange={(event) =>
+                      setSharedCompanies(event.target.checked)
+                    }
+                  />
+                  {zh
+                    ? "两家公司共用这份模板；发起时按经纪人所属公司填写和归档"
+                    : "Share this template across configured companies; use each agent's company when preparing and filing"}
+                </label>
+              )}
               {draftPart && template && (
                 <div className="space-y-4 rounded-md border border-line p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
@@ -914,6 +942,10 @@ export function SigningAdministration() {
                                   ? {
                                       ...r,
                                       actor: e.target.value as typeof r.actor,
+                                      optional:
+                                        e.target.value === "customer"
+                                          ? r.optional
+                                          : false,
                                     }
                                   : r,
                               ),
@@ -931,6 +963,28 @@ export function SigningAdministration() {
                           </option>
                         </select>
                       </label>
+                      {role.actor === "customer" &&
+                        ["buyer", "seller"].includes(scenario) && (
+                          <label className="flex items-center gap-2 text-xs sm:col-span-3">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(role.optional)}
+                              onChange={(event) =>
+                                setDraftPart({
+                                  ...draftPart,
+                                  roles: draftPart.roles.map((r, i) =>
+                                    i === index
+                                      ? { ...r, optional: event.target.checked }
+                                      : r,
+                                  ),
+                                })
+                              }
+                            />
+                            {zh
+                              ? "可选客户：经纪人添加此客户后才启用其字段和签署"
+                              : "Optional client: enable their fields and signature only when added"}
+                          </label>
+                        )}
                     </div>
                   ))}
                   {template.fields.map((field) => {

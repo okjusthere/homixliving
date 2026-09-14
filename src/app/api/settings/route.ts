@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { requireActiveAgentApi, requireAdminApi } from "@/lib/auth-guards";
 import { DEFAULT_INVOICE_SETTINGS, withInvoiceSettingDefaults } from "@/lib/invoice-settings";
 import { logAudit } from "@/lib/audit";
+import { COMPANY_LICENSE_KEYS, validCompanyLicenseSettings } from "@/lib/company-settings";
 
 export async function GET() {
   const authResult = await requireActiveAgentApi();
@@ -31,6 +32,10 @@ export async function PUT(req: NextRequest) {
   if ("error" in authResult) return authResult.error;
 
   const body = await req.json();
+  if (!body || typeof body !== "object" || Array.isArray(body) || !validCompanyLicenseSettings(body))
+    return NextResponse.json({ error: "公司 Broker 执照号须为 11 位数字 / Broker license must contain 11 digits" }, { status: 400 });
+  for (const key of COMPANY_LICENSE_KEYS)
+    if (typeof body[key] === "string") body[key] = body[key].trim();
   for (const [key, value] of Object.entries(body)) {
     const existing = await db.select().from(settings).where(eq(settings.key, key)).then((rows) => rows[0]);
     if (existing) {
