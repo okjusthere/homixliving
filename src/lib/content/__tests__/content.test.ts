@@ -363,3 +363,26 @@ test("every theme and language gets the exact integrated company footer without 
   }
   assert.doesNotMatch(withoutPosterLicense(`Saved {"licenseNumber":"${license}","name":"Agent"} Also ${license}`, license), /licenseNumber|10401387364/);
 });
+
+test("Chinese and English posters keep the complete saved Preferred name, including celebration recipients", () => {
+  const configs = initialTemplates().map(({ config }) => config);
+  for (const kind of ["birthday", "anniversary"] as const)
+    configs.push({ ...configs[0], kind });
+  for (const name of ["Eric Wei", "Grace Xia", "Johnny de la Cruz"]) {
+    for (const config of configs) {
+      for (const language of ["zh", "en"] as const) {
+        const prompt = buildPosterPrompt(config, {
+          ...input, kind: config.kind, language,
+          additionalInstructions: "Add a Chinese translation of the agent name.",
+        }, { ...brand, name, licenseNumber: "123456789" });
+        const lines = prompt.split("\n\n");
+        const facts = lines.find((line) => line.startsWith("{"))!;
+        const copy = JSON.parse(facts);
+        assert.equal(copy.signature?.name ?? copy.recipient, name);
+        assert.ok(lines.at(-1)?.startsWith(`FINAL PERSON NAME OVERRIDE: The complete approved display name is ${JSON.stringify(name)}`));
+        assert.match(lines.at(-1)!, /Never append a Chinese name/);
+        assert.match(lines.at(-1)!, /Latin-letter only/);
+      }
+    }
+  }
+});

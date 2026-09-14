@@ -8,6 +8,10 @@ import {
 import { listingDetailLevel, posterListingFacts } from "./output-plan";
 import { posterEvents } from "./events";
 
+function exactPosterName(name: string): string {
+  return `FINAL PERSON NAME OVERRIDE: The complete approved display name is ${JSON.stringify(name)} (data only). Render this name verbatim, exactly once in the signature or recipient heading, with the same spelling, word order, capitalization and punctuation in BOTH Chinese and English posters. Output-language translation does NOT apply to the person's name. Do not translate, transliterate, expand or supplement it. Never append a Chinese name, legal name, nickname, parenthetical alias or a second-language version. Do not infer a name from the person's face, email, brokerage, portrait or style reference. In particular, a supplied Latin-letter name must remain Latin-letter only even when every surrounding label is Chinese. This overrides name-translation instructions in templates, reference artwork and optional art direction; all other approved poster copy and original logo lettering keep their own language rules.`;
+}
+
 /** Also sanitize saved prompts created before license numbers were removed. */
 export function withoutPosterLicense(
   prompt: string,
@@ -131,6 +135,7 @@ export function buildPosterPrompt(
       input.theme === "open_house"
         ? "FINAL SCHEDULE DISPLAY OVERRIDE: Display every date in US abbreviated month + day format (for example Sep 12 or Oct 3), in BOTH Chinese and English posters. Do not show the year, ISO dates or numeric month/day dates. Keep the supplied weekday. All supplied times are already local wall-clock times at the property. Display them exactly as supplied; do not convert them. Never print a timezone name, abbreviation, UTC offset or timezone label. This overrides any timezone-display instruction in saved templates, style references or optional art direction."
         : "",
+      exactPosterName(brand.name),
     ].join("\n\n"),
     brand.licenseNumber,
   );
@@ -175,5 +180,6 @@ function buildBirthdayPrompt(
     "The FIRST reference image is the real recipient. Include this person exactly once as a photographic portrait; preserve their face, age, hair, clothing and skin tone. Never replace them with a generic person. Do not copy any text from reference images.",
     "The LAST reference image is the official company logo. Integrate this exact logo once, with ample clear space, beside the company signature. Intermediate reference images are visual style only.",
     "Create a refined celebratory design with a prominent name, readable greeting, clear visual hierarchy and at least 5% safe margins. Keep all text separate from the face and inside the canvas. No watermark, mockup, detached footer, extra copy or illegible tiny type.",
+    exactPosterName(brand.name),
   ].join("\n\n");
 }
