@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cleanAgentName, validAgentName } from "@/lib/agent-names";
 import { cookies } from "next/headers";
 import { and, desc, eq, lte, or, sql } from "drizzle-orm";
 import { auth } from "@/auth";
@@ -145,6 +146,7 @@ export async function GET() {
       agreementCountersignedAt: agent.agreementCountersignedAt,
       paymentStatus: agent.paymentStatus,
       legalName: agent.legalName,
+      preferredName: agent.name,
       phone: agent.phone,
       licenseNumber: agent.licenseNumber,
       licensedCompany: agent.licensedCompany,
@@ -381,7 +383,12 @@ export async function PUT(req: NextRequest) {
       .limit(1);
     if (!sponsor) return NextResponse.json({ error: "Sponsor not found" }, { status: 404 });
   }
-  const legalName = cleanText(body.legalName) || agent.legalName || agent.name;
+  // Legal identity must be explicitly provided; Google/Preferred name is not evidence.
+  const legalName = cleanAgentName(body.legalName ?? agent.legalName);
+  const preferredName = cleanAgentName(body.preferredName ?? agent.name);
+  if (!validAgentName(body.legalName ?? agent.legalName) || !validAgentName(body.preferredName ?? agent.name)) {
+    return NextResponse.json({ error: "Legal name and Preferred name are required (maximum 200 characters). 请填写法定姓名和常用姓名。" }, { status: 400 });
+  }
   const phone = cleanText(body.phone, 40) || agent.phone;
   const licenseNumber = cleanText(body.licenseNumber, 80) || agent.licenseNumber;
   const licensedCompany = licensedEntity.legalName;
@@ -587,6 +594,7 @@ export async function PUT(req: NextRequest) {
           .update(agents)
           .set({
             legalName,
+            name: preferredName,
             phone,
             licenseNumber,
             licensedCompany,
@@ -678,6 +686,7 @@ export async function PUT(req: NextRequest) {
         .update(agents)
         .set({
           legalName,
+          name: preferredName,
           phone,
           licenseNumber,
           licensedCompany,
@@ -753,7 +762,7 @@ export async function PUT(req: NextRequest) {
       await notify({
         recipientAgentIds: outcome.teamLeaderAgentId ? [outcome.teamLeaderAgentId] : [],
         type: "team_join_requested",
-        title: `团队加入申请：${agent.name}`,
+        title: `团队加入申请：${outcome.profile.name}`,
         body: `${agent.email} 申请加入 ${selectedTeam?.name || "团队"}。介绍人归因不会因团队审批而改变。`,
         href: `/team-workspace?team=${selectedTeam?.id || ""}`,
         dedupeKey: `team-join-request:${outcome.teamJoinRequest.id}`,
@@ -772,7 +781,7 @@ export async function PUT(req: NextRequest) {
     await notify({
       recipientAgentIds: await adminAgentIds(),
       type: "agent_onboarding_ready",
-      title: `入职资料已提交：${agent.name}`,
+      title: `入职资料已提交：${outcome.profile.name}`,
       body: `${agent.email} 已选择 ${plan}${teamId ? ` · Team #${teamId}` : ""}，下一步为签署协议及缴费。`,
       href: "/agents",
       dedupeKey: `agent-onboarding-ready:${agent.id}:${now.slice(0, 10)}`,

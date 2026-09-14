@@ -1,3 +1,5 @@
+import { validAgentName, websiteAgentName } from "@/lib/agent-names";
+
 /**
  * Server-to-server calls to the marketing site (www.homixny.com), which owns
  * public.agents. The portal never writes public.agents directly for profile
@@ -222,6 +224,9 @@ export type AdminAgentRow = {
   linked_portal_agent?: {
     id: number;
     name: string;
+    legal_name?: string | null;
+    expected_website_name?: string;
+    name_sync_status?: "synced" | "different" | "legal_name_missing";
     email: string;
     account_status: "pending" | "active" | "inactive";
   } | null;
@@ -260,14 +265,16 @@ export async function linkPublicProfile(input: {
   publicId: string;
   agentId: number;
   name: string;
+  legalName: string | null;
   phone?: string | null;
   license?: string | null;
 }) {
+  if (!validAgentName(input.legalName)) return { ok: false, status: 409, body: { error: "Legal name must be verified before website identity synchronization." } };
   return postHomixwebJson("/api/agent-admin", {
     action: "link",
     id: input.publicId,
     portalAgentId: input.agentId,
-    name: input.name,
+    name: websiteAgentName(input),
     phone: input.phone,
     license: input.license,
   });
@@ -277,13 +284,15 @@ export async function linkPublicProfile(input: {
 export async function publishPublicProfile(input: {
   agentId: number;
   name: string;
+  legalName: string | null;
   email?: string | null;
   phone?: string | null;
   license?: string | null;
 }) {
+  if (!validAgentName(input.legalName)) return { ok: false, status: 409, body: { error: "Legal name must be verified before publishing a website profile." } };
   return postHomixwebJson("/api/agent-profile/publish", {
     portalAgentId: input.agentId,
-    name: input.name,
+    name: websiteAgentName(input),
     email: input.email,
     phone: input.phone,
     license: input.license,
@@ -294,12 +303,14 @@ export async function publishPublicProfile(input: {
 export async function syncPublicIdentity(input: {
   agentId: number;
   name: string;
+  legalName: string | null;
   phone?: string | null;
   license?: string | null;
 }) {
+  if (!validAgentName(input.legalName)) return { ok: false, status: 409, body: { error: "Legal name must be verified before website identity synchronization." } };
   return postHomixwebJson("/api/agent-profile/identity", {
     portalAgentId: input.agentId,
-    name: input.name,
+    name: websiteAgentName(input),
     phone: input.phone,
     license: input.license,
   });

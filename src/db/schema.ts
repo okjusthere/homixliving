@@ -184,7 +184,7 @@ export type SigningPreparation = {
 
 export const agents = portal.table("agents", {
   id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
-  name: text("name").notNull(),
+  name: text("name").notNull(), // Preferred name: Portal UI and new marketing content. Not a legal identity.
   email: text("email").notNull().unique(),
   pendingEmail: text("pending_email"),
   emailChangeRequestedAt: timestamptz("email_change_requested_at"),

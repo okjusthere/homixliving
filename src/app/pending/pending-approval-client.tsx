@@ -222,6 +222,7 @@ export function PendingApprovalClient({
   const [sponsorId, setSponsorId] = useState("");
   const [termMonths, setTermMonths] = useState("12");
   const [legalName, setLegalName] = useState("");
+  const [preferredName, setPreferredName] = useState("");
   const [phone, setPhone] = useState("");
   const [licenseNumber, setLicenseNumber] = useState("");
   const [licensedCompany, setLicensedCompany] = useState("");
@@ -282,6 +283,7 @@ export function PendingApprovalClient({
         setSponsorId(data.profile?.referredByAgentId ? String(data.profile.referredByAgentId) : "");
         setTermMonths(String(data.profile?.affiliationTermMonths || 12));
         setLegalName(data.profile?.legalName || "");
+        setPreferredName(data.profile?.preferredName || "");
         setPhone(data.profile?.phone || "");
         setLicenseNumber(data.profile?.licenseNumber || "");
         setLicensedCompany(effectiveCompanyId);
@@ -366,6 +368,7 @@ export function PendingApprovalClient({
           referredByAgentId: sponsorId || null,
           affiliationTermMonths: termMonths,
           legalName,
+          preferredName,
           phone,
           licenseNumber,
           licensedCompanyId: licensedCompany,
@@ -375,7 +378,8 @@ export function PendingApprovalClient({
         }),
       });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error();
+      if (!response.ok) throw new Error(data.error || t.setupFailed);
+      await update({ profileNameChanged: true });
       if (data.requiresTeamApproval && data.teamJoinRequest) {
         const request = {
           ...data.teamJoinRequest,
@@ -390,8 +394,8 @@ export function PendingApprovalClient({
         setSetupMessage(t.setupSaved);
         await refreshAgreement();
       }
-    } catch {
-      setSetupMessage(t.setupFailed);
+    } catch (error) {
+      setSetupMessage(error instanceof Error ? error.message : t.setupFailed);
     } finally {
       setSetupSaving(false);
     }
@@ -648,7 +652,7 @@ export function PendingApprovalClient({
           {effectiveStatus === "pending" && (
             <div className="mt-5 min-w-0 rounded-none border-0 bg-transparent p-0 text-left sm:mt-6 sm:rounded-xl sm:border sm:border-line sm:bg-paper sm:p-5">
               <h2 className="font-serif text-[22px]" style={{ color: tone.ink }}>{setupComplete ? (lang === "zh" ? "入职资料已提交" : "Details submitted") : t.setupTitle}</h2>
-              <p className="mt-1 text-[12px]" style={{ color: tone.ink50 }}>{setupComplete ? `${legalName || session?.user.name || ""} · ${selectedCompany?.legalName || licensedCompany}` : t.setupHint}</p>
+              <p className="mt-1 text-[12px]" style={{ color: tone.ink50 }}>{setupComplete ? `${preferredName || session?.user.name || ""} · ${selectedCompany?.legalName || licensedCompany}` : t.setupHint}</p>
               {setupComplete && <button type="button" className="mt-3 text-sm underline underline-offset-4" aria-expanded={showSubmittedSetup} aria-controls="pending-submitted-details" onClick={() => setShowSubmittedSetup(!showSubmittedSetup)}>{showSubmittedSetup ? (lang === "zh" ? "收起资料" : "Hide details") : (lang === "zh" ? "查看已提交资料" : "Review submitted details")}</button>}
               {(routingLocks.plan || routingLocks.team || routingLocks.sponsor || routingLocks.term || routingLocks.company) && (
                 <p className="mt-3 rounded-lg px-3 py-2 text-[12px]" style={{ background: tone.paperDeep, color: tone.green }}>
@@ -718,8 +722,14 @@ export function PendingApprovalClient({
                     </label>
                   </div>
                   <label className="grid gap-1 text-[12px]" style={{ color: tone.ink70 }}>
-                    {t.legalName}
-                    <input value={legalName} onChange={(event) => setLegalName(event.target.value)} disabled={agreementStatus !== "not_started"} className="h-11 w-full min-w-0 rounded-lg bg-white px-3 text-base disabled:opacity-60" style={{ border: `1px solid ${tone.line}`, color: tone.ink }} />
+                    {lang === "zh" ? "法定姓名 / Legal name" : "Legal name"}
+                    <input required maxLength={200} value={legalName} onChange={(event) => setLegalName(event.target.value)} disabled={agreementStatus !== "not_started"} className="h-11 w-full min-w-0 rounded-lg bg-white px-3 text-base disabled:opacity-60" style={{ border: `1px solid ${tone.line}`, color: tone.ink }} />
+                    <span className="text-xs text-ink-50">{lang === "zh" ? "与执照一致，用于入职协议及其他签署文件。" : "As on your license. Used in agreements and signing packages."}</span>
+                  </label>
+                  <label className="grid gap-1 text-[12px]" style={{ color: tone.ink70 }}>
+                    {lang === "zh" ? "常用姓名 / Preferred name" : "Preferred name"}
+                    <input required maxLength={200} value={preferredName} onChange={(event) => setPreferredName(event.target.value)} disabled={agreementStatus !== "not_started"} className="h-11 w-full min-w-0 rounded-lg bg-white px-3 text-base disabled:opacity-60" style={{ border: `1px solid ${tone.line}`, color: tone.ink }} />
+                    <span className="text-xs text-ink-50">{lang === "zh" ? "填写完整常用姓名，如 Grace Xia，供 Portal 和海报使用。官网显示 Jiaer Xia (Grace)，括号内不重复相同姓氏。没有其他常用名可填法定姓名。" : "Your complete chosen name, e.g. Grace Xia, for the Portal and posters. The website shows Jiaer Xia (Grace), omitting the repeated surname in parentheses. Use your legal name if you have no alternative name."}</span>
                   </label>
                   <label className="grid gap-1 text-[12px]" style={{ color: tone.ink70 }}>
                     {t.phone}

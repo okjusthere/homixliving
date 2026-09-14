@@ -85,6 +85,10 @@ jobs:
           createdb -h localhost -p 5432 -U postgres homix_signing_access
           pg_dump "$DATABASE_URL" --schema-only --no-owner --no-privileges | psql -h localhost -p 5432 -U postgres -d homix_signing_access -v ON_ERROR_STOP=1
           DATABASE_URL=postgres://postgres:postgres@localhost:5432/homix_signing_access npm run test:signing-access:db
+          DATABASE_URL=postgres://postgres:postgres@localhost:5432/homix_signing_access npm run test:agent-name:db
+          createdb -h localhost -p 5432 -U postgres homix_identity_reconciliation
+          pg_dump "$DATABASE_URL" --schema=portal --schema-only --no-owner --no-privileges | psql -h localhost -p 5432 -U postgres -d homix_identity_reconciliation -v ON_ERROR_STOP=1
+          DATABASE_URL=postgres://postgres:postgres@localhost:5432/homix_identity_reconciliation npm run test:agent-name-reconciliation:db
 
       - name: Onboarding administrator database integration
         env:

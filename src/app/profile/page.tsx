@@ -23,6 +23,7 @@ import { resolveLicensedCompany } from "@/lib/licensed-companies";
 import { teamLeaderApplicationEligibility } from "@/lib/team-leader-applications";
 import { OnboardingProgressCard } from "@/components/homix/onboarding-progress-card";
 import { ProfileClient } from "./profile-client";
+import { hasSignedNameBasis } from "@/lib/agent-names";
 import { TeamLeaderApplicationCard } from "./team-leader-application-card";
 
 export const metadata: Metadata = { title: "My Profile · Homix" };
@@ -117,6 +118,8 @@ export default async function ProfilePage() {
     ? {
         id: agent.id,
         name: agent.name,
+        legalName: agent.legalName,
+        canSetLegalName: !agent.legalName && !hasSignedNameBasis(agent),
         phone: agent.phone,
         licenseNumber: agent.licenseNumber,
         licenseExpiresAt: agent.licenseExpiresAt,

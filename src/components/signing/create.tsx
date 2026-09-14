@@ -42,6 +42,7 @@ export function SigningCreate({
   const storageKey = `homix-signing-create:${mode}:${predecessor}`;
   const [reissueReason, setReissueReason] = useState("");
   const [packages, setPackages] = useState<SigningPackage[]>([]);
+  const [agentIdentity, setAgentIdentity] = useState<{ legalName: string | null; email: string } | null>(null);
   const [packageId, setPackageId] = useState("");
   const [count, setCount] = useState("");
   const [title, setTitle] = useState("");
@@ -71,9 +72,7 @@ export function SigningCreate({
     customer_1_email: recipients[clients[0]?.key]?.email || "",
     customer_2_name: recipients[clients[1]?.key]?.name || "",
     customer_2_email: recipients[clients[1]?.key]?.email || "",
-    agent_name: owner
-      ? recipients[owner.key]?.name || ""
-      : session?.user.name || "",
+    agent_name: agentIdentity?.legalName || "",
     agent_email: owner
       ? recipients[owner.key]?.email || ""
       : session?.user.email || "",
@@ -100,9 +99,10 @@ export function SigningCreate({
 
   useEffect(() => {
     let live = true;
-    signingFetch<{ items: SigningPackage[] }>("packages")
+    signingFetch<{ items: SigningPackage[]; agentIdentity: { legalName: string | null; email: string } | null }>("packages")
       .then(async (data) => {
         if (!live) return;
+        setAgentIdentity(data.agentIdentity);
         const catalog = data.items.filter((item) => item.scenario === mode);
         setPackages(catalog);
         const saved = sessionStorage.getItem(storageKey);
@@ -163,8 +163,8 @@ export function SigningCreate({
           ? recipients[role.key]
           : role.actor === "owner"
             ? {
-                name: session?.user.name || "",
-                email: session?.user.email || "",
+                name: agentIdentity?.legalName || "",
+                email: agentIdentity?.email || session?.user.email || "",
               }
             : role.actor === "company"
               ? {
@@ -258,6 +258,7 @@ export function SigningCreate({
           {error}
         </p>
       )}
+      {!loading && !agentIdentity?.legalName && <p role="alert" className="mb-4 rounded-md bg-amber-50 p-3 text-sm text-amber-900">{zh ? "请先在个人档案补齐 Legal name，再准备协议；如已签署过协议，请联系管理员核对。" : "Complete your Legal name in My profile before preparing an agreement. Contact the office for an existing signed identity."} <a href="/profile" className="underline">{zh ? "个人档案" : "My profile"}</a></p>}
       {loading ? (
         <p aria-busy="true">
           {zh ? "读取公司签署包…" : "Loading company packages…"}
@@ -375,13 +376,13 @@ export function SigningCreate({
                   >
                     <p className="self-center text-sm">{role.label}</p>
                     <label className="text-xs">
-                      {zh ? "姓名" : "Full name"}
+                      {role.actor === "owner" ? "Legal name" : zh ? "姓名" : "Full name"}
                       <input
                         required
                         maxLength={200}
-                        readOnly={role.actor === "company"}
+                        readOnly={role.actor === "company" || role.actor === "owner"}
                         className={signingInput}
-                        value={recipients[role.key]?.name || ""}
+                        value={role.actor === "owner" ? agentIdentity?.legalName || "" : recipients[role.key]?.name || ""}
                         onChange={(event) =>
                           setRecipients({
                             ...recipients,
@@ -499,7 +500,7 @@ export function SigningCreate({
           </fieldset>
           <button
             type="submit"
-            disabled={busy || (!selected && !submitted)}
+            disabled={busy || !agentIdentity?.legalName || (!selected && !submitted)}
             className={`${signingButton} !bg-homix-accent !text-white`}
           >
             {busy

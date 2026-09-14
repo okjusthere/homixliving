@@ -1,4 +1,5 @@
 import "server-only";
+import { requireLegalName } from "@/lib/signing-agent-names";
 import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
 import { and, eq, sql } from "drizzle-orm";
@@ -132,6 +133,7 @@ async function buildPreparation(
   agent: Agent,
   published: SigningPackage,
 ): Promise<SigningPreparation> {
+  const legalName = requireLegalName(agent);
   const actor = await signingSystemActor(agent.id),
     company = resolveLicensedCompany(
       agent.licensedCompanyId || agent.licensedCompany,
@@ -147,7 +149,7 @@ async function buildPreparation(
     : [];
   const [sponsor] = agent.referredByAgentId
     ? await db
-        .select({ name: agents.name })
+        .select({ name: agents.legalName })
         .from(agents)
         .where(eq(agents.id, agent.referredByAgentId))
         .limit(1)
@@ -167,7 +169,7 @@ async function buildPreparation(
     throw new SigningBridgeError("TEAM_TERMS_REQUIRED", 409);
   const values: Record<string, string> = {
     agent_id: String(agent.id),
-    agent_name: agent.legalName || agent.name,
+    agent_name: legalName,
     agent_email: agent.email,
     agent_phone: agent.phone || "",
     license_number: agent.licenseNumber || "",
@@ -209,7 +211,7 @@ async function buildPreparation(
     if (role.actor === "owner")
       return {
         key: role.key,
-        name: agent.legalName || agent.name,
+        name: legalName,
         email: agent.email.toLowerCase(),
       };
     if (
@@ -233,7 +235,7 @@ async function buildPreparation(
     contextHash: onboardingSigningContextHash(agent),
     packageId: published.id,
     payload: {
-      title: `${agent.legalName || agent.name} · ${company.legalName} onboarding`,
+      title: `${legalName} · ${company.legalName} onboarding`,
       idempotencyKey: `onboarding:${id}`,
       externalReference: `onboarding:${id}`,
       scenario: "onboarding",
@@ -241,7 +243,7 @@ async function buildPreparation(
       companyKey: company.id,
       ownerAgentId: agent.id,
       business: {
-        customer: agent.legalName || agent.name,
+        customer: legalName,
         property: "",
         reference: `agent:${agent.id}`,
       },

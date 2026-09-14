@@ -3,6 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "pretest": "npm run test:agent-names && npm run test:agent-name-api",
+    "test:agent-name-api": "node --import ./scripts/test-server-only.mjs --import ./scripts/test-agreement-auth.mjs --import tsx --test src/lib/__tests__/agent-name-api.test.ts",
+    "test:agent-names": "node --import tsx --test src/lib/__tests__/agent-names.test.ts src/lib/__tests__/agent-mls-identity.test.ts",
+    "test:agent-name:db": "node --import ./scripts/test-server-only.mjs --import ./scripts/test-agreement-auth.mjs --import tsx src/lib/__tests__/agent-name-db.test.ts",
+    "test:agent-name-reconciliation:db": "node --import tsx src/lib/__tests__/agent-name-reconciliation-db.test.ts",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",

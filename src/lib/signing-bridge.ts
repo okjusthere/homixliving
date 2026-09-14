@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { pgPool } from "@/db";
+import { LegalNameRequired } from "@/lib/signing-agent-names";
 import { currentSession } from "@/lib/auth-guards";
 import {
   LICENSED_COMPANIES,
@@ -138,6 +139,7 @@ export async function signingBridgeJson<T>(
   return schema.parse(await response.json());
 }
 export function signingApiError(error: unknown) {
+  if (error instanceof LegalNameRequired) return Response.json({ error: "LEGAL_NAME_REQUIRED" }, { status: 409 });
   const status =
     error instanceof SigningBridgeError
       ? error.status

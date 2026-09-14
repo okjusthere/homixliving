@@ -117,6 +117,10 @@ export type SigningRequest = z.infer<typeof signingRequestSchema>;
 export type SigningPackage = z.infer<typeof signingPackageSchema>;
 
 const ERROR_MESSAGES: Record<string, [string, string]> = {
+  LEGAL_NAME_REQUIRED: [
+    "请先在个人档案补齐 Legal name；已有签署记录的经纪人请联系管理员核对。协议不能使用昵称代替法定姓名。",
+    "Complete your Legal name in My profile before preparing agreements. Contact the office if your signed identity needs verification.",
+  ],
   SEQUENTIAL_ORDER_MUST_BE_DISTINCT: [
     "顺序签署的每位参与人必须使用不同顺序号；需要同时签时请选择并行模式。",
     "Sequential signers must have distinct order numbers. Use parallel mode for simultaneous signing.",

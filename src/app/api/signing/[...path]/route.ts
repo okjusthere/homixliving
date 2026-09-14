@@ -1,4 +1,8 @@
 import { z } from "zod";
+import { eq } from "drizzle-orm";
+import { db } from "@/db";
+import { agents } from "@/db/schema";
+import { bindSigningAgentNames } from "@/lib/signing-agent-names";
 import { requireActiveAgentApi } from "@/lib/auth-guards";
 import {
   signingActor,
@@ -25,12 +29,14 @@ export async function GET(request: Request, context: Context) {
       actor = await signingActor(),
       query = new URL(request.url).searchParams;
     if (path.join("/") === "packages") {
+      const [identity] = await db.select({ legalName: agents.legalName, email: agents.email }).from(agents).where(eq(agents.id, actor.agentId)).limit(1);
       const result = await signingBridgeJson(
         "/v1/packages",
         actor,
         z.object({ items: z.array(signingPackageSchema) }),
       );
       return Response.json({
+        agentIdentity: identity || null,
         items: result.items.filter(
           (p) => p.scenario === "buyer" || p.scenario === "seller",
         ),
@@ -157,12 +163,18 @@ export async function POST(request: Request, context: Context) {
         .parse(raw);
       if (!actor.allowedCompanyKeys.includes(input.companyKey))
         throw new SigningBridgeError("COMPANY_ACCESS_DENIED", 403);
+      const catalog = await signingBridgeJson("/v1/packages", actor, z.object({ items: z.array(signingPackageSchema) }));
+      const published = catalog.items.find((p) => p.id === input.packageId && p.scenario === input.scenario && p.company_key === input.companyKey);
+      if (!published) throw new SigningBridgeError("PACKAGE_RETIRED", 409);
+      const [agent] = await db.select({ legalName: agents.legalName }).from(agents).where(eq(agents.id, actor.agentId)).limit(1);
+      if (!agent) throw new SigningBridgeError("AGENT_NOT_FOUND", 404);
+      const canonical = bindSigningAgentNames(input, published, agent);
       return Response.json(
         await signingBridgeJson(
           `/v1/${path.join("/")}`,
           actor,
           path[0] === "requests" ? signingRequestSchema : z.unknown(),
-          { ...input, ownerAgentId: actor.agentId },
+          { ...canonical, ownerAgentId: actor.agentId },
         ),
         { status: path[0] === "requests" ? 201 : 200 },
       );

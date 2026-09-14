@@ -250,6 +250,7 @@ export function PublicProfileEditor({
   isOwn,
   canCreate,
   agentName,
+  expectedWebsiteName,
   agentPhone,
   agentLicense,
   adminPublicId,
@@ -266,6 +267,7 @@ export function PublicProfileEditor({
   isOwn: boolean;
   canCreate: boolean;
   agentName: string;
+  expectedWebsiteName?: string;
   agentPhone: string | null;
   agentLicense: string | null;
   /** When set, the admin console is editing this advisor by PUBLIC agent id
@@ -490,9 +492,10 @@ export function PublicProfileEditor({
       <Card className="flex flex-col">
         <CardHeader title={t.identity} subtitle={t.identityHint} />
         <div className="grid gap-4 p-5 sm:grid-cols-3">
-          <Field label={t.name}>
-            <Input value={agentName || p.name || ""} readOnly disabled />
+          <Field label={locale === "zh" ? "官网当前姓名" : "Current website name"}>
+            <Input value={p.name || ""} readOnly disabled />
           </Field>
+          {expectedWebsiteName && expectedWebsiteName !== p.name && <p role="status" className="text-xs text-amber-800 sm:col-span-3">{locale === "zh" ? "官网姓名尚未同步。应显示：" : "Website name is not synchronized. Expected: "}{expectedWebsiteName}{locale === "zh" ? "。请在我的档案重新保存，或联系管理员同步。" : ". Save your profile again or ask the office to retry synchronization."}</p>}
           <Field label={t.phone}>
             <Input value={agentPhone || p.phone || ""} readOnly disabled />
           </Field>

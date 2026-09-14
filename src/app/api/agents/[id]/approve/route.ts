@@ -307,10 +307,11 @@ export async function POST(
     selectedProfile = selected.profile;
   }
 
-  // An existing company profile is better identity evidence than an
-  // unreviewed Google display name. Preserve admin-entered phone/license when
-  // present, otherwise seed them from the selected public profile.
-  const name = selectedProfile?.name?.trim() || existing.name;
+  // Preserve admin-entered phone/license when present, otherwise seed them
+  // from the explicitly selected public profile.
+  // Linking a website record must not replace the agent's Preferred name
+  // with a legacy/combined website title.
+  const name = existing.name;
   const phone = existing.phone || selectedProfile?.phone || null;
   const licenseNumber =
     existing.licenseNumber || selectedProfile?.license_number || null;
@@ -413,6 +414,7 @@ export async function POST(
       publicId: selectedProfile.id,
       agentId: agent.id,
       name: agent.name,
+      legalName: agent.legalName,
       phone: agent.phone,
       license: agent.licenseNumber,
     });
@@ -447,6 +449,7 @@ export async function POST(
       publicResult = await publishPublicProfile({
         agentId: agent.id,
         name: agent.name,
+        legalName: agent.legalName,
         email: agent.email,
         phone: agent.phone,
         license: agent.licenseNumber,
@@ -458,6 +461,7 @@ export async function POST(
     ? await syncPublicAgentProfile({
         agentId: agent.id,
         name: agent.name,
+        legalName: agent.legalName,
         phone: agent.phone,
         licenseNumber: agent.licenseNumber,
       })
