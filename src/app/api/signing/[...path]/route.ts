@@ -1,8 +1,14 @@
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { agents } from "@/db/schema";
+import { agents, settings } from "@/db/schema";
+import { COMPANY_LICENSE_KEYS } from "@/lib/company-settings";
 import { bindSigningAgentNames } from "@/lib/signing-agent-names";
+import {
+  bindSigningCompany,
+  signingCompanyIdentity,
+  signingPackageCompanies,
+} from "@/lib/signing-company-identity";
 import { requireActiveAgentApi } from "@/lib/auth-guards";
 import {
   signingActor,
@@ -21,6 +27,21 @@ import {
 export const maxDuration = 180;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 type Context = { params: Promise<{ path: string[] }> };
+const identityColumns = {
+  legalName: agents.legalName,
+  email: agents.email,
+  licensedCompanyId: agents.licensedCompanyId,
+  licensedCompany: agents.licensedCompany,
+  licenseNumber: agents.licenseNumber,
+  phone: agents.phone,
+};
+async function companySettings() {
+  const rows = await db
+    .select()
+    .from(settings)
+    .where(inArray(settings.key, [...COMPANY_LICENSE_KEYS]));
+  return Object.fromEntries(rows.map((row) => [row.key, row.value]));
+}
 export async function GET(request: Request, context: Context) {
   const auth = await requireActiveAgentApi();
   if ("error" in auth) return auth.error;
@@ -29,7 +50,14 @@ export async function GET(request: Request, context: Context) {
       actor = await signingActor(),
       query = new URL(request.url).searchParams;
     if (path.join("/") === "packages") {
-      const [identity] = await db.select({ legalName: agents.legalName, email: agents.email }).from(agents).where(eq(agents.id, actor.agentId)).limit(1);
+      const [agent] = await db
+        .select(identityColumns)
+        .from(agents)
+        .where(eq(agents.id, actor.agentId))
+        .limit(1);
+      const identity = agent
+        ? signingCompanyIdentity(agent, await companySettings())
+        : null;
       const result = await signingBridgeJson(
         "/v1/packages",
         actor,
@@ -38,7 +66,12 @@ export async function GET(request: Request, context: Context) {
       return Response.json({
         agentIdentity: identity || null,
         items: result.items.filter(
-          (p) => p.scenario === "buyer" || p.scenario === "seller",
+          (p) =>
+            (p.scenario === "buyer" || p.scenario === "seller") &&
+            Boolean(
+              identity?.companyKey &&
+              signingPackageCompanies(p).includes(identity.companyKey),
+            ),
         ),
       });
     }
@@ -157,18 +190,39 @@ export async function POST(request: Request, context: Context) {
       const input = z
         .object({
           scenario: z.enum(["buyer", "seller"]),
-          companyKey: z.enum(["homix_realty", "homix_living"]),
+          companyKey: z.enum(["homix_realty", "homix_living"]).optional(),
         })
         .passthrough()
         .parse(raw);
-      if (!actor.allowedCompanyKeys.includes(input.companyKey))
-        throw new SigningBridgeError("COMPANY_ACCESS_DENIED", 403);
-      const catalog = await signingBridgeJson("/v1/packages", actor, z.object({ items: z.array(signingPackageSchema) }));
-      const published = catalog.items.find((p) => p.id === input.packageId && p.scenario === input.scenario && p.company_key === input.companyKey);
-      if (!published) throw new SigningBridgeError("PACKAGE_RETIRED", 409);
-      const [agent] = await db.select({ legalName: agents.legalName }).from(agents).where(eq(agents.id, actor.agentId)).limit(1);
+      const [agent] = await db
+        .select(identityColumns)
+        .from(agents)
+        .where(eq(agents.id, actor.agentId))
+        .limit(1);
       if (!agent) throw new SigningBridgeError("AGENT_NOT_FOUND", 404);
-      const canonical = bindSigningAgentNames(input, published, agent);
+      const identity = signingCompanyIdentity(agent, await companySettings());
+      if (
+        !identity.companyKey ||
+        !actor.allowedCompanyKeys.includes(identity.companyKey) ||
+        (input.companyKey && input.companyKey !== identity.companyKey)
+      )
+        throw new SigningBridgeError("COMPANY_ACCESS_DENIED", 403);
+      const catalog = await signingBridgeJson(
+        "/v1/packages",
+        actor,
+        z.object({ items: z.array(signingPackageSchema) }),
+      );
+      const published = catalog.items.find(
+        (p) =>
+          p.id === input.packageId &&
+          p.scenario === input.scenario &&
+          signingPackageCompanies(p).includes(identity.companyKey!),
+      );
+      if (!published) throw new SigningBridgeError("PACKAGE_RETIRED", 409);
+      const canonical = bindSigningCompany(
+        bindSigningAgentNames(input, published, agent),
+        identity,
+      );
       return Response.json(
         await signingBridgeJson(
           `/v1/${path.join("/")}`,

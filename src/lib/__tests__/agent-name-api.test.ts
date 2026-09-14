@@ -29,7 +29,8 @@ test("package API binds server legal identity despite spoofed names and owner id
     if (sql.includes('"is_admin", "account_status"')) return { rows: [[false, "active"]] };
     if (sql.includes("portal.agent_email_addresses")) return { rows: [{ email: "agent@example.invalid" }] };
     if (sql.includes("SELECT licensed_company_id")) return { rows: [{ licensed_company_id: "homix_realty", licensed_company: "Homix Realty Inc." }] };
-    if (sql.includes('select "legal_name", "email"')) return { rows: [[legalName, "agent@example.invalid"]] };
+    if (sql.includes('select "legal_name", "email"')) return { rows: [[legalName, "agent@example.invalid", "homix_realty", "Homix Realty Inc.", "TEST-LICENSE", "TEST-PHONE"]] };
+    if (sql.includes('"portal"."settings"')) return { rows: [["homix_realty_broker_license", "10990000001"]] };
     if (sql.includes('select "legal_name"')) return { rows: [[legalName]] };
     throw new Error(`Unexpected offline query: ${sql}`);
   });
@@ -57,7 +58,7 @@ test("package API binds server legal identity despite spoofed names and owner id
   const request = (origin = "http://localhost") => new Request("http://localhost/api/signing/packages/preview", { method: "POST", headers: { origin, "content-type": "application/json" }, body: JSON.stringify(payload) });
   const catalog = await responseOf(GET(new Request("http://localhost/api/signing/packages"), { params: Promise.resolve({ path: ["packages"] }) }));
   assert.equal(catalog.status, 200);
-  assert.deepEqual((await catalog.json()).agentIdentity, { legalName: "Jiaer Xia", email: "agent@example.invalid" });
+  assert.deepEqual((await catalog.json()).agentIdentity, { legalName: "Jiaer Xia", email: "agent@example.invalid", companyKey: "homix_realty", companyName: "Homix Realty Inc.", brokerLicense: "10990000001", agentLicense: "TEST-LICENSE", agentPhone: "TEST-PHONE" });
   assert.equal((await responseOf(POST(request(), context))).status, 200);
   assert.equal(posted[0].ownerAgentId, 101);
   assert.equal((posted[0].values as Record<string, string>).agent_name, "Jiaer Xia");

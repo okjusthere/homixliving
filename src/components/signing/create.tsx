@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import { X } from "lucide-react";
 import { useLocale } from "@/lib/i18n-client";
 import type { SigningPackage, SigningRequest } from "@/lib/signing-contract";
+import type { SigningCompanyIdentity } from "@/lib/signing-company-identity";
 import {
   errorText,
   SigningFetchError,
@@ -42,9 +43,9 @@ export function SigningCreate({
   const storageKey = `homix-signing-create:${mode}:${predecessor}`;
   const [reissueReason, setReissueReason] = useState("");
   const [packages, setPackages] = useState<SigningPackage[]>([]);
-  const [agentIdentity, setAgentIdentity] = useState<{ legalName: string | null; email: string } | null>(null);
+  const [agentIdentity, setAgentIdentity] =
+    useState<SigningCompanyIdentity | null>(null);
   const [packageId, setPackageId] = useState("");
-  const [count, setCount] = useState("");
   const [title, setTitle] = useState("");
   const [property, setProperty] = useState("");
   const [recipients, setRecipients] = useState<
@@ -58,15 +59,19 @@ export function SigningCreate({
     null,
   );
   const selected = packages.find((item) => item.id === packageId);
-  const roles = packageRoles(selected);
-  const clients = roles.filter((role) => role.actor === "customer");
-  const counts = [...new Set(packages.map(clientCount))].sort((a, b) => a - b);
-  const visiblePackages = packages.filter(
-    (item) => !count || String(clientCount(item)) === count,
+  const allRoles = packageRoles(selected);
+  const roles = allRoles.filter(
+    (role) => !role.optional || Object.hasOwn(recipients, role.key),
   );
+  const clients = roles.filter((role) => role.actor === "customer");
+  const activeRoleKeys = new Set(roles.map((role) => role.key));
   const owner = roles.find((role) => role.actor === "owner");
   const autoValues: Record<string, string> = {
     property_address: property,
+    company_name: agentIdentity?.companyName || "",
+    broker_license: agentIdentity?.brokerLicense || "",
+    agent_license: agentIdentity?.agentLicense || "",
+    agent_phone: agentIdentity?.agentPhone || "",
     customer_name: recipients[clients[0]?.key]?.name || "",
     customer_1_name: recipients[clients[0]?.key]?.name || "",
     customer_1_email: recipients[clients[0]?.key]?.email || "",
@@ -82,11 +87,13 @@ export function SigningCreate({
     SigningPackage["definition"][number]["prefill"][number]
   >();
   for (const field of selected?.definition.flatMap((part) => part.prefill) ||
-    [])
+    []) {
+    if (field.recipientKey && !activeRoleKeys.has(field.recipientKey)) continue;
     merged.set(field.key, {
       ...field,
       required: field.required || Boolean(merged.get(field.key)?.required),
     });
+  }
   const fields = [...merged.values()];
   const autoFields = fields.filter(
     (field) =>
@@ -99,7 +106,10 @@ export function SigningCreate({
 
   useEffect(() => {
     let live = true;
-    signingFetch<{ items: SigningPackage[]; agentIdentity: { legalName: string | null; email: string } | null }>("packages")
+    signingFetch<{
+      items: SigningPackage[];
+      agentIdentity: SigningCompanyIdentity | null;
+    }>("packages")
       .then(async (data) => {
         if (!live) return;
         setAgentIdentity(data.agentIdentity);
@@ -158,6 +168,7 @@ export function SigningCreate({
     setTitle(item?.title || "");
     const next: typeof recipients = {};
     for (const role of packageRoles(item)) {
+      if (role.optional && !(predecessor && recipients[role.key])) continue;
       next[role.key] =
         predecessor && recipients[role.key] && role.actor !== "company"
           ? recipients[role.key]
@@ -185,7 +196,7 @@ export function SigningCreate({
         title,
         scenario: mode,
         packageId: selected!.id,
-        companyKey: selected!.company_key,
+        companyKey: agentIdentity?.companyKey,
         idempotencyKey: id,
         externalReference: `workspace:${id}`,
         ...(predecessor
@@ -258,7 +269,19 @@ export function SigningCreate({
           {error}
         </p>
       )}
-      {!loading && !agentIdentity?.legalName && <p role="alert" className="mb-4 rounded-md bg-amber-50 p-3 text-sm text-amber-900">{zh ? "请先在个人档案补齐 Legal name，再准备协议；如已签署过协议，请联系管理员核对。" : "Complete your Legal name in My profile before preparing an agreement. Contact the office for an existing signed identity."} <a href="/profile" className="underline">{zh ? "个人档案" : "My profile"}</a></p>}
+      {!loading && !agentIdentity?.legalName && (
+        <p
+          role="alert"
+          className="mb-4 rounded-md bg-amber-50 p-3 text-sm text-amber-900"
+        >
+          {zh
+            ? "请先在个人档案补齐 Legal name，再准备协议；如已签署过协议，请联系管理员核对。"
+            : "Complete your Legal name in My profile before preparing an agreement. Contact the office for an existing signed identity."}{" "}
+          <a href="/profile" className="underline">
+            {zh ? "个人档案" : "My profile"}
+          </a>
+        </p>
+      )}
       {loading ? (
         <p aria-busy="true">
           {zh ? "读取公司签署包…" : "Loading company packages…"}
@@ -297,28 +320,6 @@ export function SigningCreate({
           >
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="text-sm">
-                {zh ? "客户人数" : "Number of clients"}
-                <select
-                  className={signingInput}
-                  value={count}
-                  onChange={(event) => {
-                    setCount(event.target.value);
-                    choosePackage("");
-                  }}
-                >
-                  <option value="">
-                    {zh ? "查看所有人数" : "All party sizes"}
-                  </option>
-                  {counts.map((number) => (
-                    <option key={number} value={number}>
-                      {zh
-                        ? `${number} 位客户`
-                        : `${number} client${number === 1 ? "" : "s"}`}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="text-sm">
                 {zh ? "公司文件包" : "Company package"}
                 <select
                   required
@@ -329,9 +330,12 @@ export function SigningCreate({
                   <option value="">
                     {zh ? "选择适用的文件包" : "Choose a package"}
                   </option>
-                  {visiblePackages.map((item) => (
+                  {packages.map((item) => (
                     <option key={item.id} value={item.id}>
-                      {item.title} · {clientCount(item)}{" "}
+                      {item.title} ·{" "}
+                      {packageRoles(item).some((role) => role.optional)
+                        ? `${packageRoles(item).filter((role) => role.actor === "customer" && !role.optional).length}–${clientCount(item)}`
+                        : clientCount(item)}{" "}
                       {zh ? "位客户" : "clients"} · v{item.version}
                     </option>
                   ))}
@@ -339,6 +343,13 @@ export function SigningCreate({
               </label>
               {selected && (
                 <>
+                  <p className="text-sm text-ink-50 sm:col-span-2">
+                    {zh ? "所属公司：" : "Company: "}
+                    {agentIdentity?.companyName ||
+                      (zh
+                        ? "请先在个人档案完善所属公司"
+                        : "Complete your company in My profile")}
+                  </p>
                   <label className="text-sm">
                     {zh ? "任务名称" : "Request title"}
                     <input
@@ -374,15 +385,42 @@ export function SigningCreate({
                     key={role.key}
                     className="grid gap-3 rounded-md bg-paper p-3 sm:grid-cols-[9rem_1fr_1fr]"
                   >
-                    <p className="self-center text-sm">{role.label}</p>
+                    <div className="self-center text-sm">
+                      {role.label}
+                      {role.optional && (
+                        <button
+                          type="button"
+                          className="ml-2 text-sm underline"
+                          onClick={() =>
+                            setRecipients((current) => {
+                              const next = { ...current };
+                              delete next[role.key];
+                              return next;
+                            })
+                          }
+                        >
+                          {zh ? "移除" : "Remove"}
+                        </button>
+                      )}
+                    </div>
                     <label className="text-xs">
-                      {role.actor === "owner" ? "Legal name" : zh ? "姓名" : "Full name"}
+                      {role.actor === "owner"
+                        ? "Legal name"
+                        : zh
+                          ? "姓名"
+                          : "Full name"}
                       <input
                         required
                         maxLength={200}
-                        readOnly={role.actor === "company" || role.actor === "owner"}
+                        readOnly={
+                          role.actor === "company" || role.actor === "owner"
+                        }
                         className={signingInput}
-                        value={role.actor === "owner" ? agentIdentity?.legalName || "" : recipients[role.key]?.name || ""}
+                        value={
+                          role.actor === "owner"
+                            ? agentIdentity?.legalName || ""
+                            : recipients[role.key]?.name || ""
+                        }
                         onChange={(event) =>
                           setRecipients({
                             ...recipients,
@@ -416,6 +454,26 @@ export function SigningCreate({
                     </label>
                   </div>
                 ))}
+                {allRoles
+                  .filter(
+                    (role) =>
+                      role.optional && !Object.hasOwn(recipients, role.key),
+                  )
+                  .map((role) => (
+                    <button
+                      key={role.key}
+                      type="button"
+                      className={signingButton}
+                      onClick={() =>
+                        setRecipients((current) => ({
+                          ...current,
+                          [role.key]: { name: "", email: "" },
+                        }))
+                      }
+                    >
+                      {zh ? `添加${role.label}` : `Add ${role.label}`}
+                    </button>
+                  ))}
                 <p className="text-xs text-ink-50">
                   {zh
                     ? "每位客户用自己的姓名签署。公司持有文件，不代表公司必须签字；签署角色由本文件包决定。"
@@ -500,7 +558,12 @@ export function SigningCreate({
           </fieldset>
           <button
             type="submit"
-            disabled={busy || !agentIdentity?.legalName || (!selected && !submitted)}
+            disabled={
+              busy ||
+              !agentIdentity?.legalName ||
+              !agentIdentity?.companyKey ||
+              (!selected && !submitted)
+            }
             className={`${signingButton} !bg-homix-accent !text-white`}
           >
             {busy
