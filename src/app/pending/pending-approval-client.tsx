@@ -21,14 +21,14 @@ const M = {
     checking: "Checking…",
     signOut: "Sign out",
     setupTitle: "Complete your setup",
-    setupHint: "Choose the facts once. Homix will apply the agreed commission rules after activation.",
+    setupHint: "Your saved details are filled in below. Only complete missing information, confirm what applies to you, then review and sign.",
     track: "Development track",
     solo: "Solo · 85/15 · $12K cap",
     soloPro: "Solo Pro · 100% · $3,650/year",
     teamMember: "Team Member · 90/10 · $10K Homix cap",
     team: "Team",
     selectTeam: "Select your team",
-    sponsor: "Sponsor / who introduced you",
+    sponsor: "Sponsor / who introduced you (optional)",
     noSponsor: "No sponsor",
     term: "Affiliation term",
     oneYear: "$288 · 1 year",
@@ -78,7 +78,7 @@ const M = {
     agreementPreparing: "Preparing your approved agreement…",
     agreementSent: "Agreement sent. Open the secure link in your email, then return here.",
     agreementCompleted: "Agreement signed",
-    agentSignatureCompleted: "Your signature is complete. Company countersign can continue while you pay.",
+    agentSignatureCompleted: "Your signature is complete. The signing invitation is handed off automatically to hr@homixny.com; no manual reminder is needed. Company countersign can continue while payment is handled.",
     agreementUnavailable: "eSign is not configured yet. An administrator can continue the current manual process.",
     payAnnualFee: "Pay affiliation fee",
     paymentReceived: "Payment received",
@@ -101,14 +101,14 @@ const M = {
     checking: "正在检查…",
     signOut: "退出登录",
     setupTitle: "完成入职选择",
-    setupHint: "资料只需填写一次；开通后系统会应用已确认的分佣、封顶和团队规则。",
+    setupHint: "已保存的资料会自动带入。只需补充缺失资料、确认适用于你的选项，然后阅读签署。",
     track: "发展路径",
     solo: "独立经纪人 · 85/15 · $12K 封顶",
     soloPro: "独立经纪人 Pro · 100% · $3,650/年",
     teamMember: "团队成员 · 90/10 · Homix $10K 封顶",
     team: "所属团队",
     selectTeam: "请选择团队",
-    sponsor: "Sponsor / 介绍人",
+    sponsor: "Sponsor / 介绍人（选填）",
     noSponsor: "无 Sponsor",
     term: "挂靠期限",
     oneYear: "$288 · 1 年",
@@ -158,7 +158,7 @@ const M = {
     agreementPreparing: "正在生成已审核版本的协议…",
     agreementSent: "协议已发送，请打开邮箱中的安全链接签署，然后返回本页。",
     agreementCompleted: "协议已签署",
-    agentSignatureCompleted: "你已完成签署；公司会签可继续进行，现在即可付款。",
+    agentSignatureCompleted: "你已完成签署，签署邀请会自动交给 hr@homixny.com，无需手动提醒。公司会签与费用处理可继续进行。",
     agreementUnavailable: "eSign 尚未配置，管理员仍可按现有人工流程处理。",
     payAnnualFee: "支付挂靠费用",
     paymentReceived: "费用已支付",
@@ -213,6 +213,7 @@ export function PendingApprovalClient({
   const router = useRouter();
   const { data: session, status, update } = useSession();
   const [setupLoading, setSetupLoading] = useState(accountStatus === "pending");
+  const [portalAgentId, setPortalAgentId] = useState<number | null>(null);
   const [setupSaving, setSetupSaving] = useState(false);
   const [setupComplete, setSetupComplete] = useState(false);
   const [showSubmittedSetup, setShowSubmittedSetup] = useState(false);
@@ -270,6 +271,7 @@ export function PendingApprovalClient({
       const response = await fetch("/api/onboarding/profile", { cache: "no-store" });
       if (!response.ok) throw new Error();
       const data = await response.json();
+      setPortalAgentId(data.profile?.id ?? null);
       const request = (data.teamJoinRequest || null) as TeamJoinRequest | null;
       setTeamJoinRequest(request);
       setSetupComplete(Boolean(data.profile?.onboardingCompletedAt));
@@ -653,6 +655,7 @@ export function PendingApprovalClient({
             <div className="mt-5 min-w-0 rounded-none border-0 bg-transparent p-0 text-left sm:mt-6 sm:rounded-xl sm:border sm:border-line sm:bg-paper sm:p-5">
               <h2 className="font-serif text-[22px]" style={{ color: tone.ink }}>{setupComplete ? (lang === "zh" ? "入职资料已提交" : "Details submitted") : t.setupTitle}</h2>
               <p className="mt-1 text-[12px]" style={{ color: tone.ink50 }}>{setupComplete ? `${preferredName || session?.user.name || ""} · ${selectedCompany?.legalName || licensedCompany}` : t.setupHint}</p>
+              {portalAgentId && <p className="mt-2 text-xs text-ink-50">{lang === "zh" ? `Portal 编号 #${portalAgentId} 由系统带入，无需填写；姓名、执照和联系方式会用于待签文件。` : `Portal ID #${portalAgentId} is supplied by the system. Saved legal name, license and contact details carry into your signing documents.`}</p>}
               {setupComplete && <button type="button" className="mt-3 text-sm underline underline-offset-4" aria-expanded={showSubmittedSetup} aria-controls="pending-submitted-details" onClick={() => setShowSubmittedSetup(!showSubmittedSetup)}>{showSubmittedSetup ? (lang === "zh" ? "收起资料" : "Hide details") : (lang === "zh" ? "查看已提交资料" : "Review submitted details")}</button>}
               {(routingLocks.plan || routingLocks.team || routingLocks.sponsor || routingLocks.term || routingLocks.company) && (
                 <p className="mt-3 rounded-lg px-3 py-2 text-[12px]" style={{ background: tone.paperDeep, color: tone.green }}>

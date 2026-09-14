@@ -1,5 +1,6 @@
 import type { Agent } from "@/db/schema";
 import { onboardingAgreementAllowsPayment } from "@/lib/onboarding";
+import { fullyWaivedOnboarding } from "@/lib/onboarding-fees";
 import { verifiedManualContract, type ManualContractBasis } from "@/lib/onboarding-requirements";
 
 export function onboardingWorkflow(
@@ -16,7 +17,7 @@ export function onboardingWorkflow(
     | "teamId"
     | "teamTermsConfigId"
     | "teamTermsAcceptedAt"
-  > & ManualContractBasis,
+  > & ManualContractBasis & Partial<Pick<Agent, "affiliationTermMonths" | "licensedCompanyId" | "onboardingFeeAdjustment">>,
   paymentChannel: string | null,
   pendingTeam = false,
 ) {
@@ -37,13 +38,14 @@ export function onboardingWorkflow(
   );
   // Recording money never asserts eligibility, creates benefits or activates.
   const canRecordPayment = true;
-  const canApprove =
+  const canComplete =
     agent.accountStatus === "pending" &&
     profileReady &&
     signed &&
-    teamReady &&
-    agent.paymentStatus === "paid" &&
-    paymentChannel === "offline";
+    teamReady;
+  const waived = fullyWaivedOnboarding(agent);
+  const canApprove = canComplete && (waived ||
+    (agent.paymentStatus === "paid" && paymentChannel === "offline"));
   const next: keyof typeof ONBOARDING_NEXT =
     agent.accountStatus === "inactive"
       ? "inactive"
@@ -63,7 +65,9 @@ export function onboardingWorkflow(
                 : "signature"
               : !teamReady
                 ? "team"
-                : agent.paymentStatus !== "paid"
+                : waived
+                  ? "approval"
+                  : agent.paymentStatus !== "paid"
                   ? "payment"
                   : paymentChannel === "offline"
                     ? "approval"
@@ -76,6 +80,7 @@ export function onboardingWorkflow(
     teamReady,
     countersignPending,
     canRecordPayment,
+    canComplete,
     canApprove,
     next,
   };

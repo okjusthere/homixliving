@@ -10,6 +10,7 @@ import {
   type OnboardingTaskSummary,
 } from "@/lib/onboarding-tasks";
 import { OnboardingPanel } from "@/components/admin/onboarding-panel";
+import { onboardingActionError, parseMoneyCents, receiptMissingReasons } from "@/components/admin/onboarding-completion";
 import { onboardingWorkflow, ONBOARDING_NEXT } from "@/lib/onboarding-workflow";
 import { AgentEmailsPanel } from "@/components/admin/agent-emails-panel";
 import { matchesAgentSearch, paginate } from "@/lib/agent-list";
@@ -434,9 +435,13 @@ export default function AgentsConsole() {
   const [offlineReference, setOfflineReference] = useState("");
   const [offlineDate, setOfflineDate] = useState(() => nyDate());
   const [offlineAmount, setOfflineAmount] = useState("");
-  const [offlineKey, setOfflineKey] = useState("");
+  const [offlineConfirmed, setOfflineConfirmed] = useState(false);
   const [offlineSaving, setOfflineSaving] = useState(false);
-  const offlineSignatureRef = useRef<string | null>(null);
+  const offlineRequestKeys = useRef(new Map<string, string>());
+  const offlineSubmitting = useRef(false);
+  const offlineMissingReasons = receiptMissingReasons({ amount: offlineAmount, method: offlineMethod, reference: offlineReference, receivedAt: offlineDate }, locale === "zh");
+  if (!offlineConfirmed) offlineMissingReasons.push(locale === "zh" ? "请确认款项已实际到账。" : "Confirm that the money was actually received.");
+  if (offlineSaving) offlineMissingReasons.unshift(locale === "zh" ? "正在登记，请稍候。" : "Recording the receipt; please wait.");
 
   const fetchPublic = () => {
     setPublicRosterLoading(true);
@@ -654,6 +659,7 @@ export default function AgentsConsole() {
       fetchAgents();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t.couldNotApprove);
+      throw error;
     }
   };
 
@@ -663,36 +669,30 @@ export default function AgentsConsole() {
     setOfflineReference("");
     setOfflineDate(nyDate());
     setOfflineAmount("");
-    setOfflineKey(crypto.randomUUID());
-    offlineSignatureRef.current = null;
+    setOfflineConfirmed(false);
+    offlineRequestKeys.current.clear();
   };
 
   const recordOfflinePayment = async () => {
-    if (!offlineAgent) return;
+    if (!offlineAgent || offlineMissingReasons.length || offlineSubmitting.current) return;
+    offlineSubmitting.current = true;
     setOfflineSaving(true);
     try {
-      const signature = JSON.stringify({
+      const payload = {
         agentId: offlineAgent.id,
         method: offlineMethod,
-        reference: offlineReference,
+        reference: offlineReference.trim(),
         receivedAt: offlineDate,
-        amount: offlineAmount,
-      });
-      const idempotencyKey =
-        offlineSignatureRef.current === signature
-          ? offlineKey
-          : crypto.randomUUID();
-      if (idempotencyKey !== offlineKey) setOfflineKey(idempotencyKey);
-      offlineSignatureRef.current = signature;
+        amountCents: parseMoneyCents(offlineAmount)!,
+      };
+      const signature = JSON.stringify(payload);
+      const idempotencyKey = offlineRequestKeys.current.get(signature) ?? crypto.randomUUID();
+      offlineRequestKeys.current.set(signature, idempotencyKey);
       const res = await fetch("/api/onboarding/payments/offline", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          agentId: offlineAgent.id,
-          method: offlineMethod,
-          reference: offlineReference,
-          receivedAt: offlineDate,
-          amountCents: Math.round(Number(offlineAmount) * 100),
+          ...payload,
           idempotencyKey,
         }),
       });
@@ -703,8 +703,9 @@ export default function AgentsConsole() {
       setOfflineAgent(null);
       fetchAgents();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t.saveFailed);
+      toast.error(onboardingActionError(error, locale === "zh"));
     } finally {
+      offlineSubmitting.current = false;
       setOfflineSaving(false);
     }
   };
@@ -1076,6 +1077,9 @@ export default function AgentsConsole() {
                         >
                           {agent.name}
                         </div>
+                        <p className="mt-1 text-xs font-medium" style={{ color: agent.accountStatus === "active" ? tone.accent : tone.amber }}>
+                          {agent.accountStatus === "active" ? (locale === "zh" ? "已开通 · 待办跟进" : "Active · follow-up tasks") : agent.accountStatus === "pending" ? (locale === "zh" ? "待开通" : "Not yet activated") : (locale === "zh" ? "账号已停用 · 待办保留" : "Inactive · tasks retained")}
+                        </p>
                         <div
                           className="text-[12px] mt-0.5 font-mono"
                           style={{ color: tone.ink50 }}
@@ -1149,7 +1153,7 @@ export default function AgentsConsole() {
                             updateQuery({ onboarding: String(agent.id) })
                           }
                         >
-                          {locale === "zh" ? "处理入职" : "Manage onboarding"}
+                          {agent.accountStatus === "active" ? (locale === "zh" ? "处理剩余待办" : "Manage remaining tasks") : (locale === "zh" ? "处理入职" : "Manage onboarding")}
                         </Btn>
                       </div>
                     </div>
@@ -1300,7 +1304,7 @@ export default function AgentsConsole() {
                             {agent.accountStatus === "inactive" && (
                               <button
                                 className="row-action"
-                                onClick={() => void handleApprove(agent.id)}
+                                onClick={() => void handleApprove(agent.id).catch(() => {})}
                               >
                                 {t.reactivate}
                               </button>
@@ -1377,19 +1381,16 @@ export default function AgentsConsole() {
           saving={offlineSaving}
           dirty={Boolean(offlineReference || offlineAmount)}
           footer={
+            <div className="space-y-2">
             <Btn
               variant="primary"
               onClick={() => void recordOfflinePayment()}
-              disabled={
-                offlineSaving ||
-                offlineReference.trim().length < 3 ||
-                !offlineDate || offlineDate > nyDate() || Number(offlineAmount) > 1000000 ||
-                !/^\d+(\.\d{1,2})?$/.test(offlineAmount) ||
-                Number(offlineAmount) <= 0
-              }
+              disabled={offlineMissingReasons.length > 0}
             >
               {offlineSaving ? t.saving : t.offlineSave}
             </Btn>
+              {offlineMissingReasons.length > 0 && <ul className="space-y-1 text-xs text-stone-600" aria-live="polite">{offlineMissingReasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>}
+            </div>
           }
         >
           <p className="mb-5 text-sm text-stone-600">{t.offlineLead}</p>
@@ -1402,7 +1403,7 @@ export default function AgentsConsole() {
               <select
                 className="admin-control mt-2 w-full"
                 value={offlineMethod}
-                onChange={(event) => setOfflineMethod(event.target.value)}
+                onChange={(event) => { setOfflineMethod(event.target.value); setOfflineConfirmed(false); }}
               >
                 <option value="check">
                   {locale === "zh" ? "支票" : "Check"}
@@ -1427,7 +1428,7 @@ export default function AgentsConsole() {
                 type="date"
                 max={nyDate()}
                 value={offlineDate}
-                onChange={(event) => setOfflineDate(event.target.value)}
+                onChange={(event) => { setOfflineDate(event.target.value); setOfflineConfirmed(false); }}
               />
             </label>
             <label className="text-sm">
@@ -1440,20 +1441,24 @@ export default function AgentsConsole() {
                 max="1000000"
                 step="0.01"
                 value={offlineAmount}
-                onChange={(event) => setOfflineAmount(event.target.value)}
+                onChange={(event) => { setOfflineAmount(event.target.value); setOfflineConfirmed(false); }}
                 placeholder="0.00"
               />
             </label>
             <label className="text-sm">
-              {t.offlineReference}
+              {t.offlineReference} {locale === "zh" ? "（现金可留空）" : "(optional for cash)"}
               <input
                 className="admin-control mt-2 w-full"
                 maxLength={120}
                 value={offlineReference}
-                onChange={(event) => setOfflineReference(event.target.value)}
+                onChange={(event) => { setOfflineReference(event.target.value); setOfflineConfirmed(false); }}
               />
             </label>
           </fieldset>
+          <label className="mt-4 flex items-start gap-2 text-sm">
+            <input className="mt-1" type="checkbox" checked={offlineConfirmed} disabled={offlineSaving} onChange={(event) => setOfflineConfirmed(event.target.checked)} />
+            {locale === "zh" ? "我确认公司已实际收到上述款项；不登记未到账或用于测试的款项。仅记录收款，不开通账号。" : "I confirm the company actually received this money. Do not record unpaid or test payments. This records a receipt only; it does not activate the account."}
+          </label>
         </EditPanel>
       )}
 
@@ -1507,6 +1512,7 @@ export default function AgentsConsole() {
                         </option>
                       ))}
                     </select>
+                    {publicRosterLoading && <p className="mt-1 text-xs text-stone-500">{locale === "zh" ? "正在读取可关联的官网档案。" : "Loading available website profiles."}</p>}
                   </label>
                 </div>
               }

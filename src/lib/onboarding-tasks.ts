@@ -21,6 +21,8 @@ export const TASK_LABELS = {
   expired: ["例外已到期", "Temporary access expired"],
   team: ["团队 / 条款待确认", "Team / terms due"],
   activation: ["付款后开通需检查", "Check paid activation"],
+  website: ["账号已开通 · 官网同步待重试", "Active · retry website sync"],
+  finance: ["Stripe 实收款待财务核对", "Stripe payment needs reconciliation"],
 } as const;
 export type OnboardingTaskKey = keyof typeof TASK_LABELS;
 export type OnboardingTaskSummary = {
@@ -36,12 +38,15 @@ export function onboardingTasks(
     contracts: Pick<OnboardingContract, "status">[];
     receipts: Pick<OnboardingReceipt, "status">[];
     grants: Pick<OnboardingAccessGrant, "status" | "expiresAt">[];
+    staleSettlements?: { id: number }[];
   },
   pendingTeam = false,
   now = Date.now(),
 ): OnboardingTaskSummary {
   const workflow = onboardingWorkflow(agent, channel, pendingTeam);
   const tasks = new Set<OnboardingTaskKey>();
+  if (records.staleSettlements?.length) tasks.add("finance");
+  if (agent.accountStatus === "active" && agent.onboardingWebsiteSync?.status === "pending") tasks.add("website");
   if (agent.accountStatus === "pending") {
     if (!workflow.profileReady) tasks.add("profile");
     if (!workflow.signed)
@@ -92,6 +97,7 @@ export function onboardingTasks(
     : [
           "contract_review",
           "receipt",
+          "finance",
           "offline",
           "issues",
           "activation",

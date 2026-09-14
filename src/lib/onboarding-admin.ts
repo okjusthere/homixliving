@@ -15,6 +15,7 @@ import {
   onboardingContracts,
   onboardingExistingStaff,
   onboardingReceipts,
+  type OnboardingReceipt,
 } from "@/db/onboarding-schema";
 import {
   lockAgentLedgers,
@@ -36,6 +37,9 @@ import {
   onboardingLicenseTransferFeeCents,
   settlePlanPayment,
 } from "@/lib/plan-payments";
+import { createOnboardingFeeAdjustment, fullyWaivedOnboarding, onboardingFeeQuote } from "@/lib/onboarding-fees";
+import { PLAN_SPLIT_PCT, normalizeAgentPlan } from "@/lib/agent-plans";
+import { getOnboardingStaleSettlements, onboardingCheckoutBlockReason } from "@/lib/onboarding-stripe-guard";
 
 export class OnboardingCommandError extends Error {
   constructor(
@@ -61,11 +65,37 @@ export const receiptInput = z
     amountCents: z.number().int().positive().max(100_000_000),
     currency: z.literal("usd").default("usd"),
     method: z.enum(["cash", "check", "ach", "zelle", "wire", "other"]),
-    reference: z.string().trim().min(3).max(120),
+    reference: z.string().trim().max(120).default(""),
     receivedAt: day,
     idempotencyKey: identifier,
   })
-  .strict();
+  .strict()
+  .refine((body) => body.method === "cash" || body.reference.length > 0,
+    { message: "Enter the payment reference", path: ["reference"] });
+const completionReceipt = z.object({
+  amountCents: z.number().int().positive().max(100_000_000),
+  currency: z.literal("usd").default("usd"),
+  method: z.enum(["cash", "check", "ach", "zelle", "wire", "other"]),
+  reference: z.string().trim().max(120).default(""),
+  receivedAt: day,
+}).strict();
+export const completionInput = z.object({
+  action: z.literal("complete_onboarding"),
+  idempotencyKey: identifier,
+  confirmed: z.literal(true),
+  mode: z.enum(["payment", "waiver", "verified"]),
+  waiverAmountCents: z.number().int().nonnegative().max(100_000_000).optional(),
+  reason: z.string().trim().max(2000).optional(),
+  receiptId: z.uuid().optional(),
+  receipt: completionReceipt.optional(),
+}).strict().superRefine((body, ctx) => {
+  if (body.mode === "payment" ? Number(Boolean(body.receiptId)) + Number(Boolean(body.receipt)) !== 1 : Boolean(body.receiptId || body.receipt))
+    ctx.addIssue({ code: "custom", message: "Choose exactly one actual receipt for payment, and none for a waiver" });
+  if ((body.mode === "waiver" || (body.waiverAmountCents ?? 0) > 0) && (body.reason?.length ?? 0) < 5)
+    ctx.addIssue({ code: "custom", message: "Explain the company fee reduction (at least 5 characters)", path: ["reason"] });
+  if (body.mode === "verified" && body.waiverAmountCents !== undefined)
+    ctx.addIssue({ code: "custom", message: "Existing payments cannot be changed during approval" });
+});
 export const adminCommand = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("review_contract"),
@@ -95,7 +125,7 @@ export const adminCommand = z.discriminatedUnion("action", [
     billingEvidence: reason,
     reason,
   }),
-  z.object({ action: z.literal("match_receipt"), receiptId: z.uuid(), reason }),
+  z.object({ action: z.literal("match_receipt"), receiptId: z.uuid(), reason: z.string().trim().max(2000).default("Administrator verified actual receipt against the onboarding fee") }),
   z.object({ action: z.literal("void_receipt"), receiptId: z.uuid(), reason }),
   z.object({
     action: z.literal("disposition"),
@@ -143,14 +173,19 @@ const hash = (value: unknown) =>
 
 export async function recordOnboardingReceipt(actorId: number, input: unknown) {
   const body = receiptInput.parse(input);
+  return db.transaction(async (tx) => {
+    await lockedSubject(tx, body.agentId, actorId);
+    return recordReceiptTx(tx, actorId, body);
+  });
+}
+
+async function recordReceiptTx(tx: DbTransaction, actorId: number, body: z.infer<typeof receiptInput>) {
   const requestHash = hash(body);
   const referenceKey = hash([
     body.currency,
     body.method,
-    body.reference.toLowerCase().replace(/\s+/g, " "),
+    body.reference ? body.reference.toLowerCase().replace(/\s+/g, " ") : `cash:${body.agentId}:${body.idempotencyKey}`,
   ]);
-  return db.transaction(async (tx) => {
-    await lockedSubject(tx, body.agentId, actorId);
     // Lock both keys across different agents as well as the per-agent ledger.
     for (const key of [body.idempotencyKey, referenceKey].sort())
       await tx.execute(
@@ -193,7 +228,6 @@ export async function recordOnboardingReceipt(actorId: number, input: unknown) {
       reference: receipt.reference,
     });
     return { receipt, replayed: false };
-  });
 }
 
 export async function runOnboardingCommand(
@@ -486,6 +520,8 @@ export async function runOnboardingCommand(
           throw new OnboardingCommandError(
             "The receipt is saved. Complete the profile, contract and team terms before matching the onboarding fee.",
           );
+        const checkoutBlock = await onboardingCheckoutBlockReason(tx, agentId);
+        if (checkoutBlock) throw new OnboardingCommandError(checkoutBlock);
         const [paidOrder] = await tx
           .select({ id: commerceOrders.id })
           .from(commerceOrders)
@@ -496,7 +532,7 @@ export async function runOnboardingCommand(
               sql`${commerceOrders.licenseTransferFeeCents} > 0`,
             ),
           );
-        if (agent.paymentStatus === "paid" || paidOrder)
+        if (agent.paymentStatus === "paid" || fullyWaivedOnboarding(agent) || paidOrder)
           throw new OnboardingCommandError(
             "The fee is already paid. Keep this additional receipt unmatched for finance reconciliation.",
           );
@@ -513,9 +549,10 @@ export async function runOnboardingCommand(
           agent,
           product.key,
         );
-        if (receipt.amountCents !== product.amountCents + transferFee)
+        const quote = onboardingFeeQuote(agent);
+        if (receipt.amountCents !== quote.dueAmountCents)
           throw new OnboardingCommandError(
-            `Receipt amount differs from the required fee (${product.amountCents + transferFee} cents). Keep it unmatched for reconciliation.`,
+            `Actual receipt must equal the remaining fee ($${(quote.dueAmountCents / 100).toFixed(2)}). Record an approved reduction instead of changing the actual amount.`,
           );
         const [order] = await tx
           .insert(commerceOrders)
@@ -525,7 +562,7 @@ export async function runOnboardingCommand(
             productName: product.name,
             billingMode: product.billingMode,
             amountCents: receipt.amountCents,
-            licenseTransferFeeCents: transferFee,
+            licenseTransferFeeCents: Math.min(transferFee, receipt.amountCents),
             currency: receipt.currency,
             status: "paid",
             paymentChannel: "offline",
@@ -546,7 +583,7 @@ export async function runOnboardingCommand(
           order,
           sourceKey: `receipt:${receipt.id}`,
           amountCents: receipt.amountCents,
-          rewardEligibleAmountCents: product.amountCents,
+          rewardEligibleAmountCents: Math.max(0, receipt.amountCents - transferFee),
           earnedAt: receipt.receivedAt,
         });
         await tx
@@ -602,7 +639,7 @@ export async function runOnboardingCommand(
 }
 
 export async function onboardingAdminRecords(agentId: number) {
-  const [contracts, receipts, grants, recognition] = await Promise.all([
+  const [contracts, receipts, grants, recognition, staleSettlements] = await Promise.all([
     db
       .select()
       .from(onboardingContracts)
@@ -622,6 +659,7 @@ export async function onboardingAdminRecords(agentId: number) {
       .select()
       .from(onboardingExistingStaff)
       .where(eq(onboardingExistingStaff.agentId, agentId)),
+    getOnboardingStaleSettlements([agentId]),
   ]);
   const [agent] = await db.select().from(agents).where(eq(agents.id, agentId));
   return {
@@ -630,6 +668,7 @@ export async function onboardingAdminRecords(agentId: number) {
       return contract;
     }),
     receipts,
+    staleSettlements,
     grants,
     recognition: recognition[0] || null,
     signingClosure: agent?.onboardingSigningClosure || null,
@@ -637,4 +676,120 @@ export async function onboardingAdminRecords(agentId: number) {
     agreementStatus: agent?.agreementStatus || "not_started",
     access: agent ? effectiveAccess(agent, grants) : null,
   };
+}
+
+/** A single transaction: actual receipt/reduction, settlement and account activation.
+ * External publication/notifications run only after commit in the API route. */
+export async function completeOnboarding(agentId: number, actorId: number, input: unknown) {
+  const body = completionInput.parse(input);
+  const requestHash = hash({ agentId, ...body });
+  return db.transaction(async (tx) => {
+    const locked = await lockedSubject(tx, agentId, actorId);
+    const actor = locked.actor;
+    let agent = locked.agent;
+    const [previous] = await tx.select({ detail: onboardingEvents.detail })
+      .from(onboardingEvents).where(and(eq(onboardingEvents.agentId, agentId),
+        eq(onboardingEvents.eventType, "onboarding_completed_by_admin"),
+        sql`${onboardingEvents.detail}->>'idempotencyKey' = ${body.idempotencyKey}`)).limit(1);
+    if (previous) {
+      if (previous.detail?.requestHash !== requestHash)
+        throw new OnboardingCommandError("This approval request was already used with different details");
+      return { success: true, replayed: true, orderId: previous.detail?.orderId as number | null };
+    }
+    if (agent.accountStatus !== "pending")
+      throw new OnboardingCommandError("This account is not pending. Refresh its current status before recording another payment.");
+    if (!agent.onboardingCompletedAt)
+      throw new OnboardingCommandError("Complete the person's profile first");
+    if (!onboardingAgreementAllowsPayment(agent))
+      throw new OnboardingCommandError("The agent has not signed the affiliation agreement.");
+    const [pendingTeam] = await tx.select({ id: teamJoinRequests.id }).from(teamJoinRequests)
+      .where(and(eq(teamJoinRequests.agentId, agentId), eq(teamJoinRequests.status, "pending"))).limit(1);
+    if (pendingTeam || (agent.plan === "team_member" && (!agent.teamId || !agent.teamTermsConfigId || !agent.teamTermsAcceptedAt)))
+      throw new OnboardingCommandError("Confirm team membership and compensation terms first");
+    const checkoutBlock = await onboardingCheckoutBlockReason(tx, agentId);
+    if (checkoutBlock) throw new OnboardingCommandError(checkoutBlock);
+    const now = new Date().toISOString();
+    const [paidOrder] = await tx.select().from(commerceOrders).where(and(
+      eq(commerceOrders.agentId, agentId), inArray(commerceOrders.status, ["paid", "active"]),
+      sql`${commerceOrders.licenseTransferFeeCents} > 0`,
+    )).orderBy(desc(commerceOrders.id)).limit(1);
+    let orderId: number | null = null;
+    if (body.mode === "verified") {
+      if (!fullyWaivedOnboarding(agent) && !(agent.paymentStatus === "paid" && paidOrder?.paymentChannel === "offline"))
+        throw new OnboardingCommandError("A verified offline receipt or an approved full waiver is required");
+      orderId = paidOrder?.id ?? null;
+    } else {
+      if (agent.paymentStatus === "paid" || paidOrder)
+        throw new OnboardingCommandError("The fee is already paid. Use the existing verified payment instead of recording another receipt.");
+      const quoteBefore = onboardingFeeQuote(agent);
+      const reduction = body.mode === "waiver" ? quoteBefore.originalAmountCents : body.waiverAmountCents ?? quoteBefore.waivedAmountCents;
+      if (body.mode === "waiver" && body.waiverAmountCents !== undefined && body.waiverAmountCents !== reduction)
+        throw new OnboardingCommandError("A full waiver must cover the entire onboarding fee");
+      if (reduction > 0) {
+        let adjustment;
+        try {
+          adjustment = createOnboardingFeeAdjustment(agent, reduction, body.reason || quoteBefore.adjustment?.reason || "", actorId, now);
+        } catch {
+          throw new OnboardingCommandError("Enter a valid fee reduction and the reason for approval", 400);
+        }
+        agent = { ...agent, onboardingFeeAdjustment: adjustment };
+        await tx.update(agents).set({ onboardingFeeAdjustment: adjustment, updatedAt: now }).where(eq(agents.id, agentId));
+        await event(tx, agentId, actorId, "onboarding_fee_reduced", adjustment);
+      } else if (agent.onboardingFeeAdjustment) {
+        throw new OnboardingCommandError("Review the saved fee reduction before replacing it");
+      }
+      const quote = onboardingFeeQuote(agent);
+      if (body.mode === "waiver") {
+        await tx.update(agents).set({ paymentStatus: "not_required", affiliationPaidAt: null }).where(eq(agents.id, agentId));
+      } else {
+        if (quote.dueAmountCents <= 0)
+          throw new OnboardingCommandError("No payment is due. Use full waiver without a receipt.");
+        let receipt: OnboardingReceipt | undefined;
+        if (body.receipt) {
+          receipt = (await recordReceiptTx(tx, actorId, receiptInput.parse({ ...body.receipt,
+            agentId, idempotencyKey: body.idempotencyKey }))).receipt;
+        } else {
+          [receipt] = await tx.select().from(onboardingReceipts).where(and(
+            eq(onboardingReceipts.id, body.receiptId!), eq(onboardingReceipts.agentId, agentId),
+          )).for("update");
+        }
+        if (!receipt || receipt.status !== "unmatched")
+          throw new OnboardingCommandError("Select an unmatched actual receipt belonging to this agent");
+        if (receipt.amountCents !== quote.dueAmountCents)
+          throw new OnboardingCommandError(`Actual receipt must equal the remaining fee ($${(quote.dueAmountCents / 100).toFixed(2)}). Record an approved reduction instead of changing the actual amount.`);
+        const product = getCommerceProduct(quote.productKey)!;
+        const transferFee = Math.min(onboardingLicenseTransferFeeCents(agent, product.key), receipt.amountCents);
+        const [order] = await tx.insert(commerceOrders).values({
+          agentId, productKey: product.key, productName: product.name, billingMode: product.billingMode,
+          amountCents: receipt.amountCents, licenseTransferFeeCents: transferFee,
+          currency: receipt.currency, status: "paid", paymentChannel: "offline",
+          offlineMethod: receipt.method, offlineReference: receipt.reference, verifiedByEmail: actor.email,
+          externalPaymentKey: `receipt:${receipt.id}`, customerName: agent.legalName || agent.name,
+          customerEmail: agent.email, referralHasAgent: agent.referredByAgentId ? "yes" : "no",
+          workspaceStatus: "not_required", paidAt: receipt.receivedAt, createdAt: now, updatedAt: now,
+        }).returning();
+        orderId = order.id;
+        await settlePlanPayment(tx, { order, sourceKey: `receipt:${receipt.id}`, amountCents: receipt.amountCents,
+          rewardEligibleAmountCents: Math.max(0, receipt.amountCents - transferFee), earnedAt: receipt.receivedAt });
+        await tx.update(onboardingReceipts).set({ status: "matched", orderId, matchedAt: now,
+          reason: body.reason || "Administrator confirmed actual receipt and onboarding eligibility" })
+          .where(eq(onboardingReceipts.id, receipt.id));
+      }
+    }
+    const [settled] = await tx.select().from(agents).where(eq(agents.id, agentId));
+    const plan = normalizeAgentPlan(settled.plan);
+    const start = settled.affiliationPaidAt || nyDate();
+    await tx.update(agents).set({ accountStatus: "active", onboardingStage: "complete", onboardingDisposition: null,
+      plan, splitPct: PLAN_SPLIT_PCT[plan], joinedAt: settled.joinedAt || start,
+      planEffectiveFrom: start, anniversaryStart: start,
+      teamTermsEffectiveFrom: plan === "team_member" ? start : null,
+      updatedAt: now }).where(eq(agents.id, agentId));
+    await tx.update(onboardingAccessGrants).set({ status: "completed", endedBy: actorId, endedAt: now })
+      .where(and(eq(onboardingAccessGrants.agentId, agentId), eq(onboardingAccessGrants.status, "open")));
+    await event(tx, agentId, actorId, "onboarding_completed_by_admin", {
+      idempotencyKey: body.idempotencyKey, requestHash, orderId, mode: body.mode,
+      reason: body.reason || "Administrator confirmed onboarding eligibility and actual payment",
+    });
+    return { success: true, replayed: false, orderId };
+  });
 }

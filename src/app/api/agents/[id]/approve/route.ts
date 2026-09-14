@@ -24,6 +24,9 @@ import {
 } from "@/lib/onboarding";
 import { syncOnboardingAgreement } from "@/lib/onboarding-agreement";
 import { syncPublicAgentProfile } from "@/lib/sync-public-profile";
+import { fullyWaivedOnboarding } from "@/lib/onboarding-fees";
+import { onboardingCheckoutBlockReason, OnboardingStripeConflict, verifyOnboardingCheckoutsClosed } from "@/lib/onboarding-stripe-guard";
+import { getStripe } from "@/lib/stripe";
 
 export async function POST(
   req: NextRequest,
@@ -73,6 +76,16 @@ export async function POST(
     );
   }
   if (existing.accountStatus === "pending") {
+    // Fresh provider proof only; never expire a live checkout, cancel a subscription or refund here.
+    // The locked guard below rechecks for a reservation created after this preflight.
+    try {
+      await verifyOnboardingCheckoutsClosed(parsedId, sessionId =>
+        getStripe().checkout.sessions.retrieve(sessionId, {}, { timeout: 5000, maxNetworkRetries: 0 }));
+    } catch (error) {
+      if (error instanceof OnboardingStripeConflict)
+        return NextResponse.json({ error: error.message }, { status: error.status });
+      throw error;
+    }
     if (existing.signingRequestId && !verifiedManualContract(existing)) {
       try {
         existing = await syncOnboardingAgreement(existing);
@@ -115,7 +128,7 @@ export async function POST(
         { status: 409 },
       );
     }
-    if (paymentRequired && existing.paymentStatus !== "paid") {
+    if (paymentRequired && existing.paymentStatus !== "paid" && !fullyWaivedOnboarding(existing)) {
       return NextResponse.json(
         { error: "The required affiliation fee has not been paid." },
         { status: 409 },
@@ -133,7 +146,7 @@ export async function POST(
       )
       .orderBy(desc(commerceOrders.paidAt), desc(commerceOrders.id))
       .limit(1);
-    if (!settledOnboardingOrder) {
+    if (!settledOnboardingOrder && !fullyWaivedOnboarding(existing)) {
       return NextResponse.json(
         {
           error:
@@ -142,7 +155,7 @@ export async function POST(
         { status: 409 },
       );
     }
-    if (settledOnboardingOrder.paymentChannel !== "offline") {
+    if (settledOnboardingOrder && settledOnboardingOrder.paymentChannel !== "offline") {
       return NextResponse.json(
         {
           error:
@@ -315,6 +328,7 @@ export async function POST(
   const phone = existing.phone || selectedProfile?.phone || null;
   const licenseNumber =
     existing.licenseNumber || selectedProfile?.license_number || null;
+  let checkoutBlock: string | null = null;
   const agent = await db.transaction(async (tx) => {
     await lockAgentLedgers(tx, [parsedId]);
     await lockOnboardingAgent(tx, parsedId);
@@ -330,6 +344,8 @@ export async function POST(
     )
       return null;
     if (existing.accountStatus === "pending") {
+      checkoutBlock = await onboardingCheckoutBlockReason(tx, parsedId);
+      if (checkoutBlock) return null;
       const [payment] = await tx
         .select({ id: commerceOrders.id })
         .from(commerceOrders)
@@ -353,10 +369,10 @@ export async function POST(
         )
         .limit(1);
       if (
-        !payment ||
+        (!payment && !fullyWaivedOnboarding(fresh)) ||
         pendingTeam ||
         !onboardingAgreementAllowsPayment(fresh) ||
-        fresh.paymentStatus !== "paid"
+        (fresh.paymentStatus !== "paid" && !fullyWaivedOnboarding(fresh))
       )
         return null;
     }
@@ -402,7 +418,7 @@ export async function POST(
   if (!agent)
     return NextResponse.json(
       {
-        error:
+        error: checkoutBlock ||
           "Onboarding changed while approving. Refresh and review the latest status.",
       },
       { status: 409 },

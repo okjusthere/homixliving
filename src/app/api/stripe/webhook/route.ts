@@ -15,6 +15,11 @@ import { settlePlanPayment } from "@/lib/plan-payments";
 import { finalizeAutomaticOnboardingActivation } from "@/lib/onboarding-activation";
 import { syncAgentStripeCustomer } from "@/lib/commerce/stripe-customer";
 import {
+  confirmOnboardingCheckoutExpired, isOnboardingStripeOrder, recordUnpaidOnboardingCheckout,
+  settleOnboardingStripePayment, withOnboardingStripeOrder,
+} from "@/lib/onboarding-stripe-guard";
+import { adminAgentIds, notify } from "@/lib/notify";
+import {
   invoiceSubscriptionMetadata,
   shouldHandleStripeScope,
   stripeMetadataScope,
@@ -67,7 +72,7 @@ async function findOrderBySubscription(subscriptionId: string): Promise<Commerce
  * when they can be tied to a local order.
  */
 async function isHomixStripeEvent(event: Stripe.Event): Promise<boolean> {
-  if (event.type === "checkout.session.completed" || event.type === "checkout.session.expired") {
+  if (event.type === "checkout.session.completed" || event.type === "checkout.session.expired" || event.type === "checkout.session.async_payment_succeeded") {
     const session = event.data.object as Stripe.Checkout.Session;
     const scope = stripeMetadataScope(session.metadata);
     if (scope !== "legacy") return shouldHandleStripeScope(scope, false);
@@ -113,6 +118,15 @@ async function maybeSuspendWorkspace(order: CommerceOrder) {
   await suspendWorkspaceForOrder(order);
 }
 
+async function flagOnboardingReconciliation(order: CommerceOrder, sourceKey: string) {
+  // The financial/audit flag is committed already. Only an in-app alert, never an automatic refund.
+  await notify({ recipientAgentIds: await adminAgentIds(), type: "onboarding_payment_reconciliation",
+    title: "Stripe 入职付款需对账 / Onboarding payment needs reconciliation",
+    body: `Actual Stripe payment on order #${order.id} was retained without changing the approved onboarding basis or awarding another sponsor reward. Review before collecting or refunding.`,
+    href: `/admin/finance?q=${encodeURIComponent(order.customerEmail || order.customerName || "")}`, dedupeKey: `onboarding-stripe-reconciliation:${sourceKey}`,
+  }).catch((error) => console.error("Onboarding reconciliation notification failed", error));
+}
+
 async function handleCheckoutCompleted(
   session: Stripe.Checkout.Session,
   eventId: string,
@@ -151,7 +165,21 @@ async function handleCheckoutCompleted(
     updatedAt: now,
   };
 
-  await db
+  if (isOnboardingStripeOrder(order)) {
+    if (!isPaid) {
+      await recordUnpaidOnboardingCheckout(order, session);
+    } else {
+      const sourceKey = `checkout:${session.id}`;
+      const result = await settleOnboardingStripePayment(order, { sourceKey, eventId,
+        // A catalog quote is not evidence of money received. Missing provider facts retry safely.
+        amountCents: session.amount_total ?? Number.NaN, currency: session.currency || "", earnedAt: now,
+        kind: "checkout", patch: { status: nextStatus, stripeCheckoutSessionId: session.id,
+          stripeCustomerId: stripeId(session.customer), stripeSubscriptionId: stripeId(session.subscription),
+          stripePaymentIntentId: stripeId(session.payment_intent) }, session });
+      if (result.reconciliationRequired) await flagOnboardingReconciliation(result.order, sourceKey);
+      else await finalizeAutomaticOnboardingActivation({ agentId: order.agentId!, orderId: order.id });
+    }
+  } else await db
     .update(commerceOrders)
     .set({
       status: updatedOrder.status,
@@ -196,6 +224,8 @@ async function handleCheckoutCompleted(
     }
   }
 
+  if (isOnboardingStripeOrder(order)) return order.id;
+
   if (isPaid) {
     // Checkout owns the initial payment for both one-time and subscription
     // products. Stripe does not guarantee delivery order between
@@ -234,6 +264,11 @@ async function handleCheckoutExpired(session: Stripe.Checkout.Session): Promise<
       : null
   );
   if (!order) return null;
+
+  if (isOnboardingStripeOrder(order)) {
+    await confirmOnboardingCheckoutExpired(order, session);
+    return order.id;
+  }
 
   await db
     .update(commerceOrders)
@@ -287,13 +322,25 @@ async function recordInvoiceCharge(
     });
 }
 
-async function handleInvoicePaid(invoice: Stripe.Invoice): Promise<number | null> {
+async function handleInvoicePaid(invoice: Stripe.Invoice, eventId: string): Promise<number | null> {
   const subscriptionId = invoiceSubscriptionId(invoice);
   const order = subscriptionId ? await findOrderBySubscription(subscriptionId) : null;
   await recordInvoiceCharge(invoice, "paid", order);
   if (!order) return null;
 
   const now = new Date().toISOString();
+  if (isOnboardingStripeOrder(order)) {
+    const sourceKey = `invoice:${invoice.id}`;
+    const periods = invoice.lines.data.map(line => line.period.start).filter(start => Number.isFinite(start) && start > 0);
+    const result = await settleOnboardingStripePayment(order, { sourceKey, eventId,
+      amountCents: invoice.amount_paid, currency: invoice.currency, earnedAt: now,
+      kind: invoice.billing_reason === "subscription_create" ? "initial_invoice" : "renewal",
+      renewalCycleStart: invoice.billing_reason === "subscription_cycle" && periods.length
+        ? new Date(Math.min(...periods) * 1000).toISOString() : null,
+      patch: { status: "active" } });
+    if (result.reconciliationRequired) await flagOnboardingReconciliation(result.order, sourceKey);
+    return order.id;
+  }
   const updatedOrder = {
     ...order,
     status: "active",
@@ -326,6 +373,14 @@ async function handleInvoiceFailed(invoice: Stripe.Invoice): Promise<number | nu
   await recordInvoiceCharge(invoice, "failed", order);
   if (!order) return null;
 
+  if (isOnboardingStripeOrder(order)) {
+    await withOnboardingStripeOrder(order, async (tx, _agent, current) => {
+      // A failed first invoice is unresolved, not proof the Checkout expired.
+      await tx.update(commerceOrders).set({ status: "past_due", updatedAt: new Date().toISOString() }).where(eq(commerceOrders.id, current.id));
+    });
+    return order.id;
+  }
+
   await db
     .update(commerceOrders)
     .set({ status: "past_due", updatedAt: new Date().toISOString() })
@@ -350,6 +405,13 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription): Pro
     updatedAt: now,
   };
 
+  if (isOnboardingStripeOrder(order)) {
+    await withOnboardingStripeOrder(order, async (tx, _agent, current) => {
+      await tx.update(commerceOrders).set({ status, updatedAt: now }).where(eq(commerceOrders.id, current.id));
+    });
+    return order.id;
+  }
+
   await db
     .update(commerceOrders)
     .set({ status, updatedAt: now })
@@ -370,6 +432,13 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription): Pro
   const order = await findOrderBySubscription(subscription.id);
   if (!order) return null;
 
+  if (isOnboardingStripeOrder(order)) {
+    await withOnboardingStripeOrder(order, async (tx, _agent, current) => {
+      await tx.update(commerceOrders).set({ status: "canceled", updatedAt: new Date().toISOString() }).where(eq(commerceOrders.id, current.id));
+    });
+    return order.id;
+  }
+
   await db
     .update(commerceOrders)
     .set({ status: "canceled", updatedAt: new Date().toISOString() })
@@ -381,6 +450,7 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription): Pro
 async function processStripeEvent(event: Stripe.Event): Promise<number | null> {
   switch (event.type) {
     case "checkout.session.completed":
+    case "checkout.session.async_payment_succeeded":
       return handleCheckoutCompleted(
         event.data.object as Stripe.Checkout.Session,
         event.id,
@@ -388,7 +458,7 @@ async function processStripeEvent(event: Stripe.Event): Promise<number | null> {
     case "checkout.session.expired":
       return handleCheckoutExpired(event.data.object as Stripe.Checkout.Session);
     case "invoice.payment_succeeded":
-      return handleInvoicePaid(event.data.object as Stripe.Invoice);
+      return handleInvoicePaid(event.data.object as Stripe.Invoice, event.id);
     case "invoice.payment_failed":
       return handleInvoiceFailed(event.data.object as Stripe.Invoice);
     case "customer.subscription.updated":

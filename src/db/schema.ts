@@ -181,6 +181,17 @@ export type SigningPreparation = {
   packageId: string;
   payload: Record<string, unknown>;
 };
+export type OnboardingFeeAdjustment = {
+  productKey: string;
+  plan: string;
+  termMonths: number;
+  companyId: string | null;
+  originalAmountCents: number;
+  waivedAmountCents: number;
+  reason: string;
+  approvedBy: number;
+  approvedAt: string;
+};
 
 export const agents = portal.table("agents", {
   id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
@@ -224,6 +235,8 @@ export const agents = portal.table("agents", {
   teamTermsAcceptedAt: timestamptz("team_terms_accepted_at"),
   affiliationTermMonths: integer("affiliation_term_months"),
   affiliationPaidAt: dateCol("affiliation_paid_at"),
+  onboardingFeeAdjustment: jsonb("onboarding_fee_adjustment").$type<OnboardingFeeAdjustment>(),
+  onboardingWebsiteSync: jsonb("onboarding_website_sync").$type<{ status: "pending" | "complete"; attemptedAt: string }>(),
   onboardingCompletedAt: timestamptz("onboarding_completed_at"),
   signingRequestId: uuid("signing_request_id"),
   signingPreparation: jsonb("signing_preparation").$type<SigningPreparation>(),

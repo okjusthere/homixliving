@@ -1,5 +1,6 @@
 import { onboardingContracts, onboardingReceipts, onboardingAccessGrants } from "@/db/onboarding-schema";
 import { onboardingTasks } from "@/lib/onboarding-tasks";
+import { getOnboardingStaleSettlements } from "@/lib/onboarding-stripe-guard";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import {
@@ -201,10 +202,11 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const [manualContracts, receipts, grants] = await Promise.all([
+  const [manualContracts, receipts, grants, staleSettlements] = await Promise.all([
     db.select({ agentId: onboardingContracts.agentId, status: onboardingContracts.status }).from(onboardingContracts),
     db.select({ agentId: onboardingReceipts.agentId, status: onboardingReceipts.status }).from(onboardingReceipts),
     db.select({ agentId: onboardingAccessGrants.agentId, status: onboardingAccessGrants.status, expiresAt: onboardingAccessGrants.expiresAt }).from(onboardingAccessGrants),
+    getOnboardingStaleSettlements(visibleRows.map(row => row.agent.id)),
   ]);
   const result = visibleRows.map((row) => {
     const monthDealIds = new Set(
@@ -240,6 +242,7 @@ export async function GET(req: NextRequest) {
         contracts: manualContracts.filter((c) => c.agentId === row.agent.id),
         receipts: receipts.filter((c) => c.agentId === row.agent.id),
         grants: grants.filter((c) => c.agentId === row.agent.id),
+        staleSettlements: staleSettlements.filter((c) => c.agentId === row.agent.id),
       }),
       loginEmails: loginEmailsByAgent.get(row.agent.id) || [],
       mtdDeals: monthDeals.length,

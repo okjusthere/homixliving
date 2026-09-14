@@ -177,7 +177,7 @@ async function buildPreparation(
     practice: agent.practice || "",
     compensation_plan: PLAN_LABELS.en[effectivePlan],
     split_pct: `${PLAN_SPLIT_PCT[effectivePlan]}%`,
-    team_name: team?.name || "",
+    team_name: team?.name || "Not applicable (Solo)",
     team_split_pct: terms ? `${terms.defaultTeamSplitPct}%` : "",
     team_sourced_split_pct: terms ? `${terms.teamLeadSplitPct}%` : "",
     team_cap_usd: terms
@@ -186,7 +186,7 @@ async function buildPreparation(
         : `$${(terms.teamCapCents / 100).toLocaleString("en-US")}`
       : "",
     team_terms_effective_from: terms ? agent.teamTermsEffectiveFrom || "" : "",
-    sponsor_name: sponsor?.name || "",
+    sponsor_name: sponsor?.name || "None",
     affiliation_term_months: String(agent.affiliationTermMonths || 12),
     libor_membership_status:
       agent.liborMembershipStatus === "existing_member"

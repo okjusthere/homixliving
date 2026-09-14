@@ -5,6 +5,7 @@ import {
   mergePlacements,
   stableFieldRect,
 } from "../../../scripts/onboarding-esign-geometry";
+import { onboardingImportFields, nativeFieldInput } from "../../../scripts/export-documenso-onboarding-packages";
 
 type ManifestField = { fieldKey: string; page: number };
 type Manifest = {
@@ -85,5 +86,29 @@ for (const key of [
 }
 
 assert.throws(() => stableFieldRect("unknown.field"), /No approved eSign rectangle/);
+
+const nativeManifest = JSON.parse(readFileSync(new URL("../../../contracts/field-manifests.yml", import.meta.url), "utf8"));
+const contract = { file: "synthetic.pdf", sha256: "", pages: 21, entity: "Homix Realty Inc.", agreement: "agent" as const, plan: "solo" as const };
+const newMemberFields = onboardingImportFields(contract, nativeManifest, "apply_new");
+const legalName = newMemberFields.find((field) => field.key === "realty.libor_legal_name")!;
+assert.equal(legalName.mergeKey, "agent_name", "Use the same verified legal name on the appendix");
+assert.equal(nativeFieldInput(legalName).fieldMeta.readOnly, true);
+assert.equal(nativeFieldInput(legalName).fieldMeta.required, false, "Do not ask the signer to retype known legal identity");
+const cellPhone = newMemberFields.find((field) => field.key === "realty.libor_cell_phone")!;
+assert.equal(cellPhone.mergeKey, "agent_phone");
+assert.equal(nativeFieldInput(cellPhone).fieldMeta.readOnly, false);
+assert.equal(nativeFieldInput(cellPhone).fieldMeta.required, true, "Missing phone can still be completed by the signer");
+for (const key of ["realty.libor_home_phone", "realty.libor_secondary_field", "realty.libor_prior_board_name", "realty.libor_nrds_number"])
+  assert.equal(nativeFieldInput(newMemberFields.find((field) => field.key === key)!).fieldMeta.required, false, key);
+const existingMemberFields = onboardingImportFields(contract, nativeManifest, "existing_member");
+assert.equal(existingMemberFields.some((field) => field.key.startsWith("realty.libor_")), false, "Existing members are not asked to complete new membership fields");
+for (const key of ["agent_id", "agent_name", "sponsor_name", "team_name"]) {
+  const businessFields = existingMemberFields.filter((field) => field.mergeKey === key);
+  assert.ok(businessFields.length);
+  for (const field of businessFields) {
+    assert.equal(nativeFieldInput(field).fieldMeta.readOnly, true);
+    assert.equal(nativeFieldInput(field).fieldMeta.required, false);
+  }
+}
 
 console.log("onboarding eSign geometry tests passed");
