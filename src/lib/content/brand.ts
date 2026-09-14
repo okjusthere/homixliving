@@ -31,7 +31,8 @@ export async function loadBrand(agentId: number): Promise<BrandContext> {
   const p = profile.profile;
   return {
     agentId,
-    name: p?.name || agent.name,
+    // Website may abbreviate the nickname; posters use the full Preferred name.
+    name: agent.name,
     email: agent.email,
     phone: agent.phone || p?.phone || "",
     title: p?.title || "",

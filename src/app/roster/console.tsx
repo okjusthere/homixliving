@@ -698,6 +698,22 @@ export function RosterConsole({
                         <div className="secondary break-all">
                           {a.linked_portal_agent.email}
                         </div>
+                        <p className="secondary">Legal name: {a.linked_portal_agent.legal_name || "—"}</p>
+                        <p className="secondary">Preferred name: {a.linked_portal_agent.name}</p>
+                        <p className={a.linked_portal_agent.name_sync_status === "synced" ? "text-xs text-ink-50" : "text-xs text-amber-800"}>
+                          {a.linked_portal_agent.name_sync_status === "synced" ? (zh ? "姓名已同步" : "Name synchronized") : a.linked_portal_agent.name_sync_status === "legal_name_missing" ? (zh ? "待核对法定姓名" : "Legal name needs verification") : (zh ? "官网姓名不同" : "Website name differs")}
+                        </p>
+                        {a.linked_portal_agent.name_sync_status === "different" && <button type="button" className="row-action text-xs" onClick={async (event) => {
+                          const button = event.currentTarget;
+                          button.disabled = true;
+                          try {
+                            const res = await fetch("/api/admin/roster", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "sync_identity", portalAgentId: a.portal_agent_id }) });
+                            if (!res.ok) throw new Error(zh ? "姓名同步失败，请稍后重试" : "Name synchronization failed. Please retry.");
+                            await onRetry();
+                            toast.success(zh ? "官网姓名已同步" : "Website name synchronized");
+                          } catch (e) { toast.error(e instanceof Error ? e.message : "Sync failed"); }
+                          finally { button.disabled = false; }
+                        }}>{zh ? "重试姓名同步" : "Retry name sync"}</button>}
                         {a.linked_portal_agent.account_status !== "active" && (
                           <span className="text-xs text-amber-800">
                             {zh ? "关联账号未启用" : "Linked account inactive"}

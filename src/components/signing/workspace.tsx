@@ -3,13 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import {
-  ArrowUpRight,
-  FileSignature,
-  RefreshCw,
-  Search,
-  Upload,
-} from "lucide-react";
+import { ArrowUpRight, FileSignature, RefreshCw, Search } from "lucide-react";
 import { PageHeader, FilterTabs, Toolbar } from "@/components/homix/page-kit";
 import { useLocale } from "@/lib/i18n-client";
 import type { SigningRequest } from "@/lib/signing-contract";
@@ -77,56 +71,44 @@ export function SigningWorkspace() {
         title={zh ? "文件签署" : "File signing"}
         description={
           zh
-            ? "准备客户签署包、编辑文件，跟进每位签署人的进度。"
-            : "Prepare client packages, edit documents and follow every signature."
+            ? "使用公司标准文件包，填写客户资料并发送，跟进每位签署人的进度。"
+            : "Use company packages, enter client details and follow every signature."
         }
       />
-      <div className="grid gap-3 sm:grid-cols-3">
-        {(["buyer", "seller", "custom"] as const).map((kind) => (
+      <div className="grid gap-3 sm:grid-cols-2">
+        {(["buyer", "seller"] as const).map((kind) => (
           <button
             key={kind}
             type="button"
             onClick={() => change({ new: kind })}
             className="flex items-center gap-3 rounded-lg border border-line bg-white p-4 text-left hover:bg-paper-deep"
           >
-            {kind === "custom" ? (
-              <Upload size={21} aria-hidden />
-            ) : (
-              <FileSignature size={21} aria-hidden />
-            )}
+            <FileSignature size={21} aria-hidden />
             <div className="min-w-0 flex-1">
               <p className="font-medium">
                 {kind === "buyer"
                   ? zh
                     ? "买家签署包"
                     : "Buyer package"
-                  : kind === "seller"
-                    ? zh
-                      ? "卖家签署包"
-                      : "Seller package"
-                    : zh
-                      ? "上传个性化文件"
-                      : "Upload documents"}
+                  : zh
+                    ? "卖家 / Listing 签署包"
+                    : "Seller / Listing package"}
               </p>
               <p className="mt-1 text-xs text-ink-50">
-                {kind === "custom"
-                  ? zh
-                    ? "用原生编辑器设置字段"
-                    : "Set fields in the native editor"
-                  : zh
-                    ? "公司模板，资料填一次"
-                    : "Company templates, one set of details"}
+                {zh
+                  ? "公司模板，资料填一次"
+                  : "Company templates, one set of details"}
               </p>
             </div>
             <ArrowUpRight size={16} aria-hidden />
           </button>
         ))}
       </div>
-      {(["buyer", "seller", "custom"] as const).includes(mode as "buyer") && (
+      {(mode === "buyer" || mode === "seller") && (
         <SigningCreate
           key={mode}
-          mode={mode as "buyer" | "seller" | "custom"}
-          onClose={() => change({ new: "" })}
+          mode={mode}
+          onClose={() => change({ new: "", from: "" })}
         />
       )}
       <Toolbar>

@@ -45,6 +45,7 @@ import type { Agent, Team } from "@/db/schema";
 import type { AdminAgentRow } from "@/lib/homixweb";
 import type { MlsVerificationStatus } from "@/lib/public-identity-status";
 import { RosterConsole } from "../roster/console";
+import { websiteAgentName, hasSignedNameBasis } from "@/lib/agent-names";
 import { nyDate } from "@/lib/celebrations/calendar";
 
 const M = {
@@ -103,7 +104,7 @@ const M = {
     editEyebrow: "Edit",
     addAgentTitle: "Add agent",
     editAgentTitle: "Edit agent",
-    labelName: "Name *",
+    labelName: "Preferred name *",
     labelTeam: "Team",
     labelEmail: "Email",
     labelPhone: "Phone",
@@ -214,7 +215,7 @@ const M = {
     editEyebrow: "编辑",
     addAgentTitle: "添加经纪人",
     editAgentTitle: "编辑经纪人",
-    labelName: "姓名 *",
+    labelName: "常用姓名 / Preferred name *",
     labelTeam: "团队",
     labelEmail: "邮箱",
     labelPhone: "电话",
@@ -1591,6 +1592,14 @@ export default function AgentsConsole() {
           }
         >
           <div className="space-y-4">
+            {editAgent.id && <div className="rounded-lg border border-line bg-paper p-4 text-sm space-y-1">
+              <p className="font-medium">{locale === "zh" ? "姓名对照（待保存的资料预览）" : "Name comparison (preview of your edits)"}</p>
+              <p>Legal name: {editAgent.legalName || "—"}</p>
+              <p>Preferred name · <code>portal.agents.name</code>: {editAgent.name || "—"}</p>
+              <p>{locale === "zh" ? "官网实际值" : "Current website"} · <code>public.agents.name</code>: {publicByAgentId.get(editAgent.id)?.name || "—"}</p>
+              <p>{locale === "zh" ? "官网应显示" : "Expected website name"}: {websiteAgentName({ name: editAgent.name || "", legalName: editAgent.legalName })}</p>
+              <p className="text-xs text-ink-50">{!editAgent.legalName ? (locale === "zh" ? "缺少法定姓名，需核对来源，不能从昵称推断。" : "Legal name needs verification; never infer it from a nickname.") : !publicByAgentId.has(editAgent.id) ? (locale === "zh" ? "未读取到关联官网档案。" : "No linked website profile loaded.") : publicByAgentId.get(editAgent.id)?.name === websiteAgentName({ name: editAgent.name || "", legalName: editAgent.legalName }) ? (locale === "zh" ? "官网姓名一致。" : "Website name matches.") : (locale === "zh" ? "官网姓名与当前预览不同；保存后同步，可在官网展示列表重试。" : "Website name differs; save to synchronize, or retry from the website roster.")}</p>
+            </div>}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <LabeledField label={t.labelName}>
                 <EditorialInput
@@ -1757,13 +1766,16 @@ export default function AgentsConsole() {
                   />
                 </LabeledField>
               )}
-              {editAgent.id && (
+              {(
                 <LabeledField label={t.labelLegalName}>
-                  <EditorialInput
+                  <input className="admin-control w-full"
                     value={editAgent.legalName || ""}
-                    onChange={(v) => updateField("legalName", v)}
+                    onChange={(e) => updateField("legalName", e.target.value)}
+                    readOnly={hasSignedNameBasis(editAgent)}
+                    maxLength={200}
                     placeholder={t.legalNamePlaceholder}
                   />
+                  {hasSignedNameBasis(editAgent) && <span className="text-xs text-ink-50">{locale === "zh" ? "涉及已发起／已核验协议，法定姓名更正须走协议处理流程。" : "Signed identity is locked; use the agreement correction workflow."}</span>}
                 </LabeledField>
               )}
               {editAgent.id && (

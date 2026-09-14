@@ -226,7 +226,7 @@ export async function runOnboardingCommand(
         if (
           contract.company !== agent.licensedCompany ||
           !agent.licenseNumber ||
-          !(agent.legalName || agent.name)
+          !agent.legalName?.trim()
         )
           throw new OnboardingCommandError(
             "Verify the person's identity, licence and matching legal company first",
@@ -272,7 +272,7 @@ export async function runOnboardingCommand(
               company: contract.company,
               plan: agent.plan,
               teamTermsConfigId: agent.teamTermsConfigId,
-              legalName: agent.legalName || agent.name,
+              legalName: agent.legalName!,
               licenseNumber: agent.licenseNumber,
               agentSignedAt: contract.agentSignedAt,
               companySignedAt: contract.companySignedAt,

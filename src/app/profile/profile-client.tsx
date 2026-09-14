@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { signOut } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
+import { websiteAgentName } from "@/lib/agent-names";
 import { Btn, Card, EditorialInput } from "@/components/homix/primitives";
 import { CardHeader } from "@/components/homix/page-kit";
 import { fmtDate, fmtMoney, tone } from "@/components/homix/tokens";
@@ -14,6 +15,8 @@ import type { MlsVerificationStatus } from "@/lib/public-identity-status";
 export type SafeAgentProfile = {
   id: number;
   name: string;
+  legalName: string | null;
+  canSetLegalName: boolean;
   phone: string | null;
   licenseNumber: string | null;
   licenseExpiresAt: string | null;
@@ -41,7 +44,7 @@ const M = {
   en: {
     basicTitle: "Basic info",
     basicLead: "Contact details are self-service. Commission terms are managed by the office.",
-    name: "Name",
+    name: "Preferred name",
     phone: "Phone",
     license: "License number",
     licenseExpires: "License expiry date",
@@ -117,7 +120,7 @@ const M = {
   zh: {
     basicTitle: "基本信息",
     basicLead: "联系方式可自行维护，佣金方案由公司管理。",
-    name: "姓名",
+    name: "常用姓名 / Preferred name",
     phone: "电话",
     license: "执照号",
     licenseExpires: "执照到期日",
@@ -201,11 +204,13 @@ export function ProfileClient({
   payouts: AgentPayout[];
 }) {
   const router = useRouter();
+  const { update: updateSession } = useSession();
   const locale = useLocale();
   const t = M[locale];
 
   // --- basic info ---
   const [name, setName] = useState(agent?.name ?? "");
+  const [legalName, setLegalName] = useState(agent?.legalName ?? "");
   const [phone, setPhone] = useState(agent?.phone ?? "");
   const [license, setLicense] = useState(agent?.licenseNumber ?? "");
   const [licenseExpires, setLicenseExpires] = useState(agent?.licenseExpiresAt ?? "");
@@ -230,6 +235,7 @@ export function ProfileClient({
       body: JSON.stringify({
         id: agent.id,
         name,
+        ...(agent.canSetLegalName ? { legalName } : {}),
         phone,
         licenseNumber: license,
         licenseExpiresAt: licenseExpires,
@@ -238,7 +244,7 @@ export function ProfileClient({
     const body = await res.json().catch(() => ({}));
     setBasicBusy(false);
     if (!res.ok) {
-      setBasicMsg(t.saveFailed);
+      setBasicMsg(typeof body.error === "string" ? body.error : t.saveFailed);
       return;
     }
     const verificationStatus = body?.mlsVerification?.status as
@@ -254,7 +260,10 @@ export function ProfileClient({
       failed: t.mlsFailed,
     };
     setBasicMsg((verificationStatus && messages[verificationStatus]) || t.saved);
-    if (res.ok) router.refresh();
+    if (res.ok) {
+      await updateSession({ profileNameChanged: true });
+      router.refresh();
+    }
   }
 
   function emailErrorMessage(code: unknown) {
@@ -401,7 +410,17 @@ export function ProfileClient({
             {t.basicLead}
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
-            <EditorialInput value={name} onChange={setName} placeholder={t.name} />
+            <label className="grid gap-1 text-xs">
+              {locale === "zh" ? "法定姓名 / Legal name" : "Legal name"}
+              <input className="admin-control w-full" value={legalName} onChange={(e) => setLegalName(e.target.value)} readOnly={!agent?.canSetLegalName} maxLength={200} />
+              <span className="text-ink-50">{locale === "zh" ? "协议使用此名；已确认的法定姓名请联系公司更正。" : "Used in agreements. Contact the office to correct an established legal identity."}</span>
+            </label>
+            <label className="grid gap-1 text-xs">
+              {t.name}
+              <input className="admin-control w-full" required maxLength={200} value={name} onChange={(e) => setName(e.target.value)} />
+              <span className="text-ink-50">{locale === "zh" ? "Portal 和新海报使用此名。填写希望显示的完整常用姓名。" : "Your complete chosen name for the Portal and new posters."}</span>
+            </label>
+            <p className="text-xs text-ink-50 sm:col-span-2">{locale === "zh" ? "官网姓名预览：" : "Website name preview: "}{websiteAgentName({ legalName, name }) || "—"}</p>
             <EditorialInput value={phone} onChange={setPhone} placeholder={t.phone} />
             <EditorialInput value={license} onChange={setLicense} placeholder={t.license} mono />
             <EditorialInput

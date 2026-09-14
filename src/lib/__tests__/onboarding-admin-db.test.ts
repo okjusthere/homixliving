@@ -150,12 +150,20 @@ async function main() {
       agentSignedAt: new Date().toISOString(),
       uploadedBy: admin.id,
     });
-  await runOnboardingCommand(pending.id, admin.id, {
+  const reviewContract = {
     action: "review_contract",
     contractId,
     decision: "accept",
     reason: "Synthetic identity and signature verified",
-  });
+  };
+  await assert.rejects(
+    runOnboardingCommand(pending.id, admin.id, reviewContract),
+    (error) => error instanceof OnboardingCommandError && /identity/.test(error.message),
+    "A Preferred name cannot stand in for verified legal identity",
+  );
+  await db.update(agents).set({ legalName: "Synthetic Legal New Hire" }).where(eq(agents.id, pending.id));
+  await runOnboardingCommand(pending.id, admin.id, reviewContract);
+  assert.equal((await agent()).onboardingManualContract?.legalName, "Synthetic Legal New Hire");
   assert.equal(
     (await agent()).agreementStatus,
     "not_started",

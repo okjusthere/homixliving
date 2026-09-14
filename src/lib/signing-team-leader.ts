@@ -1,4 +1,5 @@
 import "server-only";
+import { requireLegalName } from "@/lib/signing-agent-names";
 import { affiliationContractComplete } from "@/lib/onboarding-requirements";
 import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
@@ -117,13 +118,14 @@ async function preparation(
 ): Promise<SigningPreparation> {
   const { agent, team, terms } = await eligible(application),
     published = await availableTeamLeaderPackage(application);
+  const legalName = requireLegalName(agent);
   const actor = await signingSystemActor(agent.id),
     company = resolveLicensedCompany(application.companyId)!;
   if (!actor.verifiedEmails.includes(agent.email.toLowerCase()))
     throw new SigningBridgeError("PRIMARY_SIGNING_EMAIL_NOT_VERIFIED", 409);
   const values: Record<string, string> = {
     agent_id: String(agent.id),
-    agent_name: agent.legalName || agent.name,
+    agent_name: legalName,
     agent_email: agent.email,
     agent_phone: agent.phone || "",
     license_number: agent.licenseNumber || "",
@@ -148,7 +150,7 @@ async function preparation(
     if (role.actor === "owner")
       return {
         key: role.key,
-        name: agent.legalName || agent.name,
+        name: legalName,
         email: agent.email.toLowerCase(),
       };
     if (
@@ -172,7 +174,7 @@ async function preparation(
     contextHash: contextHash(application),
     packageId: published.id,
     payload: {
-      title: `${agent.legalName || agent.name} · ${team.name} Team Leader agreement`,
+      title: `${legalName} · ${team.name} Team Leader agreement`,
       idempotencyKey: `team-leader:${id}`,
       externalReference: `team-leader:${id}`,
       scenario: "team_leader",
@@ -180,7 +182,7 @@ async function preparation(
       companyKey: company.id,
       ownerAgentId: agent.id,
       business: {
-        customer: agent.legalName || agent.name,
+        customer: legalName,
         property: "",
         reference: `team-leader:${application.id}`,
       },

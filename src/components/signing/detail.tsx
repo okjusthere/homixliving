@@ -6,6 +6,8 @@ import { useSearchParams } from "next/navigation";
 import { ArrowLeft, Download, ExternalLink, RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/homix/page-kit";
 import { useLocale } from "@/lib/i18n-client";
+import { SigningPdfReview } from "./pdf-review";
+import type { SigningReview } from "@/lib/signing-contract";
 import type { SigningRequest } from "@/lib/signing-contract";
 import { signingErrorMessage } from "@/lib/signing-contract";
 import {
@@ -29,7 +31,31 @@ export function SigningDetail({ id }: { id: string }) {
       "send" | "remind" | "cancel" | "discard" | null
     >(null),
     [reason, setReason] = useState("");
+  const [review, setReview] = useState<SigningReview | null>(null);
+  const [viewed, setViewed] = useState<string[]>([]);
+  const [reviewFile, setReviewFile] = useState(0);
+  const [acknowledged, setAcknowledged] = useState(false);
   const inFlight = useRef(false);
+  async function startReview() {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setBusy(true);
+    setError("");
+    setReview(null);
+    setViewed([]);
+    setReviewFile(0);
+    setAcknowledged(false);
+    try {
+      const data = await signingFetch<SigningReview>(`requests/${id}/review`);
+      setReview(data);
+      setConfirm("send");
+    } catch (e) {
+      setError(errorText(e, zh));
+    } finally {
+      inFlight.current = false;
+      setBusy(false);
+    }
+  }
   const load = useCallback(
     async (refresh = false) => {
       if (inFlight.current) return;
@@ -72,6 +98,7 @@ export function SigningDetail({ id }: { id: string }) {
         await signingFetch<SigningRequest>(`requests/${id}/commands`, {
           action: confirm,
           reason: reason || undefined,
+          ...(confirm === "send" ? { reviewHash: review?.reviewHash } : {}),
         }),
       );
       setConfirm(null);
@@ -171,16 +198,42 @@ export function SigningDetail({ id }: { id: string }) {
               <p className="font-medium">{categories[locale][item.category]}</p>
               <p className="mt-1 text-sm text-ink-50">
                 {zh
-                  ? "签署和编辑在 Documenso 完成，回到这里可继续跟进。"
-                  : "Edit and sign in Documenso, then return here to follow progress."}
+                  ? "各签署人通过自己的邀请签署，完成后可在这里取回整包。"
+                  : "Recipients sign through their own invitations. Retrieve the completed package here."}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
+              {item.category === "completed" && (
+                <a
+                  className={signingButton}
+                  href={`/api/signing/requests/${id}/bundle`}
+                >
+                  <Download size={16} />
+                  {zh ? "下载完整文件包" : "Download complete package"}
+                </a>
+              )}
+              {["buyer", "seller"].includes(item.scenario) &&
+                item.parts.every(
+                  (part) =>
+                    part.operationState === "discarded" ||
+                    ["COMPLETED", "CANCELLED", "REJECTED"].includes(
+                      part.document?.status || "",
+                    ),
+                ) && (
+                  <Link
+                    className={signingButton}
+                    href={`/signing?new=${item.scenario}&from=${id}`}
+                  >
+                    {zh
+                      ? "按此包重新准备"
+                      : "Prepare another from this package"}
+                  </Link>
+                )}
               {isDraft && (
                 <button
                   disabled={busy}
                   className={`${signingButton} !bg-homix-accent !text-white`}
-                  onClick={() => setConfirm("send")}
+                  onClick={() => void startReview()}
                 >
                   {zh ? "核对并发送" : "Review and send"}
                 </button>
@@ -214,6 +267,19 @@ export function SigningDetail({ id }: { id: string }) {
               )}
             </div>
           </div>
+          {item.predecessorRequestId && (
+            <p className="text-sm text-ink-50">
+              {zh
+                ? "本次由前次任务重新准备，未复制任何签名。"
+                : "Prepared from a previous request. No signatures were copied."}{" "}
+              <Link
+                className="underline"
+                href={`/signing/${item.predecessorRequestId}`}
+              >
+                {zh ? "查看前次任务" : "View previous request"}
+              </Link>
+            </p>
+          )}
           {confirm && (
             <section className="rounded-lg border border-line bg-white p-5">
               <h2 className="font-medium">
@@ -264,11 +330,76 @@ export function SigningDetail({ id }: { id: string }) {
                   />
                 </label>
               )}
+              {confirm === "send" && review && (
+                <div className="my-5 space-y-4">
+                  <p className="text-sm">
+                    {zh
+                      ? "蓝色为本次预填资料，黄色为签署人待填写项；这里是只读预览。请逐页核对所有文件及完整字段内容。"
+                      : "Blue shows this request's prefills; yellow marks fields awaiting recipients. This is a read-only preview. Review every page and the full field values."}
+                  </p>
+                  <div
+                    className="flex flex-wrap gap-2"
+                    role="group"
+                    aria-label={
+                      zh ? "选择审阅文件" : "Choose a document to review"
+                    }
+                  >
+                    {review.files.map((file, index) => (
+                      <button
+                        key={file.id}
+                        type="button"
+                        className={`${signingButton} ${index === reviewFile ? "!border-homix-accent !bg-paper" : ""}`}
+                        aria-pressed={index === reviewFile}
+                        onClick={() => setReviewFile(index)}
+                      >
+                        {index + 1}. {file.title}
+                        {viewed.includes(file.id) ? " ✓" : ""}
+                      </button>
+                    ))}
+                  </div>
+                  {review.files[reviewFile] && (
+                    <SigningPdfReview
+                      key={review.files[reviewFile].id}
+                      requestId={id}
+                      file={review.files[reviewFile]}
+                      zh={zh}
+                      onViewed={(fileId) =>
+                        setViewed((current) =>
+                          current.includes(fileId)
+                            ? current
+                            : [...current, fileId],
+                        )
+                      }
+                    />
+                  )}
+                  <label className="flex gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={acknowledged}
+                      disabled={
+                        !review.files.every((file) => viewed.includes(file.id))
+                      }
+                      onChange={(event) =>
+                        setAcknowledged(event.target.checked)
+                      }
+                    />
+                    {zh
+                      ? "我已核对全部页面、预填资料、客户邮箱和签署顺序，确认发送。"
+                      : "I reviewed every page, prefill, recipient email and signing order, and confirm delivery."}
+                  </label>
+                </div>
+              )}
               <div className="mt-4 flex gap-2">
                 <button
                   className={`${signingButton} !bg-homix-accent !text-white`}
                   disabled={
                     busy ||
+                    (confirm === "send" &&
+                      (!review ||
+                        !acknowledged ||
+                        !review.files.every((file) =>
+                          viewed.includes(file.id),
+                        ))) ||
                     (["cancel", "discard"].includes(confirm) &&
                       reason.trim().length < 5)
                   }
@@ -468,6 +599,10 @@ export function SigningDetail({ id }: { id: string }) {
 }
 function eventLabel(event: string, zh: boolean) {
   const labels: Record<string, [string, string]> = {
+    "request.reprepared": [
+      "已从前次任务重新准备",
+      "Prepared from previous request",
+    ],
     "request.prepared": ["已准备草稿", "Draft prepared"],
     "provider.state_refreshed": ["签署状态已更新", "Signing status updated"],
     "request.send_requested": ["已请求发送", "Sending requested"],

@@ -23,6 +23,7 @@ import {
 export async function syncPublicAgentProfile(input: {
   agentId: number;
   name?: string | null;
+  legalName: string | null;
   phone?: string | null;
   licenseNumber?: string | null;
 }): Promise<PublicIdentitySyncResult> {
@@ -30,6 +31,7 @@ export async function syncPublicAgentProfile(input: {
     const result = await syncPublicIdentity({
       agentId: input.agentId,
       name: input.name?.trim() || "",
+      legalName: input.legalName,
       phone: input.phone,
       license: input.licenseNumber,
     });

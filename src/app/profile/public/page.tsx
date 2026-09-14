@@ -8,6 +8,7 @@ import { fetchPublicProfile } from "@/lib/homixweb";
 import { PageHeader } from "@/components/homix/page-kit";
 import { PublicProfileEditor } from "./editor";
 import { getLocale } from "@/lib/i18n";
+import { websiteAgentName } from "@/lib/agent-names";
 
 const M = {
   en: {
@@ -70,6 +71,7 @@ export default async function PublicProfilePage({
         isOwn={isOwn}
         canCreate={session.user.isAdmin}
         agentName={agent.name}
+        expectedWebsiteName={websiteAgentName(agent)}
         agentPhone={agent.phone}
         agentLicense={agent.licenseNumber}
       />

@@ -5,6 +5,8 @@ import { homixwebBase, homixwebSecret, isHomixwebConfigured } from "@/lib/homixw
 import { logAudit } from "@/lib/audit";
 import { db } from "@/db";
 import { agents } from "@/db/schema";
+import { websiteAgentName } from "@/lib/agent-names";
+import { syncPublicAgentProfile } from "@/lib/sync-public-profile";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,6 +45,7 @@ export async function GET() {
           .select({
             id: agents.id,
             name: agents.name,
+            legalName: agents.legalName,
             email: agents.email,
             accountStatus: agents.accountStatus,
           })
@@ -63,6 +66,9 @@ export async function GET() {
             ? {
                 id: linked.id,
                 name: linked.name,
+                legal_name: linked.legalName,
+                expected_website_name: websiteAgentName(linked),
+                name_sync_status: !linked.legalName ? "legal_name_missing" : row.name === websiteAgentName(linked) ? "synced" : "different",
                 email: linked.email,
                 account_status: linked.accountStatus,
               }
@@ -117,6 +123,17 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const action = String(body.action || "");
   let outboundBody = body;
+  if (action === "sync_identity") {
+    const id = Number(body.portalAgentId);
+    if (!Number.isInteger(id) || id <= 0) return NextResponse.json({ error: "Invalid agent id" }, { status: 400 });
+    const [agent] = await db.select().from(agents).where(eq(agents.id, id)).limit(1);
+    if (!agent) return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+    if (!agent.legalName) return NextResponse.json({ error: "Confirm Legal name first / 请先确认法定姓名" }, { status: 409 });
+    const result = await syncPublicAgentProfile({ agentId: id, name: agent.name, legalName: agent.legalName, phone: agent.phone, licenseNumber: agent.licenseNumber });
+    const ok = result.status !== "failed" && result.status !== "unlinked";
+    if (ok) await logAudit(auth.session, "update", "agent", id, `同步官网姓名 #${id}`);
+    return NextResponse.json({ ok, ...result }, { status: ok ? 200 : 502 });
+  }
   if (action === "link" || action === "merge_link") {
     const publicId = String(body.id || "").trim();
     const keepProfileId = String(body.keepProfileId || "").trim();
@@ -139,6 +156,7 @@ export async function POST(req: NextRequest) {
       .select({
         id: agents.id,
         name: agents.name,
+        legalName: agents.legalName,
         phone: agents.phone,
         licenseNumber: agents.licenseNumber,
         accountStatus: agents.accountStatus,
@@ -152,13 +170,14 @@ export async function POST(req: NextRequest) {
         { status: 404 },
       );
     }
+    if (!agent.legalName?.trim()) return NextResponse.json({ error: "Confirm Legal name before linking / 请先核对法定姓名再关联官网" }, { status: 409 });
     outboundBody = {
       action,
       ...(action === "link"
         ? { id: publicId }
         : { keepProfileId, deleteProfileId }),
       portalAgentId: agent.id,
-      name: agent.name,
+      name: websiteAgentName(agent),
       phone: agent.phone,
       license: agent.licenseNumber,
     };

@@ -51,6 +51,7 @@ export async function signingAgent(
     .insert(agents)
     .values({
       name: "Synthetic signing applicant",
+      legalName: "Synthetic Legal Applicant",
       email: `${randomUUID()}@example.invalid`,
       licensedCompany: "homix_living",
       licensedCompanyId: "homix_living",

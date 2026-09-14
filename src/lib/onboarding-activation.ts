@@ -36,6 +36,7 @@ export async function finalizeAutomaticOnboardingActivation(input: {
       const published = await publishPublicProfile({
         agentId: agent.id,
         name: agent.name,
+        legalName: agent.legalName,
         email: agent.email,
         phone: agent.phone,
         license: agent.licenseNumber,
@@ -47,6 +48,7 @@ export async function finalizeAutomaticOnboardingActivation(input: {
       await syncPublicAgentProfile({
         agentId: agent.id,
         name: agent.name,
+        legalName: agent.legalName,
         phone: agent.phone,
         licenseNumber: agent.licenseNumber,
       });

@@ -49,3 +49,6 @@ local.db
 .env.local
 .stripe-test-smoke.json
 /.swc
+
+# Generated from the pinned pdfjs-dist dependency
+/public/signing-pdf/

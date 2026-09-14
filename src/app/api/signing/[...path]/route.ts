@@ -1,4 +1,8 @@
 import { z } from "zod";
+import { eq } from "drizzle-orm";
+import { db } from "@/db";
+import { agents } from "@/db/schema";
+import { bindSigningAgentNames } from "@/lib/signing-agent-names";
 import { requireActiveAgentApi } from "@/lib/auth-guards";
 import {
   signingActor,
@@ -11,9 +15,8 @@ import {
   signingListSchema,
   signingPackageSchema,
   signingRequestSchema,
+  signingReviewSchema,
 } from "@/lib/signing-contract";
-import { randomUUID } from "node:crypto";
-import { createDealDocumentUploadUrl, readPrivatePdf } from "@/lib/r2-storage";
 
 export const maxDuration = 180;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -26,12 +29,14 @@ export async function GET(request: Request, context: Context) {
       actor = await signingActor(),
       query = new URL(request.url).searchParams;
     if (path.join("/") === "packages") {
+      const [identity] = await db.select({ legalName: agents.legalName, email: agents.email }).from(agents).where(eq(agents.id, actor.agentId)).limit(1);
       const result = await signingBridgeJson(
         "/v1/packages",
         actor,
         z.object({ items: z.array(signingPackageSchema) }),
       );
       return Response.json({
+        agentIdentity: identity || null,
         items: result.items.filter(
           (p) => p.scenario === "buyer" || p.scenario === "seller",
         ),
@@ -69,6 +74,28 @@ export async function GET(request: Request, context: Context) {
       );
     }
     if (!uuid.test(path[1])) throw new SigningBridgeError("NOT_FOUND", 404);
+    if (path.length === 3 && ["review", "reissue"].includes(path[2]))
+      return Response.json(
+        await signingBridgeJson(
+          `/v1/${path.join("/")}`,
+          actor,
+          path[2] === "review" ? signingReviewSchema : z.unknown(),
+        ),
+        { headers: { "Cache-Control": "private, no-store" } },
+      );
+    if (path.length === 3 && path[2] === "bundle") {
+      const response = await signingBridgeFetch(`/v1/${path.join("/")}`, actor);
+      return new Response(response.body, {
+        headers: {
+          "Content-Type": "application/zip",
+          "Content-Disposition":
+            response.headers.get("Content-Disposition") ||
+            'attachment; filename="signed-package.zip"',
+          "Cache-Control": "private, no-store",
+          "Referrer-Policy": "no-referrer",
+        },
+      });
+    }
     if (path.length === 2)
       return Response.json(
         await signingBridgeJson(
@@ -93,7 +120,9 @@ export async function GET(request: Request, context: Context) {
       return new Response(response.body, {
         headers: {
           "Content-Type": "application/pdf",
-          "Content-Disposition": 'attachment; filename="signing-document.pdf"',
+          "Content-Disposition":
+            response.headers.get("Content-Disposition") ||
+            'attachment; filename="signing-document.pdf"',
           "Cache-Control": "private, no-store",
           "Referrer-Policy": "no-referrer",
         },
@@ -112,127 +141,42 @@ export async function POST(request: Request, context: Context) {
   try {
     const { path } = await context.params,
       actor = await signingActor();
-    if (path.join("/") === "uploads") {
-      z.object({
-        fileName: z
-          .string()
-          .min(1)
-          .max(180)
-          .regex(/\.pdf$/i),
-        byteSize: z
-          .number()
-          .int()
-          .positive()
-          .max(25 * 1024 * 1024),
-      }).parse(await request.json());
-      const uploadId = randomUUID();
-      const uploadUrl = await createDealDocumentUploadUrl(
-        `signing-staging/${actor.agentId}/${uploadId}.pdf`,
-        "application/pdf",
-      );
-      return Response.json(
-        { uploadId, uploadUrl },
-        { headers: { "Cache-Control": "private, no-store" } },
-      );
-    }
+    if (path.join("/") === "uploads")
+      throw new SigningBridgeError("PERSONAL_SIGNING_UNAVAILABLE", 403);
     if (
       path.join("/") === "requests" ||
       path.join("/") === "packages/preview"
     ) {
-      let raw: unknown, upload: FormData | undefined;
       if (
         request.headers.get("content-type")?.startsWith("multipart/form-data")
-      ) {
-        const length = Number(request.headers.get("content-length") || 0);
-        if (!length || length > 101 * 1024 * 1024)
-          throw new SigningBridgeError("UPLOAD_TOO_LARGE", 413);
-        upload = await request.formData();
-        raw = JSON.parse(String(upload.get("payload")));
-      } else raw = await request.json();
+      )
+        throw new SigningBridgeError("PERSONAL_SIGNING_UNAVAILABLE", 403);
+      const raw = await request.json();
+      if (raw?.scenario === "custom")
+        throw new SigningBridgeError("PERSONAL_SIGNING_UNAVAILABLE", 403);
       const input = z
-        .object({ scenario: z.enum(["buyer", "seller", "custom"]) })
+        .object({
+          scenario: z.enum(["buyer", "seller"]),
+          companyKey: z.enum(["homix_realty", "homix_living"]),
+        })
         .passthrough()
         .parse(raw);
-      const safe = { ...input, ownerAgentId: actor.agentId };
-      if (!upload && input.scenario === "custom") {
-        const { uploads } = z
-          .object({
-            uploads: z
-              .array(
-                z.object({
-                  id: z.string().uuid(),
-                  name: z
-                    .string()
-                    .min(1)
-                    .max(180)
-                    .regex(/\.pdf$/i),
-                }),
-              )
-              .min(1)
-              .max(10),
-          })
-          .parse(input);
-        const form = new FormData();
-        const payload = { ...safe } as Record<string, unknown>;
-        delete payload.uploads;
-        form.set("payload", JSON.stringify(payload));
-        let total = 0;
-        for (const file of uploads) {
-          const bytes = await readPrivatePdf(
-            `signing-staging/${actor.agentId}/${file.id}.pdf`,
-          );
-          total += bytes.length;
-          if (total > 100 * 1024 * 1024)
-            throw new SigningBridgeError("UPLOAD_TOO_LARGE", 413);
-          form.append(
-            "files",
-            new Blob([new Uint8Array(bytes)], { type: "application/pdf" }),
-            file.name,
-          );
-        }
-        const response = await signingBridgeFetch("/v1/requests", actor, {
-          method: "POST",
-          body: form,
-        });
-        return Response.json(
-          signingRequestSchema.parse(await response.json()),
-          { status: 201 },
-        );
-      }
-      if (upload) {
-        if (path.join("/") !== "requests" || input.scenario !== "custom")
-          throw new SigningBridgeError("INVALID_UPLOAD", 400);
-        const files = upload.getAll("files");
-        if (
-          !files.length ||
-          files.length > 10 ||
-          files.some(
-            (f) =>
-              !(f instanceof File) ||
-              f.size > 25 * 1024 * 1024 ||
-              f.type !== "application/pdf",
-          )
-        )
-          throw new SigningBridgeError("INVALID_UPLOAD", 400);
-        const form = new FormData();
-        form.set("payload", JSON.stringify(safe));
-        for (const file of files) form.append("files", file);
-        const response = await signingBridgeFetch("/v1/requests", actor, {
-          method: "POST",
-          body: form,
-        });
-        return Response.json(
-          signingRequestSchema.parse(await response.json()),
-          { status: 201 },
-        );
-      }
+      if (!actor.allowedCompanyKeys.includes(input.companyKey))
+        throw new SigningBridgeError("COMPANY_ACCESS_DENIED", 403);
+      const catalog = await signingBridgeJson("/v1/packages", actor, z.object({ items: z.array(signingPackageSchema) }));
+      const published = catalog.items.find((p) => p.id === input.packageId && p.scenario === input.scenario && p.company_key === input.companyKey);
+      if (!published) throw new SigningBridgeError("PACKAGE_RETIRED", 409);
+      const [agent] = await db.select({ legalName: agents.legalName }).from(agents).where(eq(agents.id, actor.agentId)).limit(1);
+      if (!agent) throw new SigningBridgeError("AGENT_NOT_FOUND", 404);
+      const canonical = bindSigningAgentNames(input, published, agent);
       return Response.json(
         await signingBridgeJson(
           `/v1/${path.join("/")}`,
           actor,
           path[0] === "requests" ? signingRequestSchema : z.unknown(),
-          safe,
+          { ...canonical, ownerAgentId: actor.agentId },
         ),
+        { status: path[0] === "requests" ? 201 : 200 },
       );
     }
     if (path[0] !== "requests" || !uuid.test(path[1] ?? ""))
@@ -251,13 +195,22 @@ export async function POST(request: Request, context: Context) {
       path[2] === "parts" &&
       uuid.test(path[3]) &&
       path[4] === "access"
-    )
+    ) {
+      const input = z
+        .object({
+          kind: z.enum(["editor", "signer"]),
+          recipientId: z.number().int().positive().optional(),
+        })
+        .strict()
+        .parse(await request.json());
+      if (input.kind === "editor")
+        throw new SigningBridgeError("PERSONAL_SIGNING_UNAVAILABLE", 403);
       return Response.json(
         await signingBridgeJson(
           `/v1/${path.join("/")}`,
           actor,
           z.object({ url: z.string().url() }),
-          await request.json(),
+          input,
         ),
         {
           headers: {
@@ -266,6 +219,7 @@ export async function POST(request: Request, context: Context) {
           },
         },
       );
+    }
     throw new SigningBridgeError("NOT_FOUND", 404);
   } catch (error) {
     return signingApiError(error);

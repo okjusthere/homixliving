@@ -5,6 +5,7 @@ import { PageHeader, FilterTabs } from "@/components/homix/page-kit";
 import { useLocale } from "@/lib/i18n-client";
 import type { SigningPackage } from "@/lib/signing-contract";
 import { errorText, signingButton, signingInput } from "./client";
+import { CompanyTemplateUpload } from "./company-template-upload";
 
 type Connection = {
   id: string;
@@ -24,6 +25,7 @@ type Person = {
 };
 type Template = {
   id: string;
+  editorUrl: string;
   title: string;
   files: { id: string; title: string }[];
   roles: { id: number; name: string; role: string; order: number | null }[];
@@ -77,7 +79,7 @@ export function SigningAdministration() {
   const [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false);
-  const [scope, setScope] = useState<"customer" | "company">("customer"),
+  const [scope, setScope] = useState<"customer" | "company">("company"),
     [agentId, setAgentId] = useState(""),
     [company, setCompany] = useState("homix_realty"),
     [token, setToken] = useState(""),
@@ -488,9 +490,11 @@ export function SigningAdministration() {
                       setAgentId("");
                     }}
                   >
-                    <option value="customer">
-                      {zh ? "经纪人客户文件" : "Agent client documents"}
-                    </option>
+                    {connectionId && scope === "customer" && (
+                      <option value="customer">
+                        {zh ? "经纪人客户文件" : "Agent client documents"}
+                      </option>
+                    )}
                     <option value="company">
                       {zh ? "公司 / HR 合同" : "Company / HR contracts"}
                     </option>
@@ -591,6 +595,16 @@ export function SigningAdministration() {
         </>
       ) : (
         <>
+          <CompanyTemplateUpload
+            connections={connections.filter(
+              (connection) =>
+                connection.scope === "company" && !connection.revokedAt,
+            )}
+            onUploaded={async (id) => {
+              setParts([]);
+              await listTemplates(id);
+            }}
+          />
           <section className="overflow-hidden rounded-lg border border-line bg-white">
             <ul className="divide-y divide-line">
               {packages.map((item) => (
@@ -824,14 +838,28 @@ export function SigningAdministration() {
                   </div>
                   <p className="text-xs text-ink-50">
                     {zh
-                      ? "模板放在公司团队根目录。每个模板作为一组相同收件人可见的文件；不同可见范围请添加另一组。"
-                      : "Keep templates in the company team root. Each template is a file group visible to all its recipients; use another group for a different audience."}
+                      ? "公司客户包使用一个含多份 PDF 的模板；不同收件范围请分别发布包。顺序签署时每位参与人的顺序号必须不同，或选择全部并行。"
+                      : "Use one multi-PDF template per client package. Publish different audiences separately. Use distinct sequential ranks, or parallel signing."}
                   </p>
                 </div>
               )}
               {draftPart && template && (
                 <div className="space-y-4 rounded-md border border-line p-4">
-                  <h3 className="font-medium">{draftPart.title}</h3>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="font-medium">{draftPart.title}</h3>
+                    {template.editorUrl && (
+                      <a
+                        className={signingButton}
+                        href={template.editorUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {zh
+                          ? "配置公司模板字段"
+                          : "Configure company template fields"}
+                      </a>
+                    )}
+                  </div>
                   <p className="text-sm text-ink-50">
                     {template.files.map((f) => f.title).join(" · ")}
                   </p>
@@ -983,7 +1011,11 @@ export function SigningAdministration() {
                   })}
                   <button
                     type="button"
-                    disabled={busy}
+                    disabled={
+                      busy ||
+                      (["buyer", "seller"].includes(scenario) &&
+                        parts.length > 0)
+                    }
                     className={signingButton}
                     onClick={() => {
                       setParts([...parts, draftPart]);

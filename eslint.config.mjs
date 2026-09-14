@@ -13,6 +13,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Generated PDF.js vendor assets and local audit/test artifacts, not sources.
+    "public/signing-pdf/**",
+    "tmp/**",
   ]),
 ]);
 

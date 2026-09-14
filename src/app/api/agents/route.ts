@@ -11,7 +11,7 @@ import {
   deals,
   teams,
 } from "@/db/schema";
-import { and, desc, eq, gt, inArray } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, sql } from "drizzle-orm";
 import { requireActiveAgentApi, requireAdminApi } from "@/lib/auth-guards";
 import { isAgentPractice, normalizeAgentPlan, PLAN_SPLIT_PCT } from "@/lib/agent-plans";
 import {
@@ -25,6 +25,7 @@ import {
 import { DEFAULT_AGENT_SPLIT_PCT } from "@/lib/splits";
 import { logAudit } from "@/lib/audit";
 import { syncPublicAgentProfile } from "@/lib/sync-public-profile";
+import { cleanAgentName, hasSignedNameBasis, validAgentName } from "@/lib/agent-names";
 import {
   isAgentAccountStatus,
   normalizeAgentAccountStatus,
@@ -64,7 +65,7 @@ function cleanAdminAgentPayload(body: Record<string, unknown>) {
     stringOrNull(body.licensedCompanyId) || stringOrNull(body.licensedCompany),
   );
   return {
-    name: String(body.name || "").trim(),
+    name: cleanAgentName(body.name),
     email: normalizeEmail(body.email),
     phone: stringOrNull(body.phone),
     licenseNumber: stringOrNull(body.licenseNumber),
@@ -76,7 +77,7 @@ function cleanAdminAgentPayload(body: Record<string, unknown>) {
     accountStatus: normalizeAgentAccountStatus(body.accountStatus, "active"),
     joinedAt: dateOrNull(body.joinedAt),
     notes: stringOrNull(body.notes),
-    legalName: stringOrNull(body.legalName),
+    legalName: cleanAgentName(body.legalName) || null,
     // Commission plan and practice area. Invalid values fall back rather than
     // 500 — the UI only ever sends the known set.
     plan,
@@ -268,6 +269,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "licenseExpiresAt must be YYYY-MM-DD" }, { status: 400 });
     }
     const data = { ...cleanAdminAgentPayload(body), accountStatus: "pending" as const };
+    if (!validAgentName(body.name) || (data.legalName && !validAgentName(body.legalName))) {
+      return NextResponse.json({ error: "Enter a valid Preferred name / Legal name (maximum 200 characters)." }, { status: 400 });
+    }
     if (!data.name) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
     }
@@ -361,15 +365,26 @@ export async function PUT(req: NextRequest) {
       "joinedAt",
       "notes",
       "accountStatus",
-      // Roster bookkeeping: an agent must not retitle themselves on the tax
-      // forms or claim who recruited them.
-      "legalName",
+      // Referrals and plan terms are office-managed, never self-reported.
       "referredByAgentId",
       "plan",
       "practice",
     ];
     if (!isAdmin && restrictedFields.some((field) => field in body)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    const legalChanged = body.legalName !== undefined && (body.legalName ?? "") !== (existing.legalName || "");
+    const preferredName = body.name === undefined || body.name === existing.name
+      ? existing.name : cleanAgentName(body.name);
+    if (legalChanged && ((!isAdmin && Boolean(existing.legalName)) || hasSignedNameBasis(existing))) {
+      return NextResponse.json({ error: "Legal name is locked. Contact the office to correct signed identity records. 法定姓名已锁定，请联系管理员通过协议更正流程处理。" }, { status: 409 });
+    }
+    if (!validAgentName(body.name ?? existing.name) ||
+        (body.legalName !== undefined && !validAgentName(body.legalName) && body.legalName !== null && body.legalName !== "")) {
+      return NextResponse.json({ error: "Enter a valid Preferred name / Legal name (maximum 200 characters)." }, { status: 400 });
+    }
+    if (hasSignedNameBasis(existing) && !existing.legalName && preferredName !== existing.name) {
+      return NextResponse.json({ error: "Confirm the legal identity with the office before changing this legacy Preferred name. 请先由管理员核对旧协议的法定姓名。" }, { status: 409 });
     }
     if (body.accountStatus !== undefined && !isAgentAccountStatus(body.accountStatus)) {
       return NextResponse.json({ error: "Invalid account status" }, { status: 400 });
@@ -382,6 +397,8 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "licenseExpiresAt must be YYYY-MM-DD" }, { status: 400 });
     }
     const cleaned = cleanAdminAgentPayload({ ...existing, ...body, email: existing.email });
+    cleaned.name = preferredName;
+    if (!legalChanged) cleaned.legalName = existing.legalName;
     const companyChanged = cleaned.licensedCompanyId !== existing.licensedCompanyId;
     if (
       isAdmin &&
@@ -398,7 +415,6 @@ export async function PUT(req: NextRequest) {
     }
     if (isAdmin && existing.accountStatus === "pending" && existing.agreementStatus !== "not_started") {
       const signedFactsChanged =
-        cleaned.name !== existing.name ||
         cleaned.legalName !== existing.legalName ||
         cleaned.phone !== existing.phone ||
         cleaned.licenseNumber !== existing.licenseNumber ||
@@ -468,7 +484,8 @@ export async function PUT(req: NextRequest) {
           updatedAt: cleaned.updatedAt,
         }
       : {
-          name: String(body.name ?? existing.name).trim(),
+          name: preferredName,
+          ...(legalChanged ? { legalName: cleanAgentName(body.legalName) } : {}),
           phone: body.phone === undefined ? existing.phone : stringOrNull(body.phone),
           licenseNumber: body.licenseNumber === undefined
             ? existing.licenseNumber
@@ -531,7 +548,8 @@ export async function PUT(req: NextRequest) {
       }
     }
 
-    const [updated] = await db.update(agents).set(data).where(eq(agents.id, id)).returning();
+    const [updated] = await db.update(agents).set(data).where(and(eq(agents.id, id), sql`${agents.updatedAt} IS NOT DISTINCT FROM ${existing.updatedAt}::timestamptz`)).returning();
+    if (!updated) return NextResponse.json({ error: "Profile changed while saving. Refresh and retry. 资料已更新，请刷新后重试。" }, { status: 409 });
     await logAudit(
       authResult.session,
       "update",
@@ -546,6 +564,7 @@ export async function PUT(req: NextRequest) {
     const mlsVerification = await syncPublicAgentProfile({
       agentId: updated.id,
       name: updated.name,
+      legalName: updated.legalName,
       phone: updated.phone,
       licenseNumber: updated.licenseNumber,
     });
