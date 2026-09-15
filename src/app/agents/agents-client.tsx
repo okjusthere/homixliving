@@ -817,6 +817,10 @@ export default function AgentsConsole() {
             <Link href="/admin/agents/invite" className="admin-control">
               {locale === "zh" ? "发邀请" : "Create invitation"}
             </Link>
+          ) : view === "public" ? (
+            <Link href="/admin/agents/legacy-access" className="admin-control">
+              {locale === "zh" ? "存量经纪人接入" : "Existing agent access"}
+            </Link>
           ) : undefined
         }
       />

@@ -4,9 +4,9 @@ import { agents } from "@/db/schema";
 import { logAudit } from "@/lib/audit";
 import {
   fetchPublicProfile,
-  publishPublicProfile,
   setAdminPublicVisibility,
 } from "@/lib/homixweb";
+import { publishPublicProfile } from "@/lib/legacy-safe-publish";
 import { notify } from "@/lib/notify";
 import { syncPublicAgentProfile } from "@/lib/sync-public-profile";
 

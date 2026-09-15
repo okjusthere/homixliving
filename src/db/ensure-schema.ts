@@ -1,5 +1,6 @@
 import type { Sql } from "postgres";
 import { ensureOnboardingWorkspace } from "./ensure-onboarding-workspace";
+import { ensureLegacyAgentClaimsSchema } from "./legacy-agent-claims";
 
 export type AgentLifecycleSchemaState = {
   portal: {
@@ -512,6 +513,7 @@ export async function ensureSchema(sql: Sql) {
     )`);
 
   await ensureAgentIdentitySchema(sql);
+  await ensureLegacyAgentClaimsSchema(sql);
 
   // Expand from the former account/visibility columns. Legacy columns remain
   // until the explicit contract step after both deployments are verified.

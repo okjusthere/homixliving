@@ -52,6 +52,13 @@ jobs:
       - name: Tests
         run: npm test
 
+      - name: Existing-agent claim database integration
+        env:
+          PGPASSWORD: postgres
+        run: |
+          createdb -h localhost -p 5432 -U postgres homix_legacy_claim_test
+          DATABASE_URL=postgres://postgres:postgres@localhost:5432/homix_legacy_claim_test npm run test:legacy-claims:db
+
       - name: Listing email payment database integration
         run: npm run test:listing-email-payment:db
 

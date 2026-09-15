@@ -34,6 +34,8 @@ import {
   onboardingEntryForSignIn,
 } from "@/lib/onboarding-entry";
 import { onboardingEventValues } from "@/lib/onboarding-events";
+import { claimLegacyAgent, LegacyClaimError } from "@/lib/legacy-agent-claims";
+import { LEGACY_CLAIM_COOKIE } from "@/lib/legacy-agent-claim-token";
 
 const googleEnabled =
   !!process.env.AUTH_GOOGLE_ID && !!process.env.AUTH_GOOGLE_SECRET;
@@ -149,7 +151,7 @@ async function recordVerifiedGoogleIdentity(
   agent: Agent,
   email: string,
   providerSubject: string,
-  source: "sign_in" | "legacy_bootstrap" | "application",
+  source: "sign_in" | "legacy_bootstrap" | "application" | "legacy_claim",
 ) {
   const now = new Date().toISOString();
   await db.transaction(async (tx) => {
@@ -353,6 +355,23 @@ async function upsertAgentFromGoogle(user: {
   const admin = isConfiguredAdminEmail(email);
   const now = new Date().toISOString();
   const cookieStore = await cookies();
+  const legacyToken = cookieStore.get(LEGACY_CLAIM_COOKIE)?.value;
+  async function resolveLegacyClaim(token?: string) {
+    const legacyAgentId = await claimLegacyAgent({ email: email!, providerSubject, emailVerified: true, token });
+    if (!legacyAgentId) return null;
+    const [legacyAgent] = await db.select().from(agents).where(eq(agents.id, legacyAgentId)).limit(1);
+    if (!legacyAgent) throw new LegacyClaimError("CLAIM_UNAVAILABLE");
+    await recordVerifiedGoogleIdentity(legacyAgent, email!, providerSubject, "legacy_claim");
+    if (token) cookieStore.delete(LEGACY_CLAIM_COOKIE);
+    return legacyAgent;
+  }
+  // An explicit bearer link must resolve exactly its own profile. Ordinary
+  // established logins, however, keep their existing identity/merge semantics.
+  if (legacyToken) {
+    const claimed = await resolveLegacyClaim(legacyToken);
+    if (!claimed) throw new LegacyClaimError("INVALID_INVITATION");
+    return claimed;
+  }
   const inviteToken = cookieStore.get(ONBOARDING_INVITE_COOKIE)?.value;
   const hasInvitationContext = inviteToken
     ? Boolean(await findUsableInvitation(inviteToken))
@@ -398,6 +417,9 @@ async function upsertAgentFromGoogle(user: {
     const updated = await completeEmailAliasLink(pendingAgent, email, providerSubject);
     return reconcileConfiguredAccess(updated, admin, user.name);
   }
+
+  const claimed = await resolveLegacyClaim();
+  if (claimed) return claimed;
 
   // Ordinary sign-in is not registration. A new person record may only be
   // created by a configured admin, an invitation, or the explicit /join flow.
@@ -521,6 +543,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           providerSubject: account.providerAccountId,
         }));
       } catch (error) {
+        if (error instanceof LegacyClaimError) {
+          console.warn("Legacy claim denied", { code: error.code });
+          return "/login?error=LegacyClaimConflict";
+        }
         console.error("Google identity resolution failed", error);
         return false;
       }

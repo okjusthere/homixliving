@@ -4,7 +4,7 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { SessionProvider } from "@/components/session-provider";
 import { AppShell } from "@/components/app-shell";
-import { Analytics } from "@vercel/analytics/next";
+import { SafeAnalytics } from "@/components/safe-analytics";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -43,7 +43,7 @@ export default function RootLayout({
           <AppShell>{children}</AppShell>
           <Toaster />
         </SessionProvider>
-        <Analytics />
+        <SafeAnalytics />
       </body>
     </html>
   );
