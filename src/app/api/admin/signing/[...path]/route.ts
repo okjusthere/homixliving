@@ -222,10 +222,10 @@ export async function POST(request: Request, context: Context) {
         { status: path.length === 1 ? 201 : 200 },
       );
     }
-    if (path.join("/") === "packages")
+    if (["packages", "packages/compose"].includes(path.join("/")))
       return Response.json(
         await signingBridgeJson(
-          "/v1/packages",
+          `/v1/${path.join("/")}`,
           actor,
           z.unknown(),
           await request.json(),

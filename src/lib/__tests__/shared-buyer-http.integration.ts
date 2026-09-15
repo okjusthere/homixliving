@@ -27,7 +27,7 @@ const POST = (...args: Parameters<typeof basePost>) =>
 async function main() {
   requireSigningTestDatabase();
   const scenario = process.env.SIGNING_QA_SCENARIO || "buyer";
-  assert(["buyer", "seller", "commercial"].includes(scenario));
+  assert(["buyer", "seller", "commercial", "company_file"].includes(scenario));
   assert.equal(
     process.env.DATABASE_URL,
     "postgres://homix:synthetic-only@127.0.0.1:5569/homix_onboarding_integration",
@@ -84,12 +84,29 @@ async function main() {
     );
   try {
     await bridge.listen({ port: 4113, host: "127.0.0.1" });
-    const report = JSON.parse(
-      await readFile(
-        `/private/tmp/homix-documenso-integration/shared-${scenario}-run.json`,
-        "utf8",
-      ),
-    );
+    const composed = process.env.SIGNING_QA_COMPOSED === "1";
+    const report = composed
+      ? {
+          packageId: (
+            await store.query(
+              "SELECT id FROM signing.packages WHERE catalog_kind='package' AND package_key LIKE 'qa-composed-exclusive-%' AND retired_at IS NULL ORDER BY created_at DESC LIMIT 1",
+            )
+          )[0].id,
+        }
+      : scenario === "company_file"
+        ? {
+            packageId: (
+              await store.query(
+                "SELECT id FROM signing.packages WHERE scenario='company_file' AND package_key LIKE 'qa-company-deal-sheet-%' ORDER BY created_at DESC LIMIT 1",
+              )
+            )[0].id,
+          }
+        : JSON.parse(
+            await readFile(
+              `/private/tmp/homix-documenso-integration/shared-${scenario}-run.json`,
+              "utf8",
+            ),
+          );
     const [published] = await store.query(
       "SELECT * FROM signing.packages WHERE id=$1",
       [report.packageId],
@@ -110,6 +127,7 @@ async function main() {
         licensedCompany: company,
         licensedCompanyId: company,
         licenseNumber: "SYNTHETIC-AGENT",
+        phone: "2125550100",
       });
       session(person);
       const catalogResponse = await get("packages");
@@ -120,6 +138,15 @@ async function main() {
       );
       assert.equal(catalog.agentIdentity.companyKey, company);
       const roles = published.definition[0].roles.slice(0, 2);
+      const prior =
+        scenario === "company_file" || composed
+          ? (
+              await store.query(
+                "SELECT input_snapshot FROM signing.requests WHERE input_snapshot->>'packageId'=$1 ORDER BY created_at DESC LIMIT 1",
+                [report.packageId],
+              )
+            )[0].input_snapshot
+          : null;
       const input = {
         title: "Synthetic shared Portal draft",
         scenario,
@@ -131,7 +158,13 @@ async function main() {
           name: i === 0 ? "Forged Agent" : "Synthetic Buyer",
           email: i === 0 ? person.email : "client@example.invalid",
         })),
+        business: {
+          customer: "",
+          property: "Synthetic QA property",
+          reference: "QA-DEAL-2026",
+        },
         values: {
+          ...prior?.values,
           ...Object.fromEntries(
             roles.map((r: { templateRecipientId: number }) => [
               `name_${r.templateRecipientId}`,
@@ -154,6 +187,25 @@ async function main() {
         ).status,
         403,
       );
+      if (scenario === "company_file") {
+        assert.equal(
+          (
+            await post({
+              ...input,
+              idempotencyKey: crypto.randomUUID(),
+              recipients: [
+                ...input.recipients,
+                {
+                  key: "client1",
+                  name: "Unexpected buyer",
+                  email: "client@example.invalid",
+                },
+              ],
+            })
+          ).status,
+          400,
+        );
+      }
       const response = await post(input);
       assert.equal(
         response.status,
@@ -177,7 +229,17 @@ async function main() {
       assert.equal(row.input_snapshot.values.agent_license, "SYNTHETIC-AGENT");
       assert.equal(row.input_snapshot.values.agent_name, "Synthetic Legal");
       assert.equal(row.input_snapshot.recipients[0].name, "Synthetic Legal");
-      assert.equal(draft.parts[0].document.recipients.length, 2);
+      assert.equal(draft.parts[0].document.recipients.length, roles.length);
+      assert.equal(row.input_snapshot.business.reference, "QA-DEAL-2026");
+      if (composed) {
+        assert.equal(draft.parts.length, 1);
+        assert.equal(draft.parts[0].document.files.length, 4);
+        assert.equal(
+          catalog.items.find((p: { id: string }) => p.id === report.packageId)
+            .components.length,
+          4,
+        );
+      }
       console.log(
         `PASS Portal shared package: ${company}; settings/profile authoritative; forged company rejected`,
       );
