@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "test:legacy-claims:db": "node --import ./scripts/test-server-only.mjs --import tsx src/lib/__tests__/legacy-agent-claims-db.test.ts",
+    "agents:preregister-legacy": "node --import tsx scripts/preregister-legacy-agents.ts",
     "pretest": "npm run test:agent-names && npm run test:agent-name-api",
     "test:agent-name-api": "node --import ./scripts/test-server-only.mjs --import ./scripts/test-agreement-auth.mjs --import tsx --test src/lib/__tests__/agent-name-api.test.ts",
     "test:agent-names": "node --import tsx --test src/lib/__tests__/agent-names.test.ts src/lib/__tests__/agent-mls-identity.test.ts",

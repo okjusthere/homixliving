@@ -68,7 +68,14 @@ const nextConfig: NextConfig = {
     "/.well-known/workflow/**": ["src/assets/content/homix-logo.webp", "node_modules/sharp/**/*", "node_modules/@img/sharp-*/**/*"],
   },
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [
+      { source: "/:path*", headers: securityHeaders },
+      { source: "/claim/:path*", headers: [
+        { key: "Referrer-Policy", value: "no-referrer" },
+        { key: "Cache-Control", value: "private, no-store" },
+        { key: "X-Robots-Tag", value: "noindex, nofollow" },
+      ] },
+    ];
   },
 };
 

@@ -13,10 +13,10 @@ import {
   fetchPublicProfileById,
   hidePublicProfileForOffboarding,
   linkPublicProfile,
-  publishPublicProfile,
   setAdminPublicVisibility,
   type PublicProfile,
 } from "@/lib/homixweb";
+import { publishPublicProfile } from "@/lib/legacy-safe-publish";
 import { normalizeAgentPlan, PLAN_SPLIT_PCT } from "@/lib/agent-plans";
 import {
   onboardingAgreementAllowsPayment,

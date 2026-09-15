@@ -58,6 +58,7 @@ export const authConfig: NextAuthConfig = {
         "/login",
         "/pending",
         "/join",
+        "/claim",
         "/pay",
         "/api/auth",
         // Pending users authenticate inside these handlers. They must be able

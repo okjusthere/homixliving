@@ -5,6 +5,7 @@ import { agents } from "@/db/schema";
 import { requireActiveAgentApi } from "@/lib/auth-guards";
 import { homixwebBase, homixwebSecret, isHomixwebConfigured } from "@/lib/homixweb";
 import { logAudit } from "@/lib/audit";
+import { hasReservedLegacyProfile } from "@/lib/legacy-agent-claims";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -46,6 +47,9 @@ export async function POST(req: NextRequest) {
   if (!agent) return NextResponse.json({ error: "Agent not found" }, { status: 404 });
 
   try {
+    if (await hasReservedLegacyProfile(agent.licenseNumber, agentId)) {
+      return NextResponse.json({ error: "此执照已有存量官网档案，请先认领或关联原档案，不要创建重复主页。" }, { status: 409 });
+    }
     const res = await fetch(`${homixwebBase()}/api/agent-profile/publish`, {
       method: "POST",
       headers: {

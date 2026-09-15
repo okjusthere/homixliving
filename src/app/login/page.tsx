@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Image from "next/image";
+import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { HomixMark } from "@/components/homix/brand-mark";
 import { tone } from "@/components/homix/tokens";
@@ -24,6 +25,7 @@ const M = {
     signInFailed: "Could not sign in with Google",
     accessDenied: "This Google address is not linked to a Homix account. Use a linked email, or start an agent application below.",
     genericError: "Sign-in failed. Please try again.",
+    legacyConflict: "This existing-profile invitation cannot be used with this account. It may be expired, already used, or conflict with an existing account. Please contact an administrator; do not create another application.",
     invalidInvite: "This invitation has expired or been disabled. Ask your inviter for their current link to keep your referral attached to your application.",
     continueGoogle: "Continue with Google",
     applySignIn: "Agent application",
@@ -52,6 +54,7 @@ const M = {
     signInFailed: "无法使用 Google 登录",
     accessDenied: "此 Google 邮箱尚未关联 Homix 账号。请使用已关联邮箱登录，或从下方开始经纪人申请。",
     genericError: "登录失败，请重试。",
+    legacyConflict: "此存量主页邀请无法用于当前账号，可能已过期、被使用，或与已有账号冲突。请联系管理员关联原档案，不要重新创建入职申请。",
     invalidInvite: "此邀请已过期或停用。请向邀请人索取当前链接，再继续申请，以便正确记录推荐关系。",
     continueGoogle: "使用 Google 继续",
     applySignIn: "经纪人申请",
@@ -311,11 +314,12 @@ function LoginInner() {
                 border: `1px solid ${tone.rose}30`,
               }}
             >
-              {params.get("invite") === "invalid" ? t.invalidInvite : error === "AccessDenied"
+              {error === "LegacyClaimConflict" ? t.legacyConflict : params.get("invite") === "invalid" ? t.invalidInvite : error === "AccessDenied"
                 ? t.accessDenied
                 : t.genericError}
             </div>
           )}
+          {error === "LegacyClaimConflict" && <Link href="/claim/reset" prefetch={false} className="mt-3 inline-block text-sm underline">{locale === "zh" ? "退出认领，使用原账号登录" : "Leave claim and sign in to my existing account"}</Link>}
 
           {hasGoogle && (
             <div className="mt-6">
