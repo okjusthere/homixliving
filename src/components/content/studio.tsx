@@ -1,4 +1,5 @@
 "use client";
+import type { OfficeRequest } from "@/lib/content/office-types";
 import { EventEditor } from "./event-editor";
 import { contentEvents, newOpenHouseEvent } from "@/lib/content/events";
 import { copyReviewStep, confirmPosterCopy } from "@/lib/content/copy-review";
@@ -51,12 +52,17 @@ const emptyInput: ContentInput = {
   listing: { source: "manual", address: "", price: "", imageAssetIds: [] },
 };
 
-export function ContentStudio() {
+export function ContentStudio({ office }: { office?: {
+  subjectAgentId: number;
+  initialRequest?: OfficeRequest;
+  onSave: (request: OfficeRequest, generateNow?: boolean) => Promise<void>;
+  onDraftChange?: (request: OfficeRequest) => void;
+} } = {}) {
   const locale = useLocale(),
     zh = locale === "zh",
     t = (en: string, cn: string) => (zh ? cn : en);
-  const [tab, setTab] = useState<"listing" | "holiday" | "works">("listing");
-  const [outputChoice, setOutputChoice] = useState<"both" | "en" | "zh">("zh");
+  const [tab, setTab] = useState<"listing" | "holiday" | "custom" | "works">(office?.initialRequest?.input.kind === "holiday" ? "holiday" : office?.initialRequest?.input.kind === "custom" ? "custom" : "listing");
+  const [outputChoice, setOutputChoice] = useState<"both" | "en" | "zh">(office?.initialRequest?.languages.length === 2 ? "both" : office?.initialRequest?.languages[0] || "zh");
   const [templates, setTemplates] = useState<ContentTemplate[]>([]),
     [holidays, setHolidays] = useState<Holiday[]>([]);
   const [settings, setSettings] = useState<{
@@ -66,8 +72,8 @@ export function ContentStudio() {
     azureConfigured: boolean;
     storageConfigured: boolean;
   } | null>(null);
-  const [selected, setSelected] = useState<string>(""),
-    [input, setInput] = useState<ContentInput>(emptyInput);
+  const [selected, setSelected] = useState<string>(office?.initialRequest?.templateId || ""),
+    [input, setInput] = useState<ContentInput>(office?.initialRequest?.input || emptyInput);
   const [works, setWorks] = useState<Generation[]>([]),
     [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false),
@@ -78,6 +84,8 @@ export function ContentStudio() {
   const [projectId, setProjectId] = useState<string>();
   const [page, setPage] = useState(0),
     [hasMore, setHasMore] = useState(false);
+  const officeSubjectId = office?.subjectAgentId;
+  const assetEndpoint = `/api/content/assets${office ? `?subject=${office.subjectAgentId}` : ""}`;
   const requestKey = useRef<string | null>(null);
   const lastRefreshError = useRef("");
   const reportRefreshError = useCallback((error: Error) => {
@@ -125,7 +133,7 @@ export function ContentStudio() {
         `/api/content/templates${new URLSearchParams(window.location.search).has("template") ? "?admin=1" : ""}`,
       ),
       contentFetch<{ holidays: Holiday[] }>("/api/content/holidays"),
-      contentFetch<NonNullable<typeof settings>>("/api/content/settings"),
+      contentFetch<NonNullable<typeof settings>>(`/api/content/settings${officeSubjectId ? `?subject=${officeSubjectId}` : ""}`),
     ])
       .then(([a, b, c]) => {
         if (live) {
@@ -163,7 +171,7 @@ export function ContentStudio() {
     return () => {
       live = false;
     };
-  }, []);
+  }, [officeSubjectId]);
   useEffect(() => {
     if (tab === "works") refreshWorks().catch(reportRefreshError);
   }, [tab, refreshWorks, reportRefreshError]);
@@ -184,6 +192,11 @@ export function ContentStudio() {
       (v.config.themes.includes("*") || v.config.themes.includes(input.theme)),
   ));
   const template = chooseStudioTemplate(applicable, templates, selected);
+  const draftListener = useRef(office?.onDraftChange);
+  draftListener.current = office?.onDraftChange;
+  useEffect(() => {
+    if (template) draftListener.current?.({ templateId: template.id, input, languages: outputChoice === "both" ? ["zh", "en"] : [outputChoice] });
+  }, [template, input, outputChoice]);
   const availableSizes = template?.config.sizes || [...IMAGE_SIZES];
   const selectedSize = availableSizes.includes(input.size)
     ? input.size
@@ -301,7 +314,7 @@ export function ContentStudio() {
       patch({
         ...emptyInput,
         kind: next,
-        theme: next === "listing" ? "just_listed" : holidays[0]?.id || "",
+        theme: next === "listing" ? "just_listed" : next === "custom" ? "custom" : holidays[0]?.id || "",
         listing: next === "listing" ? emptyInput.listing : undefined,
       });
     }
@@ -321,9 +334,13 @@ export function ContentStudio() {
     const body = new FormData();
     body.set("file", file);
     const { asset } = await contentFetch<{ asset: { id: string } }>(
-      "/api/content/assets",
+      assetEndpoint,
       { method: "POST", body },
     );
+    if (input.kind === "custom") {
+      patch({ referenceAssetIds: [...(input.referenceAssetIds || []), asset.id].slice(0, 4) });
+      return;
+    }
     patchListing({
       imageAssetIds: [...(input.listing?.imageAssetIds || []), asset.id].slice(
         0,
@@ -338,7 +355,7 @@ export function ContentStudio() {
       const imageAssetIds: string[] = [];
       for (const url of photos.slice(0, 4)) {
         const { asset } = await contentFetch<{ asset: { id: string } }>(
-          "/api/content/assets",
+          assetEndpoint,
           { method: "POST", body: JSON.stringify({ url }) },
         );
         imageAssetIds.push(asset.id);
@@ -381,7 +398,7 @@ export function ContentStudio() {
       setBusy(false);
     }
   }
-  async function generate() {
+  async function generate(generateNow = false) {
     if (!template)
       throw new Error(
         t("Choose a published style first", "请先选择已发布的风格"),
@@ -396,6 +413,10 @@ export function ContentStudio() {
     const validated = inputSchema.safeParse(confirmedInput);
     if (!validated.success)
       throw new Error(contentValidationMessage(validated.error.issues));
+    if (office) {
+      await office.onSave({ templateId: template.id, input: validated.data, languages: outputChoice === "both" ? ["zh", "en"] : [outputChoice] }, generateNow);
+      return;
+    }
     requestKey.current ??= crypto.randomUUID();
     const { generationId } = await contentFetch<{ generationId: string }>(
       "/api/content/generations",
@@ -473,7 +494,7 @@ export function ContentStudio() {
     })[s] || s;
   return (
     <div className="studio">
-      <PageHeader
+      {!office && <PageHeader
         eyebrow="HOMIX / PERSONAL MARKETING"
         title={t("Content studio", "内容中心")}
         description={t(
@@ -481,13 +502,13 @@ export function ContentStudio() {
           "让每一次房源上新、每一个重要节日，都带上你的个人风格。",
         )}
 
-      />
+      />}
       <div
         className="studio-tabs"
         role="tablist"
         aria-label={t("Content type", "内容类型")}
       >
-        {(["listing", "holiday", "works"] as const).map((v) => (
+        {(["listing", "holiday", "custom", ...(office ? [] : ["works"])] as ("listing" | "holiday" | "custom" | "works")[]).map((v) => (
           <button
             role="tab"
             aria-selected={tab === v}
@@ -498,7 +519,7 @@ export function ContentStudio() {
               ? t("Listing posters", "房源海报")
               : v === "holiday"
                 ? t("Holiday greetings", "节日祝福")
-                : t("My artwork", "我的作品")}
+                : v === "custom" ? t("Other", "其他") : t("My artwork", "我的作品")}
           </button>
         ))}
       </div>
@@ -614,13 +635,13 @@ export function ContentStudio() {
                               ? "zh"
                               : g.input.language,
                           );
-                          setProjectId(g.projectId);
+                          setProjectId(g.officeTaskId ? undefined : g.projectId);
                           setSelected(g.templateId);
-                          setTab(g.input.kind === "listing" ? "listing" : "holiday");
+                          setTab(g.input.kind === "listing" ? "listing" : g.input.kind === "custom" ? "custom" : "holiday");
                           requestKey.current = null;
                         }}
                       >
-                        {t("Use again", "再次使用")}
+                        {t("Re-generate", "重新生成")}
                       </button>
                     </div>
                   </div>
@@ -657,9 +678,13 @@ export function ContentStudio() {
               <h2>
                 {input.kind === "listing"
                   ? t("What’s the news?", "这次带来什么好消息？")
-                  : t("A reason to reach out", "每个节日，一份心意")}
+                  : input.kind === "custom" ? t("Your idea, your direction", "自由写下你的创意") : t("A reason to reach out", "每个节日，一份心意")}
               </h2>
-              {input.kind === "listing" ? (
+              {input.kind === "custom" ? (
+                <Field label={t("Your poster prompt", "自由创作提示词")}>
+                  <textarea rows={9} value={input.stylePrompt || ""} onChange={(e) => patch({ stylePrompt: e.target.value })} placeholder={t("Describe the poster, text, composition and style you want…", "写下海报用途、想展示的文字、构图和风格，没有预设风格限制…")} />
+                </Field>
+              ) : input.kind === "listing" ? (
                 ["PRE-LIST", "ACTIVE", "PROCESS", "SOLD"].map((group) => (
                   <div className="studio-group" key={group}>
                     <div className="studio-kicker">{group}</div>
@@ -760,7 +785,7 @@ export function ContentStudio() {
                 </>
               )}
             </section>
-            <section className="studio-section">
+            {input.kind !== "custom" && <section className="studio-section">
               <div className="studio-kicker">
                 02 / {t("Art direction", "选择风格")}
               </div>
@@ -779,6 +804,7 @@ export function ContentStudio() {
                     key={v.id}
                     onClick={() => {
                       setSelected(v.id);
+                      patch({ stylePrompt: undefined });
                       requestKey.current = null;
                     }}
                   >
@@ -803,7 +829,13 @@ export function ContentStudio() {
                   "风格示意用于展示设计方向，生成作品会使用你的真实照片和资料。",
                 )}
               </p>
-            </section>
+            </section>}
+            {input.kind === "custom" && <section className="studio-section">
+              <h2>{t("Reference images (optional)", "参考图片（选填）")}</h2>
+              <p className="studio-note">{t("Add up to 4 images. Your Agent portrait and company logo are supplied separately.", "最多添加 4 张参考图片。经纪人头像与公司 logo 会另行自动加入。")}</p>
+              <PhotoSorter ids={input.referenceAssetIds || []} zh={zh} disabled={busy} onChange={(ids) => patch({ referenceAssetIds: ids })} />
+              <input aria-label={t("Upload reference image", "上传参考图片")} type="file" accept="image/png,image/jpeg,image/webp" disabled={busy || (input.referenceAssetIds?.length || 0) >= 4} onChange={(e) => { const f=e.target.files?.[0]; if(f) void act(() => upload(f)); e.target.value=""; }} />
+            </section>}
             {input.kind === "listing" && (
               <section className="studio-section">
                 <div className="studio-kicker">
@@ -1078,7 +1110,7 @@ export function ContentStudio() {
                                   className="animate-spin"
                                 />
                               )}
-                              {generationLabel}
+                              {office && copyStep !== "extract" ? t("Confirm copy & save draft", "确认文案并保存草稿") : generationLabel}
                             </button>
                             <span>
                               {outputChoice === "both"
@@ -1124,7 +1156,7 @@ export function ContentStudio() {
             )}
           </main>
           <aside className="studio-sidebar studio-panel">
-            <h2>{t("Your signature", "你的专属名片")}</h2>
+            <h2>{office ? t("Agent signature", "海报署名") : t("Your signature", "你的专属名片")}</h2>
             {settings && (
               <div className="studio-identity">
                 {settings.brand.photoUrl && (
@@ -1141,7 +1173,7 @@ export function ContentStudio() {
                 </div>
               </div>
             )}
-            <Link className="studio-note underline" href="/profile/public">
+            <Link className="studio-note underline" href={office ? `/admin/agents/${office.subjectAgentId}` : "/profile/public"}>
               {t("Edit saved profile", "修改已保存的个人资料")}
             </Link>
             <label className="studio-check">
@@ -1150,7 +1182,7 @@ export function ContentStudio() {
                 checked={input.includePortrait}
                 onChange={(e) => patch({ includePortrait: e.target.checked })}
               />
-              {t("Include my portrait", "加入我的头像")}
+              {office ? t("Include this Agent’s portrait", "加入该经纪人的头像") : t("Include my portrait", "加入我的头像")}
             </label>
             <p className="studio-note">
               {t(
@@ -1242,8 +1274,22 @@ export function ContentStudio() {
                 onChange={(events) => patch({ events, event: undefined })}
               />
             )}
+            {input.kind === "listing" && <Field label={t("Agent's role", "经纪人角色")}>
+              <select value={input.representationRole || "unspecified"} onChange={(e) => patch({ representationRole: e.target.value as ContentInput["representationRole"] })}>
+                <option value="unspecified">{t("No role label", "不标注代理关系")}</option>
+                <option value="listing">{t("Listing agent", "挂牌经纪人")}</option>
+                <option value="buyer">{t("Buyer's agent", "买方经纪人")}</option>
+              </select>
+            </Field>}
+            <details className="studio-prompt-editor">
+              <summary>{t("Edit prompt (optional)", "修改提示词（选填）")}</summary>
+              <p className="studio-note">{t("Applies to this poster only; does not change the shared template.", "仅用于本次海报，不会修改公司的共享模板。")}</p>
+              {input.kind !== "custom" && <Field label={t("Style prompt", "风格提示词")}>
+                <textarea rows={10} value={input.stylePrompt ?? template?.config.prompt ?? ""} onChange={(e) => patch({ stylePrompt: e.target.value })} />
+                <button type="button" className="studio-link" onClick={() => patch({ stylePrompt: undefined })}>{t("Reset to template", "恢复模板提示词")}</button>
+              </Field>}
             <Field
-              label={t("Creative notes (optional)", "本次风格要求（选填）")}
+              label={t("Creative notes (optional)", "补充要求（选填）")}
             >
               <textarea
                 placeholder={t(
@@ -1256,6 +1302,7 @@ export function ContentStudio() {
                 }
               />
             </Field>
+            </details>
             <button
               className="studio-button w-full"
               disabled={
@@ -1271,8 +1318,9 @@ export function ContentStudio() {
               ) : (
                 <Plus size={16} />
               )}{" "}
-              {generationLabel}
+              {office && copyStep !== "extract" ? t("Confirm copy & save draft", "确认文案并保存草稿") : generationLabel}
             </button>
+            {office && copyStep !== "extract" && <button className="studio-button secondary w-full mt-3" disabled={busy || !template || !settings?.azureConfigured || !settings.storageConfigured} onClick={() => act(() => generate(true))}>{t("Confirm & generate this poster", "确认并生成这张海报")}</button>}
             {running && (
               <p className="studio-note">
                 {t(
@@ -1293,7 +1341,7 @@ export function ContentStudio() {
                 )}
               </p>
             )}
-            <p className="studio-note">
+            {!office && <><p className="studio-note">
               {outputChoice === "both"
                 ? t(
                     "Two separate images, created in sequence; uses 2 generations. Find both in My artwork, even after leaving this page.",
@@ -1310,6 +1358,7 @@ export function ContentStudio() {
                 `每日最多 ${settings?.dailyLimit || 10} 次。分享前请检查文字和头像细节。`,
               )}
             </p>
+            </>}
             {settings &&
               (!settings.azureConfigured || !settings.storageConfigured) && (
                 <p className="studio-error">

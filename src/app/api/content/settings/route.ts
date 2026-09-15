@@ -7,7 +7,11 @@ export async function GET(req: Request) {
   try {
     const actor = await contentActor(req);
     if (actor instanceof Response) return actor;
-    const brand = await loadBrand(actor.agentId);
+    const subject = new URL(req.url).searchParams.get("subject");
+    if (subject !== null && !actor.admin) throw new ContentError("Admin required", 403);
+    const target = subject === null ? actor.agentId : Number(subject);
+    if (!Number.isSafeInteger(target) || target < 1) throw new ContentError("Choose an Agent / 请选择经纪人");
+    const brand = await loadBrand(target);
     const storageVerified =
       actor.admin && new URL(req.url).searchParams.get("verify") === "1"
         ? await verifyContentStorage().catch(() => false)

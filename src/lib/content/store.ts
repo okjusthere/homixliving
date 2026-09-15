@@ -35,7 +35,7 @@ export class ContentError extends Error {
   }
 }
 export const templateColumns = `id,family_id AS "familyId",version,status,config,created_at AS "createdAt"`;
-export const generationColumns = `id,project_id AS "projectId",owner_agent_id AS "ownerAgentId",template_id AS "templateId",status,input,brand,prompt,output_asset_id AS "outputAssetId",error,usage,created_at AS "createdAt",updated_at AS "updatedAt"`;
+export const generationColumns = `id,project_id AS "projectId",owner_agent_id AS "ownerAgentId",office_task_id AS "officeTaskId",template_id AS "templateId",status,input,brand,prompt,output_asset_id AS "outputAssetId",error,usage,created_at AS "createdAt",updated_at AS "updatedAt"`;
 export async function getTemplate(id: string) {
   return (
     await query<ContentTemplate>(

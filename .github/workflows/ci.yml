@@ -59,6 +59,9 @@ jobs:
           createdb -h localhost -p 5432 -U postgres homix_legacy_claim_test
           DATABASE_URL=postgres://postgres:postgres@localhost:5432/homix_legacy_claim_test npm run test:legacy-claims:db
 
+      - name: Office poster database integration
+        run: DATABASE_URL=postgres://postgres:postgres@localhost:5432/homix_office_test npm run test:content:office-db
+
       - name: Listing email payment database integration
         run: npm run test:listing-email-payment:db
 

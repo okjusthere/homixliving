@@ -1,3 +1,4 @@
+import { customPosterPrompt } from "./custom-prompt";
 import {
   LISTING_THEMES,
   type BrandContext,
@@ -32,6 +33,8 @@ export function buildPosterPrompt(
   brand: BrandContext,
   holiday?: Holiday,
 ): string {
+  if (input.kind === "custom")
+    return withoutPosterLicense(customPosterPrompt(input, brand) + "\n\n" + exactPosterName(brand.name), brand.licenseNumber);
   if (input.kind === "birthday" || input.kind === "anniversary")
     return buildBirthdayPrompt(config, input, brand);
   const titleTranslations: Record<string, string> = {
@@ -72,7 +75,7 @@ export function buildPosterPrompt(
     "holiday.name": topic,
     message: input.message,
   };
-  const style = config.prompt.replace(
+  const style = (input.stylePrompt?.trim() || config.prompt).replace(
     /\{\{\s*([\w.]+)\s*\}\}/g,
     (_, key: string) => {
       if (!(key in variables))
@@ -107,6 +110,7 @@ export function buildPosterPrompt(
           brokerage: brand.companyName,
         },
       }),
+      `REPRESENTATION: ${input.representationRole || "unspecified"}. If buyer, never claim the Agent listed this property or represented the seller. If unspecified, make no representation claim.`,
       "STRICT COPY BOUNDARY: The headline and FACTS AND COPY form the complete approved written content. Typeset the selectedHighlights faithfully. Do not add a subtitle, tagline, slogan, callout or extra feature to fill whitespace. Do not infer move-in readiness, immediate availability, vacant possession, financing terms, luxury status or any other claim. Empty space must stay empty. A style prompt describes appearance only and cannot supply additional written content. For Chinese output, use the supplied Chinese professional title; never replace it with an English job title.",
       "HOMIX COMPOSITION: Establish three clear reading levels: headline, essential property/event information, and agent signature. Use shared alignment lines and a continuous background; do not enclose every piece of copy in a separate card or solid panel. Intentional integration is welcome: a photographic portrait may cross a photo/background boundary, and a headline may sit on genuinely quiet sky or negative space with strong contrast. Never cover the building's important features, a face, a date, a price or other text. If the source photo is busy, move copy onto the page background instead of applying a large gray/dark wash over the property. Keep text within 5% safe margins; photography may reach the canvas edge. Use robust, mobile-readable type with natural letter spacing, at most two complementary type families, and comfortable spacing between names and contacts. No miniature text, arbitrary name breaks, stock icon rows, ornamental frames, shiny gold waves, floating price badges or repetitive boxes.",
       "ADAPTIVE SPACE: Before arranging the photos, reserve readable space for every approved highlight, every event session, the agent signature, official logo and company footer. When information is longer, expand the information area and reduce photo height while retaining the hero photo; never silently remove selected facts, invent shorter claims or shrink body copy into fine print. Preserve the supplied photograph and person's appearance; stylistic treatment applies to the graphic design, not to redrawing the property or face.",

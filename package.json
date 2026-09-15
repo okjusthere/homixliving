@@ -63,6 +63,7 @@
     "test:domain-labels": "tsx src/lib/__tests__/domain-labels.test.ts",
     "test:public-identity-status": "tsx src/lib/__tests__/public-identity-status.test.ts",
     "content:seed": "tsx scripts/seed-content-center.ts",
+    "test:content:office-db": "node --import ./scripts/test-server-only.mjs --import ./scripts/test-office-isolation.mjs --import tsx src/lib/content/__tests__/office.integration.ts",
     "test:content": "node --import tsx --test src/lib/content/__tests__/*.test.ts",
     "test:personal-referral": "node --import tsx src/lib/__tests__/personal-referral.test.ts",
     "test:personal-referral:db": "node --import tsx src/lib/__tests__/personal-referral-db.test.ts",

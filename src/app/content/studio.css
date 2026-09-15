@@ -1019,3 +1019,27 @@
   line-height: 1.5;
   margin: 0;
 }
+
+/* Office production: compact rows keep repetitive work close together. */
+.office-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin:18px 0}
+.office-agent-list{display:flex;gap:8px;flex-wrap:wrap;max-height:210px;overflow:auto;padding:4px 0}
+.office-agent{display:grid;gap:3px;text-align:left;border:1px solid var(--border,#e4dfd5);border-radius:10px;padding:10px 14px;background:white;min-width:160px}
+.office-agent.selected{border-color:#bf613e;background:#f4e9df}
+.office-agent small{font-size:12px;color:#777}
+.office-task-list{display:grid;gap:12px;margin:20px 0}
+.office-task{display:flex;align-items:center;gap:16px;background:#fff;border:1px solid #e4dfd5;border-radius:12px;padding:16px}
+.office-task>img{width:82px;height:70px;object-fit:cover;border-radius:6px}
+.office-task-copy{flex:1;min-width:0;overflow-wrap:anywhere}
+.office-task-copy .studio-note{margin:6px 0 0}
+.office-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px}
+.office-actions .studio-button{padding:9px 14px;min-height:40px}
+.office-check{display:inline-flex;align-items:center;gap:8px;cursor:pointer;min-height:44px}
+.office-check input{width:20px!important;height:20px;accent-color:#304d3e}
+.office-batch-controls{display:flex;align-items:end;gap:12px;flex-wrap:wrap;padding-top:12px}
+.office-batch-controls .studio-field{flex:1;min-width:160px}
+.office-subject{font-size:20px;margin:12px 0}
+.office-prompt{white-space:pre-wrap;overflow-wrap:anywhere;font:13px/1.7 sans-serif;max-height:350px;overflow:auto}
+.studio-prompt-editor{margin:18px 0;border-top:1px solid #e4dfd5;padding-top:12px}
+.studio-prompt-editor summary,.office-workbench details>summary{cursor:pointer;min-height:40px;padding:8px 0}
+.studio-prompt-editor textarea{min-height:150px}
+@media(max-width:700px){.office-task{flex-wrap:wrap;gap:10px}.office-task-copy{flex-basis:calc(100% - 140px)}.office-task>.office-actions{margin-left:30px}.office-toolbar>.studio-button{width:100%}}

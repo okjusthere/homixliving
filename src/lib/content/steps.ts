@@ -55,6 +55,7 @@ export async function prepareGeneration(id: string) {
     refs.push(a.id);
   }
   refs.push(...(job.input.listing?.imageAssetIds || []));
+  refs.push(...(job.input.referenceAssetIds || []));
   const template = await getTemplate(job.template_id);
   refs.push(...(template?.config.referenceAssetIds || []));
   await query(

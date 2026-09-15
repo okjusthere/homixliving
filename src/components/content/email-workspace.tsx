@@ -275,8 +275,8 @@ export function EmailWorkspace() {
         eyebrow="HOMIX / PERSONAL MARKETING"
         title={t("Email marketing", "邮件推广")}
         description={t(
-          "Introduce a property to agents with nearby closed transactions. $22 per campaign, paid before sending.",
-          "把房源介绍给周边有成交记录的经纪人。每个群发任务 $22，付款后发送。",
+          "Reach approximately 1,000 buyer’s and listing agents with closed transactions in the past 12 months in your listing’s ZIP code and 3–5 surrounding ZIP codes. Actual audience size varies by available records. $22 per campaign, paid before sending.",
+          "向你的房源所在邮编及周围 3–5 个邮编、过去 12 个月有过成交记录的买方经纪人和挂牌经纪人推广，约 1,000 人（实际人数以匹配结果为准）。每个群发任务 $22，付款后发送。",
         )}
         actions={
           campaign ? (

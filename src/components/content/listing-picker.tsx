@@ -19,7 +19,9 @@ export function ListingPicker({
   disabled,
   onChoose,
   onError,
+  selection,
 }: {
+  selection?: { ids: string[]; onToggle: (listing: StudioListing) => void };
   onError: (message: string) => void;
   zh: boolean;
   disabled: boolean;
@@ -200,10 +202,11 @@ export function ListingPicker({
             {data.listings.map((listing) => (
               <button
                 type="button"
-                className="studio-listing-card"
+                className={`studio-listing-card ${selection?.ids.includes(listing.id) ? "selected" : ""}`}
+                aria-pressed={selection ? selection.ids.includes(listing.id) : undefined}
                 key={listing.id}
                 disabled={locked}
-                onClick={() => open(listing)}
+                onClick={() => selection ? selection.onToggle(listing) : open(listing)}
               >
                 {listing.photos[0] ? (
                   <img src={listing.photos[0].url} alt="" loading="lazy" />
@@ -216,7 +219,7 @@ export function ListingPicker({
                   <small>
                     {listing.status} · MLS {listing.mlsNumber}
                   </small>
-                  <strong>{listing.address.full}</strong>
+                  <strong>{selection?.ids.includes(listing.id) && <Check size={18} />} {listing.address.full}</strong>
                   <span>
                     {listing.listPrice
                       ? `$${listing.listPrice.toLocaleString("en-US")}`

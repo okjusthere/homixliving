@@ -1,4 +1,5 @@
 "use client";
+import { OfficeWorkbench } from "./office-workbench";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -38,11 +39,11 @@ export function ContentAdmin() {
   const locale = useLocale(),
     t = (en: string, zh: string) => (locale === "zh" ? zh : en);
   const params = useSearchParams();
-  const tab = ["templates", "holidays", "settings", "generations"].includes(
+  const tab = ["production", "templates", "holidays", "settings", "generations"].includes(
     params.get("tab") || "",
   )
     ? params.get("tab")!
-    : "templates";
+    : "production";
   const setTab = (value: string) => {
     const next = new URLSearchParams(params);
     next.set("tab", value);
@@ -107,10 +108,10 @@ export function ContentAdmin() {
     <div className="studio">
       <PageHeader
         eyebrow="HOMIX / CREATIVE DIRECTION"
-        title={t("Your template library", "管理创作模板")}
+        title={t("Poster workbench", "海报工作台")}
         description={t(
-          "Write the style once. Give every Agent their own version.",
-          "把风格写进模板，让每位经纪人拥有自己的作品。",
+          "Create posters for any Agent and property, and manage your company templates.",
+          "为经纪人和房源制作海报，统一管理公司的创作模板。",
         )}
         actions={
           <Link className="studio-button secondary" href="/content">
@@ -123,14 +124,14 @@ export function ContentAdmin() {
         role="tablist"
         aria-label={t("Administration", "管理")}
       >
-        {["templates", "holidays", "settings", "generations"].map((v) => (
+        {["production", "templates", "holidays", "settings", "generations"].map((v) => (
           <button
             key={v}
             role="tab"
             aria-selected={tab === v}
             onClick={() => setTab(v)}
           >
-            {v === "templates"
+            {v === "production" ? t("Poster production", "海报制作") : v === "templates"
               ? t("Style prompts", "风格提示词")
               : v === "holidays"
                 ? t("Holiday calendar", "节日目录")
@@ -140,6 +141,7 @@ export function ContentAdmin() {
           </button>
         ))}
       </div>
+      {tab === "production" && <OfficeWorkbench />}
       <ContentErrorDialog
         message={error}
         onClose={() => setError("")}
@@ -150,7 +152,7 @@ export function ContentAdmin() {
           {notice}
         </p>
       )}
-      {tab === "generations" ? (
+      {tab === "production" ? null : tab === "generations" ? (
         <GenerationReview />
       ) : tab === "templates" ? (
         <div className="studio-grid">
@@ -246,6 +248,7 @@ export function ContentAdmin() {
                 <option value="holiday">
                   {t("Holiday greeting", "节日海报")}
                 </option>
+                <option value="custom">{t("Other / Freeform", "其他 / 自由创作")}</option>
               </select>
             </Field>
             <Field label={t("Topic", "主题")}>
@@ -259,7 +262,7 @@ export function ContentAdmin() {
                       {v[locale]}
                     </option>
                   ))
-                ) : config.kind === "birthday" ||
+                ) : config.kind === "custom" ? <option value="*">{t("Freeform", "自由创作")}</option> : config.kind === "birthday" ||
                   config.kind === "anniversary" ? (
                   <option value={config.kind}>
                     {t("Company celebration", "公司庆祝")}

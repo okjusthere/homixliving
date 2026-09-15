@@ -1,5 +1,5 @@
 import { contentActor, contentError, jsonBody } from "@/lib/content/api";
-import { ContentError } from "@/lib/content/store";
+import { ContentError, query } from "@/lib/content/store";
 import { putAsset, fetchReferenceImage } from "@/lib/content/storage";
 import { requestBytes } from "@/lib/content/request-body";
 export const runtime = "nodejs";
@@ -7,6 +7,14 @@ export async function POST(req: Request) {
   try {
     const actor = await contentActor(req);
     if (actor instanceof Response) return actor;
+    const subject = new URL(req.url).searchParams.get("subject");
+    let owner = actor.agentId;
+    if (subject !== null) {
+      if (!actor.admin) throw new ContentError("Admin required", 403);
+      owner = Number(subject);
+      if (!Number.isSafeInteger(owner) || owner < 1) throw new ContentError("Choose an Agent / 请选择经纪人");
+      if (!(await query("SELECT id FROM portal.agents WHERE id=$1 AND account_status='active'", [owner])).length) throw new ContentError("Choose an active Agent / 请选择有效的经纪人", 404);
+    }
     let bytes: Buffer;
     let purpose = "upload";
     if (req.headers.get("content-type")?.includes("application/json")) {
@@ -30,7 +38,7 @@ export async function POST(req: Request) {
       }
       bytes = Buffer.from(await file.arrayBuffer());
     }
-    const asset = await putAsset(actor.agentId, bytes, purpose);
+    const asset = await putAsset(owner, bytes, purpose, undefined, true, subject !== null);
     return Response.json(
       { asset: { id: asset.id, url: `/api/content/assets/${asset.id}` } },
       { status: 201 },

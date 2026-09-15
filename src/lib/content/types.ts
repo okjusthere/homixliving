@@ -69,7 +69,7 @@ export type OpenHouseEvent = {
   selected?: boolean;
 };
 export type ContentInput = {
-  kind: "listing" | "holiday" | "birthday" | "anniversary";
+  kind: "listing" | "holiday" | "custom" | "birthday" | "anniversary";
   birthday?: { eventId: string; profileRevision: number; years?: number };
   theme: string;
   language: ContentLanguage;
@@ -78,6 +78,9 @@ export type ContentInput = {
   headline: string;
   message: string;
   additionalInstructions: string;
+  stylePrompt?: string;
+  referenceAssetIds?: string[];
+  representationRole?: "listing" | "buyer" | "unspecified";
   listing?: ListingContext;
   /** Legacy single-event input; normalized to events on submission. */
   event?: OpenHouseEvent;
@@ -87,7 +90,7 @@ export type ContentInput = {
 export type TemplateConfig = {
   name: { en: string; zh: string };
   description: { en: string; zh: string };
-  kind: "listing" | "holiday" | "birthday" | "anniversary";
+  kind: "listing" | "holiday" | "custom" | "birthday" | "anniversary";
   themes: string[];
   style: string;
   prompt: string;
@@ -123,6 +126,7 @@ export type Generation = {
   id: string;
   projectId: string;
   ownerAgentId: number;
+  officeTaskId?: string | null;
   templateId: string;
   status: GenerationStatus;
   input: ContentInput;

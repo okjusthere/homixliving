@@ -2,7 +2,8 @@
 export function relevantContentInput(value: unknown): unknown {
   if (!value || typeof value !== "object" || Array.isArray(value)) return value;
   const input = { ...(value as Record<string, unknown>) };
-  if (input.kind === "holiday") {
+  if (input.kind !== "custom") delete input.referenceAssetIds;
+  if (input.kind === "holiday" || input.kind === "custom") {
     delete input.listing;
     delete input.event;
     delete input.events;
@@ -161,6 +162,7 @@ export function contentValidationMessage(issues: Issue[]): string {
           headline: ["Headline", "标题"],
           message: ["Personal message", "个人寄语"],
           additionalInstructions: ["Creative notes", "创作备注"],
+          stylePrompt: ["Poster prompt", "海报提示词"],
           "listing.address": ["Property address", "房源地址"],
           "listing.price": ["Price", "显示价格"],
           "listing.beds": ["Beds", "卧室数"],

@@ -2,6 +2,9 @@ import { query } from "./store";
 import { dispatchGeneration } from "./dispatch";
 import { getRun } from "workflow/api";
 export async function recoverGenerations(adminOnly = false) {
+  // Repair a client disconnect between durable generation creation and the
+  // office-task pointer update. This never creates another paid generation.
+  await query("UPDATE portal.content_office_tasks t SET generation_id=g.id,updated_at=now() FROM portal.content_generations g WHERE g.office_task_id=t.id AND g.batch_id=g.id AND t.generation_id IS NULL");
   const stale = await query<{
     id: string;
     status: string;

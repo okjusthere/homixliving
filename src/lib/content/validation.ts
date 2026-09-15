@@ -33,7 +33,7 @@ const eventSchema = z.object({
 
 const contentInputSchema = z
   .object({
-    kind: z.enum(["listing", "holiday"]),
+    kind: z.enum(["listing", "holiday", "custom"]),
     theme: short.min(1),
     language: z.enum(["en", "zh"]),
     size: z.enum(IMAGE_SIZES),
@@ -41,6 +41,9 @@ const contentInputSchema = z
     headline: short.default(""),
     message: z.string().trim().max(2000).default(""),
     additionalInstructions: z.string().trim().max(2000).default(""),
+    stylePrompt: z.string().trim().max(16000).optional(),
+    referenceAssetIds: z.array(uuid).max(4).optional(),
+    representationRole: z.enum(["listing", "buyer", "unspecified"]).optional(),
     listing: z
       .object({
         source: z.enum(["mls", "manual"]),
@@ -99,6 +102,9 @@ const contentInputSchema = z
     holidayDate: date.optional(),
   })
   .superRefine((value, ctx) => {
+    if (value.kind === "custom" && !value.stylePrompt?.trim()) {
+      ctx.addIssue({ code: "custom", path: ["stylePrompt"], message: "Write a prompt for this poster / 请填写这张海报的提示词" });
+    }
     if (
       ["just_listed", "open_house"].includes(value.theme) &&
       value.listing?.associationFee?.trim() &&
@@ -152,7 +158,7 @@ export const inputSchema = z.preprocess(
 export const templateConfigSchema = z.object({
   name: z.object({ en: short.min(1), zh: short.min(1) }),
   description: z.object({ en: short, zh: short }),
-  kind: z.enum(["listing", "holiday", "birthday", "anniversary"]),
+  kind: z.enum(["listing", "holiday", "custom", "birthday", "anniversary"]),
   themes: z.array(short.min(1)).min(1).max(100),
   style: short.min(1),
   prompt: z.string().trim().min(30).max(16000),
