@@ -23,6 +23,7 @@ async function main() {
     "20260910-content-center.sql",
     "20260911-content-language-pairs.sql",
     "20260912043944_agent_birthdays.sql",
+    "20260914-office-posters.sql",
   ])
     await setup.query(
       await readFile(
