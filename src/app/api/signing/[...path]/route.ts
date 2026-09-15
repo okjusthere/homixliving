@@ -67,7 +67,7 @@ export async function GET(request: Request, context: Context) {
         agentIdentity: identity || null,
         items: result.items.filter(
           (p) =>
-            (p.scenario === "buyer" || p.scenario === "seller") &&
+            ["buyer", "seller", "commercial"].includes(p.scenario) &&
             Boolean(
               identity?.companyKey &&
               signingPackageCompanies(p).includes(identity.companyKey),
@@ -189,7 +189,7 @@ export async function POST(request: Request, context: Context) {
         throw new SigningBridgeError("PERSONAL_SIGNING_UNAVAILABLE", 403);
       const input = z
         .object({
-          scenario: z.enum(["buyer", "seller"]),
+          scenario: z.enum(["buyer", "seller", "commercial"]),
           companyKey: z.enum(["homix_realty", "homix_living"]).optional(),
         })
         .passthrough()

@@ -30,6 +30,8 @@ test("company and agent details come from the current profile, not browser value
         companyKey: "forged",
         values: {
           company_name: "forged",
+          company_address: "forged",
+          company_mailing_line: "forged",
           agent_license: "forged",
           agent_phone: "forged",
           agent_email: "forged",
@@ -41,6 +43,11 @@ test("company and agent details come from the current profile, not browser value
     assert.equal(bound.companyKey, id);
     assert.deepEqual(bound.values, {
       company_name: name,
+      company_address:
+        id === "homix_realty"
+          ? "37-20 Prince St, STE 3H, Flushing, NY 11354"
+          : "110 Charlton St #A, New York, NY 10014",
+      company_mailing_line: `${name}, ${id === "homix_realty" ? "37-20 Prince St, STE 3H, Flushing, NY 11354" : "110 Charlton St #A, New York, NY 10014"}`,
       broker_license: id === "homix_realty" ? "10991241632" : "10991242852",
       agent_license: "TEST-LICENSE",
       agent_phone: "TEST-PHONE",

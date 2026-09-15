@@ -193,7 +193,7 @@ export function SigningAdministration() {
       templateId: result.id,
       title: result.title,
       roles: result.roles.map((r, index) => ({
-        key: `${scenario === "onboarding" || scenario === "team_leader" ? (index === 0 ? "agent" : "company") : "recipient"}${scenario === "buyer" || scenario === "seller" ? `_${index + 1}` : ""}`,
+        key: `${scenario === "onboarding" || scenario === "team_leader" ? (index === 0 ? "agent" : "company") : "recipient"}${["buyer", "seller", "commercial"].includes(scenario) ? `_${index + 1}` : ""}`,
         templateRecipientId: r.id,
         actor:
           scenario === "onboarding" || scenario === "team_leader"
@@ -216,7 +216,8 @@ export function SigningAdministration() {
       title,
       scenario,
       companyKey: connection.companyKey,
-      ...((scenario === "buyer" || scenario === "seller") && sharedCompanies
+      ...(["buyer", "seller", "commercial"].includes(scenario) &&
+      sharedCompanies
         ? {
             applicableCompanyKeys: [
               ...new Set(
@@ -713,6 +714,9 @@ export function SigningAdministration() {
                   >
                     <option value="buyer">{zh ? "买家包" : "Buyer"}</option>
                     <option value="seller">{zh ? "卖家包" : "Seller"}</option>
+                    <option value="commercial">
+                      {zh ? "商业及其他" : "Commercial & other"}
+                    </option>
                     <option value="onboarding">
                       {zh ? "经纪人入职" : "Agent onboarding"}
                     </option>
@@ -857,7 +861,7 @@ export function SigningAdministration() {
                   </p>
                 </div>
               )}
-              {(scenario === "buyer" || scenario === "seller") && (
+              {["buyer", "seller", "commercial"].includes(scenario) && (
                 <label className="flex items-center gap-2 text-sm">
                   <input
                     type="checkbox"
@@ -964,7 +968,9 @@ export function SigningAdministration() {
                         </select>
                       </label>
                       {role.actor === "customer" &&
-                        ["buyer", "seller"].includes(scenario) && (
+                        ["buyer", "seller", "commercial"].includes(
+                          scenario,
+                        ) && (
                           <label className="flex items-center gap-2 text-xs sm:col-span-3">
                             <input
                               type="checkbox"
@@ -1067,7 +1073,7 @@ export function SigningAdministration() {
                     type="button"
                     disabled={
                       busy ||
-                      (["buyer", "seller"].includes(scenario) &&
+                      (["buyer", "seller", "commercial"].includes(scenario) &&
                         parts.length > 0)
                     }
                     className={signingButton}

@@ -31,7 +31,14 @@ export const signingDocumentSchema = z.object({
 export const signingRequestSchema = z.object({
   id: z.string().uuid(),
   title: z.string(),
-  scenario: z.enum(["onboarding", "team_leader", "buyer", "seller", "custom"]),
+  scenario: z.enum([
+    "onboarding",
+    "team_leader",
+    "buyer",
+    "seller",
+    "commercial",
+    "custom",
+  ]),
   business: z.object({
     customer: z.string(),
     property: z.string(),
@@ -74,7 +81,13 @@ export const signingPackageSchema = z.object({
   package_key: z.string(),
   version: z.number(),
   title: z.string(),
-  scenario: z.enum(["onboarding", "team_leader", "buyer", "seller"]),
+  scenario: z.enum([
+    "onboarding",
+    "team_leader",
+    "buyer",
+    "seller",
+    "commercial",
+  ]),
   company_key: z.string(),
   applicable_company_keys: z.array(z.string()).optional(),
   company_signer_email: z.string().optional(),

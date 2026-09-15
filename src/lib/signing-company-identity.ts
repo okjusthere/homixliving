@@ -23,6 +23,10 @@ export function signingCompanyIdentity(
     email: agent.email,
     companyKey: company?.id || null,
     companyName: company?.legalName || "",
+    companyAddress: company?.address || "",
+    companyMailingLine: company
+      ? `${company.legalName}, ${company.address}`
+      : "",
     brokerLicense: company
       ? companySettings[companyLicenseKey(company.id)] || ""
       : "",
@@ -56,6 +60,8 @@ export function bindSigningCompany(
     values: {
       ...values,
       company_name: identity.companyName,
+      company_address: identity.companyAddress,
+      company_mailing_line: identity.companyMailingLine,
       broker_license: identity.brokerLicense,
       agent_license: identity.agentLicense,
       agent_phone: identity.agentPhone,
