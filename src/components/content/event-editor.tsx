@@ -10,11 +10,13 @@ export function EventEditor({
   onChange,
   zh,
   disabled = false,
+  helpText,
 }: {
   events: OpenHouseEvent[];
   onChange: (events: OpenHouseEvent[]) => void;
   zh: boolean;
   disabled?: boolean;
+  helpText?: string;
 }) {
   const t = (en: string, cn: string) => (zh ? cn : en);
   const update = (index: number, value: Partial<OpenHouseEvent>) =>
@@ -34,7 +36,7 @@ export function EventEditor({
         </span>
       </div>
       <p className="studio-note">
-        {t(
+        {helpText || t(
           "All selected sessions appear on one poster, using local time at the property. MLS schedules take priority; new sessions default to 1–3 PM.",
           "所选场次会放在同一张海报上，时间以房源所在地为准。优先使用 MLS 时间；新场次默认为下午 1–3 点。",
         )}

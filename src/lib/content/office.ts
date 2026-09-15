@@ -1,7 +1,8 @@
+import { officeDraftInputSchema } from "./office-draft-schema";
 import { getAsset, assetBytes, putAsset } from "./storage";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { inputSchema, uuid } from "./validation";
+import { uuid } from "./validation";
 import { audit, ContentError, query, transaction } from "./store";
 import { submitGeneration } from "./generations";
 import { dispatchGeneration } from "./dispatch";
@@ -10,7 +11,7 @@ import type { OfficeRequest } from "./office-types";
 
 export const officeRequestSchema = z.object({
   templateId: uuid,
-  input: inputSchema,
+  input: officeDraftInputSchema,
   languages: z.array(z.enum(["zh", "en"])).min(1).max(2),
 });
 

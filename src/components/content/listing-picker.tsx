@@ -21,7 +21,7 @@ export function ListingPicker({
   onError,
   selection,
 }: {
-  selection?: { ids: string[]; onToggle: (listing: StudioListing) => void };
+  selection?: { ids: string[]; onToggle: (listing: StudioListing) => void; onSelectPage?: (listings: StudioListing[], selected: boolean) => void };
   onError: (message: string) => void;
   zh: boolean;
   disabled: boolean;
@@ -198,6 +198,7 @@ export function ListingPicker({
       )}
       {data && !detail && (
         <>
+          {selection?.onSelectPage && <label className="office-check office-page-select"><input type="checkbox" disabled={locked || !data.listings.length} checked={data.listings.length > 0 && data.listings.every((listing) => selection.ids.includes(listing.id))} onChange={(e) => selection.onSelectPage?.(data.listings, e.target.checked)} />{t("Select this page", "选择本页")} · {data.listings.length}</label>}
           <div className="studio-listing-grid">
             {data.listings.map((listing) => (
               <button
@@ -208,6 +209,7 @@ export function ListingPicker({
                 disabled={locked}
                 onClick={() => selection ? selection.onToggle(listing) : open(listing)}
               >
+                {selection && <span className="office-listing-check" aria-hidden="true">{selection.ids.includes(listing.id) ? <Check size={16} /> : null}</span>}
                 {listing.photos[0] ? (
                   <img src={listing.photos[0].url} alt="" loading="lazy" />
                 ) : (
@@ -219,7 +221,7 @@ export function ListingPicker({
                   <small>
                     {listing.status} · MLS {listing.mlsNumber}
                   </small>
-                  <strong>{selection?.ids.includes(listing.id) && <Check size={18} />} {listing.address.full}</strong>
+                  <strong>{listing.address.full}</strong>
                   <span>
                     {listing.listPrice
                       ? `$${listing.listPrice.toLocaleString("en-US")}`
