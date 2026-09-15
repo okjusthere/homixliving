@@ -32,7 +32,7 @@ export function SigningCreate({
   mode,
   onClose,
 }: {
-  mode: "buyer" | "seller";
+  mode: "buyer" | "seller" | "commercial";
   onClose: () => void;
 }) {
   const zh = useLocale() === "zh",
@@ -69,6 +69,8 @@ export function SigningCreate({
   const autoValues: Record<string, string> = {
     property_address: property,
     company_name: agentIdentity?.companyName || "",
+    company_address: agentIdentity?.companyAddress || "",
+    company_mailing_line: agentIdentity?.companyMailingLine || "",
     broker_license: agentIdentity?.brokerLicense || "",
     agent_license: agentIdentity?.agentLicense || "",
     agent_phone: agentIdentity?.agentPhone || "",
@@ -343,6 +345,11 @@ export function SigningCreate({
               </label>
               {selected && (
                 <>
+                  {selected.selectors[zh ? "usageZh" : "usageEn"] && (
+                    <p className="rounded-md bg-paper-deep p-3 text-sm sm:col-span-2">
+                      {selected.selectors[zh ? "usageZh" : "usageEn"]}
+                    </p>
+                  )}
                   <p className="text-sm text-ink-50 sm:col-span-2">
                     {zh ? "所属公司：" : "Company: "}
                     {agentIdentity?.companyName ||

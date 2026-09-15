@@ -212,7 +212,7 @@ export function SigningDetail({ id }: { id: string }) {
                   {zh ? "下载完整文件包" : "Download complete package"}
                 </a>
               )}
-              {["buyer", "seller"].includes(item.scenario) &&
+              {["buyer", "seller", "commercial"].includes(item.scenario) &&
                 item.parts.every(
                   (part) =>
                     part.operationState === "discarded" ||

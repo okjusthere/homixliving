@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import path from "node:path";
-import { GET as baseGet, POST as basePost } from "@/app/api/signing/[...path]/route";
+import {
+  GET as baseGet,
+  POST as basePost,
+} from "@/app/api/signing/[...path]/route";
 import { closeDatabaseConnections, db } from "@/db";
 import { settings } from "@/db/schema";
 import {
@@ -16,11 +19,15 @@ async function responseOf(result: Promise<Response | undefined>) {
   assert(response);
   return response;
 }
-const GET = (...args: Parameters<typeof baseGet>) => responseOf(baseGet(...args));
-const POST = (...args: Parameters<typeof basePost>) => responseOf(basePost(...args));
+const GET = (...args: Parameters<typeof baseGet>) =>
+  responseOf(baseGet(...args));
+const POST = (...args: Parameters<typeof basePost>) =>
+  responseOf(basePost(...args));
 
 async function main() {
   requireSigningTestDatabase();
+  const scenario = process.env.SIGNING_QA_SCENARIO || "buyer";
+  assert(["buyer", "seller", "commercial"].includes(scenario));
   assert.equal(
     process.env.DATABASE_URL,
     "postgres://homix:synthetic-only@127.0.0.1:5569/homix_onboarding_integration",
@@ -79,7 +86,7 @@ async function main() {
     await bridge.listen({ port: 4113, host: "127.0.0.1" });
     const report = JSON.parse(
       await readFile(
-        "/private/tmp/homix-documenso-integration/shared-buyer-run.json",
+        `/private/tmp/homix-documenso-integration/shared-${scenario}-run.json`,
         "utf8",
       ),
     );
@@ -115,7 +122,7 @@ async function main() {
       const roles = published.definition[0].roles.slice(0, 2);
       const input = {
         title: "Synthetic shared Portal draft",
-        scenario: "buyer",
+        scenario,
         packageId: report.packageId,
         idempotencyKey: crypto.randomUUID(),
         externalReference: crypto.randomUUID(),

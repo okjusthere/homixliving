@@ -58,7 +58,7 @@ test("package API binds server legal identity despite spoofed names and owner id
   const request = (origin = "http://localhost") => new Request("http://localhost/api/signing/packages/preview", { method: "POST", headers: { origin, "content-type": "application/json" }, body: JSON.stringify(payload) });
   const catalog = await responseOf(GET(new Request("http://localhost/api/signing/packages"), { params: Promise.resolve({ path: ["packages"] }) }));
   assert.equal(catalog.status, 200);
-  assert.deepEqual((await catalog.json()).agentIdentity, { legalName: "Jiaer Xia", email: "agent@example.invalid", companyKey: "homix_realty", companyName: "Homix Realty Inc.", brokerLicense: "10990000001", agentLicense: "TEST-LICENSE", agentPhone: "TEST-PHONE" });
+  assert.deepEqual((await catalog.json()).agentIdentity, { legalName: "Jiaer Xia", email: "agent@example.invalid", companyKey: "homix_realty", companyName: "Homix Realty Inc.", companyAddress: "37-20 Prince St, STE 3H, Flushing, NY 11354", companyMailingLine: "Homix Realty Inc., 37-20 Prince St, STE 3H, Flushing, NY 11354", brokerLicense: "10990000001", agentLicense: "TEST-LICENSE", agentPhone: "TEST-PHONE" });
   assert.equal((await responseOf(POST(request(), context))).status, 200);
   assert.equal(posted[0].ownerAgentId, 101);
   assert.equal((posted[0].values as Record<string, string>).agent_name, "Jiaer Xia");

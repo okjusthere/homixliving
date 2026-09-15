@@ -75,8 +75,8 @@ export function SigningWorkspace() {
             : "Use company packages, enter client details and follow every signature."
         }
       />
-      <div className="grid gap-3 sm:grid-cols-2">
-        {(["buyer", "seller"] as const).map((kind) => (
+      <div className="grid gap-3 sm:grid-cols-3">
+        {(["buyer", "seller", "commercial"] as const).map((kind) => (
           <button
             key={kind}
             type="button"
@@ -90,9 +90,13 @@ export function SigningWorkspace() {
                   ? zh
                     ? "买家签署包"
                     : "Buyer package"
-                  : zh
-                    ? "卖家 / Listing 签署包"
-                    : "Seller / Listing package"}
+                  : kind === "commercial"
+                    ? zh
+                      ? "商业及其他"
+                      : "Commercial & other"
+                    : zh
+                      ? "卖家 / Listing 签署包"
+                      : "Seller / Listing package"}
               </p>
               <p className="mt-1 text-xs text-ink-50">
                 {zh
@@ -104,7 +108,7 @@ export function SigningWorkspace() {
           </button>
         ))}
       </div>
-      {(mode === "buyer" || mode === "seller") && (
+      {(mode === "buyer" || mode === "seller" || mode === "commercial") && (
         <SigningCreate
           key={mode}
           mode={mode}
