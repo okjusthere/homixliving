@@ -5,6 +5,7 @@ import { PageHeader, FilterTabs } from "@/components/homix/page-kit";
 import { useLocale } from "@/lib/i18n-client";
 import type { SigningPackage } from "@/lib/signing-contract";
 import { errorText, signingButton, signingInput } from "./client";
+import { PackageComposer } from "./package-composer";
 import { CompanyTemplateUpload } from "./company-template-upload";
 
 type Connection = {
@@ -73,6 +74,7 @@ async function adminFetch<T>(path: string, body?: unknown): Promise<T> {
 
 export function SigningAdministration() {
   const zh = useLocale() === "zh";
+  const [reviewed, setReviewed] = useState(false);
   const [sharedCompanies, setSharedCompanies] = useState(false);
   const [tab, setTab] = useState("packages"),
     [packages, setPackages] = useState<SigningPackage[]>([]),
@@ -108,6 +110,12 @@ export function SigningAdministration() {
     [title, setTitle] = useState(""),
     [plan, setPlan] = useState(""),
     [libor, setLibor] = useState("");
+  const companyDocument = [
+    "buyer",
+    "seller",
+    "commercial",
+    "company_file",
+  ].includes(scenario);
   const [retire, setRetire] = useState<{
       kind: "packages" | "connections";
       id: string;
@@ -196,11 +204,13 @@ export function SigningAdministration() {
         key: `${scenario === "onboarding" || scenario === "team_leader" ? (index === 0 ? "agent" : "company") : "recipient"}${["buyer", "seller", "commercial"].includes(scenario) ? `_${index + 1}` : ""}`,
         templateRecipientId: r.id,
         actor:
-          scenario === "onboarding" || scenario === "team_leader"
-            ? index === 0
-              ? "owner"
-              : "company"
-            : "customer",
+          scenario === "company_file"
+            ? "owner"
+            : scenario === "onboarding" || scenario === "team_leader"
+              ? index === 0
+                ? "owner"
+                : "company"
+              : "customer",
         label: r.name || `${zh ? "签署人" : "Recipient"} ${index + 1}`,
       })),
       prefill: [],
@@ -211,13 +221,15 @@ export function SigningAdministration() {
     if (!connection?.companyKey || !parts.length)
       throw new Error("INVALID_REQUEST");
     await adminFetch("packages", {
+      ...(companyDocument ? { catalogKind: "document", reviewed } : {}),
       packageKey,
       version,
       title,
       scenario,
       companyKey: connection.companyKey,
-      ...(["buyer", "seller", "commercial"].includes(scenario) &&
-      sharedCompanies
+      ...(["buyer", "seller", "commercial", "company_file"].includes(
+        scenario,
+      ) && sharedCompanies
         ? {
             applicableCompanyKeys: [
               ...new Set(
@@ -236,6 +248,7 @@ export function SigningAdministration() {
       parts,
     });
     setParts([]);
+    setReviewed(false);
     setDraftPart(null);
     setTemplate(null);
     await load();
@@ -610,6 +623,7 @@ export function SigningAdministration() {
         </>
       ) : (
         <>
+          <PackageComposer packages={packages} zh={zh} onPublished={load} />
           <CompanyTemplateUpload
             connections={connections.filter(
               (connection) =>
@@ -632,10 +646,17 @@ export function SigningAdministration() {
                       {item.title} · v{item.version}
                     </p>
                     <p className="mt-1 text-sm text-ink-50">
-                      {item.company_key} ·{" "}
+                      {item.catalog_kind === "document"
+                        ? zh
+                          ? "已审核文件"
+                          : "Approved document"
+                        : zh
+                          ? "文件包"
+                          : "Package"}{" "}
+                      · {item.company_key} ·{" "}
                       {item.definition.reduce((n, p) => n + p.files.length, 0)}{" "}
                       {zh ? "份文件" : "files"} · {item.definition.length}{" "}
-                      {zh ? "组收件人" : "recipient groups"}
+                      {zh ? "份模板" : "templates"}
                     </p>
                   </div>
                   <button
@@ -664,7 +685,9 @@ export function SigningAdministration() {
           </section>
           <section className="rounded-lg border border-line bg-white p-5">
             <h2 className="mb-4 font-medium">
-              {zh ? "发布签署包版本" : "Publish a package version"}
+              {zh
+                ? "逐份审核并发布公司文件"
+                : "Review and approve company documents"}
             </h2>
             <form
               onSubmit={(e) => {
@@ -714,6 +737,7 @@ export function SigningAdministration() {
                   >
                     <option value="buyer">{zh ? "买家包" : "Buyer"}</option>
                     <option value="seller">{zh ? "卖家包" : "Seller"}</option>
+                    <option value="company_file">Company File</option>
                     <option value="commercial">
                       {zh ? "商业及其他" : "Commercial & other"}
                     </option>
@@ -856,12 +880,14 @@ export function SigningAdministration() {
                   </div>
                   <p className="text-xs text-ink-50">
                     {zh
-                      ? "公司客户包使用一个含多份 PDF 的模板；不同收件范围请分别发布包。顺序签署时每位参与人的顺序号必须不同，或选择全部并行。"
-                      : "Use one multi-PDF template per client package. Publish different audiences separately. Use distinct sequential ranks, or parallel signing."}
+                      ? "每份公司文件只包含一份 PDF。核对正文、字段和角色后发布，再在上方组合成文件包。不同文件中的同一角色使用相同编号，例如 agent、client1、client2。"
+                      : "Approve one PDF per document after reviewing its text, fields and roles. Compose packages above. Use consistent role keys across documents, such as agent, client1 and client2."}
                   </p>
                 </div>
               )}
-              {["buyer", "seller", "commercial"].includes(scenario) && (
+              {["buyer", "seller", "commercial", "company_file"].includes(
+                scenario,
+              ) && (
                 <label className="flex items-center gap-2 text-sm">
                   <input
                     type="checkbox"
@@ -959,12 +985,16 @@ export function SigningAdministration() {
                           <option value="owner">
                             {zh ? "本人经纪人" : "Current agent"}
                           </option>
-                          <option value="company">
-                            {zh ? "公司签署人" : "Company signer"}
-                          </option>
-                          <option value="customer">
-                            {zh ? "填写客户" : "Entered client"}
-                          </option>
+                          {scenario !== "company_file" && (
+                            <>
+                              <option value="company">
+                                {zh ? "公司签署人" : "Company signer"}
+                              </option>
+                              <option value="customer">
+                                {zh ? "填写客户" : "Entered client"}
+                              </option>
+                            </>
+                          )}
                         </select>
                       </label>
                       {role.actor === "customer" &&
@@ -1073,17 +1103,23 @@ export function SigningAdministration() {
                     type="button"
                     disabled={
                       busy ||
-                      (["buyer", "seller", "commercial"].includes(scenario) &&
-                        parts.length > 0)
+                      ([
+                        "buyer",
+                        "seller",
+                        "commercial",
+                        "company_file",
+                      ].includes(scenario) &&
+                        (parts.length > 0 || template.files.length !== 1))
                     }
                     className={signingButton}
                     onClick={() => {
+                      setReviewed(false);
                       setParts([...parts, draftPart]);
                       setDraftPart(null);
                       setTemplate(null);
                     }}
                   >
-                    {zh ? "加入此文件组" : "Add this document group"}
+                    {zh ? "确认此文件配置" : "Confirm document configuration"}
                   </button>
                 </div>
               )}
@@ -1112,9 +1148,24 @@ export function SigningAdministration() {
                   ))}
                 </div>
               )}
+              {companyDocument && (
+                <label className="flex items-start gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    required
+                    checked={reviewed}
+                    onChange={(e) => setReviewed(e.target.checked)}
+                  />
+                  {zh
+                    ? "已逐页核对 PDF 正文、签署位置、角色及预填资料，批准此文件版本。"
+                    : "I reviewed every page, signature position, role and prefilled field and approve this document version."}
+                </label>
+              )}
               <button
                 type="submit"
-                disabled={busy || !parts.length}
+                disabled={
+                  busy || !parts.length || (companyDocument && !reviewed)
+                }
                 className={`${signingButton} !bg-homix-accent !text-white`}
               >
                 {zh ? "核验并发布新版本" : "Verify and publish version"}

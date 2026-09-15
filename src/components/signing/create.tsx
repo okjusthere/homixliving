@@ -32,9 +32,10 @@ export function SigningCreate({
   mode,
   onClose,
 }: {
-  mode: "buyer" | "seller" | "commercial";
+  mode: "buyer" | "seller" | "commercial" | "company_file";
   onClose: () => void;
 }) {
+  const internal = mode === "company_file";
   const zh = useLocale() === "zh",
     router = useRouter(),
     params = useSearchParams(),
@@ -48,6 +49,7 @@ export function SigningCreate({
   const [packageId, setPackageId] = useState("");
   const [title, setTitle] = useState("");
   const [property, setProperty] = useState("");
+  const [reference, setReference] = useState("");
   const [recipients, setRecipients] = useState<
     Record<string, { name: string; email: string }>
   >({});
@@ -149,6 +151,7 @@ export function SigningCreate({
           ),
         );
         setValues(seed.values);
+        setReference(seed.business?.reference || "");
         setReissueReason(seed.reissueReason || "");
         if (saved) setSubmitted(seed);
       })
@@ -211,7 +214,7 @@ export function SigningCreate({
             .join(" / ")
             .slice(0, 200),
           property,
-          reference: "",
+          reference,
         },
         recipients: roles.map((role) => ({
           key: role.key,
@@ -241,12 +244,22 @@ export function SigningCreate({
   }
   return (
     <section
-      aria-label={zh ? "准备公司文件包" : "Prepare a company package"}
+      aria-label={
+        internal
+          ? "Company File"
+          : zh
+            ? "准备公司文件包"
+            : "Prepare a company package"
+      }
       className="rounded-lg border border-line bg-white p-4 sm:p-6"
     >
       <div className="mb-4 flex items-center justify-between gap-3">
         <h2 className="text-lg font-medium">
-          {zh ? "准备公司文件包" : "Prepare a company package"}
+          {internal
+            ? "Company File"
+            : zh
+              ? "准备公司文件包"
+              : "Prepare a company package"}
         </h2>
         <button
           type="button"
@@ -259,9 +272,13 @@ export function SigningCreate({
         </button>
       </div>
       <p className="mb-5 text-sm text-ink-50">
-        {zh
-          ? "填写每位客户的姓名和邮箱。下一步核对文件，确认发送后，各签署人才会收到自己的邀请。"
-          : "Enter each client's name and email. Review the package next; invitations are sent only after you confirm."}
+        {internal
+          ? zh
+            ? "填写公司内部材料，再核对并由本人确认或签署。此分类不添加客户收件人。"
+            : "Prepare an internal company file, then review and approve or sign it yourself. No client recipients are added."
+          : zh
+            ? "填写每位客户的姓名和邮箱。下一步核对文件，确认发送后，各签署人才会收到自己的邀请。"
+            : "Enter each client's name and email. Review the package next; invitations are sent only after you confirm."}
       </p>
       {error && (
         <p
@@ -334,17 +351,52 @@ export function SigningCreate({
                   </option>
                   {packages.map((item) => (
                     <option key={item.id} value={item.id}>
+                      {item.catalog_kind === "document"
+                        ? zh
+                          ? "[单份文件] "
+                          : "[Document] "
+                        : ""}
                       {item.title} ·{" "}
-                      {packageRoles(item).some((role) => role.optional)
-                        ? `${packageRoles(item).filter((role) => role.actor === "customer" && !role.optional).length}–${clientCount(item)}`
-                        : clientCount(item)}{" "}
-                      {zh ? "位客户" : "clients"} · v{item.version}
+                      {internal ? (
+                        zh ? (
+                          "公司内部"
+                        ) : (
+                          "Internal"
+                        )
+                      ) : (
+                        <>
+                          {packageRoles(item).some((role) => role.optional)
+                            ? `${packageRoles(item).filter((role) => role.actor === "customer" && !role.optional).length}–${clientCount(item)}`
+                            : clientCount(item)}{" "}
+                          {zh ? "位客户" : "clients"}
+                        </>
+                      )}{" "}
+                      · v{item.version}
                     </option>
                   ))}
                 </select>
               </label>
               {selected && (
                 <>
+                  {selected.components?.length ? (
+                    <div className="rounded-md bg-paper p-3 text-sm sm:col-span-2">
+                      <p className="font-medium">
+                        {zh ? "包含以下独立文件" : "Included documents"}
+                      </p>
+                      <ol className="mt-2 space-y-1">
+                        {selected.components.map((file, index) => (
+                          <li key={file.id}>
+                            {index + 1}. {file.title} · v{file.version}
+                          </li>
+                        ))}
+                      </ol>
+                      <p className="mt-2 text-ink-50">
+                        {zh
+                          ? "资料填写一次；每位客户通过一个入口逐份签署，完成件分别保存。"
+                          : "Enter details once. Each client reviews and signs the documents through one entry; completed PDFs remain separate."}
+                      </p>
+                    </div>
+                  ) : null}
                   {selected.selectors[zh ? "usageZh" : "usageEn"] && (
                     <p className="rounded-md bg-paper-deep p-3 text-sm sm:col-span-2">
                       {selected.selectors[zh ? "usageZh" : "usageEn"]}
@@ -382,10 +434,27 @@ export function SigningCreate({
                 </>
               )}
             </div>
+            {selected && internal && (
+              <label className="block text-sm">
+                {zh ? "交易参考号（选填）" : "Transaction reference (optional)"}
+                <input
+                  className={signingInput}
+                  maxLength={200}
+                  value={reference}
+                  onChange={(e) => setReference(e.target.value)}
+                />
+              </label>
+            )}
             {selected && (
               <fieldset className="space-y-3">
                 <legend className="mb-2 font-medium">
-                  {zh ? "签署人" : "Recipients"}
+                  {internal
+                    ? zh
+                      ? "填报经纪人"
+                      : "Preparing agent"
+                    : zh
+                      ? "签署人"
+                      : "Recipients"}
                 </legend>
                 {roles.map((role) => (
                   <div
@@ -482,9 +551,13 @@ export function SigningCreate({
                     </button>
                   ))}
                 <p className="text-xs text-ink-50">
-                  {zh
-                    ? "每位客户用自己的姓名签署。公司持有文件，不代表公司必须签字；签署角色由本文件包决定。"
-                    : "Each client signs in their own name. The package defines who signs; company ownership does not add an extra signer."}
+                  {internal
+                    ? zh
+                      ? "文件及完成记录按经纪人和所属公司保存，供公司内部使用。"
+                      : "The file and completion record are retained for the agent and their company."
+                    : zh
+                      ? "每位客户用自己的姓名签署。公司持有文件，不代表公司必须签字；签署角色由本文件包决定。"
+                      : "Each client signs in their own name. The package defines who signs; company ownership does not add an extra signer."}
                 </p>
               </fieldset>
             )}

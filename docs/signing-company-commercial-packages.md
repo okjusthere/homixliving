@@ -1,7 +1,7 @@
 # Company Listing, disclosure and commercial packages
 
-The signing workspace has three company package entry points: Buyer, Seller /
-Listing, and Commercial & other. The new `commercial` scenario reuses company
+The signing workspace has four company entry points: Buyer, Seller /
+Listing, Commercial & other, and Company File. The new `commercial` scenario reuses company
 ownership and per-agent visibility, including review, send, follow-up, replacement
 and download. It does not provision native agent accounts.
 
@@ -30,3 +30,8 @@ before the Portal and before publishing the NDA.
 
 The local HTTP integration test accepts `SIGNING_QA_SCENARIO=commercial` and
 uses the corresponding fixture report from the bridge's local synthetic test.
+
+Company File and independently reviewed document composition are described in
+[the September 15 implementation plan](plans/2026-09-15-independent-signing-packages.md).
+New buyer packages reference separate approved document versions and produce one
+native envelope with separate PDF items, instead of a physically merged source PDF.

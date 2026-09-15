@@ -24,7 +24,14 @@ export const signingDocumentSchema = z.object({
   expired: z.boolean(),
   recipients: z.array(signingRecipientSchema),
   files: z.array(
-    z.object({ id: z.string(), title: z.string(), order: z.number() }),
+    z.object({
+      id: z.string(),
+      title: z.string(),
+      order: z.number(),
+      requiredFields: z.number().optional(),
+      completedFields: z.number().optional(),
+      status: z.string().optional(),
+    }),
   ),
   completionFilesReady: z.boolean(),
 });
@@ -37,6 +44,7 @@ export const signingRequestSchema = z.object({
     "buyer",
     "seller",
     "commercial",
+    "company_file",
     "custom",
   ]),
   business: z.object({
@@ -77,6 +85,18 @@ export const signingRequestSchema = z.object({
   ),
 });
 export const signingPackageSchema = z.object({
+  catalog_kind: z.enum(["legacy", "document", "package"]).optional(),
+  components: z
+    .array(
+      z.object({
+        id: z.string().uuid(),
+        key: z.string(),
+        version: z.number(),
+        title: z.string(),
+      }),
+    )
+    .optional(),
+  signing_order: z.enum(["PARALLEL", "SEQUENTIAL"]).optional(),
   id: z.string().uuid(),
   package_key: z.string(),
   version: z.number(),
@@ -87,6 +107,7 @@ export const signingPackageSchema = z.object({
     "buyer",
     "seller",
     "commercial",
+    "company_file",
   ]),
   company_key: z.string(),
   applicable_company_keys: z.array(z.string()).optional(),
@@ -133,6 +154,22 @@ export type SigningRequest = z.infer<typeof signingRequestSchema>;
 export type SigningPackage = z.infer<typeof signingPackageSchema>;
 
 const ERROR_MESSAGES: Record<string, [string, string]> = {
+  INDEPENDENT_DOCUMENT_REQUIRED: [
+    "请逐份审核 PDF，再用已审核版本组合文件包。",
+    "Approve one PDF at a time, then compose a package from approved versions.",
+  ],
+  APPROVED_DOCUMENT_NOT_AVAILABLE: [
+    "文件包中有文件已停用或不适用，请管理员更新文件包。",
+    "A document is retired or unavailable for this package. Ask an administrator to update it.",
+  ],
+  SHARED_PREFILL_FORMAT_MISMATCH: [
+    "同名资料字段的类型或选项不一致，请核对各文件的字段配置。",
+    "Shared input types or options differ. Review the field configuration.",
+  ],
+  PACKAGE_ROLE_NOT_SUPPORTED: [
+    "文件包目前支持签署人及确认人，请核对参与角色。",
+    "Packages support signers and approvers. Review the recipient roles.",
+  ],
   LEGAL_NAME_REQUIRED: [
     "请先在个人档案补齐 Legal name；已有签署记录的经纪人请联系管理员核对。协议不能使用昵称代替法定姓名。",
     "Complete your Legal name in My profile before preparing agreements. Contact the office if your signed identity needs verification.",

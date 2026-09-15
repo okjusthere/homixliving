@@ -197,9 +197,13 @@ export function SigningDetail({ id }: { id: string }) {
             <div>
               <p className="font-medium">{categories[locale][item.category]}</p>
               <p className="mt-1 text-sm text-ink-50">
-                {zh
-                  ? "各签署人通过自己的邀请签署，完成后可在这里取回整包。"
-                  : "Recipients sign through their own invitations. Retrieve the completed package here."}
+                {item.scenario === "company_file"
+                  ? zh
+                    ? "公司内部材料，由本人完成确认或签署后下载归档。"
+                    : "Internal company file. Approve or sign it yourself, then download the completed document."
+                  : zh
+                    ? "各签署人通过自己的邀请签署，完成后可在这里取回整包。"
+                    : "Recipients sign through their own invitations. Retrieve the completed package here."}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -212,7 +216,9 @@ export function SigningDetail({ id }: { id: string }) {
                   {zh ? "下载完整文件包" : "Download complete package"}
                 </a>
               )}
-              {["buyer", "seller", "commercial"].includes(item.scenario) &&
+              {["buyer", "seller", "commercial", "company_file"].includes(
+                item.scenario,
+              ) &&
                 item.parts.every(
                   (part) =>
                     part.operationState === "discarded" ||
@@ -513,7 +519,13 @@ export function SigningDetail({ id }: { id: string }) {
                               void access(part.id, "signer", recipient.id)
                             }
                           >
-                            {zh ? "本人继续签署" : "Continue as myself"}
+                            {recipient.role === "APPROVER"
+                              ? zh
+                                ? "本人确认文件"
+                                : "Approve as myself"
+                              : zh
+                                ? "本人继续签署"
+                                : "Continue as myself"}
                           </button>
                         )}
                       </li>
@@ -528,6 +540,17 @@ export function SigningDetail({ id }: { id: string }) {
                     {part.document?.files.map((file) => (
                       <li key={file.id}>
                         <p className="mb-2 break-words text-sm">{file.title}</p>
+                        {file.requiredFields !== undefined && (
+                          <p className="mb-2 text-xs text-ink-50">
+                            {part.document?.status === "COMPLETED"
+                              ? zh
+                                ? "已完成并封存"
+                                : "Completed and sealed"
+                              : zh
+                                ? `本文件已完成 ${file.completedFields ?? 0}/${file.requiredFields} 个必填签署字段；整包完成后封存。`
+                                : `${file.completedFields ?? 0}/${file.requiredFields} required fields completed; sealed when the entire package is complete.`}
+                          </p>
+                        )}
                         <div className="flex flex-wrap gap-3 text-xs">
                           <a
                             className="inline-flex items-center gap-1 underline"
@@ -541,7 +564,13 @@ export function SigningDetail({ id }: { id: string }) {
                               className="underline"
                               href={filesUrl(part.id, "signed", file.id)}
                             >
-                              {zh ? "已签完成件" : "Signed document"}
+                              {item.scenario === "company_file"
+                                ? zh
+                                  ? "完成件"
+                                  : "Completed document"
+                                : zh
+                                  ? "已签完成件"
+                                  : "Signed document"}
                             </a>
                           )}
                         </div>

@@ -75,40 +75,51 @@ export function SigningWorkspace() {
             : "Use company packages, enter client details and follow every signature."
         }
       />
-      <div className="grid gap-3 sm:grid-cols-3">
-        {(["buyer", "seller", "commercial"] as const).map((kind) => (
-          <button
-            key={kind}
-            type="button"
-            onClick={() => change({ new: kind })}
-            className="flex items-center gap-3 rounded-lg border border-line bg-white p-4 text-left hover:bg-paper-deep"
-          >
-            <FileSignature size={21} aria-hidden />
-            <div className="min-w-0 flex-1">
-              <p className="font-medium">
-                {kind === "buyer"
-                  ? zh
-                    ? "买家签署包"
-                    : "Buyer package"
-                  : kind === "commercial"
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {(["buyer", "seller", "commercial", "company_file"] as const).map(
+          (kind) => (
+            <button
+              key={kind}
+              type="button"
+              onClick={() => change({ new: kind })}
+              className="flex items-center gap-3 rounded-lg border border-line bg-white p-4 text-left hover:bg-paper-deep"
+            >
+              <FileSignature size={21} aria-hidden />
+              <div className="min-w-0 flex-1">
+                <p className="font-medium">
+                  {kind === "company_file"
+                    ? "Company File"
+                    : kind === "buyer"
+                      ? zh
+                        ? "买家签署包"
+                        : "Buyer package"
+                      : kind === "commercial"
+                        ? zh
+                          ? "商业及其他"
+                          : "Commercial & other"
+                        : zh
+                          ? "卖家 / Listing 签署包"
+                          : "Seller / Listing package"}
+                </p>
+                <p className="mt-1 text-xs text-ink-50">
+                  {kind === "company_file"
                     ? zh
-                      ? "商业及其他"
-                      : "Commercial & other"
+                      ? "公司内部材料"
+                      : "Internal company documents"
                     : zh
-                      ? "卖家 / Listing 签署包"
-                      : "Seller / Listing package"}
-              </p>
-              <p className="mt-1 text-xs text-ink-50">
-                {zh
-                  ? "公司模板，资料填一次"
-                  : "Company templates, one set of details"}
-              </p>
-            </div>
-            <ArrowUpRight size={16} aria-hidden />
-          </button>
-        ))}
+                      ? "公司模板，资料填一次"
+                      : "Company templates, one set of details"}
+                </p>
+              </div>
+              <ArrowUpRight size={16} aria-hidden />
+            </button>
+          ),
+        )}
       </div>
-      {(mode === "buyer" || mode === "seller" || mode === "commercial") && (
+      {(mode === "buyer" ||
+        mode === "seller" ||
+        mode === "commercial" ||
+        mode === "company_file") && (
         <SigningCreate
           key={mode}
           mode={mode}
