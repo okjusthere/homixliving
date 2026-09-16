@@ -68,12 +68,15 @@ async function main() {
   const [invite] = await db.insert(onboardingInvitations).values({ tokenHash: randomUUID(), expiresAt: new Date(Date.now() + 86400000).toISOString() }).returning();
   const pending = await signingAgent({ name: "Google Profile", legalName: null, onboardingInviteId: invite.id, licensedCompany: "Homix Living Inc." });
   session(pending);
-  const body = { legalName: "Jiaer Xia", preferredName: "Grace Xia", licensedCompanyId: "homix_living", plan: "solo", companyRequirementsAcknowledged: true };
+  const body = { legalName: "Jiaer Xia", preferredName: "Grace Xia", licensedCompanyId: "homix_living", plan: "solo", companyRequirementsAcknowledged: true,
+    licenseRelease: { status: "not_applicable", previousCompany: "", note: "Synthetic existing affiliation" } };
+  assert.equal((await saveOnboarding(request({ ...body, licenseRelease: undefined }, "/api/onboarding/profile"))).status, 400);
   assert.equal((await saveOnboarding(request({ ...body, legalName: "" }, "/api/onboarding/profile"))).status, 400);
   assert.equal((await saveOnboarding(request(body, "/api/onboarding/profile"))).status, 200);
   const profile = (await (await readOnboarding()).json()).profile;
   assert.equal(profile.legalName, "Jiaer Xia");
   assert.equal(profile.preferredName, "Grace Xia");
+  assert.equal(profile.licenseRelease.status, "not_applicable");
   const prepared = await prepareOnboardingSigning(await currentAgent(pending.id));
   assert.equal((prepared.signingPreparation?.payload.values as Record<string, string>).agent_name, "Jiaer Xia");
   assert.equal(bridge.document(prepared).recipients[0].name, "Jiaer Xia");
