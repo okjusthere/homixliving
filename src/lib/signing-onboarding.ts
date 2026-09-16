@@ -102,7 +102,7 @@ async function checkProfileAndTeam(
   agent: Agent,
   query: typeof db | DbTransaction = db,
 ) {
-  if (agent.accountStatus !== "pending" || !agent.onboardingCompletedAt)
+  if (agent.accountStatus !== "pending" || !agent.onboardingCompletedAt || !agent.licenseNumber?.trim())
     throw new SigningBridgeError("COMPLETE_ONBOARDING_PROFILE", 409);
   if (normalizeAgentPlan(agent.plan) !== "team_member") return;
   if (!agent.teamId || !agent.teamTermsConfigId)

@@ -1,4 +1,5 @@
 import "server-only";
+import { dosConfirmed, DOS_REQUIRED, licenseNumberInput } from "@/lib/onboarding-license";
 import { nyDate } from "@/lib/celebrations/calendar";
 import { createHash, randomUUID } from "node:crypto";
 import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
@@ -97,6 +98,13 @@ export const completionInput = z.object({
     ctx.addIssue({ code: "custom", message: "Existing payments cannot be changed during approval" });
 });
 export const adminCommand = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("confirm_dos"),
+    confirmed: z.boolean(),
+    legalName: z.string().trim().min(1).max(200),
+    licenseNumber: licenseNumberInput,
+    companyId: z.enum(["homix_realty", "homix_living"]),
+  }).strict(),
   z.object({
     action: z.literal("review_contract"),
     contractId: z.uuid(),
@@ -239,7 +247,21 @@ export async function runOnboardingCommand(
   const result = await db.transaction(async (tx) => {
     const { agent, actor } = await lockedSubject(tx, agentId, actorId);
     const now = new Date().toISOString();
-    if (command.action === "review_contract") {
+    if (command.action === "confirm_dos") {
+      if (agent.accountStatus !== "pending")
+        throw new OnboardingCommandError("DOS intake confirmation is only available for pending accounts");
+      if (agent.legalName?.trim() !== command.legalName ||
+          agent.licenseNumber?.trim() !== command.licenseNumber ||
+          agent.licensedCompanyId !== command.companyId)
+        throw new OnboardingCommandError("License identity or company changed. Refresh before confirming DOS affiliation.");
+      const proof = command.confirmed ? {
+        legalName: command.legalName, licenseNumber: command.licenseNumber,
+        companyId: command.companyId, confirmedBy: actorId, confirmedAt: now,
+      } : null;
+      // Retries do not replace the original verifier/time.
+      if (command.confirmed && dosConfirmed(agent)) return { success: true, replayed: true };
+      await tx.update(agents).set({ dosConfirmation: proof, updatedAt: now }).where(eq(agents.id, agentId));
+    } else if (command.action === "review_contract") {
       const [contract] = await tx
         .select()
         .from(onboardingContracts)
@@ -404,6 +426,7 @@ export async function runOnboardingCommand(
       if (!rows.length)
         throw new OnboardingCommandError("The grant is no longer open");
     } else if (command.action === "existing_staff") {
+      if (!dosConfirmed(agent)) throw new OnboardingCommandError(DOS_REQUIRED);
       const manual = verifiedManualContract(agent);
       if (
         agent.accountStatus !== "pending" ||
@@ -700,6 +723,7 @@ export async function completeOnboarding(agentId: number, actorId: number, input
       throw new OnboardingCommandError("This account is not pending. Refresh its current status before recording another payment.");
     if (!agent.onboardingCompletedAt)
       throw new OnboardingCommandError("Complete the person's profile first");
+    if (!dosConfirmed(agent)) throw new OnboardingCommandError(DOS_REQUIRED);
     if (!onboardingAgreementAllowsPayment(agent))
       throw new OnboardingCommandError("The agent has not signed the affiliation agreement.");
     const [pendingTeam] = await tx.select({ id: teamJoinRequests.id }).from(teamJoinRequests)
@@ -715,8 +739,8 @@ export async function completeOnboarding(agentId: number, actorId: number, input
     )).orderBy(desc(commerceOrders.id)).limit(1);
     let orderId: number | null = null;
     if (body.mode === "verified") {
-      if (!fullyWaivedOnboarding(agent) && !(agent.paymentStatus === "paid" && paidOrder?.paymentChannel === "offline"))
-        throw new OnboardingCommandError("A verified offline receipt or an approved full waiver is required");
+      if (!fullyWaivedOnboarding(agent) && !(agent.paymentStatus === "paid" && paidOrder && ["offline", "stripe"].includes(paidOrder.paymentChannel)))
+        throw new OnboardingCommandError("A verified payment or an approved full waiver is required");
       orderId = paidOrder?.id ?? null;
     } else {
       if (agent.paymentStatus === "paid" || paidOrder)

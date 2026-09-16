@@ -24,6 +24,9 @@ const manual: VerifiedManualContract = {
   verifiedAt: "2026-09-12",
 };
 const agent = {
+  licensedCompanyId: "homix_living",
+  dosConfirmation: { legalName: manual.legalName, licenseNumber: manual.licenseNumber,
+    companyId: "homix_living", confirmedBy: 1, confirmedAt: "2026-09-16T12:00:00Z" },
   accountStatus: "pending",
   isAdmin: false,
   agreementAgentSignedAt: null,

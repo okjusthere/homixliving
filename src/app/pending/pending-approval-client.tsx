@@ -9,13 +9,15 @@ import { tone } from "@/components/homix/tokens";
 import { useLocale } from "@/lib/i18n-client";
 import { canRestartAgreement } from "@/lib/agreement-recovery-policy";
 import { refreshApprovalSession } from "./approval-session";
+import { LicenseReleaseFields, type ReleaseDraft } from "@/components/onboarding-license-release";
+import { licenseNumberInput, licenseReleaseInput } from "@/lib/onboarding-license";
 
 const M = {
   en: {
     inactiveTitle: "Account inactive",
     pendingTitle: "Complete your onboarding",
     inactiveBody: "This account has been deactivated. Contact a Homix administrator if you believe this is a mistake.",
-    pendingBody: "Confirm your details, sign your agreement, then pay online for automatic activation. An administrator verifies offline payments and activates those accounts.",
+    pendingBody: "Confirm your details and license release status, then sign and arrange payment. Access requires an administrator to confirm your DOS affiliation; signing and payment can proceed while this is checked.",
     inactiveHint: "Your historical deals and payment records remain retained by the company.",
     pendingHint: "Your progress is saved. This page checks automatically and opens your workspace when your access is ready.",
     checking: "Checking…",
@@ -82,7 +84,7 @@ const M = {
     agreementUnavailable: "eSign is not configured yet. An administrator can continue the current manual process.",
     payAnnualFee: "Pay affiliation fee",
     paymentReceived: "Payment received",
-    finalReview: "Payment received. Your Portal access is activating automatically.",
+    finalReview: "Payment received. No further payment is needed. Portal access will open after DOS affiliation and onboarding are confirmed.",
     offlineReview: "Your offline payment has been verified. An administrator will review and activate your account.",
     teamTermsTitle: "Team terms included in your agreement",
     standardTeamSplit: "Standard team split",
@@ -95,7 +97,7 @@ const M = {
     inactiveTitle: "账号已停用",
     pendingTitle: "办理入职",
     inactiveBody: "此账号已被停用。如有疑问，请联系 Homix 管理员。",
-    pendingBody: "确认资料、本人签署后，线上付款即可自动开通；线下付款由管理员核验后审批开通。",
+    pendingBody: "确认资料和执照 release 状态，再签署和处理费用。开通前须由管理员确认 DOS 已接收；核实期间可先签署和付款。",
     inactiveHint: "公司仍会保留你的历史成交与付款记录。",
     pendingHint: "办理进度会保留。本页自动检查状态，开通后直接进入工作台。",
     checking: "正在检查…",
@@ -162,7 +164,7 @@ const M = {
     agreementUnavailable: "eSign 尚未配置，管理员仍可按现有人工流程处理。",
     payAnnualFee: "支付挂靠费用",
     paymentReceived: "费用已支付",
-    finalReview: "费用已收到，系统正在自动开通 Portal 权限。",
+    finalReview: "费用已收到，无需重复付款。DOS 接收和入职条件确认后即可开通 Portal。",
     offlineReview: "线下收款已核验，等待管理员审批开通账号。",
     teamTermsTitle: "协议中的团队分佣条款",
     standardTeamSplit: "一般团队分成",
@@ -226,6 +228,10 @@ export function PendingApprovalClient({
   const [preferredName, setPreferredName] = useState("");
   const [phone, setPhone] = useState("");
   const [licenseNumber, setLicenseNumber] = useState("");
+  const [release, setRelease] = useState<ReleaseDraft>({ status: "", previousCompany: "", note: "" });
+  const [releaseSaving, setReleaseSaving] = useState(false);
+  const [releaseMessage, setReleaseMessage] = useState("");
+  const [dosReady, setDosReady] = useState(false);
   const [licensedCompany, setLicensedCompany] = useState("");
   const [liborMembershipStatus, setLiborMembershipStatus] = useState<"apply_new" | "existing_member" | "">("");
   const [companyRequirementsAcknowledged, setCompanyRequirementsAcknowledged] = useState(false);
@@ -288,6 +294,10 @@ export function PendingApprovalClient({
         setPreferredName(data.profile?.preferredName || "");
         setPhone(data.profile?.phone || "");
         setLicenseNumber(data.profile?.licenseNumber || "");
+        setRelease(data.profile?.licenseRelease?.licenseNumber === data.profile?.licenseNumber
+          ? { status: data.profile.licenseRelease.status, previousCompany: data.profile.licenseRelease.previousCompany, note: data.profile.licenseRelease.note }
+          : { status: "", previousCompany: "", note: "" });
+        setDosReady(Boolean(data.profile?.dosConfirmed));
         setLicensedCompany(effectiveCompanyId);
         setLiborMembershipStatus(data.profile?.liborMembershipStatus || "");
         setCompanyRequirementsAcknowledged(Boolean(
@@ -346,6 +356,10 @@ export function PendingApprovalClient({
   }, [refreshProfile, teamJoinRequest?.status]);
 
   const saveSetup = async () => {
+    if (!licenseNumberInput.safeParse(licenseNumber).success || !licenseReleaseInput.safeParse(release).success) {
+      setSetupMessage(lang === "zh" ? "请填写执照号、原公司和 release 状态；不适用时请说明原因。" : "Enter your license number, previous brokerage and release status; explain if not applicable.");
+      return;
+    }
     if (!licensedCompany || !companyRequirementsAcknowledged) {
       setSetupMessage(t.companyAcknowledgementRequired);
       return;
@@ -373,6 +387,7 @@ export function PendingApprovalClient({
           preferredName,
           phone,
           licenseNumber,
+          licenseRelease: release,
           licensedCompanyId: licensedCompany,
           liborMembershipStatus: licensedCompany === "homix_realty" ? liborMembershipStatus : null,
           companyRequirementsAcknowledged,
@@ -740,8 +755,10 @@ export function PendingApprovalClient({
                   </label>
                   <label className="grid gap-1 text-[12px]" style={{ color: tone.ink70 }}>
                     {t.license}
-                    <input value={licenseNumber} onChange={(event) => setLicenseNumber(event.target.value)} disabled={agreementStatus !== "not_started"} className="h-11 w-full min-w-0 rounded-lg bg-white px-3 text-base disabled:opacity-60" style={{ border: `1px solid ${tone.line}`, color: tone.ink }} />
+                    <input required maxLength={80} value={licenseNumber} onChange={(event) => setLicenseNumber(event.target.value)} disabled={agreementStatus !== "not_started"} className="h-11 w-full min-w-0 rounded-lg bg-white px-3 text-base disabled:opacity-60" style={{ border: `1px solid ${tone.line}`, color: tone.ink }} />
+                    <span className="text-xs">{lang === "zh" ? "必填；自动带入待签协议，无需在签字页重复填写。" : "Required; prefilled into your agreement without retyping."}</span>
                   </label>
+                  {!setupComplete && <LicenseReleaseFields value={release} onChange={setRelease} zh={lang === "zh"} disabled={setupSaving} />}
                   <label className="grid gap-1 text-[12px] sm:col-span-2" style={{ color: tone.ink70 }}>
                     {t.practice}
                     <select value={practice} onChange={(event) => setPractice(event.target.value)} disabled={agreementStatus !== "not_started"} className="h-11 w-full min-w-0 rounded-lg bg-white px-3 text-base disabled:opacity-60" style={{ border: `1px solid ${tone.line}`, color: tone.ink }}>
@@ -845,6 +862,24 @@ export function PendingApprovalClient({
                 </div>
               )}
 
+              {setupComplete && <section className="mt-5 space-y-3 rounded-lg border border-stone-200 p-4">
+                <p className="text-sm font-medium">{dosReady ? (lang === "zh" ? "公司已核实 DOS 接收" : "DOS affiliation confirmed by the company") : (lang === "zh" ? "待公司核实 DOS 接收；不影响先签署和付款" : "Awaiting company DOS verification; you may sign and pay meanwhile")}</p>
+                <LicenseReleaseFields value={release} onChange={setRelease} zh={lang === "zh"} disabled={releaseSaving} />
+                <button type="button" className="admin-control" disabled={releaseSaving} onClick={async () => {
+                  if (!licenseReleaseInput.safeParse(release).success) {
+                    setReleaseMessage(lang === "zh" ? "请选择状态并填写原公司；不适用时请说明原因。" : "Select a status and enter the brokerage; explain if not applicable."); return;
+                  }
+                  setReleaseSaving(true); setReleaseMessage("");
+                  try {
+                    const response = await fetch("/api/onboarding/license-release", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ licenseNumber, release }) });
+                    const data = await response.json();
+                    if (!response.ok) throw new Error(data.error);
+                    setReleaseMessage(lang === "zh" ? "Release 状态已保存，签署文件保持不变。" : "Release status saved. Signing documents are unchanged.");
+                  } catch (error) { setReleaseMessage(error instanceof Error ? error.message : t.setupFailed); }
+                  finally { setReleaseSaving(false); }
+                }}>{releaseSaving ? t.savingSetup : (lang === "zh" ? "保存 release 状态" : "Save release status")}</button>
+                {releaseMessage && <p role="status" className="text-sm">{releaseMessage}</p>}
+              </section>}
               {setupComplete && teamJoinRequest?.status !== "pending" && (
                 <div className="mt-5 border-t pt-5" style={{ borderColor: tone.line }}>
                   <h3 className="font-serif text-[20px]" style={{ color: tone.ink }}>{t.agreementTitle}</h3>

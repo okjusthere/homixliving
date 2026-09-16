@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { verifiedDosFixture } from "./dos-fixture";
 import type { Agent } from "@/db/schema";
 import {
   onboardingAgreementAllowsPayment,
@@ -47,6 +48,7 @@ assert.equal(soloProUpgradeCreditCents({
 
 function onboardingAgent(overrides: Partial<Agent> = {}) {
   return {
+    ...verifiedDosFixture,
     accountStatus: "pending",
     signingRequestId: "00000000-0000-4000-8000-000000000001",
     onboardingCompletedAt: "2026-09-10T12:00:00.000Z",

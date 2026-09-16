@@ -231,6 +231,9 @@ async function main() {
     }),
     OnboardingCommandError,
   );
+  await db.update(agents).set({ licensedCompanyId: "homix_living" }).where(eq(agents.id, pending.id));
+  await runOnboardingCommand(pending.id, admin.id, { action: "confirm_dos", confirmed: true,
+    legalName: "Synthetic Legal New Hire", licenseNumber: "SYNTHETIC", companyId: "homix_living" });
   await runOnboardingCommand(pending.id, admin.id, {
     action: "existing_staff",
     contractId,

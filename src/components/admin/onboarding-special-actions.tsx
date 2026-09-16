@@ -26,6 +26,7 @@ const actionErrors: Record<string, string> = {
   "The grant is no longer open": "该授权已结束，请刷新状态",
   "Verify the current historical contract before recognizing existing staff": "按既有人员办理前，请先核验当前适用的历史合同",
   "Complete the person's profile first": "请先补全本人资料",
+  "Confirm in DOS that this license is affiliated with the selected company before activation": "请先在执照卡片确认 DOS 已正式接收该执照",
   "Confirm team membership and compensation terms first": "请先确认团队归属与分佣条款",
   "Match the current fee payment first": "请先核对本次应付费用与收款",
   "Receipt not found": "未找到该收款记录",
@@ -48,6 +49,7 @@ export function OnboardingSpecialActions({
   agentId,
   company,
   manual,
+  dosReady,
   records,
   onChanged,
   onBusyChange,
@@ -55,6 +57,7 @@ export function OnboardingSpecialActions({
   agentId: number;
   company: string | null;
   manual: VerifiedManualContract | null;
+  dosReady: boolean;
   records: OnboardingRecords;
   onChanged: () => Promise<void>;
   onBusyChange?: (busy: boolean) => void;
@@ -596,7 +599,7 @@ export function OnboardingSpecialActions({
           </ExplainedAction>
           <ExplainedAction
             className="admin-control"
-            disabledReason={savingReason || (records.access?.full ? (zh ? "账号已有完整权限。" : "The account already has full access.") : manual?.source !== "historic" ? (zh ? "请先核验适用的历史合同。" : "Verify the applicable historical contract first.") : "")}
+            disabledReason={savingReason || (records.access?.full ? (zh ? "账号已有完整权限。" : "The account already has full access.") : !dosReady ? (zh ? "请先在执照卡片确认 DOS 接收。" : "Confirm DOS affiliation in the license card first.") : manual?.source !== "historic" ? (zh ? "请先核验适用的历史合同。" : "Verify the applicable historical contract first.") : "")}
             onClick={() => setMode(mode === "existing" ? "" : "existing")}
           >
             {zh ? "按既有人员开通" : "Activate existing staff"}

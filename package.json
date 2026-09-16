@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "test:onboarding-license": "node --import tsx src/lib/__tests__/onboarding-license.test.ts",
+    "test:onboarding-license:db": "node --import ./scripts/test-server-only.mjs --import ./scripts/test-agreement-auth.mjs --import tsx src/lib/__tests__/onboarding-license-db.test.ts",
     "test:legacy-claims:db": "node --import ./scripts/test-server-only.mjs --import tsx src/lib/__tests__/legacy-agent-claims-db.test.ts",
     "agents:preregister-legacy": "node --import tsx scripts/preregister-legacy-agents.ts",
     "pretest": "npm run test:agent-names && npm run test:agent-name-api",

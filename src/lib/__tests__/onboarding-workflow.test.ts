@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
+import { verifiedDosFixture } from "./dos-fixture";
 import { onboardingWorkflow } from "@/lib/onboarding-workflow";
 type Subject = Parameters<typeof onboardingWorkflow>[0];
 const agent: Subject = {
+  ...verifiedDosFixture,
   accountStatus: "pending",
   onboardingCompletedAt: "2026-09-12",
   agreementAgentSignedAt: null,
@@ -20,8 +22,10 @@ const signed = { ...agent, agreementAgentSignedAt: "2026-09-12" };
 assert.equal(onboardingWorkflow(signed, null).canRecordPayment, true);
 const paid = { ...signed, paymentStatus: "paid" as const };
 assert.equal(onboardingWorkflow(paid, "offline").canApprove, true);
-assert.equal(onboardingWorkflow(paid, "stripe").canApprove, false);
-assert.equal(onboardingWorkflow(paid, "stripe").next, "activation");
+assert.equal(onboardingWorkflow(paid, "stripe").canApprove, true);
+assert.equal(onboardingWorkflow(paid, "stripe").next, "approval");
+assert.equal(onboardingWorkflow({ ...paid, dosConfirmation: null }, "stripe").next, "dos");
+assert.equal(onboardingWorkflow({ ...paid, dosConfirmation: null }, "offline").canComplete, false);
 assert.equal(onboardingWorkflow(paid, null).next, "payment_issue");
 assert.equal(onboardingWorkflow(paid, "offline", true).canApprove, false);
 for (const agreementStatus of [

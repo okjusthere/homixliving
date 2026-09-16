@@ -1,4 +1,5 @@
 import type { Agent } from "@/db/schema";
+import { dosConfirmed, type DosBasis } from "@/lib/onboarding-license";
 import { onboardingAgreementAllowsPayment } from "@/lib/onboarding";
 import { fullyWaivedOnboarding } from "@/lib/onboarding-fees";
 import { verifiedManualContract, type ManualContractBasis } from "@/lib/onboarding-requirements";
@@ -17,7 +18,7 @@ export function onboardingWorkflow(
     | "teamId"
     | "teamTermsConfigId"
     | "teamTermsAcceptedAt"
-  > & ManualContractBasis & Partial<Pick<Agent, "affiliationTermMonths" | "licensedCompanyId" | "onboardingFeeAdjustment">>,
+  > & ManualContractBasis & DosBasis & Partial<Pick<Agent, "affiliationTermMonths" | "licensedCompanyId" | "onboardingFeeAdjustment">>,
   paymentChannel: string | null,
   pendingTeam = false,
 ) {
@@ -29,6 +30,7 @@ export function onboardingWorkflow(
         agent.teamId && agent.teamTermsConfigId && agent.teamTermsAcceptedAt,
       ));
   const profileReady = Boolean(agent.onboardingCompletedAt);
+  const dosReady = dosConfirmed(agent);
   const manual = verifiedManualContract(agent);
   const countersignPending = manual ? !manual.companySignedAt : Boolean(
     agent.signingRequestId &&
@@ -42,10 +44,10 @@ export function onboardingWorkflow(
     agent.accountStatus === "pending" &&
     profileReady &&
     signed &&
-    teamReady;
+    teamReady && dosReady;
   const waived = fullyWaivedOnboarding(agent);
   const canApprove = canComplete && (waived ||
-    (agent.paymentStatus === "paid" && paymentChannel === "offline"));
+    (agent.paymentStatus === "paid" && ["offline", "stripe"].includes(paymentChannel || "")));
   const next: keyof typeof ONBOARDING_NEXT =
     agent.accountStatus === "inactive"
       ? "inactive"
@@ -65,18 +67,21 @@ export function onboardingWorkflow(
                 : "signature"
               : !teamReady
                 ? "team"
-                : waived
+                : !dosReady
+                  ? "dos"
+                  : waived
                   ? "approval"
                   : agent.paymentStatus !== "paid"
                   ? "payment"
                   : paymentChannel === "offline"
                     ? "approval"
                     : paymentChannel === "stripe"
-                      ? "activation"
+                      ? "approval"
                       : "payment_issue";
   return {
     signed,
     profileReady,
+    dosReady,
     teamReady,
     countersignPending,
     canRecordPayment,
@@ -87,6 +92,7 @@ export function onboardingWorkflow(
 }
 
 export const ONBOARDING_NEXT = {
+  dos: ["待管理员核实 DOS 接收", "Admin: verify DOS affiliation"],
   profile: ["待本人完善资料", "Agent: complete profile"],
   team: ["待团队确认 / 条款确认", "Team decision / terms required"],
   signature: ["待本人签署", "Agent: sign agreement"],

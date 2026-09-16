@@ -202,6 +202,8 @@ export const agents = portal.table("agents", {
   emailChangeTokenHash: text("email_change_token_hash"),
   phone: text("phone"),
   licenseNumber: text("license_number"),
+  licenseRelease: jsonb("license_release").$type<import("@/lib/onboarding-license").LicenseRelease>(),
+  dosConfirmation: jsonb("dos_confirmation").$type<import("@/lib/onboarding-license").DosConfirmation>(),
   // NY licenses expire every 2 years — the reminder cron watches this date.
   licenseExpiresAt: dateCol("license_expires_at"),
   licensedCompany: text("licensed_company"),

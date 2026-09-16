@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { verifiedDosFixture } from "./dos-fixture";
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { db, closeDatabaseConnections } from "@/db";
@@ -17,8 +18,9 @@ async function main() {
     { name: "Synthetic Sponsor", email: `qa-${randomUUID()}@example.invalid`, accountStatus: "active" as const },
   ]).returning();
   async function subject(overrides: Partial<typeof agents.$inferInsert> = {}) {
-    return (await db.insert(agents).values({ name: "Synthetic Preferred", legalName: "Synthetic Legal",
-      licenseNumber: "SYNTHETIC", email: `qa-${randomUUID()}@example.invalid`,
+    return (await db.insert(agents).values({ name: "Synthetic Preferred",
+      email: `qa-${randomUUID()}@example.invalid`,
+      ...verifiedDosFixture,
       accountStatus: "pending", plan: "solo", affiliationTermMonths: 12,
       onboardingCompletedAt: new Date().toISOString(), signingRequestId: randomUUID(),
       agreementAgentSignedAt: new Date().toISOString(), agreementStatus: "sent",

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { verifiedDosFixture } from "./dos-fixture";
 import { randomUUID } from "node:crypto";
 import { mock as testMock } from "node:test";
 import type Stripe from "stripe";
@@ -27,7 +28,8 @@ async function main() {
     { name: "Synthetic Stripe Race Sponsor", email: `qa-${randomUUID()}@example.invalid`, accountStatus: "active" as const },
   ]).returning();
   const subject = async (overrides: Partial<typeof agents.$inferInsert> = {}) => (await db.insert(agents).values({
-    name: "Synthetic Preferred", legalName: "Synthetic Legal", licenseNumber: "SYNTHETIC",
+    name: "Synthetic Preferred",
+    ...verifiedDosFixture,
     email: `qa-${randomUUID()}@example.invalid`, accountStatus: "pending", plan: "solo", affiliationTermMonths: 12,
     onboardingCompletedAt: new Date().toISOString(), agreementStatus: "sent",
     signingRequestId: randomUUID(), agreementAgentSignedAt: new Date().toISOString(), referredByAgentId: sponsor.id, ...overrides,

@@ -181,9 +181,8 @@ export async function GET(req: NextRequest) {
   );
 
   // Only onboarding orders carry the one-time licence-transfer fee. Expose
-  // the latest settled channel so the admin UI can reserve approval for cash,
-  // check, Zelle, or another verified offline payment. Stripe activates from
-  // its signed webhook and must not depend on an admin click.
+  // the latest settled channel. Stripe activates only after DOS confirmation;
+  // if payment came first, an administrator can approve using that same order.
   const onboardingOrderRows = await db
     .select({
       agentId: commerceOrders.agentId,
