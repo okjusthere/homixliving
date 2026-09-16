@@ -821,12 +821,27 @@ export function EmailWorkspace() {
                 <p className="studio-note">
                   {t("Test recipient", "测试收件人")}: {settings?.email || "—"}
                 </p>
-                {settings && !settings.selfTestAllowed && (
+                {settings && (
                   <p className="studio-note">
-                    {t(
-                      "Ask the Email Service administrator to enable your address for test sends.",
-                      "请邮件服务管理员将你的邮箱加入测试收件人名单。",
-                    )}
+                    {settings.selfTestAllowed
+                      ? t(
+                          "Test emails are sent to your signed-in account email.",
+                          "测试邮件将发送到当前登录账号的邮箱。",
+                        )
+                      : settings.deliveryMode === "disabled"
+                        ? t(
+                            "Email sending is currently paused. You can still preview your draft.",
+                            "邮件发送当前已暂停，你仍可预览草稿。",
+                          )
+                        : settings.deliveryMode === "sandbox"
+                          ? t(
+                              "The service is in sandbox mode. Ask the administrator to enable your test address.",
+                              "当前为沙盒模式，请联系管理员启用你的测试邮箱。",
+                            )
+                          : t(
+                              "Test sending is currently unavailable. Please try again later.",
+                              "测试发送暂不可用，请稍后重试。",
+                            )}
                   </p>
                 )}
                 <button
