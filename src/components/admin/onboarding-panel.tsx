@@ -1,4 +1,5 @@
 "use client";
+import { OnboardingLicenseCard, type LicenseDetail } from "./onboarding-license-card";
 import {
   OnboardingSpecialActions,
   type OnboardingRecords,
@@ -19,7 +20,7 @@ import {
 import type { SigningRequest } from "@/lib/signing-contract";
 import type { HrFileManifest } from "@/lib/signing-hr-files";
 type Detail = {
-  agent: {
+  agent: LicenseDetail & {
     name: string;
     email: string;
     accountStatus: string;
@@ -166,7 +167,8 @@ export function OnboardingPanel({
     if (!detail.workflow.profileReady) approvalReasons.push(zh ? "本人资料尚未补齐。" : "The agent profile is incomplete.");
     if (!detail.workflow.signed) approvalReasons.push(zh ? "本人合同要求尚未完成。" : "The agent contract requirement is incomplete.");
     if (!detail.workflow.teamReady) approvalReasons.push(zh ? "团队归属或分佣条款尚未确认。" : "Team membership or compensation terms are not confirmed.");
-    if (!fullyWaived && !(detail.agent.paymentStatus === "paid" && detail.payment?.channel === "offline")) approvalReasons.push(zh ? "请先核验线下付款，或使用上方费用确认与开通流程。" : "Verify the offline payment first, or use Confirm fee & activate above.");
+    if (!detail.workflow.dosReady) approvalReasons.push(zh ? "请先在上方确认 DOS 已正式接收该执照。" : "Confirm DOS affiliation in the license card above.");
+    if (!fullyWaived && !(detail.agent.paymentStatus === "paid" && ["offline", "stripe"].includes(detail.payment?.channel || ""))) approvalReasons.push(zh ? "请先核验付款，或使用上方费用确认与开通流程。" : "Verify payment first, or use Confirm fee & activate above.");
     if (!detail.workflow.canApprove && !approvalReasons.length) approvalReasons.push(zh ? "服务端尚未确认可审批，请刷新状态。" : "Approval is not available yet. Refresh the current status.");
   }
   const reminderReason = (actor: "owner" | "company") => waiting
@@ -193,6 +195,9 @@ export function OnboardingPanel({
     );
   const eventLabel = (type: string) => {
     const names: Record<string, [string, string]> = {
+      confirm_dos: ["已更新 DOS 人工核实记录", "DOS verification updated"],
+      dos_legacy_confirmation_backfilled: ["管理员授权的存量 DOS 确认", "Administrator-authorized historical DOS confirmation"],
+      license_release_declared: ["本人已更新 release 申报", "Release declaration updated"],
       documenso_agreement_prepared: [
         "已准备电子合同",
         "Electronic agreement prepared",
@@ -315,6 +320,8 @@ export function OnboardingPanel({
         )}
         {detail && (
           <>
+            <OnboardingLicenseCard agentId={agentId} agent={detail.agent} confirmed={detail.workflow.dosReady}
+              busy={waiting} onBusy={setBusy} onChanged={async () => { await load(); onChanged(); }} />
             {detail.agent.accountStatus === "active" && detail.agent.websiteSync?.status === "pending" && <section className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
               <p>{zh ? "账号已开通，官网同步尚未完成。无需重新审批或付款。" : "Account active; website sync is incomplete. No new approval or payment is needed."}</p>
               <button className="admin-control mt-2" disabled={waiting} onClick={() => void retryWebsite()}>{zh ? "重试官网同步" : "Retry website sync"}</button>
@@ -367,8 +374,8 @@ export function OnboardingPanel({
                   zh ? "账号开通" : "Portal access",
                   detail.agent.accountStatus === "active",
                   detail.agent.accountStatus === "active" ? (zh ? "账号已开通，可以进入 Portal" : "Account active; Portal access is available") : zh
-                    ? "确认收款或减免后一次完成审批；线上付款按自动流程开通"
-                    : "Confirm receipt or waiver and approve in one step; online payments use automatic activation",
+                    ? "须先确认 DOS 接收，再确认费用并开通；已付款无需重付"
+                    : "Confirm DOS affiliation and fee settlement before activation; do not collect paid fees again",
                 ],
               ].map(([label, done, help]) => (
                 <li key={String(label)} className="flex gap-3 p-4">
@@ -400,6 +407,7 @@ export function OnboardingPanel({
               profileReady={detail.workflow.profileReady}
               signed={detail.workflow.signed}
               teamReady={detail.workflow.teamReady}
+              dosReady={detail.workflow.dosReady}
               warning={detail.warning}
               loading={loading}
               busy={busy}
@@ -602,6 +610,7 @@ export function OnboardingPanel({
               agentId={agentId}
               company={detail.agent.licensedCompany}
               manual={detail.agent.manualContract}
+              dosReady={detail.workflow.dosReady}
               records={detail.records}
               onBusyChange={setBusy}
               onChanged={async () => {

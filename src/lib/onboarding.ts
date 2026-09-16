@@ -1,4 +1,5 @@
 import type { Agent } from "@/db/schema";
+import { dosConfirmed, type DosBasis } from "@/lib/onboarding-license";
 import type { AgentPlan } from "@/lib/agent-plans";
 import type { CommerceProductKey } from "@/lib/commerce/catalog";
 import { verifiedManualContract, type ManualContractBasis } from "@/lib/onboarding-requirements";
@@ -70,7 +71,7 @@ export function shouldAutomaticallyActivatePaidOnboarding(
     | "teamId"
     | "teamTermsConfigId"
     | "teamTermsAcceptedAt"
-  > & ManualContractBasis,
+  > & ManualContractBasis & DosBasis,
   paymentChannel: string,
 ) {
   if (!isOnboardingV2Enforced()) return false;
@@ -78,6 +79,7 @@ export function shouldAutomaticallyActivatePaidOnboarding(
     paymentChannel !== "stripe" ||
     agent.accountStatus !== "pending" ||
     !agent.onboardingCompletedAt ||
+    !dosConfirmed(agent) ||
     !onboardingAgreementAllowsPayment(agent)
   ) {
     return false;

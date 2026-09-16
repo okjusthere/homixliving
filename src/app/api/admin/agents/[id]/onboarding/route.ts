@@ -105,6 +105,11 @@ export async function GET(
       agent: {
         id: agent.id,
         name: agent.name,
+        legalName: agent.legalName,
+        licenseNumber: agent.licenseNumber,
+        licensedCompanyId: agent.licensedCompanyId,
+        licenseRelease: agent.licenseRelease,
+        dosConfirmation: agent.dosConfirmation,
         email: agent.email,
         accountStatus: agent.accountStatus,
         agreementStatus: agent.agreementStatus,

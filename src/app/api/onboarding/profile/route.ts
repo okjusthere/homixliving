@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { dosConfirmed, licenseNumberInput, licenseReleaseInput } from "@/lib/onboarding-license";
 import { cleanAgentName, validAgentName } from "@/lib/agent-names";
 import { cookies } from "next/headers";
 import { and, desc, eq, lte, or, sql } from "drizzle-orm";
@@ -150,6 +151,8 @@ export async function GET() {
       preferredName: agent.name,
       phone: agent.phone,
       licenseNumber: agent.licenseNumber,
+      licenseRelease: agent.licenseRelease,
+      dosConfirmed: dosConfirmed(agent),
       licensedCompany: agent.licensedCompany,
       licensedCompanyId: agent.licensedCompanyId,
       liborMembershipStatus: agent.liborMembershipStatus,
@@ -195,6 +198,8 @@ export async function GET() {
 }
 
 export async function PUT(req: NextRequest) {
+  if (req.headers.get("origin") !== new URL(req.url).origin)
+    return NextResponse.json({ error: "Invalid origin" }, { status: 403 });
   const agent = await currentAgent();
   if (!agent) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (agent.accountStatus !== "pending") {
@@ -392,6 +397,11 @@ export async function PUT(req: NextRequest) {
   }
   const phone = cleanText(body.phone, 40) || agent.phone;
   const licenseNumber = cleanText(body.licenseNumber, 80) || agent.licenseNumber;
+  const licenseCheck = licenseNumberInput.safeParse(licenseNumber);
+  const releaseCheck = licenseReleaseInput.safeParse(body.licenseRelease);
+  if (!licenseCheck.success || !releaseCheck.success)
+    return NextResponse.json({ error: "Enter your license number, previous brokerage and release status (explain if not applicable)." }, { status: 400 });
+  const licenseRelease = { ...releaseCheck.data, licenseNumber: licenseCheck.data, declaredAt: new Date().toISOString() };
   const licensedCompany = licensedEntity.legalName;
   const practice = body.practice === "rental" || body.practice === "sales" || body.practice === "both"
     ? body.practice
@@ -598,6 +608,7 @@ export async function PUT(req: NextRequest) {
             name: preferredName,
             phone,
             licenseNumber,
+            licenseRelease,
             licensedCompany,
             licensedCompanyId,
             liborMembershipStatus,
@@ -690,6 +701,7 @@ export async function PUT(req: NextRequest) {
           name: preferredName,
           phone,
           licenseNumber,
+          licenseRelease,
           licensedCompany,
           licensedCompanyId,
           liborMembershipStatus,

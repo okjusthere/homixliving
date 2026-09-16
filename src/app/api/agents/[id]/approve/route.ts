@@ -1,6 +1,7 @@
 import { verifiedManualContract } from "@/lib/onboarding-requirements";
 import { onboardingAccessGrants } from "@/db/onboarding-schema";
 import { NextRequest, NextResponse } from "next/server";
+import { dosConfirmed, DOS_REQUIRED } from "@/lib/onboarding-license";
 import { db } from "@/db";
 import { agents, commerceOrders, teamJoinRequests, teams } from "@/db/schema";
 import { and, desc, eq, gt, inArray, sql } from "drizzle-orm";
@@ -76,6 +77,7 @@ export async function POST(
     );
   }
   if (existing.accountStatus === "pending") {
+    if (!dosConfirmed(existing)) return NextResponse.json({ error: DOS_REQUIRED }, { status: 409 });
     // Fresh provider proof only; never expire a live checkout, cancel a subscription or refund here.
     // The locked guard below rechecks for a reservation created after this preflight.
     try {
@@ -150,16 +152,16 @@ export async function POST(
       return NextResponse.json(
         {
           error:
-            "A verified offline onboarding payment is required before admin approval.",
+            "A verified onboarding payment is required before admin approval.",
         },
         { status: 409 },
       );
     }
-    if (settledOnboardingOrder && settledOnboardingOrder.paymentChannel !== "offline") {
+    if (settledOnboardingOrder && !["offline", "stripe"].includes(settledOnboardingOrder.paymentChannel)) {
       return NextResponse.json(
         {
           error:
-            "Stripe onboarding payments activate automatically. Refresh the agent list.",
+            "The onboarding payment channel is not verified.",
         },
         { status: 409 },
       );
@@ -352,7 +354,7 @@ export async function POST(
         .where(
           and(
             eq(commerceOrders.agentId, parsedId),
-            eq(commerceOrders.paymentChannel, "offline"),
+            inArray(commerceOrders.paymentChannel, ["offline", "stripe"]),
             gt(commerceOrders.licenseTransferFeeCents, 0),
             inArray(commerceOrders.status, ["paid", "active"]),
           ),
@@ -370,6 +372,7 @@ export async function POST(
         .limit(1);
       if (
         (!payment && !fullyWaivedOnboarding(fresh)) ||
+        !dosConfirmed(fresh) ||
         pendingTeam ||
         !onboardingAgreementAllowsPayment(fresh) ||
         (fresh.paymentStatus !== "paid" && !fullyWaivedOnboarding(fresh))

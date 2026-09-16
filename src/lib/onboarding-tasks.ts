@@ -8,6 +8,7 @@ import { dbTimeMs } from "@/lib/db-time";
 import { onboardingWorkflow } from "@/lib/onboarding-workflow";
 
 export const TASK_LABELS = {
+  dos: ["待 DOS 接收确认", "DOS affiliation confirmation due"],
   profile: ["待完善资料", "Complete profile"],
   signature: ["待本人签署", "Agent signature due"],
   issues: ["签约异常 / 核验失效", "Contract needs attention"],
@@ -48,6 +49,7 @@ export function onboardingTasks(
   if (records.staleSettlements?.length) tasks.add("finance");
   if (agent.accountStatus === "active" && agent.onboardingWebsiteSync?.status === "pending") tasks.add("website");
   if (agent.accountStatus === "pending") {
+    if (!workflow.dosReady) tasks.add("dos");
     if (!workflow.profileReady) tasks.add("profile");
     if (!workflow.signed)
       tasks.add(
@@ -60,7 +62,7 @@ export function onboardingTasks(
     if (!workflow.teamReady) tasks.add("team");
     if (agent.paymentStatus === "pending") tasks.add("payment");
     if (workflow.canApprove) tasks.add("offline");
-    if (workflow.next === "activation" || workflow.next === "payment_issue")
+    if (workflow.next === "payment_issue")
       tasks.add("activation");
   }
   if (
