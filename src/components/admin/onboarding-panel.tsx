@@ -196,6 +196,7 @@ export function OnboardingPanel({
   const eventLabel = (type: string) => {
     const names: Record<string, [string, string]> = {
       confirm_dos: ["已更新 DOS 人工核实记录", "DOS verification updated"],
+      dos_legacy_confirmation_backfilled: ["管理员授权的存量 DOS 确认", "Administrator-authorized historical DOS confirmation"],
       license_release_declared: ["本人已更新 release 申报", "Release declaration updated"],
       documenso_agreement_prepared: [
         "已准备电子合同",

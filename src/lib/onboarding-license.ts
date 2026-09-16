@@ -21,25 +21,40 @@ export const licenseReleaseInput = z.object({
 });
 export type LicenseReleaseInput = z.infer<typeof licenseReleaseInput>;
 export type LicenseRelease = LicenseReleaseInput & { licenseNumber: string; declaredAt: string };
-export type DosConfirmation = {
+type DosIdentity = {
   legalName: string;
   licenseNumber: string;
   companyId: string;
-  confirmedBy: number;
   confirmedAt: string;
 };
-export type DosBasis = Partial<Pick<Agent, "legalName" | "licenseNumber" | "licensedCompanyId" | "dosConfirmation">>;
+export type DosConfirmation = DosIdentity & ({
+  source?: "administrator";
+  confirmedBy: number;
+} | {
+  source: "authorized_legacy_backfill";
+  confirmedBy: null;
+  batchId: string;
+  authorization: string;
+});
+export type DosBasis = Partial<Pick<Agent, "accountStatus" | "legalName" | "licenseNumber" | "licensedCompanyId" | "dosConfirmation">>;
 
 const normalized = (value: string | null | undefined) => value?.trim().replace(/\s+/g, " ").toLowerCase() || "";
 // Applicant declarations never prove DOS affiliation. Only an administrator can
 // record this snapshot, and identity/company changes invalidate the confirmation.
 export function dosConfirmed(agent: DosBasis): boolean {
   const proof = agent.dosConfirmation;
+  // A historical authorization describes existing access, not a new DOS lookup.
+  // It must never be usable to approve a pending account (including re-entry).
+  const authorized = proof?.source === "authorized_legacy_backfill"
+    ? agent.accountStatus === "active" && proof.confirmedBy === null &&
+      Boolean(proof.batchId?.trim() && proof.authorization?.trim())
+    : (!proof?.source || proof.source === "administrator") &&
+      Number.isSafeInteger(proof?.confirmedBy) && (proof?.confirmedBy ?? 0) > 0;
   return Boolean(proof && normalized(agent.legalName) && normalized(agent.licenseNumber) &&
     agent.licensedCompanyId && proof.companyId === agent.licensedCompanyId &&
     normalized(proof.legalName) === normalized(agent.legalName) &&
     normalized(proof.licenseNumber) === normalized(agent.licenseNumber) &&
-    Number.isSafeInteger(proof.confirmedBy) && proof.confirmedBy > 0 &&
+    authorized &&
     Number.isFinite(Date.parse(proof.confirmedAt)));
 }
 

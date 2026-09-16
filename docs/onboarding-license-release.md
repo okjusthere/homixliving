@@ -22,7 +22,13 @@ no document/template changes and no DOS automation.
   approval, waiver, existing-staff recognition). Signing and payment remain allowed.
   If Stripe was paid first, use the same paid order after DOS confirmation; do not
   create another receipt or charge. Company countersign remains a separate task.
-- Existing active accounts are not deactivated or assigned fabricated confirmation.
+- Existing active accounts are not deactivated. Explicitly authorized historical
+  backfills use `source: authorized_legacy_backfill`, a batch ID and authorization
+  description, with `confirmedBy: null` (not an impersonated administrator).
+  The admin UI labels this as historical confirmation, not a new live DOS lookup.
+  This proof is valid only while the account is active and identity still matches;
+  it cannot approve a pending/re-entering applicant. New manual confirmations
+  continue to record the authenticated administrator ID and server timestamp.
 
 ## Rollout
 
@@ -52,5 +58,15 @@ switching were inspected with synthetic accounts; browser submission on isolated
 loopback aliases was rejected because Next's development request URL normalizes
 to `localhost`. Successful persistence/authorization was verified through the
 route/database integration tests, not claimed as a complete browser E2E pass.
-Temporary QA origin configuration and diagnostics were removed. Production
-migration and deployment have not been performed by this change.
+Temporary QA origin configuration and diagnostics were removed.
+
+Production migration was applied on 2026-09-16 before rollout. Under explicit
+user authorization, 50 existing active, non-admin accounts with complete legal
+identity/license/company received a historical DOS confirmation. Seven incomplete
+identities, four administrator accounts and one pending account were untouched.
+The batch inserted 50 onboarding audit events. A transaction-level comparison
+verified that no other agent fields changed except `updated_at`; signed documents,
+payment facts and account status were preserved. Restricted local backups and
+the exact reviewed target list are retained outside version control. This public
+document deliberately contains no production identity list or private evidence.
+Code deployment is verified separately after merge via CI and production smoke checks.

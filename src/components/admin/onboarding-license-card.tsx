@@ -56,8 +56,10 @@ export function OnboardingLicenseCard({ agentId, agent, confirmed, busy, onBusy,
       {!hasIdentity && <p className="text-sm text-amber-800">{zh ? "请先补齐法定姓名、执照号及拟加入公司，才能核实。" : "Complete the legal name, license number and target company first."}</p>}
       <p className="text-xs text-stone-500">{zh ? "仅提交申请、等待 DOS 结果时不要勾选。未确认时可先签署和付款，但不能开通账号。" : "Do not check while a DOS request is only submitted or pending. Signing and payment may proceed, but access requires confirmation."}</p>
     </> : <p className="text-xs text-stone-500">{confirmed ? (zh ? "DOS 接收已核实。" : "DOS affiliation verified.") : (zh ? "未登记 DOS 核实记录；存量账号权限保持不变。" : "No DOS verification recorded; existing account access is unchanged.")}</p>}
-    {confirmed && agent.dosConfirmation && <p className="text-xs text-stone-500">{zh ? "核实管理员" : "Verified by administrator"} #{agent.dosConfirmation.confirmedBy} · {fmtTimestamp(agent.dosConfirmation.confirmedAt)}</p>}
-    {!confirmed && agent.dosConfirmation && <p className="text-xs text-amber-800">{zh ? "此前确认对应的姓名、执照或公司已变化，请重新核实。" : "The identity, license or company differs from the prior confirmation. Verify again."}</p>}
+    {confirmed && agent.dosConfirmation && <p className="text-xs text-stone-500">{agent.dosConfirmation.source === "authorized_legacy_backfill"
+      ? (zh ? "管理员授权的存量确认（历史回填，非本次 DOS 在线核验）" : "Administrator-authorized historical confirmation (not a new live DOS lookup)")
+      : `${zh ? "核实管理员" : "Verified by administrator"} #${agent.dosConfirmation.confirmedBy}`} · {fmtTimestamp(agent.dosConfirmation.confirmedAt)}</p>}
+    {!confirmed && agent.dosConfirmation && <p className="text-xs text-amber-800">{zh ? "此前确认不适用于当前身份、公司或入职状态，请重新核实。" : "The prior confirmation does not apply to the current identity, company or onboarding status. Verify again."}</p>}
     {message && <p role="status" className="text-sm">{message}</p>}
   </section>;
 }

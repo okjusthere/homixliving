@@ -5,6 +5,15 @@ import { onboardingWorkflow } from "@/lib/onboarding-workflow";
 import { verifiedDosFixture } from "./dos-fixture";
 
 assert.ok(dosConfirmed(verifiedDosFixture));
+const historical = { ...verifiedDosFixture, accountStatus: "active" as const, dosConfirmation: {
+  ...verifiedDosFixture.dosConfirmation, source: "authorized_legacy_backfill" as const,
+  confirmedBy: null, batchId: "synthetic-batch", authorization: "Synthetic historical authorization",
+} };
+assert.ok(dosConfirmed(historical));
+assert.equal(dosConfirmed({ ...historical, accountStatus: "pending" }), false);
+assert.equal(dosConfirmed({ ...historical, accountStatus: "inactive" }), false);
+assert.equal(dosConfirmed({ ...historical, licenseNumber: "changed" }), false);
+assert.equal(dosConfirmed({ ...historical, dosConfirmation: { ...historical.dosConfirmation, authorization: "" } }), false);
 for (const change of [{ dosConfirmation: null }, { legalName: "Other Person" }, { licenseNumber: "Other" },
   { licensedCompanyId: "homix_living" as const }, { licenseNumber: "" },
   { dosConfirmation: { ...verifiedDosFixture.dosConfirmation, confirmedBy: 0 } }])
@@ -25,6 +34,7 @@ const subject = {
 process.env.ONBOARDING_V2_ENFORCED = "1";
 assert.ok(shouldAutomaticallyActivatePaidOnboarding(subject, "stripe"));
 assert.equal(shouldAutomaticallyActivatePaidOnboarding({ ...subject, dosConfirmation: null }, "stripe"), false);
+assert.equal(shouldAutomaticallyActivatePaidOnboarding({ ...subject, dosConfirmation: historical.dosConfirmation }, "stripe"), false);
 assert.equal(onboardingWorkflow({ ...subject, dosConfirmation: null }, "stripe").next, "dos");
 assert.equal(onboardingWorkflow({ ...subject, dosConfirmation: null, accountStatus: "active" }, "stripe").next, "countersign");
 console.log("PASS: release validation, DOS identity-bound proof, Stripe activation gate and active-account grandfathering");
