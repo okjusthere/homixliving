@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { tone } from "@/components/homix/tokens";
 import { useLocale } from "@/lib/i18n-client";
 import type { Notification } from "@/db/schema";
 import { dbTimeMs } from "@/lib/db-time";
+import { startNotificationPolling } from "@/lib/notification-polling";
 
 const M = {
   en: {
@@ -13,12 +14,16 @@ const M = {
     empty: "No notifications yet",
     markAll: "Mark all read",
     title: "Notifications",
+    loading: "Loading notifications…",
+    error: "Couldn't load notifications. Close and reopen to retry.",
   },
   zh: {
     aria: "通知",
     empty: "暂无通知",
     markAll: "全部已读",
     title: "通知",
+    loading: "正在加载通知…",
+    error: "通知加载失败，请关闭后重新打开重试。",
   },
 } as const;
 
@@ -35,68 +40,49 @@ function timeAgo(iso: string | null, locale: "en" | "zh"): string {
   return locale === "zh" ? `${d} 天前` : `${d}d ago`;
 }
 
-export function NotificationBell() {
+export function NotificationBell({ agentId }: { agentId: number }) {
   const router = useRouter();
   const locale = useLocale();
   const t = M[locale];
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<Notification[]>([]);
   const [unread, setUnread] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-
-  const load = useCallback(async () => {
-    try {
-      const res = await fetch("/api/notifications");
-      if (!res.ok) return;
-      const data = await res.json();
-      setItems(data.items || []);
-      setUnread(data.unread || 0);
-    } catch {
-      // network hiccup — keep whatever we had
-    }
-  }, []);
+  const client = useRef<ReturnType<typeof startNotificationPolling> | null>(null);
 
   useEffect(() => {
-    // load() is async — its setState runs after the fetch resolves, not
-    // synchronously in the effect body, so the set-state-in-effect rule is a
-    // false positive here.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    load();
-    const timer = setInterval(load, 60_000);
-    return () => clearInterval(timer);
-  }, [load]);
+    const polling = startNotificationPolling(agentId, setUnread);
+    client.current = polling;
+    return () => { polling.stop(); client.current = null; };
+  }, [agentId]);
 
   useEffect(() => {
     if (!open) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- async; see above
-    load();
+    let active = true;
+    client.current?.loadDetails()
+      .then((details) => { if (active) setItems(details); })
+      .catch(() => { if (active) setError(true); })
+      .finally(() => { if (active) setLoading(false); });
     const handler = (e: MouseEvent) => {
       if (!ref.current?.contains(e.target as Node)) setOpen(false);
     };
     document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [open, load]);
+    return () => { active = false; document.removeEventListener("mousedown", handler); };
+  }, [open]);
 
   async function markAll() {
-    setUnread(0);
-    setItems((prev) => prev.map((n) => ({ ...n, readAt: n.readAt || new Date().toISOString() })));
-    await fetch("/api/notifications/read", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ all: true }),
-    }).catch(() => {});
+    try {
+      await client.current?.markRead({ all: true });
+      setItems((prev) => prev.map((n) => ({ ...n, readAt: n.readAt || new Date().toISOString() })));
+    } catch { setError(true); }
   }
 
   async function openItem(n: Notification) {
     if (!n.readAt) {
-      setUnread((u) => Math.max(0, u - 1));
-      setItems((prev) =>
-        prev.map((x) => (x.id === n.id ? { ...x, readAt: new Date().toISOString() } : x))
-      );
-      fetch("/api/notifications/read", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: [n.id] }),
+      void client.current?.markRead({ ids: [n.id] }).then(() => {
+        setItems((prev) => prev.map((x) => x.id === n.id ? { ...x, readAt: new Date().toISOString() } : x));
       }).catch(() => {});
     }
     if (n.href) {
@@ -109,8 +95,12 @@ export function NotificationBell() {
     <div className="relative" ref={ref}>
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          if (!open) { setLoading(true); setError(false); }
+          setOpen((v) => !v);
+        }}
         aria-label={t.aria}
+        aria-expanded={open}
         className="relative h-9 w-9 rounded-md flex items-center justify-center transition-colors hover:opacity-80"
         style={{ border: `1px solid ${tone.line}`, color: tone.ink50 }}
       >
@@ -161,9 +151,9 @@ export function NotificationBell() {
             )}
           </div>
           <div className="max-h-[380px] overflow-y-auto">
-            {items.length === 0 ? (
+            {loading || error || items.length === 0 ? (
               <div className="px-4 py-8 text-center text-[12.5px]" style={{ color: tone.ink50 }}>
-                {t.empty}
+                {loading ? t.loading : error ? t.error : t.empty}
               </div>
             ) : (
               items.map((n) => (

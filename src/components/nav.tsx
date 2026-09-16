@@ -380,7 +380,9 @@ export function Nav() {
             {(session?.user?.accountStatus === "active" || session?.user?.isAdmin) && (
               <>
                 <SearchCommand />
-                <NotificationBell />
+                {session?.user?.agentId && (
+                  <NotificationBell key={session.user.agentId} agentId={session.user.agentId} />
+                )}
               </>
             )}
             <div className="relative">
