@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { seedDosTestCompanies } from "./dos-db-fixture";
 import { verifiedDosFixture } from "./dos-fixture";
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
@@ -13,6 +14,7 @@ import { nyDate } from "@/lib/celebrations/calendar";
 async function main() {
   const url = new URL(process.env.DATABASE_URL || "");
   assert.ok(["127.0.0.1", "localhost"].includes(url.hostname) && url.pathname === "/homix_onboarding_integration", "Dedicated local test database only");
+  await seedDosTestCompanies();
   const [admin, ordinary] = await db.insert(agents).values([
     { name: "Synthetic Approver", email: `qa-${randomUUID()}@example.invalid`, isAdmin: true, accountStatus: "active" as const },
     { name: "Synthetic Sponsor", email: `qa-${randomUUID()}@example.invalid`, accountStatus: "active" as const },

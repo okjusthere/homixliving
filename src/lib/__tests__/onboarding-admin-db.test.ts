@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { seedDosTestCompanies } from "./dos-db-fixture";
 import { randomUUID } from "node:crypto";
 import { and, eq, inArray } from "drizzle-orm";
 import { db, closeDatabaseConnections } from "@/db";
@@ -26,6 +27,7 @@ async function main() {
       url.pathname === "/homix_onboarding_integration",
     "Dedicated local test database only",
   );
+  await seedDosTestCompanies();
   const [admin, sponsor, pending, other] = await db
     .insert(agents)
     .values([

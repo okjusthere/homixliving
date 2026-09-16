@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { seedDosTestCompanies } from "./dos-db-fixture";
 import { randomUUID } from "node:crypto";
 import { eq, and } from "drizzle-orm";
 import { db, closeDatabaseConnections } from "@/db";
@@ -18,6 +19,7 @@ async function main() {
   const url = new URL(process.env.DATABASE_URL || "");
   assert.ok(["127.0.0.1", "localhost"].includes(url.hostname) && url.pathname === "/homix_onboarding_integration", "Isolated local test database only");
   process.env.ONBOARDING_V2_ENFORCED = "1";
+  await seedDosTestCompanies();
   const [admin, ordinary] = await db.insert(agents).values([
     { name: "Synthetic DOS Admin", email: `qa-${randomUUID()}@example.invalid`, isAdmin: true, accountStatus: "active" as const },
     { name: "Synthetic Ordinary", email: `qa-${randomUUID()}@example.invalid`, accountStatus: "active" as const },

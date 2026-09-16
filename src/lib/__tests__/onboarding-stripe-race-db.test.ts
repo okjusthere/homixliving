@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { seedDosTestCompanies } from "./dos-db-fixture";
 import { verifiedDosFixture } from "./dos-fixture";
 import { randomUUID } from "node:crypto";
 import { mock as testMock } from "node:test";
@@ -23,6 +24,7 @@ async function main() {
   assert.ok(["127.0.0.1", "localhost"].includes(url.hostname) &&
     url.pathname === "/homix_onboarding_integration", "Dedicated local test database only (local and CI ports may differ)");
   process.env.ONBOARDING_V2_ENFORCED = "1";
+  await seedDosTestCompanies();
   const [admin, sponsor] = await db.insert(agents).values([
     { name: "Synthetic Stripe Race Admin", email: `qa-${randomUUID()}@example.invalid`, accountStatus: "active" as const, isAdmin: true },
     { name: "Synthetic Stripe Race Sponsor", email: `qa-${randomUUID()}@example.invalid`, accountStatus: "active" as const },
