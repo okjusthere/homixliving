@@ -14,6 +14,7 @@ import { SOURCE_OPTIONS, type DealSource } from "@/lib/sources";
 import { companySplitPct, normalizeSplitPct, splitLabel } from "@/lib/splits";
 import { useLocale } from "@/lib/i18n-client";
 import type { Agent, Building, Deal } from "@/db/schema";
+import type { DealParticipantAgent } from "@/lib/deal-participant-agent";
 
 const M = {
   en: {
@@ -246,7 +247,7 @@ type RentalDealPayload = {
   deal: Deal;
   building: Building | null;
   agents: Array<{
-    agent: Agent;
+    agent: DealParticipantAgent;
     sharePct: number;
     isPrimary: boolean;
   }>;
@@ -1139,4 +1140,3 @@ export function RentalDealFormPage({ mode = "new", dealId }: RentalDealFormPageP
     </form>
   );
 }
-

@@ -16,6 +16,7 @@ import { authConfig } from "./auth.config";
 import { DEFAULT_AGENT_SPLIT_PCT } from "@/lib/splits";
 import { adminAgentIds, notify } from "@/lib/notify";
 import { isConfiguredAdminEmail } from "@/lib/admin-emails";
+import { reconcileConfiguredAccess } from "@/lib/admin-access";
 import { logAudit } from "@/lib/audit";
 import {
   isEmailChangeRequestActive,
@@ -46,35 +47,6 @@ type Agent = typeof agents.$inferSelect;
 class EmailLinkConflictError extends Error {}
 class IdentityConflictError extends Error {}
 
-async function reconcileConfiguredAccess(
-  existing: Agent,
-  admin: boolean,
-  name: string | null | undefined,
-) {
-  // A person may sign in through a personal alias. Never remove an existing
-  // admin grant merely because that alias is not listed in ADMIN_EMAILS.
-  const needsAdminFlip = admin && !existing.isAdmin;
-  const needsActiveForce = admin && existing.accountStatus !== "active";
-  const needsNameFill = !existing.name && Boolean(name);
-
-  if (!needsAdminFlip && !needsActiveForce && !needsNameFill) {
-    return existing;
-  }
-
-  const [updated] = await db
-    .update(agents)
-    .set({
-      ...(needsAdminFlip ? { isAdmin: true } : {}),
-      ...(needsActiveForce ? { accountStatus: "active" as const } : {}),
-      ...(needsNameFill ? { name: name! } : {}),
-      updatedAt: new Date().toISOString(),
-    })
-    .where(eq(agents.id, existing.id))
-    .returning();
-
-  return updated || existing;
-}
-
 async function loadAgentFromDatabase(user: {
   agentId?: number | null;
   email?: string | null;
@@ -89,7 +61,6 @@ async function loadAgentFromDatabase(user: {
     if (byId) {
       return reconcileConfiguredAccess(
         byId,
-        isConfiguredAdminEmail(byId.email),
         user.name,
       );
     }
@@ -115,7 +86,6 @@ async function loadAgentFromDatabase(user: {
 
   return reconcileConfiguredAccess(
     linked.agent,
-    isConfiguredAdminEmail(email) || isConfiguredAdminEmail(linked.agent.email),
     user.name,
   );
 }
@@ -386,13 +356,13 @@ async function upsertAgentFromGoogle(user: {
   const identityAgent = await agentForGoogleSubject(providerSubject);
   if (identityAgent) {
     await recordVerifiedGoogleIdentity(identityAgent, email, providerSubject, "sign_in");
-    return reconcileConfiguredAccess(identityAgent, admin, user.name);
+    return reconcileConfiguredAccess(identityAgent, user.name);
   }
 
   const emailAgent = await agentForVerifiedLoginEmail(email);
   if (emailAgent) {
     await recordVerifiedGoogleIdentity(emailAgent, email, providerSubject, "sign_in");
-    return reconcileConfiguredAccess(emailAgent, admin, user.name);
+    return reconcileConfiguredAccess(emailAgent, user.name);
   }
 
   // Compatibility bridge for a deploy where the additive backfill has not yet
@@ -405,7 +375,7 @@ async function upsertAgentFromGoogle(user: {
 
   if (existing) {
     await recordVerifiedGoogleIdentity(existing, email, providerSubject, "legacy_bootstrap");
-    return reconcileConfiguredAccess(existing, admin, user.name);
+    return reconcileConfiguredAccess(existing, user.name);
   }
 
   const [pendingAgent] = await db
@@ -416,7 +386,7 @@ async function upsertAgentFromGoogle(user: {
 
   if (pendingAgent) {
     const updated = await completeEmailAliasLink(pendingAgent, email, providerSubject);
-    return reconcileConfiguredAccess(updated, admin, user.name);
+    return reconcileConfiguredAccess(updated, user.name);
   }
 
   const claimed = await resolveLegacyClaim();
@@ -517,7 +487,7 @@ async function upsertAgentFromGoogle(user: {
     throw new Error(`Failed to upsert agent for ${email}`);
   }
 
-  return reconcileConfiguredAccess(upserted, admin, user.name);
+  return reconcileConfiguredAccess(upserted, user.name);
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -552,8 +522,23 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         return false;
       }
     },
-    async jwt({ token, user, trigger, account }) {
+    async jwt({ token, user, trigger, account, profile }) {
+      const isFreshSignIn = Boolean(user && account?.provider === "google");
+      if (isFreshSignIn) {
+        // Only the verified OAuth response may establish the login address.
+        // token.email below remains the canonical business/profile address.
+        const verifiedLogin = profile?.email_verified === true && typeof profile.email === "string"
+          ? normalizeEmail(profile.email) : null;
+        if (!verifiedLogin) throw new Error("Verified Google login email is required");
+        token.loginEmail = verifiedLogin;
+      }
+      // Legacy JWTs cannot prove which alias was actually used. Do not infer it
+      // during refresh: those sessions must sign in again for administration.
+      if (!isConfiguredAdminEmail(typeof token.loginEmail === "string" ? token.loginEmail : "")) {
+        token.isAdmin = false;
+      }
       const email =
+        (isFreshSignIn && token.loginEmail) ||
         (typeof user?.email === "string" && user.email) ||
         (typeof token.email === "string" && token.email) ||
         "";
@@ -570,7 +555,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // cached isAdmin/accountStatus is more than a few minutes old, so an
       // admin approving/promoting someone still lands within a few minutes
       // without a full sign-out required.
-      const isFreshSignIn = Boolean(user && account?.provider === "google");
       const checkedAt = typeof token.checkedAt === "number" ? token.checkedAt : 0;
       const isStale =
         trigger === "update" ||
@@ -600,7 +584,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       token.agentId = agent.id;
       token.email = agent.email;
       token.name = agent.name;
-      token.isAdmin = Boolean(agent.isAdmin);
+      token.isAdmin = agent.isAdmin && agent.accountStatus === "active"
+        && isConfiguredAdminEmail(typeof token.loginEmail === "string" ? token.loginEmail : "");
       token.accountStatus = agent.accountStatus;
       const [leadership] = await db
         .select({ id: teams.id })

@@ -117,7 +117,7 @@ export function SendDialog({
       toast.success(t.sent);
       onSent();
     } catch (err) {
-      const msg = locale === "en" && err instanceof Error ? err.message : t.failed;
+      const msg = err instanceof Error ? err.message : t.failed;
       toast.error(msg);
     } finally {
       setSending(false);

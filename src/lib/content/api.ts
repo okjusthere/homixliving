@@ -22,14 +22,15 @@ export async function contentActor(
   }>("SELECT is_admin,account_status,email FROM portal.agents WHERE id=$1", [
     id,
   ]);
-  if (!fresh || fresh.account_status !== "active" || (admin && !fresh.is_admin))
+  const effectiveAdmin = auth.session.user.isAdmin && fresh?.is_admin === true;
+  if (!fresh || fresh.account_status !== "active" || (admin && !effectiveAdmin))
     return Response.json({ error: "Access denied" }, { status: 403 });
   if (
     !["GET", "HEAD"].includes(req.method) &&
     req.headers.get("origin") !== new URL(req.url).origin
   )
     return Response.json({ error: "Invalid request origin" }, { status: 403 });
-  return { agentId: id, admin: fresh.is_admin, email: fresh.email };
+  return { agentId: id, admin: effectiveAdmin, email: fresh.email };
 }
 export async function jsonBody(req: Request): Promise<Record<string, unknown>> {
   const text = new TextDecoder().decode(await requestBytes(req, 64000));

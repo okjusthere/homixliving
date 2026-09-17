@@ -14,7 +14,8 @@ import { saleRepresentationLabel, saleStageLabel } from "@/lib/sales";
 import { dealStatusLabel } from "@/lib/domain-labels";
 import { useLocale } from "@/lib/i18n-client";
 import { DealDocuments } from "@/components/deal-documents";
-import type { Agent, SaleDeal } from "@/db/schema";
+import type { SaleDeal } from "@/db/schema";
+import type { DealParticipantAgent } from "@/lib/deal-participant-agent";
 
 const M = {
   en: {
@@ -132,11 +133,11 @@ const M = {
 type SalePayload = {
   saleDeal: SaleDeal;
   agents: Array<{
-    agent: Agent;
+    agent: DealParticipantAgent;
     sharePct: number;
     isPrimary: boolean;
   }>;
-  primaryAgent: Agent | null;
+  primaryAgent: DealParticipantAgent | null;
 };
 
 function statusTone(status: string) {

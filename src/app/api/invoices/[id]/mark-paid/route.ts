@@ -16,7 +16,7 @@ import {
   recordCompensationReceipt,
   removeCompensationReceipt,
 } from "@/lib/compensation-ledger";
-import { lockCompensationDeal } from "@/lib/advisory-locks";
+import { InvoiceLifecycleError, lockInvoice } from "@/lib/invoice-lifecycle";
 
 export async function POST(
   req: NextRequest,
@@ -69,7 +69,10 @@ export async function POST(
 
   try {
     await db.transaction(async (tx) => {
-      if (invoice.dealId) await lockCompensationDeal(tx, "rental", invoice.dealId);
+      const current = await lockInvoice(tx, invoice);
+      if (Number(current.totalAmount) !== Number(invoice.totalAmount)) {
+        throw new InvoiceLifecycleError("Invoice amount changed. Refresh before recording payment / 发票金额已更新，请刷新后登记收款");
+      }
       await tx
         .update(invoices)
         .set({
@@ -101,6 +104,7 @@ export async function POST(
       });
     });
   } catch (error) {
+    if (error instanceof InvoiceLifecycleError) return NextResponse.json({ error: error.message }, { status: error.status });
     if (error instanceof IncompleteCompensationReceiptError) {
       return NextResponse.json(
         { error: error.message, requiredAmount: error.requiredCents / 100 },
@@ -153,32 +157,38 @@ export async function DELETE(
   const { id } = await params;
   const invoice = await db.select().from(invoices).where(eq(invoices.id, Number(id))).then((rows) => rows[0]);
   if (!invoice) return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
-  const reverted = await db.transaction(async (tx) => {
-    if (invoice.dealId) await lockCompensationDeal(tx, "rental", invoice.dealId);
-    if (invoice.dealId) {
-      const [snapshot] = await tx
-        .select()
-        .from(dealCompensationSnapshots)
-        .where(and(
-          eq(dealCompensationSnapshots.dealType, "rental"),
-          eq(dealCompensationSnapshots.dealId, invoice.dealId),
-          eq(dealCompensationSnapshots.status, "finalized"),
-          isNull(dealCompensationSnapshots.supersededAt),
-        ))
-        .limit(1);
-      if (snapshot && !(await removeCompensationReceipt(tx, snapshot.id))) return false;
-    }
-    await tx
-      .update(invoices)
-      .set({
-        status: "sent",
-        paidAt: null,
-        paidAmount: null,
-        updatedAt: new Date().toISOString(),
-      })
-      .where(eq(invoices.id, Number(id)));
-    return true;
-  });
+  let reverted: boolean;
+  try {
+    reverted = await db.transaction(async (tx) => {
+      await lockInvoice(tx, invoice);
+      if (invoice.dealId) {
+        const [snapshot] = await tx
+          .select()
+          .from(dealCompensationSnapshots)
+          .where(and(
+            eq(dealCompensationSnapshots.dealType, "rental"),
+            eq(dealCompensationSnapshots.dealId, invoice.dealId),
+            eq(dealCompensationSnapshots.status, "finalized"),
+            isNull(dealCompensationSnapshots.supersededAt),
+          ))
+          .limit(1);
+        if (snapshot && !(await removeCompensationReceipt(tx, snapshot.id))) return false;
+      }
+      await tx
+        .update(invoices)
+        .set({
+          status: "sent",
+          paidAt: null,
+          paidAmount: null,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(invoices.id, Number(id)));
+      return true;
+    });
+  } catch (error) {
+    if (error instanceof InvoiceLifecycleError) return NextResponse.json({ error: error.message }, { status: error.status });
+    throw error;
+  }
   if (!reverted) {
     return NextResponse.json(
       { error: "Cannot unmark this receipt after commission has been paid out." },

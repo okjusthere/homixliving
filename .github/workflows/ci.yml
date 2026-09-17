@@ -52,6 +52,9 @@ jobs:
       - name: Tests
         run: npm test
 
+      - name: Audit permissions and financial reliability regressions
+        run: npm run test:audit-hardening:db
+
       - name: License release and DOS rules
         run: npm run test:onboarding-license
 

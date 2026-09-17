@@ -87,7 +87,15 @@
     "test:signing:native-http": "node --import ./scripts/test-server-only.mjs --import tsx src/lib/__tests__/signing-native-http.integration.ts",
     "predev": "node scripts/prepare-signing-pdf.mjs",
     "prebuild": "node scripts/prepare-signing-pdf.mjs",
-    "test:notifications": "node --import ./scripts/test-server-only.mjs --import ./scripts/test-agreement-auth.mjs --import tsx --test src/lib/__tests__/notification-polling.test.ts src/lib/__tests__/notifications-api.test.ts"
+    "test:notifications": "node --import ./scripts/test-server-only.mjs --import ./scripts/test-agreement-auth.mjs --import tsx --test src/lib/__tests__/notification-polling.test.ts src/lib/__tests__/notifications-api.test.ts",
+    "test:admin-access:db": "node --import ./scripts/test-server-only.mjs --import ./scripts/test-agreement-auth.mjs --import tsx src/lib/__tests__/admin-access-db.test.ts",
+    "test:deal-participant-privacy:db": "node --import ./scripts/test-server-only.mjs --import ./scripts/test-agreement-auth.mjs --import tsx src/lib/__tests__/deal-participant-privacy-db.test.ts",
+    "test:invoice-lifecycle:db": "node --import ./scripts/test-server-only.mjs --import ./scripts/test-agreement-auth.mjs --import ./scripts/test-invoice-delivery.mjs --import tsx src/lib/__tests__/invoice-lifecycle-db.test.ts",
+    "test:stripe-webhook:db": "node --import ./scripts/test-server-only.mjs --import ./scripts/test-stripe-workspace.mjs --import tsx src/lib/__tests__/stripe-webhook-reliability-db.test.ts",
+    "test:audit-hardening:db": "npm run test:admin-access:db && npm run test:deal-participant-privacy:db && npm run test:invoice-lifecycle:db && npm run test:stripe-webhook:db && npm run test:invoice-send-resolution:db && npm run test:deal-document-concurrency:db && npm run test:invoice-mail-provider",
+    "test:invoice-send-resolution:db": "node --import ./scripts/test-server-only.mjs --import ./scripts/test-agreement-auth.mjs --import tsx src/lib/__tests__/invoice-send-resolution-db.test.ts",
+    "test:deal-document-concurrency:db": "node --import ./scripts/test-server-only.mjs --import ./scripts/test-agreement-auth.mjs --import tsx src/lib/__tests__/deal-document-concurrency-db.test.ts",
+    "test:invoice-mail-provider": "node --import ./scripts/test-server-only.mjs --import ./scripts/test-invoice-mail-provider.mjs --import tsx src/lib/__tests__/invoice-mail-provider.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1092.0",

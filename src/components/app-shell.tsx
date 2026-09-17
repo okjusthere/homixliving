@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSelectedLayoutSegment } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useEffect } from "react";
 import { Nav } from "@/components/nav";
@@ -15,6 +15,7 @@ function isPathOrChild(pathname: string, prefix: string) {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const segment = useSelectedLayoutSegment();
   const router = useRouter();
   const { data: session, status } = useSession();
   const locale = useLocale();
@@ -30,12 +31,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   }, [session, status, pathname, router]);
 
-  const noShell = NAV_FREE_PREFIXES.some((p) => isPathOrChild(pathname, p));
-  if (noShell) {
+  // Render from the matched route tree, which is identical during SSR and
+  // hydration. A static 404 may have a /login/... browser URL even though its
+  // server pathname is /_not-found; testing that URL would change the markup.
+  const noShell = NAV_FREE_PREFIXES.includes(`/${segment}`);
+  if (noShell || segment === "admin") {
     return <>{children}</>;
   }
-
-  if (isPathOrChild(pathname, "/admin")) return <>{children}</>;
 
   return (
     <>

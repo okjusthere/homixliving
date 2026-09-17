@@ -26,6 +26,7 @@ export function session(agent: typeof agents.$inferSelect | null) {
         user: {
           agentId: agent.id,
           email: agent.email,
+          loginEmail: agent.email,
           accountStatus: agent.accountStatus,
           isAdmin: agent.isAdmin,
         },
@@ -62,6 +63,9 @@ export async function signingAgent(
       ...overrides,
     })
     .returning();
+  if (agent.isAdmin) {
+    process.env.ADMIN_EMAILS = [process.env.ADMIN_EMAILS, agent.email].filter(Boolean).join(",");
+  }
   await db
     .insert(agentEmailAddresses)
     .values({

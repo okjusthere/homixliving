@@ -1098,6 +1098,7 @@ export const stripeEvents = portal.table("stripe_events", {
   orderId: integer("commerce_order_id").references(() => commerceOrders.id, {
     onDelete: "set null",
   }),
+  completedAt: timestamptz("completed_at"),
   receivedAt: timestamptz("received_at").$defaultFn(() => new Date().toISOString()),
 });
 

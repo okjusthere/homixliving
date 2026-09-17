@@ -5,6 +5,7 @@
 import { Resend } from "resend";
 import { inArray } from "drizzle-orm";
 import { db } from "@/db";
+import { configuredActiveAdminIds } from "@/lib/admin-access";
 import { agents, notifications } from "@/db/schema";
 
 let _resend: Resend | null = null;
@@ -110,8 +111,5 @@ export async function notify(input: NotifyInput): Promise<number> {
 
 /** All active admin agent ids — the default audience for operational alerts. */
 export async function adminAgentIds(): Promise<number[]> {
-  const rows = await db
-    .select({ id: agents.id, isAdmin: agents.isAdmin })
-    .from(agents);
-  return rows.filter((r) => r.isAdmin).map((r) => r.id);
+  return configuredActiveAdminIds();
 }

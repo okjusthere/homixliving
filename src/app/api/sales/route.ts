@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { dealParticipantAgentColumns } from "@/lib/deal-participant-agent";
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { agents, saleDealAgents, saleDeals } from "@/db/schema";
@@ -183,7 +184,7 @@ export async function GET(req: NextRequest) {
           .where(visibilityFilter)
           .orderBy(desc(saleDeals.closingDate), desc(saleDeals.createdAt))
       : db.select().from(saleDeals).orderBy(desc(saleDeals.closingDate), desc(saleDeals.createdAt)),
-    db.select().from(agents),
+    db.select(dealParticipantAgentColumns).from(agents),
     db.select().from(saleDealAgents),
   ]);
 

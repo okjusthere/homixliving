@@ -123,6 +123,7 @@ async function main() {
       people.push(person);
     }
     const [agent, other, admin] = people;
+    process.env.ADMIN_EMAILS = admin.email;
     const inactive = await signingAgent({ accountStatus: "inactive" });
     session(inactive);
     assert.equal((await get("packages")).status, 403);

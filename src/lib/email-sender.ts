@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { Resend } from "resend";
+import { UncertainInvoiceDeliveryError } from "@/lib/invoice-email-errors";
 
 // Lazy init so build doesn't fail when RESEND_API_KEY isn't set.
 let _resend: Resend | null = null;
@@ -141,11 +142,21 @@ export async function sendInvoiceEmail({
       </div>
     `,
     attachments,
+  }).catch(() => {
+    throw new UncertainInvoiceDeliveryError("The mail provider did not confirm the delivery result");
   });
 
   if (error) {
+    // Resend's SDK converts fetch/response-parse failures into an error result
+    // with statusCode:null instead of throwing. 5xx/timeout outcomes are also
+    // ambiguous: acceptance may have happened before the response failed.
+    if (error.statusCode == null || error.statusCode >= 500 || error.statusCode === 408) {
+      throw new UncertainInvoiceDeliveryError("The mail provider did not confirm the delivery result");
+    }
     throw new Error(`Failed to send email: ${error.message}`);
   }
+
+  if (!data?.id) throw new UncertainInvoiceDeliveryError("The mail provider returned no delivery identifier");
 
   return data;
 }

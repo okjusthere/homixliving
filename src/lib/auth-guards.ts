@@ -8,6 +8,7 @@ import { agents } from "@/db/schema";
 import type { LimitedCapability } from "@/db/schema";
 import { onboardingAccessGrants } from "@/db/onboarding-schema";
 import { effectiveAccess } from "@/lib/onboarding-requirements";
+import { hasConfiguredAdminLoginAccess } from "@/lib/admin-access";
 
 // A cached JWT must not preserve administrator access after it is revoked.
 // Read only the current access fields, and deduplicate within a server render.
@@ -26,6 +27,10 @@ export const currentSession = cache(async () => {
         .limit(1)
     : [];
   if (!access) return null;
+  // Revocation takes effect on the next guarded request even while the JWT or
+  // database role projection still contains the former administrator grant.
+  const isAdmin = access.isAdmin && access.accountStatus === "active"
+    && await hasConfiguredAdminLoginAccess(id!, session.user.loginEmail);
   const grants = access.accountStatus === "pending"
     ? await db.select().from(onboardingAccessGrants).where(eq(onboardingAccessGrants.agentId, id!))
     : [];
@@ -35,7 +40,7 @@ export const currentSession = cache(async () => {
     user: {
       ...session.user,
       ...access,
-      isAdmin: access.isAdmin && access.accountStatus === "active",
+      isAdmin,
       isActive: access.accountStatus === "active",
       limitedCapabilities: effective.capabilities,
     },
@@ -63,7 +68,7 @@ export async function requireActiveAgent() {
     redirect("/login");
   }
 
-  if (!session.user.isAdmin && session.user.accountStatus !== "active") {
+  if (session.user.accountStatus !== "active") {
     redirect("/pending");
   }
 
@@ -79,7 +84,7 @@ export async function requireActiveAgentApi() {
     };
   }
 
-  if (!session.user.isAdmin && session.user.accountStatus !== "active") {
+  if (session.user.accountStatus !== "active") {
     return {
       error: NextResponse.json({ error: "Inactive account" }, { status: 403 }),
     };

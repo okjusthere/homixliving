@@ -1,0 +1,36 @@
+Homix audit fix verification — 2026-09-16
+Baseline: b30ad7a4c8db31cb40d0f37aee79f93d19f634cd
+Local Node 22 / PostgreSQL 18; CI targets PostgreSQL 16. Regression tests use synthetic local data.
+Expected synthetic failure logs (DB triggers/provider failures/process kills) are intentional.
+
+New regression suites:
+PASS: admin requires the exact verified Google login email to be configured; other aliases do not inherit admin, and old JWTs without loginEmail remain ordinary sessions until a fresh sign-in. Real JWT/session callbacks, removed/disabled aliases, account suspension, role reconciliation and audit are covered.
+PASS: rental/sale list, detail, and update responses minimize participant data for members, team leaders, and admins; visibility and published-training gates preserved.
+PASS invoice lifecycle: protected financial history, permissions, finalized receipt/obligations, payout reversal, concurrent send/payment/delete and duplicate-send prevention.
+PASS legacy migration, interrupted claim recovery, completed replay, stale invoice failure
+PASS old-writer deployment window: a legacy event linked to an order is recognized as complete without replaying effects; unknown events remain retryable.
+PASS older billing cycle and stale subscription events follow current provider state; mailbox lifecycle is stable
+PASS provider outage retries without stale fallback; foreign app metadata is rejected before and after retrieval
+PASS killing only the mutex connection leaves Node alive and stops effects after the in-flight provider read
+PASS cross-worker mutex responds retryably; eight independent events complete without exhausting the application pool
+PASS late real income retains one reward per invoice without rolling the affiliation payment date backward
+PASS delayed checkout expiry does not erase confirmed one-time/email-campaign payment
+PASS actual worker SIGKILL after a committed side effect releases its claim and replay reconciles successfully
+PASS: administrator-only send resolution checks origin, ownership and 120s delay; concurrent/repeated resolution is safe; paid facts survive; required audit failure rolls back all changes; no mail sent.
+PASS: rental/sale concurrent registration is idempotent; historical shared objects survive partial deletion; concurrent delete/register, storage/SQL failures, and authorization verified.
+PASS real mail SDK: timeout/5xx/truncated responses remain uncertain; explicit rejection is retryable; confirmed delivery is accepted.
+
+Existing npm test: exit 0
+Extra existing database integrations: completed locally; see report.
+TypeScript: exit 0
+ESLint: exit 0; 1 pre-existing generated Workflow warning
+Stripe migration tested twice against a disposable legacy-shaped table: PASS
+Final default next build: exit 0; Turbopack 21.2s; TypeScript 28.3s; 124 static pages.
+Production browser smoke: 390x844, 404 document width=390, zero console errors/warnings, recovery link returns signed-out user to login.
+AppShell hydration mismatch fixed using matched layout segment; login remains without navigation shell.
+Temporary browser tabs closed and viewport reset.
+
+Authorized production preparation — 2026-09-17 UTC:
+ADMIN_EMAILS verified as the four addresses approved by the owner. Four matching active administrator accounts; no additional database administrators or unlisted verified sign-in aliases.
+Applied only 20260916-stripe-webhook-completion.sql at 03:41:32Z, with a restricted pre-migration event backup. All 21 events retained: 18 completed legacy events and 3 unknown events; no replay, payment, email or account-status change.
+Deployment and remote CI results are recorded separately after release.

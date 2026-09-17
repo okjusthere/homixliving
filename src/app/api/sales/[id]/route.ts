@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { dealParticipantAgentColumns } from "@/lib/deal-participant-agent";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { agents, dealCompensationSnapshots, saleDealAgents, saleDeals } from "@/db/schema";
@@ -171,7 +172,7 @@ async function serializeSaleDeal(id: number) {
   const participantRows = await db
     .select({
       saleDealAgent: saleDealAgents,
-      agent: agents,
+      agent: dealParticipantAgentColumns,
     })
     .from(saleDealAgents)
     .innerJoin(agents, eq(agents.id, saleDealAgents.agentId))

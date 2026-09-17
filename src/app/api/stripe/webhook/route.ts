@@ -5,9 +5,9 @@ import { db } from "@/db";
 import {
   commerceCharges,
   commerceOrders,
-  stripeEvents,
   type CommerceOrder,
 } from "@/db/schema";
+import { assertStripeEventOwnership, StripeEventBusy, withStripeEventProcessing } from "@/lib/commerce/stripe-event-processing";
 import { settledCheckoutAmountCents } from "@/lib/commerce/settlement";
 import { getStripe, getStripeWebhookSecret, stripeId } from "@/lib/stripe";
 import { provisionWorkspaceForOrder, suspendWorkspaceForOrder } from "@/lib/google-workspace";
@@ -111,15 +111,18 @@ async function isHomixStripeEvent(event: Stripe.Event): Promise<boolean> {
 
 async function maybeProvisionWorkspace(order: CommerceOrder) {
   if (order.productKey !== "company_domain_email") return;
+  await assertStripeEventOwnership();
   await provisionWorkspaceForOrder(order);
 }
 
 async function maybeSuspendWorkspace(order: CommerceOrder) {
   if (order.productKey !== "company_domain_email") return;
+  await assertStripeEventOwnership();
   await suspendWorkspaceForOrder(order);
 }
 
 async function flagOnboardingReconciliation(order: CommerceOrder, sourceKey: string) {
+  await assertStripeEventOwnership();
   // The financial/audit flag is committed already. Only an in-app alert, never an automatic refund.
   await notify({ recipientAgentIds: await adminAgentIds(), type: "onboarding_payment_reconciliation",
     title: "Stripe 入职付款需对账 / Onboarding payment needs reconciliation",
@@ -131,6 +134,8 @@ async function flagOnboardingReconciliation(order: CommerceOrder, sourceKey: str
 async function handleCheckoutCompleted(
   session: Stripe.Checkout.Session,
   eventId: string,
+  subscription: Stripe.Subscription | null,
+  eventCreated: number,
 ): Promise<number | null> {
   const metadataOrderId = session.metadata?.orderId ? Number(session.metadata.orderId) : NaN;
   const sessionOrder = await findOrderBySession(session.id);
@@ -141,15 +146,26 @@ async function handleCheckoutCompleted(
   );
 
   if (!order) return null;
+  await assertStripeEventOwnership();
 
   const isPaid =
     session.payment_status === "paid" || session.payment_status === "no_payment_required";
-  const nextStatus = isPaid
+  const nextStatus = subscription ? subscriptionOrderStatus(subscription) : isPaid
     ? session.mode === "subscription"
       ? "active"
       : "paid"
     : "open";
   const now = new Date().toISOString();
+  const invoice = typeof session.invoice === "object" ? session.invoice : null;
+  const intent = typeof session.payment_intent === "object" ? session.payment_intent : null;
+  const charge = typeof intent?.latest_charge === "object" ? intent.latest_charge : null;
+  // Session.created is checkout creation, potentially days before an async
+  // payment succeeds. Prefer provider settlement facts, then a stable event
+  // timestamp/previous payment, never the current retry's arrival date.
+  const earnedAt = epochToIso(invoice?.status_transitions?.paid_at)
+    || (charge?.paid ? epochToIso(charge.created) : null)
+    || order.paidAt || epochToIso(eventCreated) || now;
+  const paidAt = order.paidAt && Date.parse(order.paidAt) > Date.parse(earnedAt) ? order.paidAt : earnedAt;
   const amountCents = isPaid
     ? settledCheckoutAmountCents(session.amount_total, order.amountCents)
     : order.amountCents;
@@ -162,7 +178,7 @@ async function handleCheckoutCompleted(
     stripeCustomerId: stripeId(session.customer),
     stripeSubscriptionId: stripeId(session.subscription),
     stripePaymentIntentId: stripeId(session.payment_intent),
-    paidAt: isPaid ? now : order.paidAt,
+    paidAt: isPaid ? paidAt : order.paidAt,
     updatedAt: now,
   };
 
@@ -173,7 +189,7 @@ async function handleCheckoutCompleted(
       const sourceKey = `checkout:${session.id}`;
       const result = await settleOnboardingStripePayment(order, { sourceKey, eventId,
         // A catalog quote is not evidence of money received. Missing provider facts retry safely.
-        amountCents: session.amount_total ?? Number.NaN, currency: session.currency || "", earnedAt: now,
+        amountCents: session.amount_total ?? Number.NaN, currency: session.currency || "", earnedAt,
         kind: "checkout", patch: { status: nextStatus, stripeCheckoutSessionId: session.id,
           stripeCustomerId: stripeId(session.customer), stripeSubscriptionId: stripeId(session.subscription),
           stripePaymentIntentId: stripeId(session.payment_intent) }, session });
@@ -197,6 +213,7 @@ async function handleCheckoutCompleted(
 
   const checkoutCustomerId = stripeId(session.customer);
   if (order.agentId && checkoutCustomerId) {
+    await assertStripeEventOwnership();
     try {
       const syncResult = await syncAgentStripeCustomer({
         agentId: order.agentId,
@@ -231,6 +248,7 @@ async function handleCheckoutCompleted(
     // Checkout owns the initial payment for both one-time and subscription
     // products. Stripe does not guarantee delivery order between
     // checkout.session.completed and the subscription's first invoice event.
+    await assertStripeEventOwnership();
     const settlement = await settlePlanPayment(db, {
       order: updatedOrder,
       sourceKey: `checkout:${session.id}`,
@@ -238,7 +256,7 @@ async function handleCheckoutCompleted(
       rewardEligibleAmountCents: order.licenseTransferFeeCents > 0
         ? Math.max(0, order.amountCents - order.licenseTransferFeeCents)
         : amountCents,
-      earnedAt: now,
+      earnedAt,
     });
     if (
       settlement &&
@@ -250,7 +268,7 @@ async function handleCheckoutCompleted(
         orderId: order.id,
       });
     }
-    await maybeProvisionWorkspace(updatedOrder);
+    if (!subscription) await maybeProvisionWorkspace(updatedOrder);
   }
 
   return order.id;
@@ -265,6 +283,7 @@ async function handleCheckoutExpired(session: Stripe.Checkout.Session): Promise<
       : null
   );
   if (!order) return null;
+  await assertStripeEventOwnership();
 
   if (isOnboardingStripeOrder(order)) {
     await confirmOnboardingCheckoutExpired(order, session);
@@ -274,7 +293,7 @@ async function handleCheckoutExpired(session: Stripe.Checkout.Session): Promise<
   await db
     .update(commerceOrders)
     .set({ status: "expired", updatedAt: new Date().toISOString() })
-    .where(eq(commerceOrders.id, order.id));
+    .where(and(eq(commerceOrders.id, order.id), isNull(commerceOrders.paidAt)));
   return order.id;
 }
 
@@ -294,6 +313,7 @@ async function recordInvoiceCharge(
   executor: typeof db | DbTransaction = db,
 ) {
   if (!invoice.id) return false;
+  await assertStripeEventOwnership();
   const transitions = invoice.status_transitions as { paid_at?: number | null } | null;
   const values = {
     orderId: order?.id ?? null,
@@ -328,13 +348,17 @@ async function recordInvoiceCharge(
   return Boolean(written);
 }
 
-async function handleInvoicePaid(invoice: Stripe.Invoice, eventId: string): Promise<number | null> {
+async function handleInvoicePaid(invoice: Stripe.Invoice, eventId: string, subscription: Stripe.Subscription | null): Promise<number | null> {
   const subscriptionId = invoiceSubscriptionId(invoice);
   const order = subscriptionId ? await findOrderBySubscription(subscriptionId) : null;
   await recordInvoiceCharge(invoice, "paid", order);
   if (!order) return null;
+  await assertStripeEventOwnership();
 
-  const now = new Date().toISOString();
+  const now = epochToIso(invoice.status_transitions?.paid_at) || order.paidAt || new Date().toISOString();
+  const status = subscription ? subscriptionOrderStatus(subscription) : "active";
+  const paidAt = order.paidAt && Date.parse(order.paidAt) > Date.parse(now) ? order.paidAt : now;
+  const updatedAt = new Date().toISOString();
   if (isOnboardingStripeOrder(order)) {
     const sourceKey = `invoice:${invoice.id}`;
     const periods = invoice.lines.data.map(line => line.period.start).filter(start => Number.isFinite(start) && start > 0);
@@ -343,20 +367,20 @@ async function handleInvoicePaid(invoice: Stripe.Invoice, eventId: string): Prom
       kind: invoice.billing_reason === "subscription_create" ? "initial_invoice" : "renewal",
       renewalCycleStart: invoice.billing_reason === "subscription_cycle" && periods.length
         ? new Date(Math.min(...periods) * 1000).toISOString() : null,
-      patch: { status: "active" } });
+      patch: { status } });
     if (result.reconciliationRequired) await flagOnboardingReconciliation(result.order, sourceKey);
     return order.id;
   }
   const updatedOrder = {
     ...order,
-    status: "active",
-    paidAt: now,
-    updatedAt: now,
+    status,
+    paidAt,
+    updatedAt,
   };
 
   await db
     .update(commerceOrders)
-    .set({ status: "active", paidAt: now, updatedAt: now })
+    .set({ status, paidAt, updatedAt })
     .where(eq(commerceOrders.id, order.id));
 
   // The initial subscription payment is handled by checkout.session.completed.
@@ -369,13 +393,13 @@ async function handleInvoicePaid(invoice: Stripe.Invoice, eventId: string): Prom
       earnedAt: now,
     });
   }
-  await maybeProvisionWorkspace(updatedOrder);
   return order.id;
 }
 
-async function handleInvoiceFailed(invoice: Stripe.Invoice): Promise<number | null> {
+async function handleInvoiceFailed(invoice: Stripe.Invoice, subscription: Stripe.Subscription | null): Promise<number | null> {
   const subscriptionId = invoiceSubscriptionId(invoice);
   const order = subscriptionId ? await findOrderBySubscription(subscriptionId) : null;
+  const status = subscription ? subscriptionOrderStatus(subscription) : "past_due";
   if (!order) {
     await recordInvoiceCharge(invoice, "failed", null);
     return null;
@@ -386,7 +410,7 @@ async function handleInvoiceFailed(invoice: Stripe.Invoice): Promise<number | nu
       // Keep the invoice row locked until its corresponding order update commits.
       if (!await recordInvoiceCharge(invoice, "failed", current, tx)) return;
       // A failed first invoice is unresolved, not proof the Checkout expired.
-      await tx.update(commerceOrders).set({ status: "past_due", updatedAt: new Date().toISOString() }).where(eq(commerceOrders.id, current.id));
+      await tx.update(commerceOrders).set({ status, updatedAt: new Date().toISOString() }).where(eq(commerceOrders.id, current.id));
     });
     return order.id;
   }
@@ -394,92 +418,118 @@ async function handleInvoiceFailed(invoice: Stripe.Invoice): Promise<number | nu
   await db.transaction(async (tx) => {
     if (!await recordInvoiceCharge(invoice, "failed", order, tx)) return;
     await tx.update(commerceOrders)
-      .set({ status: "past_due", updatedAt: new Date().toISOString() })
+      .set({ status, updatedAt: new Date().toISOString() })
       .where(eq(commerceOrders.id, order.id));
   });
   return order.id;
 }
 
-async function handleSubscriptionUpdated(subscription: Stripe.Subscription): Promise<number | null> {
+function subscriptionOrderStatus(subscription: Stripe.Subscription): string {
+  // Canceled/unpaid subscriptions must not be labeled "canceling" merely
+  // because a historical cancellation flag remains on the object.
+  if (["active", "trialing"].includes(subscription.status)) {
+    return subscription.cancel_at_period_end || subscription.cancel_at ? "canceling" : "active";
+  }
+  return subscription.status;
+}
+
+async function reconcileSubscription(subscription: Stripe.Subscription): Promise<number | null> {
   const order = await findOrderBySubscription(subscription.id);
   if (!order) return null;
+  await assertStripeEventOwnership();
+  const status = subscriptionOrderStatus(subscription);
+  const updatedAt = new Date().toISOString();
+  if (isOnboardingStripeOrder(order)) {
+    await withOnboardingStripeOrder(order, async (tx, _agent, current) => {
+      await tx.update(commerceOrders).set({ status, updatedAt }).where(eq(commerceOrders.id, current.id));
+    });
+  } else {
+    await db.update(commerceOrders).set({ status, updatedAt }).where(eq(commerceOrders.id, order.id));
+    const current = { ...order, status, updatedAt };
+    // Paid-through scheduled cancellations retain their mailbox. Past due
+    // preserves the existing grace policy; actual cancellation suspends it.
+    if (status === "active" || status === "canceling") await maybeProvisionWorkspace(current);
+    else if (status === "canceled" && current.workspaceStatus !== "suspended") await maybeSuspendWorkspace(current);
+  }
+  return order.id;
+}
 
-  const isPendingCancellation = Boolean(subscription.cancel_at_period_end || subscription.cancel_at);
-  const now = new Date().toISOString();
-  const status = isPendingCancellation
-    ? "canceling"
-    : subscription.status === "active" || subscription.status === "trialing"
-    ? "active"
-    : subscription.status;
-  const updatedOrder = {
-    ...order,
-    status,
-    updatedAt: now,
+async function eventResourceKey(event: Stripe.Event): Promise<string> {
+  let localOrder: CommerceOrder | null = null;
+  let metadata: Stripe.Metadata | null | undefined;
+  let fallback: string;
+  if (event.type.startsWith("customer.subscription.")) {
+    const subscription = event.data.object as Stripe.Subscription;
+    localOrder = await findOrderBySubscription(subscription.id);
+    metadata = subscription.metadata;
+    fallback = subscription.id;
+  } else if (event.type.startsWith("invoice.")) {
+    const invoice = event.data.object as Stripe.Invoice;
+    const subscriptionId = invoiceSubscriptionId(invoice);
+    localOrder = subscriptionId ? await findOrderBySubscription(subscriptionId) : null;
+    metadata = invoiceSubscriptionMetadata(invoice);
+    fallback = subscriptionId || invoice.id;
+  } else {
+    const session = event.data.object as Stripe.Checkout.Session;
+    localOrder = await findOrderBySession(session.id);
+    metadata = session.metadata;
+    fallback = stripeId(session.subscription) || session.id;
+  }
+  const metadataOrderId = Number(metadata?.orderId);
+  if (!localOrder && stripeMetadataScope(metadata) === "owned" && Number.isInteger(metadataOrderId) && metadataOrderId > 0) {
+    localOrder = await findOrderById(metadataOrderId);
+  }
+  // A Checkout event may predate attaching its subscription ID. Its local
+  // order ID still serializes it with later invoice/subscription deliveries.
+  return localOrder ? `order:${localOrder.id}` : fallback;
+}
+
+const stripeReadOptions = { timeout: 5000, maxNetworkRetries: 0 };
+
+async function processStripeEvent(event: Stripe.Event, resourceKey: string): Promise<number | null> {
+  // Event delivery order (and event.created) is not object version order.
+  // Always retrieve the current provider object INSIDE the resource mutex.
+  // Failures leave completion unset and cause Stripe to retry, never apply
+  // the stale snapshot as a fallback during a provider outage.
+  const stripe = getStripe();
+  const verifyOwnership = async (object: Stripe.Event.Data.Object) => {
+    await assertStripeEventOwnership();
+    const currentEvent = { ...event, data: { ...event.data, object } } as Stripe.Event;
+    if (!await isHomixStripeEvent(currentEvent)) return false;
+    if (await eventResourceKey(currentEvent) !== resourceKey) {
+      throw new StripeEventBusy("Stripe order association changed while waiting; retry with its current resource lock.");
+    }
+    return true;
   };
-
-  if (isOnboardingStripeOrder(order)) {
-    await withOnboardingStripeOrder(order, async (tx, _agent, current) => {
-      await tx.update(commerceOrders).set({ status, updatedAt: now }).where(eq(commerceOrders.id, current.id));
-    });
-    return order.id;
+  let subscription: Stripe.Subscription | null = null;
+  let orderId: number | null = null;
+  if (event.type.startsWith("customer.subscription.")) {
+    subscription = await stripe.subscriptions.retrieve((event.data.object as Stripe.Subscription).id, {}, stripeReadOptions);
+    if (!await verifyOwnership(subscription)) return null;
+  } else if (event.type.startsWith("invoice.")) {
+    const invoice = await stripe.invoices.retrieve((event.data.object as Stripe.Invoice).id, {}, stripeReadOptions);
+    if (!await verifyOwnership(invoice)) return null;
+    const subscriptionId = invoiceSubscriptionId(invoice);
+    if (subscriptionId) subscription = await stripe.subscriptions.retrieve(subscriptionId, {}, stripeReadOptions);
+    await assertStripeEventOwnership();
+    if (subscription && stripeMetadataScope(subscription.metadata) === "foreign") return null;
+    orderId = invoice.status === "paid"
+      ? await handleInvoicePaid(invoice, event.id, subscription)
+      : await handleInvoiceFailed(invoice, subscription);
+  } else {
+    const session = await stripe.checkout.sessions.retrieve((event.data.object as Stripe.Checkout.Session).id,
+      { expand: ["invoice", "payment_intent.latest_charge"] }, stripeReadOptions);
+    if (!await verifyOwnership(session)) return null;
+    const subscriptionId = stripeId(session.subscription);
+    if (subscriptionId) subscription = await stripe.subscriptions.retrieve(subscriptionId, {}, stripeReadOptions);
+    await assertStripeEventOwnership();
+    if (subscription && stripeMetadataScope(subscription.metadata) === "foreign") return null;
+    if (session.status === "expired") orderId = await handleCheckoutExpired(session);
+    else if (session.status === "complete") orderId = await handleCheckoutCompleted(session, event.id, subscription, event.created);
+    else throw new Error("Stripe checkout completion/expiry is not yet confirmed; retry delivery.");
   }
-
-  await db
-    .update(commerceOrders)
-    .set({ status, updatedAt: now })
-    .where(eq(commerceOrders.id, order.id));
-
-  // Do NOT suspend on a *scheduled* cancellation: the customer has paid through
-  // the current period and keeps their mailbox until the subscription actually
-  // ends (customer.subscription.deleted, handled separately). Suspending here
-  // would cut off email the instant they click "cancel".
-  if (!isPendingCancellation && status === "active") {
-    await maybeProvisionWorkspace(updatedOrder);
-  }
-
-  return order.id;
-}
-
-async function handleSubscriptionDeleted(subscription: Stripe.Subscription): Promise<number | null> {
-  const order = await findOrderBySubscription(subscription.id);
-  if (!order) return null;
-
-  if (isOnboardingStripeOrder(order)) {
-    await withOnboardingStripeOrder(order, async (tx, _agent, current) => {
-      await tx.update(commerceOrders).set({ status: "canceled", updatedAt: new Date().toISOString() }).where(eq(commerceOrders.id, current.id));
-    });
-    return order.id;
-  }
-
-  await db
-    .update(commerceOrders)
-    .set({ status: "canceled", updatedAt: new Date().toISOString() })
-    .where(eq(commerceOrders.id, order.id));
-  await maybeSuspendWorkspace(order);
-  return order.id;
-}
-
-async function processStripeEvent(event: Stripe.Event): Promise<number | null> {
-  switch (event.type) {
-    case "checkout.session.completed":
-    case "checkout.session.async_payment_succeeded":
-      return handleCheckoutCompleted(
-        event.data.object as Stripe.Checkout.Session,
-        event.id,
-      );
-    case "checkout.session.expired":
-      return handleCheckoutExpired(event.data.object as Stripe.Checkout.Session);
-    case "invoice.payment_succeeded":
-      return handleInvoicePaid(event.data.object as Stripe.Invoice, event.id);
-    case "invoice.payment_failed":
-      return handleInvoiceFailed(event.data.object as Stripe.Invoice);
-    case "customer.subscription.updated":
-      return handleSubscriptionUpdated(event.data.object as Stripe.Subscription);
-    case "customer.subscription.deleted":
-      return handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
-    default:
-      return null;
-  }
+  if (subscription) orderId = await reconcileSubscription(subscription) ?? orderId;
+  return orderId;
 }
 
 export async function POST(request: Request) {
@@ -508,56 +558,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid Stripe signature." }, { status: 400 });
   }
 
-  if (!(await isHomixStripeEvent(event))) {
-    console.info("Ignoring Stripe event outside Homix scope", {
-      eventId: event.id,
-      eventType: event.type,
-    });
-    return NextResponse.json({ received: true, ignored: true });
-  }
-
-  // Claim the event atomically BEFORE processing. Stripe delivers at-least-once
-  // and can fan two deliveries of the same event.id in concurrently; a
-  // select-then-process-then-insert let both pass the check and run the handler
-  // twice (double provisioning, duplicate side effects). Insert-first with
-  // onConflictDoNothing means exactly one delivery wins the claim.
-  const claimed = await db
-    .insert(stripeEvents)
-    .values({
-      id: event.id,
-      type: event.type,
-      orderId: null,
-      receivedAt: new Date().toISOString(),
-    })
-    .onConflictDoNothing()
-    .returning({ id: stripeEvents.id });
-
-  if (claimed.length === 0) {
-    return NextResponse.json({ received: true, duplicate: true });
-  }
-
   try {
-    const orderId = await processStripeEvent(event);
-    if (orderId !== null) {
-      try {
-        await db
-          .update(stripeEvents)
-          .set({ orderId })
-          .where(eq(stripeEvents.id, event.id));
-      } catch (linkError) {
-        // The orderId comes from event metadata and may reference an order from
-        // another environment (FK violation). The event is already processed, so
-        // don't fail — and retry — the webhook over a cosmetic link.
-        console.warn("Could not link Stripe event to order", event.id, linkError);
-      }
+    if (!(await isHomixStripeEvent(event))) {
+      return NextResponse.json({ received: true, ignored: true });
     }
+    const resourceKey = await eventResourceKey(event);
+    const result = await withStripeEventProcessing(event, resourceKey, () => processStripeEvent(event, resourceKey));
+    return NextResponse.json({ received: true, ...(result === "duplicate" ? { duplicate: true } : {}) });
   } catch (error) {
-    // Release the claim so Stripe's retry can reprocess this event; otherwise the
-    // claimed-but-unprocessed row would swallow every retry as a "duplicate".
-    console.error("Stripe webhook processing failed", error);
-    await db.delete(stripeEvents).where(eq(stripeEvents.id, event.id));
-    return NextResponse.json({ error: "Webhook processing failed." }, { status: 500 });
+    console.error("Stripe webhook processing failed", { eventId: event.id, error });
+    return NextResponse.json({ error: "Webhook processing failed; retry delivery." }, {
+      status: error instanceof StripeEventBusy ? 503 : 500,
+      headers: { "Retry-After": "5" },
+    });
   }
-
-  return NextResponse.json({ received: true });
 }

@@ -16,7 +16,8 @@ import { sourceEmoji, sourceLabel } from "@/lib/sources";
 import { invoicePaymentLabel, invoicePaymentTone, type InvoicePaymentSummary } from "@/lib/invoice-payment";
 import { dealStatusLabel } from "@/lib/domain-labels";
 import { useLocale } from "@/lib/i18n-client";
-import type { Agent, Building, Deal } from "@/db/schema";
+import type { Building, Deal } from "@/db/schema";
+import type { DealParticipantAgent } from "@/lib/deal-participant-agent";
 
 const M = {
   en: {
@@ -91,7 +92,7 @@ type DealRow = {
   deal: Deal;
   building: Building | null;
   agents: Array<{
-    agent: Agent | null;
+    agent: DealParticipantAgent | null;
     sharePct: number;
     isPrimary: boolean;
   }>;
