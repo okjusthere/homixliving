@@ -35,6 +35,8 @@ import { BillingPortalButton } from "@/components/homix/billing-portal-button";
 import { requireActiveAgent } from "@/lib/auth-guards";
 import { dealsVisibleToSql, saleDealsVisibleToSql } from "@/lib/visibility";
 import { getLocale } from "@/lib/i18n";
+import { addCalendarDays, businessToday, BUSINESS_TIME_ZONE, dbMonthKey } from "@/lib/db-time";
+import { getReportDateRange } from "@/lib/reporting";
 
 export const dynamic = "force-dynamic";
 
@@ -404,27 +406,17 @@ function billingStatusTone(status?: string | null): "neutral" | "sent" | "draft"
   return "accent";
 }
 
-function dateKeyAfter(date: Date, days: number) {
-  const result = new Date(date);
-  result.setUTCDate(result.getUTCDate() + days);
-  return result.toISOString().slice(0, 10);
-}
-
 export default async function Dashboard() {
   const session = await requireActiveAgent();
   const locale = await getLocale();
   const t = M[locale];
   const now = new Date();
-  const currentMonth = now.toISOString().slice(0, 7);
+  const currentMonth = dbMonthKey(now);
   const monthStart = `${currentMonth}-01`;
-  const nextMonthStart = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)
-  )
-    .toISOString()
-    .slice(0, 10);
-  const today = now.toISOString().slice(0, 10);
-  const sixtyDaysOut = dateKeyAfter(now, 60);
-  const ninetyDaysOut = dateKeyAfter(now, 90);
+  const nextMonthStart = getReportDateRange(currentMonth)!.end;
+  const today = businessToday(now);
+  const sixtyDaysOut = addCalendarDays(today, 60);
+  const ninetyDaysOut = addCalendarDays(today, 90);
   const rentalVisibility = dealsVisibleToSql(session);
   const salesVisibility = saleDealsVisibleToSql(session);
   const dashboardAgentId = session.user.agentId ?? -1;
@@ -434,8 +426,8 @@ export default async function Dashboard() {
       activeCount: sql<number>`count(*) filter (where ${deals.status} = 'active')`,
       completedMonth: sql<number>`count(*) filter (
         where ${deals.status} = 'completed'
-          and coalesce(nullif(${deals.dealDate}::text, '')::date, nullif(${deals.updatedAt}::text, '')::date, nullif(${deals.createdAt}::text, '')::date) >= ${monthStart}::date
-          and coalesce(nullif(${deals.dealDate}::text, '')::date, nullif(${deals.updatedAt}::text, '')::date, nullif(${deals.createdAt}::text, '')::date) < ${nextMonthStart}::date
+          and coalesce(nullif(${deals.dealDate}::text, '')::date, (${deals.updatedAt} AT TIME ZONE 'America/New_York')::date, (${deals.createdAt} AT TIME ZONE 'America/New_York')::date) >= ${monthStart}::date
+          and coalesce(nullif(${deals.dealDate}::text, '')::date, (${deals.updatedAt} AT TIME ZONE 'America/New_York')::date, (${deals.createdAt} AT TIME ZONE 'America/New_York')::date) < ${nextMonthStart}::date
       )`,
       upcomingRenewals: sql<number>`count(*) filter (
         where ${deals.status} = 'active'
@@ -475,8 +467,8 @@ export default async function Dashboard() {
       activeCount: sql<number>`count(*) filter (where ${saleDeals.status} = 'active')`,
       completedMonth: sql<number>`count(*) filter (
         where ${saleDeals.status} = 'completed'
-          and coalesce(nullif(${saleDeals.closingDate}::text, '')::date, nullif(${saleDeals.updatedAt}::text, '')::date, nullif(${saleDeals.createdAt}::text, '')::date) >= ${monthStart}::date
-          and coalesce(nullif(${saleDeals.closingDate}::text, '')::date, nullif(${saleDeals.updatedAt}::text, '')::date, nullif(${saleDeals.createdAt}::text, '')::date) < ${nextMonthStart}::date
+          and coalesce(nullif(${saleDeals.closingDate}::text, '')::date, (${saleDeals.updatedAt} AT TIME ZONE 'America/New_York')::date, (${saleDeals.createdAt} AT TIME ZONE 'America/New_York')::date) >= ${monthStart}::date
+          and coalesce(nullif(${saleDeals.closingDate}::text, '')::date, (${saleDeals.updatedAt} AT TIME ZONE 'America/New_York')::date, (${saleDeals.createdAt} AT TIME ZONE 'America/New_York')::date) < ${nextMonthStart}::date
       )`,
       closingSoon: sql<number>`count(*) filter (
         where ${saleDeals.status} = 'active'
@@ -638,12 +630,15 @@ export default async function Dashboard() {
   ).length;
 
   const longDate = now.toLocaleDateString("en-US", {
+    timeZone: BUSINESS_TIME_ZONE,
     weekday: "long",
     month: "long",
     day: "numeric",
     year: "numeric",
   });
-  const hour = now.getHours();
+  const hour = Number(new Intl.DateTimeFormat("en-US", {
+    timeZone: BUSINESS_TIME_ZONE, hour: "numeric", hourCycle: "h23",
+  }).format(now));
   const greeting = hour < 12 ? t.goodMorning : hour < 18 ? t.goodAfternoon : t.goodEvening;
   const firstName =
     session.user.name?.trim().split(/\s+/)[0] ||

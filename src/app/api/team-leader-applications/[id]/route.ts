@@ -1,3 +1,4 @@
+import { dbDatePart } from "@/lib/db-time";
 import { affiliationContractComplete } from "@/lib/onboarding-requirements";
 import { NextRequest, NextResponse } from "next/server";
 import { and, eq, sql } from "drizzle-orm";
@@ -172,7 +173,7 @@ export async function PATCH(
       ) {
         throw new Error("LICENSED_COMPANY_CHANGED");
       }
-      const today = now.slice(0, 10);
+      const today = dbDatePart(now);
       const [team] = await tx
         .insert(teams)
         .values({

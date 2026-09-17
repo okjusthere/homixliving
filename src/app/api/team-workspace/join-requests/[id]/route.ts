@@ -1,3 +1,4 @@
+import { dbDatePart } from "@/lib/db-time";
 import { NextRequest, NextResponse } from "next/server";
 import { and, desc, eq, lte } from "drizzle-orm";
 import { db } from "@/db";
@@ -120,7 +121,7 @@ export async function PATCH(
       }
 
       const now = new Date().toISOString();
-      const today = now.slice(0, 10);
+      const today = dbDatePart(now);
       let acceptedConfig: typeof teamCompensationConfigs.$inferSelect | null = null;
       if (action === "accept") {
         [acceptedConfig] = await tx

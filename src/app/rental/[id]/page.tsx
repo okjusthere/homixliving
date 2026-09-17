@@ -32,6 +32,8 @@ const M = {
     cancelRental: "Cancel rental",
     creating: "Creating…",
     createInvoice: "Create Invoice",
+    viewInvoice: "View Invoice",
+    toastInvoiceReused: "Opened existing invoice",
     totalCommission: "Total Commission",
     rentalDate: "Rental date",
     buildingTenant: "Building / Tenant",
@@ -95,6 +97,8 @@ const M = {
     cancelRental: "取消租赁",
     creating: "创建中…",
     createInvoice: "创建发票",
+    viewInvoice: "查看发票",
+    toastInvoiceReused: "已打开现有发票",
     totalCommission: "佣金合计",
     rentalDate: "租赁日期",
     buildingTenant: "楼盘 / 租客",
@@ -218,13 +222,19 @@ export default function DealDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+  const existingInvoiceId = payload?.invoiceSummary?.latestInvoiceId ?? payload?.linkedInvoices?.[0]?.id ?? null;
+
   const createInvoice = async () => {
+    if (existingInvoiceId) {
+      router.push(`/invoices/${existingInvoiceId}`);
+      return;
+    }
     setCreatingInvoice(true);
     try {
       const res = await fetch(`/api/rental/${id}/create-invoice`, { method: "POST" });
       if (!res.ok) throw new Error();
       const data = await res.json();
-      toast.success(t.toastInvoiceCreated);
+      toast.success(data.reused ? t.toastInvoiceReused : t.toastInvoiceCreated);
       router.push(`/invoices/${data.invoiceId}`);
     } catch {
       toast.error(t.toastInvoiceFailed);
@@ -310,9 +320,15 @@ export default function DealDetailPage() {
                   {t.cancelRental}
                 </Btn>
               )}
-              <Btn variant="primary" icon={<Icons.Doc />} onClick={createInvoice} disabled={creatingInvoice || deal.status === "cancelled"}>
-                {creatingInvoice ? t.creating : t.createInvoice}
-              </Btn>
+              {existingInvoiceId ? (
+                <Btn variant="primary" icon={<Icons.Doc />} onClick={() => router.push(`/invoices/${existingInvoiceId}`)}>
+                  {t.viewInvoice}
+                </Btn>
+              ) : (
+                <Btn variant="primary" icon={<Icons.Doc />} onClick={createInvoice} disabled={creatingInvoice || deal.status === "cancelled"}>
+                  {creatingInvoice ? t.creating : t.createInvoice}
+                </Btn>
+              )}
             </>
           }
         />

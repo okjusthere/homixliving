@@ -1,3 +1,4 @@
+import { businessToday } from "@/lib/db-time";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import {
@@ -44,7 +45,7 @@ export async function GET() {
     db
       .select()
       .from(teamCompensationConfigs)
-      .where(lte(teamCompensationConfigs.effectiveFrom, new Date().toISOString().slice(0, 10)))
+      .where(lte(teamCompensationConfigs.effectiveFrom, businessToday()))
       .orderBy(desc(teamCompensationConfigs.effectiveFrom), desc(teamCompensationConfigs.version)),
   ]);
   const agentById = new Map(agentRows.map((agent) => [agent.id, agent]));
@@ -148,7 +149,7 @@ export async function POST(req: NextRequest) {
         { status: 409 },
       );
     }
-    const today = new Date().toISOString().slice(0, 10);
+    const today = businessToday();
     const [created] = await db
       .transaction(async (tx) => {
         const [team] = await tx.insert(teams).values({
@@ -199,7 +200,7 @@ export async function PUT(req: NextRequest) {
     if (!isTeamCapPreset(teamCapCents)) {
       return NextResponse.json({ error: "Invalid team cap preset" }, { status: 400 });
     }
-    const today = new Date().toISOString().slice(0, 10);
+    const today = businessToday();
     const effectiveFrom = /^\d{4}-\d{2}-\d{2}$/.test(String(body.effectiveFrom || ""))
       ? String(body.effectiveFrom)
       : today;
@@ -347,7 +348,7 @@ export async function DELETE(req: NextRequest) {
         await tx.update(agents).set({
           plan: "solo_pro",
           splitPct: 100,
-          planEffectiveFrom: new Date().toISOString().slice(0, 10),
+          planEffectiveFrom: businessToday(),
         }).where(eq(agents.id, team.leaderAgentId));
       }
       return "deleted" as const;

@@ -1,4 +1,5 @@
 "use client";
+import { formatBusinessTimestamp } from "@/lib/db-time";
 
 /* Catalog thumbnails come from Homix Web and the MLS provider, so their hosts
    are intentionally dynamic rather than enumerated in next/image config. */
@@ -1155,12 +1156,12 @@ export function ShareCenter({
                 [
                   t.lastVisit,
                   modalLink.lastVisitAt
-                    ? new Intl.DateTimeFormat(locale === "zh" ? "zh-CN" : "en-US", {
+                    ? formatBusinessTimestamp(modalLink.lastVisitAt, locale === "zh" ? "zh-CN" : "en-US", {
                         month: "short",
                         day: "numeric",
                         hour: "numeric",
                         minute: "2-digit",
-                      }).format(new Date(modalLink.lastVisitAt))
+                      })
                     : t.never,
                 ],
               ].map(([label, value]) => (
@@ -1249,7 +1250,8 @@ export function ShareCenter({
                           >
                             {t.submitted}:{" "}
                             {inquiry.createdAt
-                              ? new Intl.DateTimeFormat(
+                              ? formatBusinessTimestamp(
+                                  inquiry.createdAt,
                                   locale === "zh" ? "zh-CN" : "en-US",
                                   {
                                     year: "numeric",
@@ -1258,7 +1260,7 @@ export function ShareCenter({
                                     hour: "numeric",
                                     minute: "2-digit",
                                   },
-                                ).format(new Date(inquiry.createdAt))
+                                )
                               : "—"}
                           </p>
                         </div>

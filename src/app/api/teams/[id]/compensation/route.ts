@@ -1,3 +1,4 @@
+import { addCalendarDays, businessToday } from "@/lib/db-time";
 import { NextRequest, NextResponse } from "next/server";
 import { and, desc, eq, gt, lte } from "drizzle-orm";
 import { db } from "@/db";
@@ -32,7 +33,7 @@ export async function GET(
   }
   const access = await authority(teamId);
   if ("error" in access) return access.error;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = businessToday();
   const configs = await db
     .select()
     .from(teamCompensationConfigs)
@@ -79,8 +80,8 @@ export async function POST(
   if (!isTeamCapPreset(teamCapCents)) {
     return NextResponse.json({ error: "Team cap must be no cap, $10K, $15K, $20K, or $25K." }, { status: 400 });
   }
-  const today = new Date().toISOString().slice(0, 10);
-  const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+  const today = businessToday();
+  const tomorrow = addCalendarDays(today, 1);
   const effectiveFrom = String(body.effectiveFrom || "");
   const minimum = access.auth.session.user.isAdmin ? today : tomorrow;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(effectiveFrom) || effectiveFrom < minimum) {

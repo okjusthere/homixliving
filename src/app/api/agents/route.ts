@@ -32,7 +32,7 @@ import {
   normalizeAgentAccountStatus,
 } from "@/lib/agent-lifecycle";
 import { hidePublicProfileForOffboarding } from "@/lib/homixweb";
-import { dateOrNull } from "@/lib/db-time";
+import { dateOrNull, businessToday } from "@/lib/db-time";
 import { resolveLicensedCompany } from "@/lib/licensed-companies";
 
 function numberOrNull(value: unknown) {
@@ -435,7 +435,7 @@ export async function PUT(req: NextRequest) {
       }
     }
     if (isAdmin && body.plan !== undefined && cleaned.plan !== normalizeAgentPlan(existing.plan)) {
-      const today = new Date().toISOString().slice(0, 10);
+      const today = businessToday();
       const requestedEffectiveFrom = dateOrNull(body.planEffectiveFrom);
       if (requestedEffectiveFrom && requestedEffectiveFrom !== today) {
         return NextResponse.json(

@@ -1,3 +1,4 @@
+import { dbMonthKey, dbDatePart } from "@/lib/db-time";
 import type { Metadata } from "next";
 import { desc } from "drizzle-orm";
 import { redirect } from "next/navigation";
@@ -271,7 +272,7 @@ export default async function FinancePage({
     if (filters.product && r.product !== filters.product) return false;
     if (filters.status && r.status !== filters.status) return false;
     if (filters.type && r.type !== filters.type) return false;
-    const day = r.date.slice(0, 10);
+    const day = dbDatePart(r.date);
     if (filters.from && day < filters.from) return false;
     if (filters.to && day > filters.to) return false;
     return true;
@@ -282,10 +283,10 @@ export default async function FinancePage({
 
   // ---- Stats + per-agent rollup (paid money only, never double counted) ----
   const paidRows = rows.filter((r) => r.isPaidMoney);
-  const monthKey = new Date().toISOString().slice(0, 7);
+  const monthKey = dbMonthKey(new Date());
   const totalCents = paidRows.reduce((s, r) => s + r.amountCents, 0);
   const monthCents = paidRows
-    .filter((r) => r.date.startsWith(monthKey))
+    .filter((r) => dbMonthKey(r.date) === monthKey)
     .reduce((s, r) => s + r.amountCents, 0);
   const activeSubs = orders.filter(
     (o) => o.billingMode === "subscription" && o.status === "active",
@@ -611,7 +612,7 @@ export default async function FinancePage({
                       className="px-5 py-3 whitespace-nowrap font-mono text-[12.5px]"
                       style={{ color: tone.ink70 }}
                     >
-                      {fmtDate(r.date.slice(0, 10))}
+                      {fmtDate(dbDatePart(r.date))}
                     </td>
                     <td className="px-5 py-3">
                       <div style={{ color: tone.ink }}>{r.payerName}</div>

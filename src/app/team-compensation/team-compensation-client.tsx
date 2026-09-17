@@ -1,5 +1,7 @@
 "use client";
 
+import { addCalendarDays, businessToday } from "@/lib/db-time";
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -28,7 +30,7 @@ const M = {
 } as const;
 
 function tomorrow() {
-  return new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+  return addCalendarDays(businessToday(), 1);
 }
 
 export function TeamCompensationClient({
@@ -50,7 +52,7 @@ export function TeamCompensationClient({
     defaultTeamSplitPct: config?.defaultTeamSplitPct ?? 10,
     teamLeadSplitPct: config?.teamLeadSplitPct ?? 10,
     teamCapCents: config?.teamCapCents ?? null,
-    effectiveFrom: isAdmin ? new Date().toISOString().slice(0, 10) : tomorrow(),
+    effectiveFrom: isAdmin ? businessToday() : tomorrow(),
   }])));
 
   if (!teams.length) {

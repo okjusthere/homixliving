@@ -5,7 +5,7 @@ import { agents, dealCompensationSnapshots, saleDealAgents, saleDeals } from "@/
 import { requireActiveAgentApi } from "@/lib/auth-guards";
 import { canEditSaleDeal, canViewSaleDeal } from "@/lib/visibility";
 import { logAudit } from "@/lib/audit";
-import { dateOrNull } from "@/lib/db-time";
+import { dateOrNull, businessToday } from "@/lib/db-time";
 import {
   buildCompensationEstimate,
   normalizeCompensationSource,
@@ -232,7 +232,7 @@ export async function PUT(
       return NextResponse.json({ error: result.error }, { status: result.status || 400 });
     }
 
-    const effectiveDate = result.data.closingDate || result.data.contractDate || new Date().toISOString().slice(0, 10);
+    const effectiveDate = result.data.closingDate || result.data.contractDate || businessToday();
     await db.transaction(async (tx) => {
       await lockCompensationDeal(tx, "sale", parsedId);
       await lockAgentLedgers(tx, result.agents.map((agent) => agent.agentId));

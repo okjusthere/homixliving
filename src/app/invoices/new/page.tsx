@@ -1,5 +1,7 @@
 "use client";
 
+import { businessToday } from "@/lib/db-time";
+
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -130,7 +132,7 @@ export default function NewInvoicePage() {
   const [apartmentAddress, setApartmentAddress] = useState("");
   const [moveInDate, setMoveInDate] = useState("");
   const [licensedCompany, setLicensedCompany] = useState("Homix Living");
-  const [year] = useState(2026);
+  const [year] = useState(() => Number(businessToday().slice(0, 4)));
   const [notes, setNotes] = useState("");
   const [lineItems, setLineItems] = useState<LineItem[]>([
     { description: "Rental Commission — 12 month lease", quantity: 1, unitPrice: 5000, amount: 5000 },

@@ -1,4 +1,5 @@
 "use client";
+import { formatBusinessDate } from "@/lib/db-time";
 
 import { useRef, useState } from "react";
 import {
@@ -89,13 +90,7 @@ const MAX_COMPANY_W9_BYTES = 8 * 1024 * 1024;
 
 function formatDate(value: string | null, locale: "en" | "zh"): string | null {
   if (!value) return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  return new Intl.DateTimeFormat(locale === "zh" ? "zh-CN" : "en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  }).format(date);
+  return formatBusinessDate(value, locale === "zh" ? "zh-CN" : "en-US");
 }
 
 function validPdf(file: File): boolean {

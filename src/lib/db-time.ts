@@ -47,15 +47,99 @@ export function dbTimeMs(value: string | null | undefined): number | null {
   return parsed ? parsed.getTime() : null;
 }
 
-/** "YYYY-MM-DD" of a DB temporal string (its date part), or "". */
-export function dbDatePart(value: string | null | undefined): string {
+/** All Portal business dates use New York, including automatic DST changes.
+ * Keep instants stored as UTC; convert only when deriving/displaying a date.
+ * A DATE value is already a calendar date and must never be shifted. */
+export const BUSINESS_TIME_ZONE = "America/New_York";
+
+const businessDayFormatter = new Intl.DateTimeFormat("en-US", {
+  timeZone: BUSINESS_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit",
+});
+
+/** New York "YYYY-MM-DD" for an instant; preserves a date-only value verbatim. */
+export function dbDatePart(value: string | Date | null | undefined): string {
   if (!value) return "";
-  const m = /^(\d{4}-\d{2}-\d{2})/.exec(value.trim());
-  return m ? m[1] : "";
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value.trim())) {
+    return value.trim();
+  }
+  const date = value instanceof Date ? value : parseDbTime(value);
+  if (!date || !Number.isFinite(date.getTime())) return "";
+  const parts = businessDayFormatter.formatToParts(date);
+  const part = (type: string) => parts.find((p) => p.type === type)!.value;
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
+export function businessToday(now = new Date()): string {
+  return dbDatePart(now);
+}
+
+/** Payment APIs also accept a calendar day without a known payment time.
+ * Match the offline-receipt convention: use noon UTC as a date-only anchor,
+ * which remains on the supplied New York day in both EST and EDT. An actual
+ * timestamp keeps its original instant. Never treat a DATE as UTC midnight. */
+export function parsePaymentTime(value: string): Date | null {
+  const text = value.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+    const date = new Date(`${text}T12:00:00Z`);
+    return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === text ? date : null;
+  }
+  const date = parseDbTime(text);
+  return date && Number.isFinite(date.getTime()) ? date : null;
+}
+
+/** Calendar arithmetic, not elapsed 24-hour periods (DST days are 23/25 hours). */
+export function addCalendarDays(day: string, days: number): string {
+  const date = new Date(`${day}T12:00:00Z`);
+  if (!Number.isFinite(date.getTime()) || !Number.isInteger(days)) return "";
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+/** Difference between New York calendar days, independent of host timezone/DST. */
+export function calendarDaysBetween(from: string | Date, to: string | Date): number | null {
+  const start = dbDatePart(from);
+  const end = dbDatePart(to);
+  if (!start || !end) return null;
+  const days = (Date.parse(`${end}T12:00:00Z`) - Date.parse(`${start}T12:00:00Z`)) / 86_400_000;
+  return Number.isFinite(days) ? days : null;
+}
+
+/** Date-only display with the requested locale/style, after NY date conversion. */
+export function formatBusinessDate(
+  value: string | null | undefined,
+  locale = "en-US",
+  options: Intl.DateTimeFormatOptions = { year: "numeric", month: "short", day: "numeric" },
+): string {
+  const day = dbDatePart(value);
+  if (!day) return value || "";
+  const date = new Date(`${day}T12:00:00Z`);
+  if (!Number.isFinite(date.getTime())) return value || "";
+  // Once a calendar day has been selected, format it without another zone shift.
+  return new Intl.DateTimeFormat(locale, { ...options, timeZone: "UTC" })
+    .format(date);
+}
+
+export function formatBusinessTimestamp(
+  value: string | null | undefined,
+  locale = "en-US",
+  options: Intl.DateTimeFormatOptions = { dateStyle: "medium", timeStyle: "short" },
+): string {
+  const date = parseDbTime(value);
+  if (!date || !Number.isFinite(date.getTime())) return value || "";
+  return new Intl.DateTimeFormat(locale, { ...options, timeZone: BUSINESS_TIME_ZONE }).format(date);
+}
+
+export function fmtDate(value?: string | null): string {
+  const day = dbDatePart(value);
+  return day ? `${day.slice(5, 7)}/${day.slice(8, 10)}/${day.slice(0, 4)}` : value || "";
+}
+
+export function fmtLongDate(value?: string | null): string {
+  return formatBusinessDate(value, "en-US", { month: "long", day: "numeric", year: "numeric" });
 }
 
 /** "YYYY-MM" month key of a DB temporal string, or "". */
-export function dbMonthKey(value: string | null | undefined): string {
+export function dbMonthKey(value: string | Date | null | undefined): string {
   const day = dbDatePart(value);
   return day ? day.slice(0, 7) : "";
 }
@@ -63,9 +147,12 @@ export function dbMonthKey(value: string | null | undefined): string {
 /** "MM/DD/YYYY HH:MM" of a DB instant, or "" when absent/unparseable. */
 export function fmtTimestamp(value: string | null | undefined): string {
   const d = parseDbTime(value);
-  if (!d) return "";
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${p(d.getMonth() + 1)}/${p(d.getDate())}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  if (!d || !Number.isFinite(d.getTime())) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value!.trim())) return `${fmtDate(value)} 00:00`;
+  const time = new Intl.DateTimeFormat("en-US", {
+    timeZone: BUSINESS_TIME_ZONE, hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+  }).format(d);
+  return `${fmtDate(value)} ${time}`;
 }
 
 /** Normalize a request-supplied calendar-date value for a DATE column:

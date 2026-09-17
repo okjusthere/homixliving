@@ -1,3 +1,4 @@
+import { businessToday, dbDatePart } from "@/lib/db-time";
 import { NextRequest, NextResponse } from "next/server";
 import { dosConfirmed, licenseNumberInput, licenseReleaseInput } from "@/lib/onboarding-license";
 import { cleanAgentName, validAgentName } from "@/lib/agent-names";
@@ -74,7 +75,7 @@ export async function GET() {
   if (!agent) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const invitation = await currentInvitation(agent);
   const locks = invitationLocks(invitation);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = businessToday();
   const [teamRows, sponsorRows, configRows, latestTeamJoinRequest] = await Promise.all([
     db
       .select({
@@ -407,7 +408,7 @@ export async function PUT(req: NextRequest) {
     ? body.practice
     : agent.practice;
   const now = new Date().toISOString();
-  const teamTermsEffectiveFrom = now.slice(0, 10);
+  const teamTermsEffectiveFrom = dbDatePart(now);
   let teamTermsConfig: typeof teamCompensationConfigs.$inferSelect | null = null;
   if (plan === "team_member" && teamId) {
     if (invitation?.teamCompensationConfigId) {
@@ -717,8 +718,8 @@ export async function PUT(req: NextRequest) {
           teamId: plan === "team_member" ? teamId : null,
           referredByAgentId: effectiveReferredByAgentId,
           affiliationTermMonths,
-          planEffectiveFrom: boundAgent.planEffectiveFrom || now.slice(0, 10),
-          anniversaryStart: boundAgent.anniversaryStart || boundAgent.joinedAt || now.slice(0, 10),
+          planEffectiveFrom: boundAgent.planEffectiveFrom || dbDatePart(now),
+          anniversaryStart: boundAgent.anniversaryStart || boundAgent.joinedAt || dbDatePart(now),
           teamTermsConfigId: effectiveTeamConfigId,
           teamTermsEffectiveFrom: effectiveTeamConfigId
             ? acceptedRequest
@@ -797,7 +798,7 @@ export async function PUT(req: NextRequest) {
       title: `入职资料已提交：${outcome.profile.name}`,
       body: `${agent.email} 已选择 ${plan}${teamId ? ` · Team #${teamId}` : ""}，下一步为签署协议及缴费。`,
       href: "/agents",
-      dedupeKey: `agent-onboarding-ready:${agent.id}:${now.slice(0, 10)}`,
+      dedupeKey: `agent-onboarding-ready:${agent.id}:${dbDatePart(now)}`,
     });
   } catch (error) {
     console.error("onboarding ready notification failed", error);

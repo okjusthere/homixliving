@@ -1,3 +1,4 @@
+import { dbDatePart } from "@/lib/db-time";
 import "server-only";
 import type Stripe from "stripe";
 import { and, desc, eq, gt, inArray, isNotNull, ne, notInArray, or, sql } from "drizzle-orm";
@@ -193,13 +194,13 @@ type StripeSettlementInput = {
 function isLaterOnboardingCycle(agent: Agent, order: CommerceOrder, input: StripeSettlementInput) {
   if (input.kind !== "renewal" || order.billingMode !== "subscription" || !input.renewalCycleStart || agent.accountStatus !== "active" ||
     onboardingPaymentProduct(agent.plan, agent.affiliationTermMonths) !== order.productKey) return false;
-  const start = agent.anniversaryStart || agent.joinedAt || agent.onboardingFeeAdjustment?.approvedAt?.slice(0, 10);
+  const start = agent.anniversaryStart || agent.joinedAt || dbDatePart(agent.onboardingFeeAdjustment?.approvedAt);
   if (!start || !/^\d{4}-\d{2}-\d{2}$/.test(start) || !Number.isFinite(Date.parse(input.renewalCycleStart))) return false;
   const [year, month, day] = start.split("-").map(Number);
   const months = agent.affiliationTermMonths === 24 ? 24 : 12;
   const lastDay = new Date(Date.UTC(year, month + months, 0)).getUTCDate();
   const end = new Date(Date.UTC(year, month - 1 + months, Math.min(day, lastDay))).toISOString().slice(0, 10);
-  return input.renewalCycleStart.slice(0, 10) >= end;
+  return dbDatePart(input.renewalCycleStart) >= end;
 }
 
 /** Actual Stripe income and its reconciliation decision commit together.

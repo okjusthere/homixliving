@@ -6,7 +6,7 @@ import { generateInvoiceNumber, generateFileName, generateEmailSubject } from "@
 import { requireActiveAgentApi } from "@/lib/auth-guards";
 import { dealsVisibleToSql } from "@/lib/visibility";
 import { logAudit } from "@/lib/audit";
-import { dateOrNull } from "@/lib/db-time";
+import { dateOrNull, businessToday } from "@/lib/db-time";
 import { MAX_MONEY_AMOUNT } from "@/lib/commission";
 
 export async function GET() {
@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
     : authResult.session.user.email || null;
 
   const invoiceYear =
-    Number.isInteger(year) && year > 2000 ? year : new Date().getFullYear();
+    Number.isInteger(year) && year > 2000 ? year : Number(businessToday().slice(0, 4));
   const invoiceNumber = generateInvoiceNumber(unit, building, invoiceYear);
   const fileName = generateFileName(unit, building, licensedCompany);
   const emailSubject = generateEmailSubject(unit, building, licensedCompany);

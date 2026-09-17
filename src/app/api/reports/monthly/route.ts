@@ -52,8 +52,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "month must be a valid YYYY-MM or YYYY" }, { status: 400 });
   }
 
-  const rentalDate = sql`coalesce(${deals.dealDate}, ${deals.createdAt}::date)`;
-  const saleDate = sql`coalesce(${saleDeals.closingDate}, ${saleDeals.contractDate}, ${saleDeals.createdAt}::date)`;
+  const rentalDate = sql`coalesce(${deals.dealDate}, (${deals.createdAt} AT TIME ZONE 'America/New_York')::date)`;
+  const saleDate = sql`coalesce(${saleDeals.closingDate}, ${saleDeals.contractDate}, (${saleDeals.createdAt} AT TIME ZONE 'America/New_York')::date)`;
   const rentalPeriod = and(
     ne(deals.status, "cancelled"),
     gte(rentalDate, range.start),

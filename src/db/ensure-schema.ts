@@ -1188,8 +1188,8 @@ export async function ensureSchema(sql: Sql) {
     WHERE plan = 'holding'`);
   await run(`
     UPDATE portal.agents
-    SET anniversary_start = COALESCE(anniversary_start, joined_at, created_at::date),
-        plan_effective_from = COALESCE(plan_effective_from, joined_at, created_at::date),
+    SET anniversary_start = COALESCE(anniversary_start, joined_at, (created_at AT TIME ZONE 'America/New_York')::date),
+        plan_effective_from = COALESCE(plan_effective_from, joined_at, (created_at AT TIME ZONE 'America/New_York')::date),
         split_pct = CASE plan
           WHEN 'solo' THEN 85
           WHEN 'solo_pro' THEN 100
@@ -1444,7 +1444,7 @@ export async function ensureSchema(sql: Sql) {
   await run(`
     INSERT INTO portal.team_compensation_configs
       (team_id, version, effective_from, default_team_split_pct, team_lead_split_pct, team_cap_cents)
-    SELECT id, 1, CURRENT_DATE, 10, 10, NULL FROM portal.teams
+    SELECT id, 1, (CURRENT_TIMESTAMP AT TIME ZONE 'America/New_York')::date, 10, 10, NULL FROM portal.teams
     ON CONFLICT (team_id, version) DO NOTHING`);
   await run(`
     UPDATE portal.agents AS agent
@@ -1452,11 +1452,11 @@ export async function ensureSchema(sql: Sql) {
           SELECT config.id
           FROM portal.team_compensation_configs AS config
           WHERE config.team_id = agent.team_id
-            AND config.effective_from <= CURRENT_DATE
+            AND config.effective_from <= (CURRENT_TIMESTAMP AT TIME ZONE 'America/New_York')::date
           ORDER BY config.effective_from DESC, config.version DESC
           LIMIT 1
         ),
-        team_terms_effective_from = CURRENT_DATE,
+        team_terms_effective_from = (CURRENT_TIMESTAMP AT TIME ZONE 'America/New_York')::date,
         team_terms_accepted_at = NOW()
     WHERE agent.plan = 'team_member'
       AND agent.team_id IS NOT NULL

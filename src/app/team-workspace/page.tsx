@@ -1,3 +1,4 @@
+import { businessToday } from "@/lib/db-time";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { and, desc, eq, inArray } from "drizzle-orm";
@@ -50,7 +51,7 @@ export default async function TeamWorkspacePage({
   const query = await searchParams;
   const requestedId = Number(Array.isArray(query.team) ? query.team[0] : query.team);
   const selectedTeam = availableTeams.find((team) => team.id === requestedId) || availableTeams[0];
-  const today = new Date().toISOString().slice(0, 10);
+  const today = businessToday();
 
   const [memberRows, configRows, invitationRows, joinRequestRows] = await Promise.all([
     db.select().from(agents).where(eq(agents.teamId, selectedTeam.id)).orderBy(agents.name),
