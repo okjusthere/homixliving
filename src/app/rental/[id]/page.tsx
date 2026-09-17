@@ -222,7 +222,7 @@ export default function DealDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  const existingInvoiceId = payload?.invoiceSummary.latestInvoiceId ?? payload?.linkedInvoices[0]?.id ?? null;
+  const existingInvoiceId = payload?.invoiceSummary?.latestInvoiceId ?? payload?.linkedInvoices?.[0]?.id ?? null;
 
   const createInvoice = async () => {
     if (existingInvoiceId) {
