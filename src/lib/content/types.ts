@@ -48,6 +48,8 @@ export type ListingContext = {
   financialFacts?: (PosterHighlight & {
     kind: "property_tax" | "maintenance" | "hoa" | "other";
   })[];
+  /** Admin company Open House flow: derive factual copy in the image request. */
+  highlightsMode?: "image_model";
   highlightsReviewed?: boolean;
   highlightsModel?: string;
   description?: string;

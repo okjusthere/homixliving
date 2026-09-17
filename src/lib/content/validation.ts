@@ -66,6 +66,7 @@ const contentInputSchema = z
             }),
           )
           .optional(),
+        highlightsMode: z.literal("image_model").optional(),
         highlightsReviewed: z.boolean().optional(),
         highlightsModel: short.optional(),
         imageAssetIds: z.array(uuid).min(1).max(4),

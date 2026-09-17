@@ -57,6 +57,17 @@ export function posterListingFacts(input: ContentInput) {
     listing.monthlyMaintenanceFee?.trim() ? `${language === "zh" ? "管理费" : "Maintenance"}: ${listing.monthlyMaintenanceFee} / ${language === "zh" ? "月" : "month"}` : "",
     listing.associationFee?.trim() && listing.associationFeeFrequency?.trim() ? `${language === "zh" ? "HOA／协会费" : "HOA fee"}: ${listing.associationFee} / ${period(listing.associationFeeFrequency)}` : "",
   ].filter(Boolean);
+  if (level === "detailed" && listing.highlightsMode === "image_model")
+    return {
+      address: listing.address, price: listing.price, beds: listing.beds,
+      baths: listing.baths, area: listing.area,
+      sourceDescription: listing.description || "",
+      verifiedCosts: costs,
+      annualPropertyTax: listing.annualPropertyTax || undefined,
+      monthlyMaintenanceFee: listing.monthlyMaintenanceFee || undefined,
+      associationFee: listing.associationFeeFrequency ? listing.associationFee : undefined,
+      associationFeeFrequency: listing.associationFeeFrequency || undefined,
+    };
   if (level === "detailed")
     return {
       address: listing.address,

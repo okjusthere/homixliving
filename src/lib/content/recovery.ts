@@ -1,3 +1,4 @@
+import { dispatchOpenHouseJobs } from "./open-house-dispatch";
 import { query } from "./store";
 import { dispatchGeneration } from "./dispatch";
 import { getRun } from "workflow/api";
@@ -41,5 +42,6 @@ export async function recoverGenerations(adminOnly = false) {
     [adminOnly],
   );
   for (const row of rows) await dispatchGeneration(row.id);
-  return { dispatched: rows.length };
+  const openHouses = await dispatchOpenHouseJobs();
+  return { dispatched: rows.length, openHouses };
 }

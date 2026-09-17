@@ -20,6 +20,8 @@ export type StudioListing = {
   associationFee?: string;
   associationFeeFrequency?: string;
   attribution?: string;
+  listingAgentId?: string;
+  listAgentName?: string;
   openHouses?: { id: string; startsAt: string; endsAt: string }[];
 };
 export type StudioListingPage = {

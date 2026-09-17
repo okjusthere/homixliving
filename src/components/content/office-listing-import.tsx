@@ -16,6 +16,7 @@ export function OfficeListingImport({ subjectAgentId, agentName, zh, defaults, o
   const [selected, setSelected] = useState<StudioListing[]>([]);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState("");
+  const [overrideEvents, setOverrideEvents] = useState(false);
   const [events, setEvents] = useState([newOpenHouseEvent()]);
   const patch = (v: Partial<OfficeDefaults>) => onDefaults({ ...defaults, ...v });
   async function importSelected() {
@@ -31,7 +32,7 @@ export function OfficeListingImport({ subjectAgentId, agentName, zh, defaults, o
           const { listing: detail } = await contentFetch<{ listing: StudioListing }>(`/api/content/listings?slug=${encodeURIComponent(listing.slug)}`);
           if (!detail.photos[0]) throw new Error(t("No listing photo; add this poster individually and upload a photo.", "缺少房源照片，请单独添加并上传图片。"));
           const { asset } = await contentFetch<{ asset: { id: string } }>(`/api/content/assets?subject=${subjectAgentId}`, { method: "POST", body: JSON.stringify({ url: detail.photos[0].url }) });
-          const input = officeListingInput(detail, asset.id, defaults, events);
+          const input = officeListingInput(detail, asset.id, defaults, overrideEvents ? events : undefined);
           let highlightsFailed = false;
           if (needsOfficeHighlights(defaults.theme) && (detail.description?.trim().length || 0) >= 10) {
             try {
@@ -62,7 +63,11 @@ export function OfficeListingImport({ subjectAgentId, agentName, zh, defaults, o
       <div className="office-defaults"><Field label={t("Language", "生成版本")}><select value={defaults.language} onChange={(e) => patch({ language: e.target.value as OfficeDefaults["language"] })}><option value="zh">中文</option><option value="en">English</option><option value="both">中文＋英文 · 分别生成两张</option></select></Field>
         <details><summary>{t("Style & size", "风格与画幅")} · {defaults.style === "editorial" ? t("Classic", "经典") : t("Minimal", "极简")} · {defaults.size}</summary><div className="office-batch-controls"><Field label={t("Style", "风格")}><select value={defaults.style} onChange={(e) => patch({ style: e.target.value as OfficeDefaults["style"] })}><option value="editorial">Homix {t("Classic", "经典")}</option><option value="modern">Homix {t("Minimal", "极简")}</option></select></Field><Field label={t("Size", "画幅")}><select value={defaults.size} onChange={(e) => patch({ size: e.target.value as OfficeDefaults["size"] })}><option value="1024x1280">{t("Portrait", "竖版")} · 4:5</option><option value="1024x1024">{t("Square", "方形")} · 1:1</option><option value="1152x2048">Story · 9:16</option></select></Field></div></details>
       </div>
-      {defaults.theme === "open_house" && <div className="office-batch-events"><EventEditor helpText={t("Set the local dates and times for this batch. New sessions default to 1–3 PM.", "填写本批房源所在地的日期和时间。新增场次默认下午 1–3 点。")} zh={zh} disabled={busy} events={events} onChange={setEvents} /><p className="studio-note">{t("Apply these sessions to every selected property; edit each draft if needed. Without a date, drafts will be marked as incomplete.", "这些场次统一用于所选房源，核对时可逐套修改。暂不填日期也能保存，草稿会标为待补公展时间。")}</p></div>}
+      {defaults.theme === "open_house" && <div className="office-batch-events">
+        <p className="studio-note">{t("Each property imports its own MLS Open House dates and times, including multiple sessions. Missing schedules are flagged in drafts.", "自动带入每套房源自己的 MLS 公展日期和时间，支持多场；没有时间的房源会在草稿中提示补充。")}</p>
+        <label className="studio-row"><input type="checkbox" checked={overrideEvents} onChange={(e) => setOverrideEvents(e.target.checked)} />{t("Override schedules for this batch", "统一修改本批公展时间")}</label>
+        {overrideEvents && <EventEditor helpText={t("These sessions replace the MLS schedules of every selected property.", "以下场次将覆盖所选每套房源的 MLS 公展时间。新增场次默认下午 1–3 点。")} zh={zh} disabled={busy} events={events} onChange={setEvents} />}
+      </div>}
     </fieldset>
     <h3>{t("2 · Select properties", "2 · 勾选房源")}</h3>
     <ListingPicker zh={zh} disabled={busy} onError={onError} onChoose={async () => {}} selection={{ ids: selected.map((v) => v.id), onToggle: (listing) => setSelected((v) => v.some((l) => l.id === listing.id) ? v.filter((l) => l.id !== listing.id) : [...v, listing]), onSelectPage: (listings, checked) => setSelected((v) => checked ? [...v, ...listings.filter((l) => !v.some((old) => old.id === l.id))] : v.filter((l) => !listings.some((item) => item.id === l.id))) }} />

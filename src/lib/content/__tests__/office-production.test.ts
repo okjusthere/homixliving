@@ -37,3 +37,16 @@ test("office preferences recover safely from corrupt/unsupported session data", 
   assert.deepEqual(readOfficeDefaults('{"theme":"unknown","language":"xx","size":"1x1"}'), officeDefaults);
   assert.equal(readOfficeDefaults('{"theme":"open_house","language":"en"}').theme, "open_house");
 });
+
+test("office Open House defaults import each listing's own future sessions; override is explicit", () => {
+  const source = { ...listing, openHouses: [
+    { id: "sat", startsAt: "2099-09-19T17:00:00Z", endsAt: "2099-09-19T19:00:00Z" },
+    { id: "sun", startsAt: "2099-09-20T18:00:00Z", endsAt: "2099-09-20T20:00:00Z" },
+  ] };
+  const input = officeListingInput(source, asset, { ...officeDefaults, theme: "open_house" });
+  assert.deepEqual(input.events?.map((e) => [e.date, e.start, e.end]), [["2099-09-19", "13:00", "15:00"], ["2099-09-20", "14:00", "16:00"]]);
+  const other = officeListingInput({ ...source, openHouses: [source.openHouses[1]] }, asset, { ...officeDefaults, theme: "open_house" });
+  assert.equal(other.events?.length, 1);
+  assert.equal(other.events?.[0].start, "14:00");
+  assert.deepEqual(officeListingInput(source, asset, { ...officeDefaults, theme: "open_house" }, []).events, []);
+});

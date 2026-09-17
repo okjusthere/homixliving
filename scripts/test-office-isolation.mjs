@@ -2,6 +2,8 @@
 // image calls or website requests are possible through these test boundaries.
 import { registerHooks } from "node:module";
 const files = new Map([
+  [new URL("../src/lib/content/open-house-dispatch.ts", import.meta.url).href, "office-open-house-dispatch.cjs"],
+  [new URL("../src/lib/content/open-house-catalog.ts", import.meta.url).href, "office-open-house-catalog.cjs"],
   [new URL("../src/lib/auth-guards.ts", import.meta.url).href, "office-auth.cjs"],
   [new URL("../src/lib/homixweb.ts", import.meta.url).href, "office-profile.cjs"],
   [new URL("../src/lib/content/dispatch.ts", import.meta.url).href, "office-dispatch.cjs"],

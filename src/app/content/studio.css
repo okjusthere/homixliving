@@ -1087,3 +1087,25 @@
 .office-workbench button:focus-visible{outline:3px solid #967e4e;outline-offset:3px}
 @media(max-width:1000px){.office-workbench .office-theme-grid button{flex-direction:column;align-items:flex-start;gap:2px}.office-workbench .office-import .studio-listing-grid{grid-template-columns:1fr}}
 @media(max-width:600px){.office-workbench .office-theme-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.office-workbench .office-subject-card{flex-wrap:wrap}.office-workbench .office-import .studio-listing-card{padding-left:32px;gap:8px}.office-workbench .office-import .studio-listing-card img,.office-workbench .office-import .studio-listing-no-photo{width:72px;height:72px}.office-workbench .office-import .office-listing-check{left:6px}.office-workbench .office-selection-bar{bottom:6px;padding:12px}.office-workbench .office-selection-bar>.studio-button{width:100%}.office-workbench .office-task{align-items:flex-start}.office-workbench .office-task>img{width:54px;height:54px}.office-workbench .office-defaults{gap:4px}}
+
+/* Company Open Houses: compact operational list, scoped to the new admin tab. */
+.company-open-houses { display: grid; gap: 20px; }
+.company-oh-heading, .company-oh-action { display:flex; align-items:center; justify-content:space-between; gap:20px; }
+.company-oh-heading h2 { margin:0 0 8px; font-size:24px; }
+.company-oh-heading p, .company-oh-action p { margin:6px 0 0; color:var(--studio-muted, #78756b); font-size:14px; }
+.company-oh-action { padding:20px 24px; background:#edf0e6; border-radius:14px; }
+.company-oh-list { display:grid; gap:10px; }
+.company-oh-property { display:grid; grid-template-columns:128px minmax(0,1fr) auto; gap:20px; padding:16px; border:1px solid #e4ded2; border-radius:14px; background:#fff; align-items:center; }
+.company-oh-property > img, .company-oh-no-photo { width:128px; height:100px; object-fit:cover; border-radius:8px; background:#f3f0e9; }
+.company-oh-details h3 { font-size:16px; margin:0 0 5px; overflow-wrap:anywhere; }
+.company-oh-details p { font-size:13px; color:#78756b; margin:4px 0; }
+.company-oh-details ul { padding:0; margin:7px 0 0; list-style:none; font-size:14px; }
+.company-oh-details .company-oh-problem { color:#9b3e2a; }
+.company-oh-result { display:grid; gap:8px; justify-items:end; font-size:13px; }
+.company-oh-empty { padding:36px 0; color:#78756b; }
+@media(max-width:700px) {
+ .company-oh-heading, .company-oh-action { align-items:stretch; flex-direction:column; }
+ .company-oh-property { grid-template-columns:80px minmax(0,1fr); gap:12px; }
+ .company-oh-property > img, .company-oh-no-photo { width:80px; height:80px; }
+ .company-oh-result { grid-column:2; justify-items:start; }
+}

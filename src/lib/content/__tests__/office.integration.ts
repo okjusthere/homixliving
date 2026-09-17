@@ -22,6 +22,7 @@ async function main() {
   await setup.query("ALTER TABLE portal.content_generations ADD COLUMN admin_only boolean NOT NULL DEFAULT false; ALTER TABLE portal.content_assets ADD COLUMN admin_only boolean NOT NULL DEFAULT false; ALTER TABLE portal.content_projects ADD COLUMN admin_only boolean NOT NULL DEFAULT false;");
   await setup.query(await readFile("db/migrations/20260911-content-language-pairs.sql", "utf8"));
   await setup.query(await readFile("db/migrations/20260914-office-posters.sql", "utf8"));
+  await setup.query(await readFile("db/migrations/20260917-company-open-house.sql", "utf8"));
   await setup.end();
   Object.assign(process.env, { AZURE_IMAGE_ENDPOINT: "https://test.openai.azure.com/openai/v1", AZURE_IMAGE_API_KEY: "test-no-network", AZURE_IMAGE_DEPLOYMENT: "gpt-image-2", R2_ACCOUNT_ID: "test", R2_CONTENT_BUCKET_NAME: "test", R2_CONTENT_ACCESS_KEY_ID: "test", R2_CONTENT_SECRET_ACCESS_KEY: "test" });
   const { pgPool, closeDatabaseConnections } = await import("@/db");
@@ -95,6 +96,53 @@ async function main() {
     const draft = (await (await routes.POST(request("/api/content/office", taskBody))).json()).id;
     equal((await actions.DELETE(request(`/api/content/office/${draft}`), ctx(draft))).status, 200, "unused draft can be deleted");
     equal((await actions.DELETE(request(`/api/content/office/${taskId}`), ctx(taskId))).status, 409, "submitted task history is retained");
+    // Company Open House preparation: identity, concurrency and prompt boundaries.
+    const { enqueueOpenHouses, openHouseJobs } = await import("../open-house-jobs");
+    const { prepareOpenHouseJob } = await import("../open-house-step");
+    const openHouseRoutes = await import("@/app/api/content/office/open-houses/route");
+    const ohTemplateId = randomUUID();
+    const ohTemplate = { id: ohTemplateId, familyId: ohTemplateId, version: 1, status: "published" as const, createdAt: "", config: initialTemplates().find((v) => v.config.themes.includes("open_house"))!.config };
+    await sql("INSERT INTO portal.content_templates(id,family_id,version,status,config) VALUES($1,$1,1,'published',$2)", [ohTemplateId, JSON.stringify(ohTemplate.config)]);
+    const ohListing = { id: "OH1", slug: "oh1", mlsNumber: "123", status: "Active", address: { full: "100 Company Open House Lane" }, listPrice: 900000, askingPrice: 900000, beds: 3, baths: 2, sqft: 1400, annualPropertyTax: "$8,123", description: "Sunny kitchen, private patio, renovated baths, garage, and garden.", photos: [{ url: "https://example.test/house.jpg" }], openHouses: [{ id: "sat", startsAt: "2099-09-19T17:00:00Z", endsAt: "2099-09-19T19:00:00Z" }] };
+    const candidate = { key: "a".repeat(64), listing: ohListing, agent: { id: 3, name: "Grace Xia", mlsId: "MLS3", photoUrl: "https://example.test/portrait.png", companyReady: true }, events: [{ date: "2099-09-19", start: "13:00", end: "15:00", timezone: "America/New_York" }], problem: null };
+    Object.assign(globalThis, { __openHouseCatalog: { items: [candidate], template: ohTemplate } });
+    process.env.TEST_OFFICE_ACTOR = "2";
+    equal((await openHouseRoutes.GET(request("/api/content/office/open-houses"))).status, 403, "personal users cannot list company jobs");
+    equal((await openHouseRoutes.POST(request("/api/content/office/open-houses", { keys: [candidate.key] }))).status, 403, "personal users cannot enqueue company posters");
+    process.env.TEST_OFFICE_ACTOR = "1";
+    equal((await openHouseRoutes.POST(request("/api/content/office/open-houses", { keys: [candidate.key] }, "https://evil.example"))).status, 403, "company batch rejects cross-origin writes");
+    const duplicates = await Promise.all([enqueueOpenHouses(1, [candidate], ohTemplate), enqueueOpenHouses(1, [candidate], ohTemplate)]);
+    equal(duplicates.flat().length, 1, "two administrators enqueue only one durable job per fingerprint");
+    const ohId = duplicates.flat()[0];
+    const ohJob = (await sql("SELECT * FROM portal.content_open_house_jobs WHERE id=$1", [ohId]))[0];
+    equal(ohJob.subject_agent_id, 3, "matched listing agent owns the poster, not the administrator");
+    equal(ohJob.request.input.listing.highlightsMode, "image_model", "automatic mode persists without fake manual review");
+    equal(ohJob.request.input.listing.highlightsReviewed, undefined, "not falsely marked as human reviewed");
+    equal(ohJob.request.input.events[0].start, "13:00", "source schedule retained");
+    const changedResponse = await openHouseRoutes.POST(request("/api/content/office/open-houses", { keys: ["b".repeat(64)], subjectAgentId: 2, description: "invent facts" }));
+    equal((await changedResponse.json()).added, 0, "changed or forged catalog keys cannot create jobs");
+    // Install a prepared photo/task fixture; no storage/provider network calls.
+    await sql("INSERT INTO portal.content_assets(id,owner_agent_id,object_key,content_type,bytes,purpose,admin_only) VALUES($1,3,$2,'image/png',1,'upload',true)", [ohId, `test/${ohId}`]);
+    await sql("INSERT INTO portal.content_office_tasks(id,created_by,subject_agent_id,request,submission_key) VALUES($1,1,3,$2,$1)", [ohId, JSON.stringify(ohJob.request)]);
+    process.env.TEST_OFFICE_ACTOR = "3";
+    equal((await personal.POST(request("/api/content/generations", { ...ohJob.request, idempotencyKey: randomUUID() }))).status, 403, "personal API cannot bypass highlight review by sending image_model");
+    process.env.TEST_OFFICE_ACTOR = "1";
+    await Promise.all([prepareOpenHouseJob(ohId), prepareOpenHouseJob(ohId)]);
+    const ohOutputs = await sql("SELECT * FROM portal.content_generations WHERE office_task_id=$1", [ohId]);
+    equal(ohOutputs.length, 1, "duplicate workflow delivery creates exactly one paid image job");
+    equal(ohOutputs[0].owner_agent_id, 3, "output belongs to matched agent");
+    equal(ohOutputs[0].input.language, "zh", "one-click defaults to one Chinese poster");
+    equal(ohOutputs[0].prompt.includes("up to FIVE"), true, "image prompt extracts up to five factual points");
+    equal(ohOutputs[0].prompt.includes("$8,123"), true, "real tax passed to model");
+    equal(ohOutputs[0].prompt.includes(ohListing.description), true, "full MLS remarks passed to image model");
+    equal((await openHouseJobs([candidate.key]))[0].generationId, ohOutputs[0].id, "preparation status joins real generation progress");
+    const blockedCandidate = { ...candidate, key: "c".repeat(64) };
+    const [blockedId] = await enqueueOpenHouses(1, [blockedCandidate], ohTemplate);
+    await sql("UPDATE portal.agents SET is_admin=false WHERE id=1");
+    await prepareOpenHouseJob(blockedId);
+    equal((await sql("SELECT status FROM portal.content_open_house_jobs WHERE id=$1", [blockedId]))[0].status, "failed", "revoked admin cannot prepare a queued poster");
+    equal((await sql("SELECT count(*) FROM portal.content_office_tasks WHERE id=$1", [blockedId]))[0].count, "0", "revoked admin creates no task or image");
+    await sql("UPDATE portal.agents SET is_admin=true WHERE id=1");
     console.log(`Office integration: ${assertions} assertions passed; no paid model or external messaging calls.`);
   } finally { await closeDatabaseConnections(); }
 }

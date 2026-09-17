@@ -1,6 +1,6 @@
 import type { ContentInput, ContentTemplate, ImageSize, OpenHouseEvent } from "./types";
 import { LISTING_THEMES } from "./types";
-import type { StudioListing } from "./listing-source";
+import { listingEvents, type StudioListing } from "./listing-source";
 import { inputSchema } from "./validation";
 
 export type OfficeDefaults = { theme: string; language: "zh" | "en" | "both"; style: "editorial" | "modern"; size: ImageSize };
@@ -18,13 +18,12 @@ export function officeTemplate(templates: ContentTemplate[], theme: string, styl
   return template;
 }
 export function needsOfficeHighlights(theme: string) { return ["just_listed", "open_house"].includes(theme); }
-export function officeListingInput(detail: StudioListing, assetId: string, defaults: OfficeDefaults, events: OpenHouseEvent[]): ContentInput {
+export function officeListingInput(detail: StudioListing, assetId: string, defaults: OfficeDefaults, events?: OpenHouseEvent[]): ContentInput {
   return {
     kind: "listing", theme: defaults.theme, language: defaults.language === "en" ? "en" : "zh", size: defaults.size, includePortrait: true,
     headline: "", message: "", additionalInstructions: "", representationRole: "unspecified",
-    // Explicit office batch sessions apply to every selected property. Blank
-    // dates remain missing; never invent dates or silently reuse an MLS event.
-    events: defaults.theme === "open_house" ? events.filter((e) => e.selected !== false && e.date.trim()) : [],
+    // undefined means source schedules; only an explicit override replaces them.
+    events: defaults.theme === "open_house" ? (events ?? listingEvents(detail)).filter((e) => e.selected !== false && e.date.trim()) : [],
     listing: { source: "mls", sourceKey: detail.id, address: detail.address.full,
       price: defaults.theme === "just_sold" ? "" : detail.askingPrice ? `$${detail.askingPrice.toLocaleString("en-US")}` : "",
       beds: String(detail.beds ?? ""), baths: String(detail.baths + (detail.halfBaths || 0) * 0.5 || ""), area: String(detail.sqft || ""), description: detail.description || "",

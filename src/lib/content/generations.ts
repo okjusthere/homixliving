@@ -24,7 +24,11 @@ export async function submitGeneration(
   const templateId = uuid.parse(body.templateId),
     idempotencyKey = uuid.parse(body.idempotencyKey);
   const input = inputSchema.parse(body.input);
+  const imageHighlights = input.listing?.highlightsMode === "image_model";
+  if (imageHighlights && (!office || input.kind !== "listing" || input.theme !== "open_house"))
+    throw new ContentError("Automatic highlights are only available for office Open House posters / 自动卖点仅用于管理员公展海报", 403);
   if (
+    !imageHighlights &&
     input.kind === "listing" &&
     listingDetailLevel(input.theme) === "detailed" &&
     input.listing?.description?.trim() &&

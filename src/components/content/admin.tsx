@@ -1,4 +1,5 @@
 "use client";
+import { CompanyOpenHouses } from "./company-open-houses";
 import { OfficeWorkbench } from "./office-workbench";
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -39,7 +40,7 @@ export function ContentAdmin() {
   const locale = useLocale(),
     t = (en: string, zh: string) => (locale === "zh" ? zh : en);
   const params = useSearchParams();
-  const tab = ["production", "templates", "holidays", "settings", "generations"].includes(
+  const tab = ["production", "open-houses", "templates", "holidays", "settings", "generations"].includes(
     params.get("tab") || "",
   )
     ? params.get("tab")!
@@ -124,14 +125,14 @@ export function ContentAdmin() {
         role="tablist"
         aria-label={t("Administration", "管理")}
       >
-        {["production", "templates", "holidays", "settings", "generations"].map((v) => (
+        {["production", "open-houses", "templates", "holidays", "settings", "generations"].map((v) => (
           <button
             key={v}
             role="tab"
             aria-selected={tab === v}
             onClick={() => setTab(v)}
           >
-            {v === "production" ? t("Poster production", "海报制作") : v === "templates"
+            {v === "open-houses" ? t("Company Open Houses", "公司公展") : v === "production" ? t("Poster production", "海报制作") : v === "templates"
               ? t("Style prompts", "风格提示词")
               : v === "holidays"
                 ? t("Holiday calendar", "节日目录")
@@ -142,6 +143,7 @@ export function ContentAdmin() {
         ))}
       </div>
       {tab === "production" && <OfficeWorkbench />}
+      {tab === "open-houses" && <CompanyOpenHouses />}
       <ContentErrorDialog
         message={error}
         onClose={() => setError("")}
@@ -152,7 +154,7 @@ export function ContentAdmin() {
           {notice}
         </p>
       )}
-      {tab === "production" ? null : tab === "generations" ? (
+      {["production", "open-houses"].includes(tab) ? null : tab === "generations" ? (
         <GenerationReview />
       ) : tab === "templates" ? (
         <div className="studio-grid">
