@@ -24,6 +24,7 @@ async function main() {
     { name: "Synthetic DOS Admin", email: `qa-${randomUUID()}@example.invalid`, isAdmin: true, accountStatus: "active" as const },
     { name: "Synthetic Ordinary", email: `qa-${randomUUID()}@example.invalid`, accountStatus: "active" as const },
   ]).returning();
+  process.env.ADMIN_EMAILS = admin.email;
   const subject = async () => (await db.insert(agents).values({ ...verifiedDosFixture, dosConfirmation: null,
     name: "Synthetic Preferred", email: `qa-${randomUUID()}@example.invalid`, accountStatus: "pending",
     plan: "solo", affiliationTermMonths: 12, onboardingCompletedAt: new Date().toISOString(),
@@ -99,12 +100,12 @@ async function main() {
   const params = { params: Promise.resolve({ id: String(pending.id) }) };
   globals.__agreementTestSession = null;
   assert.equal((await declarationRoute(request("/api/onboarding/license-release", declaration))).status, 401);
-  globals.__agreementTestSession = { user: { agentId: pending.id, email: pending.email, isAdmin: true, accountStatus: "active" } };
+  globals.__agreementTestSession = { user: { agentId: pending.id, email: pending.email, loginEmail: pending.email, isAdmin: true, accountStatus: "active" } };
   assert.equal((await adminRoute(request("/api/admin/agents/onboarding", confirm), params))?.status, 403);
   assert.equal((await declarationRoute(request("/api/onboarding/license-release", declaration, "https://foreign.invalid"))).status, 403);
   assert.equal((await declarationRoute(request("/api/onboarding/license-release", { ...declaration, agentId: person.id }))).status, 400);
   assert.equal((await declarationRoute(request("/api/onboarding/license-release", declaration))).status, 200);
-  globals.__agreementTestSession = { user: { agentId: admin.id, email: admin.email } };
+  globals.__agreementTestSession = { user: { agentId: admin.id, email: admin.email, loginEmail: admin.email } };
   assert.equal((await adminRoute(request("/api/admin/agents/onboarding", confirm, "https://foreign.invalid"), params))?.status, 403);
   assert.equal((await adminRoute(request("/api/admin/agents/onboarding", confirm), params))?.status, 200);
   const audit = await db.select().from(onboardingEvents).where(and(eq(onboardingEvents.agentId, pending.id), eq(onboardingEvents.eventType, "confirm_dos")));

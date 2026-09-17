@@ -61,9 +61,20 @@ const M = {
     sentTo: "To",
     historyOk: "Sent",
     historyFailed: "Failed",
+    historySending: "Sending / awaiting confirmation",
+    deleteFailed: "Could not delete. Refresh and try again.",
+    retainedRecord: "Issued invoices and financial records are retained. Only unused drafts can be deleted.",
     download: "Download",
     letterOnePage: "Letter · 1 page",
     loading: "Loading…",
+    loadFailed: "Could not load the invoice. Check your connection and retry.",
+    retry: "Retry",
+    confirmSent: "Verified sent",
+    confirmNotSent: "Verified not sent",
+    recoveryNote: "First check the email provider delivery history. Describe what you verified (5–1000 characters):",
+    recoveryHint: "If this remains pending, an administrator can verify delivery and resolve it after two minutes. Resolving does not send an email.",
+    recoverySaved: "Delivery history updated",
+    recoveryFailed: "Could not update delivery history",
     invoiceNotFound: "Invoice not found",
     deleteConfirm: "Delete this invoice? This cannot be undone.",
     invoiceDeleted: "Invoice deleted",
@@ -118,9 +129,20 @@ const M = {
     sentTo: "收件",
     historyOk: "已发送",
     historyFailed: "失败",
+    historySending: "发送中／待确认",
+    deleteFailed: "未能删除，请刷新后重试。",
+    retainedRecord: "已发送或涉及账务的发票须保留，仅可删除尚未使用的草稿。",
     download: "下载",
     letterOnePage: "Letter · 1 页",
     loading: "加载中…",
+    loadFailed: "未能加载发票，请检查网络后重试。",
+    retry: "重试",
+    confirmSent: "已核实发送成功",
+    confirmNotSent: "已核实未发送",
+    recoveryNote: "请先核对邮件服务商的发送记录，并说明核实依据（5–1000 字）：",
+    recoveryHint: "若持续待确认，管理员可在两分钟后核实并更正发送结果。此操作不会发送邮件。",
+    recoverySaved: "发送历史已更新",
+    recoveryFailed: "未能更新发送历史",
     invoiceNotFound: "未找到发票",
     deleteConfirm: "删除此发票？此操作无法撤销。",
     invoiceDeleted: "发票已删除",
@@ -142,6 +164,11 @@ export default function InvoiceDetailPage() {
   const [sendLog, setSendLog] = useState<InvoiceSendLog[]>([]);
   const [settings, setSettings] = useState<Settings>({});
   const [loading, setLoading] = useState(true);
+  const [canDelete, setCanDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const [resolvingAttempt, setResolvingAttempt] = useState<number | null>(null);
   const [showSend, setShowSend] = useState(false);
   const { data: session } = useSession();
   const isAdmin = Boolean(session?.user.isAdmin);
@@ -151,17 +178,35 @@ export default function InvoiceDetailPage() {
   const [previewWidth, setPreviewWidth] = useState(520);
 
   useEffect(() => {
-    Promise.all([
-      fetch(`/api/invoices/${params.id}`).then((r) => r.json()),
-      fetch("/api/settings").then((r) => r.json()),
-    ]).then(([invoiceData, settingsData]) => {
-      setInvoice(invoiceData.invoice);
-      setBuilding(invoiceData.building);
-      setSendLog(invoiceData.sendLog ?? []);
-      setSettings(settingsData);
-      setLoading(false);
-    });
-  }, [params.id]);
+    const controller = new AbortController();
+    const load = async () => {
+      try {
+        const [invoiceResponse, settingsResponse] = await Promise.all([
+          fetch(`/api/invoices/${params.id}`, { signal: controller.signal }),
+          fetch("/api/settings", { signal: controller.signal }),
+        ]);
+        if (invoiceResponse.status === 404) {
+          if (!controller.signal.aborted) { setLoadError(false); setInvoice(null); setBuilding(null); }
+          return;
+        }
+        if (!invoiceResponse.ok || !settingsResponse.ok) throw new Error("Load failed");
+        const [invoiceData, settingsData] = await Promise.all([invoiceResponse.json(), settingsResponse.json()]);
+        if (controller.signal.aborted) return;
+        setLoadError(false);
+        setInvoice(invoiceData.invoice);
+        setBuilding(invoiceData.building);
+        setSendLog(invoiceData.sendLog ?? []);
+        setCanDelete(invoiceData.canDelete === true);
+        setSettings(settingsData);
+      } catch {
+        if (!controller.signal.aborted) setLoadError(true);
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    };
+    void load();
+    return () => controller.abort();
+  }, [params.id, loadAttempt]);
 
   useEffect(() => {
     const update = () => {
@@ -180,16 +225,49 @@ export default function InvoiceDetailPage() {
 
   const handleDelete = async () => {
     if (!confirm(t.deleteConfirm)) return;
-    await fetch(`/api/invoices/${params.id}`, { method: "DELETE" });
-    toast.success(t.invoiceDeleted);
-    router.push("/invoices");
+    setDeleting(true);
+    try {
+      const response = await fetch(`/api/invoices/${params.id}`, { method: "DELETE" });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || t.deleteFailed);
+      toast.success(t.invoiceDeleted);
+      router.push("/invoices");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t.deleteFailed);
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const refreshInvoice = async () => {
-    const updated = await fetch(`/api/invoices/${params.id}`).then((r) => r.json());
+    const response = await fetch(`/api/invoices/${params.id}`);
+    if (!response.ok) throw new Error(t.loadFailed);
+    const updated = await response.json();
     setInvoice(updated.invoice);
     setBuilding(updated.building);
     setSendLog(updated.sendLog ?? []);
+    setCanDelete(updated.canDelete === true);
+  };
+
+  const handleResolveSend = async (attemptId: number, outcome: "sent" | "failed") => {
+    const note = window.prompt(t.recoveryNote);
+    if (note === null) return;
+    setResolvingAttempt(attemptId);
+    try {
+      const response = await fetch(`/api/invoices/${params.id}/send-attempts/${attemptId}/resolve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ outcome, note }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || t.recoveryFailed);
+      await refreshInvoice();
+      toast.success(t.recoverySaved);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t.recoveryFailed);
+    } finally {
+      setResolvingAttempt(null);
+    }
   };
 
   const handleMarkPaid = async () => {
@@ -223,6 +301,14 @@ export default function InvoiceDetailPage() {
     return (
       <div className="py-24 text-center text-[13px]" style={{ color: tone.ink50 }}>
         {t.loading}
+      </div>
+    );
+  }
+  if (loadError) {
+    return (
+      <div className="py-24 text-center space-y-4" role="alert">
+        <p style={{ color: tone.ink70 }}>{t.loadFailed}</p>
+        <Btn onClick={() => { setLoadError(false); setLoading(true); setLoadAttempt(value => value + 1); }}>{t.retry}</Btn>
       </div>
     );
   }
@@ -279,7 +365,7 @@ export default function InvoiceDetailPage() {
               <Btn variant="outline" icon={<Icons.Download />} onClick={handleDownloadPDF}>
                 {t.downloadPDF}
               </Btn>
-              <Btn variant="danger" icon={<Icons.Trash />} onClick={handleDelete}>
+              <Btn variant="danger" icon={<Icons.Trash />} onClick={handleDelete} disabled={!canDelete || deleting}>
                 {t.delete}
               </Btn>
               {isAdmin && invoice.status === "paid" ? (
@@ -297,6 +383,7 @@ export default function InvoiceDetailPage() {
             </>
           }
         />
+        {!canDelete && <p className="text-[12px]" style={{ color: tone.ink50 }}>{t.retainedRecord}</p>}
         <div className="flex items-center gap-3">
           <Pill
             tone={
@@ -603,14 +690,25 @@ export default function InvoiceDetailPage() {
                           : ""}
                         {entry.sentByEmail ? ` · ${entry.sentByEmail}` : ""}
                       </div>
+                      {entry.status === "sending" && (
+                        <div className="mt-2 space-y-2 text-[12px]" style={{ color: tone.ink50 }}>
+                          <p>{t.recoveryHint}</p>
+                          {isAdmin && (
+                            <div className="flex flex-wrap gap-2">
+                              <Btn disabled={resolvingAttempt !== null} onClick={() => handleResolveSend(entry.id, "sent")}>{t.confirmSent}</Btn>
+                              <Btn disabled={resolvingAttempt !== null} onClick={() => handleResolveSend(entry.id, "failed")}>{t.confirmNotSent}</Btn>
+                            </div>
+                          )}
+                        </div>
+                      )}
                       {entry.status === "failed" && entry.errorMessage && (
                         <div className="mt-1 text-[12px]" style={{ color: tone.rose }}>
                           {entry.errorMessage}
                         </div>
                       )}
                     </div>
-                    <Pill tone={entry.status === "sent" ? "sent" : "failed"}>
-                      {entry.status === "sent" ? t.historyOk : t.historyFailed}
+                    <Pill tone={entry.status === "sent" ? "sent" : entry.status === "sending" ? "neutral" : "failed"}>
+                      {entry.status === "sent" ? t.historyOk : entry.status === "sending" ? t.historySending : t.historyFailed}
                     </Pill>
                   </div>
                 ))}
@@ -668,11 +766,11 @@ export default function InvoiceDetailPage() {
             // A FAILED send also wrote invoices.status + a send-log row, but
             // the dialog only fires onSent on success — refresh on close so
             // the failed attempt shows up without a manual reload.
-            refreshInvoice();
+            void refreshInvoice().catch(() => toast.error(t.loadFailed));
           }}
           onSent={() => {
             setShowSend(false);
-            refreshInvoice();
+            void refreshInvoice().catch(() => toast.error(t.loadFailed));
           }}
         />
       )}

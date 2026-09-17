@@ -14,7 +14,8 @@ import {
 import { fmtDate, fmtMoney, tone } from "@/components/homix/tokens";
 import { saleRepresentationLabel, saleStageLabel } from "@/lib/sales";
 import { dealStatusLabel } from "@/lib/domain-labels";
-import type { Agent, SaleDeal } from "@/db/schema";
+import type { SaleDeal } from "@/db/schema";
+import type { DealParticipantAgent } from "@/lib/deal-participant-agent";
 import { useLocale } from "@/lib/i18n-client";
 
 const M = {
@@ -72,8 +73,8 @@ const M = {
 
 type SaleRow = {
   saleDeal: SaleDeal;
-  agents: Array<{ agent: Agent | null; sharePct: number; isPrimary: boolean }>;
-  primaryAgent: Agent | null;
+  agents: Array<{ agent: DealParticipantAgent | null; sharePct: number; isPrimary: boolean }>;
+  primaryAgent: DealParticipantAgent | null;
 };
 
 function statusTone(status: string) {

@@ -6,6 +6,8 @@ declare module "next-auth" {
     user: {
       id: string;
       agentId: number | null;
+      /** Email verified by Google for this login, distinct from the Agent's primary email. */
+      loginEmail?: string | null;
       isAdmin: boolean;
       isTeamLeader: boolean;
       accountStatus: AgentAccountStatus;
@@ -19,6 +21,8 @@ declare module "next-auth" {
 declare module "@auth/core/jwt" {
   interface JWT {
     agentId?: number | null;
+    /** Set only at a verified Google sign-in; absent on legacy sessions. */
+    loginEmail?: string | null;
     isAdmin?: boolean;
     isTeamLeader?: boolean;
     accountStatus?: AgentAccountStatus;

@@ -50,8 +50,8 @@ export default async function AccessPage() {
         title={zh ? "管理员权限" : "Administrator access"}
         description={
           zh
-            ? "实际管理员账号及其登录邮箱。权限跟随账号，登录邮箱可以有多个。"
-            : "Current administrator accounts and their verified sign-in addresses."
+            ? "只有本次实际使用的 Google 登录邮箱在管理员配置中，且账号在职，才有管理权限。同一账号的其他登录邮箱不会继承权限。"
+            : "Administrator access requires an active account and the exact Google email used for this login to be configured. Other sign-in addresses on the same account do not inherit access."
         }
       />
       <div className="overflow-x-auto rounded-lg border border-line bg-white">
@@ -111,11 +111,11 @@ export default async function AccessPage() {
                       configured.includes(e.email.toLowerCase()),
                   )
                     ? zh
-                      ? "账号授权 + 环境配置"
-                      : "Account + environment"
+                      ? "管理员配置"
+                      : "Administrator configuration"
                     : zh
-                      ? "账号授权"
-                      : "Account grant"}
+                      ? "已失效：配置中已移除"
+                      : "Revoked: no configured address"}
                 </td>
               </tr>
             ))}
@@ -124,8 +124,8 @@ export default async function AccessPage() {
       </div>
       <p className="text-sm text-ink-70">
         {zh
-          ? "这是只读清单。撤销权限时需同时核对环境配置和账号标记，避免下次登录时重新授予。"
-          : "Read-only directory. Revocation must account for both environment configuration and account grants."}
+          ? "这是只读清单。管理员配置限制每一次 Google 登录使用的邮箱；未列入的别名只能取得普通经纪人权限。旧会话如未记录实际登录邮箱，需退出并用名单内邮箱重新登录。移除配置中的邮箱即撤销该邮箱会话的管理权限。停用账号立即阻止业务访问，重新登录不会自动恢复，恢复需走账号审批。"
+          : "Read-only directory. Administrator configuration applies to the exact email used for each Google login. Unlisted aliases have ordinary Agent access. Older sessions without the verified login address must sign out and sign in with a configured email. Removing an address revokes its administrator sessions. Suspension blocks business access; signing in cannot reactivate the account."}
       </p>
       {unmatched.length > 0 && (
         <div className="rounded-lg border border-amber-200 p-4 text-sm">

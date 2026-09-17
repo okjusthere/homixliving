@@ -14,6 +14,7 @@ adminUrl.pathname = "/postgres";
 const testUrl = new URL(configured);
 testUrl.pathname = `/${databaseName}`;
 process.env.DATABASE_URL = testUrl.toString();
+process.env.ADMIN_EMAILS = "admin@example.invalid";
 const admin = postgres(adminUrl.toString(), { max: 1, onnotice: () => {} });
 const globals = globalThis as typeof globalThis & { __agreementTestSession: unknown };
 
@@ -39,7 +40,7 @@ async function main() {
       await db.insert(dealAgents).values({ dealId: deal.id, agentId: owner.id, sharePct: 100, isPrimary: true });
       return deal;
     };
-    const session = (agent: typeof owner) => { globals.__agreementTestSession = { user: { agentId: agent.id, email: agent.email } }; };
+    const session = (agent: typeof owner) => { globals.__agreementTestSession = { user: { agentId: agent.id, email: agent.email, loginEmail: agent.email } }; };
     const call = async (id: number | string) => {
       const response = await POST(new NextRequest(`http://localhost/api/rental/${id}/create-invoice`, { method: "POST" }), { params: Promise.resolve({ id: String(id) }) });
       assert.ok(response, "Route must always return a response");

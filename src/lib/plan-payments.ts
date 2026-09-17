@@ -102,7 +102,7 @@ export async function settlePlanPayment(
     input.order.paymentChannel,
   );
   const paidDate = dbDatePart(input.earnedAt);
-  await executor.update(agents).set({
+  const [applied] = await executor.update(agents).set({
     affiliationPaidAt: paidDate,
     affiliationTermMonths: termMonths,
     plan,
@@ -118,9 +118,13 @@ export async function settlePlanPayment(
       onboardingStage: agent.accountStatus === "pending" ? "review" as const : agent.onboardingStage,
     }),
     updatedAt,
-  }).where(eq(agents.id, agent.id));
+  }).where(and(eq(agents.id, agent.id),
+    // A late, previously unseen paid invoice still earns its own reward, but
+    // must not move the latest affiliation payment/plan back in time.
+    sql`(${agents.affiliationPaidAt} IS NULL OR ${agents.affiliationPaidAt} <= ${paidDate}::date)`,
+  )).returning({ id: agents.id });
 
-  if (automaticallyActivated) {
+  if (automaticallyActivated && applied) {
     await executor.update(onboardingAccessGrants).set({ status: "completed", endedAt: updatedAt }).where(and(eq(onboardingAccessGrants.agentId, agent.id), eq(onboardingAccessGrants.status, "open")));
     await executor.insert(onboardingEvents).values(onboardingEventValues({
       eventType: "online_payment_auto_activated",
@@ -137,7 +141,7 @@ export async function settlePlanPayment(
   }
 
   if (!agent.referredByAgentId) {
-    return { agentId: agent.id, reward: null, automaticallyActivated };
+    return { agentId: agent.id, reward: null, automaticallyActivated: automaticallyActivated && Boolean(applied) };
   }
   const rewardEligibleAmountCents = Math.max(
     0,
@@ -154,5 +158,5 @@ export async function settlePlanPayment(
     earnedAt: input.earnedAt,
     availableAt: input.earnedAt,
   }).onConflictDoNothing({ target: sponsorPlanRewards.sourceKey }).returning();
-  return { agentId: agent.id, reward: reward || null, automaticallyActivated };
+  return { agentId: agent.id, reward: reward || null, automaticallyActivated: automaticallyActivated && Boolean(applied) };
 }

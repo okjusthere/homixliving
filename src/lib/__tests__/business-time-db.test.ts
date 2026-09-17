@@ -24,11 +24,12 @@ async function main() {
     name: "Timezone Test", email: `timezone-${suffix}@example.invalid`,
     accountStatus: "active", isAdmin: true, plan: "solo",
   }).returning();
+  process.env.ADMIN_EMAILS = agent.email;
   const [building] = await db.insert(buildings).values({ name: "Timezone Test", region: "NY", submissionType: "email" }).returning();
   const [team] = await db.insert(teams).values({ name: "Timezone Test", leaderAgentId: agent.id }).returning();
   const globals = globalThis as typeof globalThis & { __agreementTestSession: unknown };
   globals.__agreementTestSession = { user: {
-    agentId: agent.id, email: agent.email, name: agent.name, isAdmin: true, accountStatus: "active",
+    agentId: agent.id, email: agent.email, loginEmail: agent.email, name: agent.name, isAdmin: true, accountStatus: "active",
   } };
   const insertedDealIds: number[] = [];
   const insertedInvoiceIds: number[] = [];

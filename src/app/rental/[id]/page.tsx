@@ -8,7 +8,8 @@ import { Btn, Card, Icons, Pill, SoftField } from "@/components/homix/primitives
 import { CardHeader, PageHeader } from "@/components/homix/page-kit";
 import { DealBreakdownBar } from "@/components/homix/deal-breakdown";
 import { fmtDate, fmtLongDate, fmtMoney, tone } from "@/components/homix/tokens";
-import type { Agent, Building, Deal, Invoice } from "@/db/schema";
+import type { Building, Deal, Invoice } from "@/db/schema";
+import type { DealParticipantAgent } from "@/lib/deal-participant-agent";
 import type { CommissionBreakdown } from "@/lib/commission";
 import { sourceEmoji, sourceLabel } from "@/lib/sources";
 import { companySplitPct, normalizeSplitPct, splitLabel } from "@/lib/splits";
@@ -160,11 +161,11 @@ type DealPayload = {
   deal: Deal;
   building: Building | null;
   agents: Array<{
-    agent: Agent;
+    agent: DealParticipantAgent;
     sharePct: number;
     isPrimary: boolean;
   }>;
-  primaryAgent: Agent | null;
+  primaryAgent: DealParticipantAgent | null;
   linkedInvoices: Invoice[];
   invoiceSummary: InvoicePaymentSummary;
 };

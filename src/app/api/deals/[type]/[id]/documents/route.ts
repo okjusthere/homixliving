@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { checklistItems, dealDocuments, saleDeals, type DealDocument } from "@/db/schema";
+import { checklistItems, dealDocuments, saleDeals } from "@/db/schema";
 import { requireActiveAgentApi } from "@/lib/auth-guards";
 import {
   canEditDealOfType,
@@ -10,12 +10,12 @@ import {
 } from "@/lib/deal-access";
 import { logAudit } from "@/lib/audit";
 import { checklistGroupsForDeal } from "@/lib/checklist-groups";
+import { lockDealDocumentObject } from "@/lib/deal-document-lock";
 import {
   isDealDocumentKeyForDeal,
   validateDealDocumentMetadata,
 } from "@/lib/deal-document-storage";
 import {
-  deleteDealDocument,
   headDealDocument,
   R2ConfigurationError,
 } from "@/lib/r2-storage";
@@ -132,80 +132,77 @@ export async function POST(
     checklistItemId = itemId;
   }
 
-  const existing = await db
-    .select(documentFields)
-    .from(dealDocuments)
-    .where(eq(dealDocuments.objectKey, objectKey))
-    .then((rows) => rows[0]);
-  if (existing) return NextResponse.json(existing);
-
   try {
-    const uploaded = await headDealDocument(objectKey);
-    const uploadedType = uploaded.ContentType?.split(";", 1)[0].toLowerCase();
-    if (
-      uploaded.ContentLength !== validated.value.size ||
-      uploadedType !== validated.value.contentType
-    ) {
-      await deleteDealDocument(objectKey).catch(() => {});
-      return NextResponse.json(
-        { error: "Uploaded file metadata does not match the request" },
-        { status: 400 }
+    const result = await db.transaction(async (tx) => {
+      await lockDealDocumentObject(tx, objectKey);
+      const [existing] = await tx
+        .select(documentFields)
+        .from(dealDocuments)
+        .where(eq(dealDocuments.objectKey, objectKey))
+        .orderBy(asc(dealDocuments.id))
+        .limit(1);
+      if (existing) {
+        if (
+          existing.dealType !== parsed.dealType || existing.dealId !== parsed.dealId ||
+          existing.fileName !== validated.value.fileName ||
+          existing.contentType !== validated.value.contentType ||
+          existing.size !== validated.value.size || existing.checklistItemId !== checklistItemId
+        ) {
+          return { error: NextResponse.json({ error: "This uploaded object is already registered with different metadata" }, { status: 409 }) };
+        }
+        return { document: existing, created: false };
+      }
+
+      try {
+        const uploaded = await headDealDocument(objectKey);
+        const uploadedType = uploaded.ContentType?.split(";", 1)[0].trim().toLowerCase();
+        if (uploaded.ContentLength !== validated.value.size || uploadedType !== validated.value.contentType) {
+          return { error: NextResponse.json({ error: "Uploaded file metadata does not match the request" }, { status: 400 }) };
+        }
+      } catch (error) {
+        if (error instanceof R2ConfigurationError) {
+          return { error: NextResponse.json({ error: error.message }, { status: 503 }) };
+        }
+        console.error("R2 object verification failed", error);
+        return { error: NextResponse.json({ error: "Uploaded object could not be verified" }, { status: 502 }) };
+      }
+
+      const [document] = await tx
+        .insert(dealDocuments)
+        .values({
+          dealType: parsed.dealType,
+          dealId: parsed.dealId,
+          fileName: validated.value.fileName,
+          legacyUrl: objectKey,
+          storageProvider: "r2",
+          objectKey,
+          contentType: validated.value.contentType,
+          size: validated.value.size,
+          uploadedByEmail: authResult.session.user.email || null,
+          checklistItemId,
+        })
+        .returning(documentFields);
+      return { document, created: true };
+    });
+    if ("error" in result) return result.error;
+    if (result.created) {
+      await logAudit(
+        authResult.session,
+        "upload",
+        "deal_document",
+        result.document.id,
+        `上传成交文件 ${result.document.fileName} · ${parsed.dealType === "rental" ? "租赁" : "买卖"}成交 #${parsed.dealId}`
       );
     }
+    return NextResponse.json(result.document, { status: result.created ? 201 : 200 });
   } catch (error) {
-    if (error instanceof R2ConfigurationError) {
-      return NextResponse.json({ error: error.message }, { status: 503 });
-    }
-    console.error("R2 object verification failed", error);
-    return NextResponse.json(
-      { error: "Uploaded object could not be verified" },
-      { status: 502 }
-    );
-  }
-
-  let created: DealDocument;
-  try {
-    [created] = await db
-      .insert(dealDocuments)
-      .values({
-        dealType: parsed.dealType,
-        dealId: parsed.dealId,
-        fileName: validated.value.fileName,
-        legacyUrl: objectKey,
-        storageProvider: "r2",
-        objectKey,
-        contentType: validated.value.contentType,
-        size: validated.value.size,
-        uploadedByEmail: authResult.session.user.email || null,
-        checklistItemId,
-      })
-      .returning();
-  } catch (error) {
-    await deleteDealDocument(objectKey).catch(() => {});
+    // Do not delete the uploaded object after a database error: the commit may
+    // have succeeded even if its acknowledgement was lost. Retrying the same
+    // object key safely recovers registration without destroying file contents.
     console.error("Deal document registration failed", error);
     return NextResponse.json(
       { error: "Could not register uploaded document" },
       { status: 500 }
     );
   }
-  await logAudit(
-    authResult.session,
-    "upload",
-    "deal_document",
-    created.id,
-    `上传成交文件 ${created.fileName} · ${parsed.dealType === "rental" ? "租赁" : "买卖"}成交 #${parsed.dealId}`
-  );
-  return NextResponse.json(
-    {
-      id: created.id,
-      dealType: created.dealType,
-      dealId: created.dealId,
-      fileName: created.fileName,
-      contentType: created.contentType,
-      size: created.size,
-      uploadedByEmail: created.uploadedByEmail,
-      createdAt: created.createdAt,
-    },
-    { status: 201 }
-  );
 }

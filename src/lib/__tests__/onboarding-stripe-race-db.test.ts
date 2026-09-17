@@ -29,6 +29,7 @@ async function main() {
     { name: "Synthetic Stripe Race Admin", email: `qa-${randomUUID()}@example.invalid`, accountStatus: "active" as const, isAdmin: true },
     { name: "Synthetic Stripe Race Sponsor", email: `qa-${randomUUID()}@example.invalid`, accountStatus: "active" as const },
   ]).returning();
+  process.env.ADMIN_EMAILS = admin.email;
   const subject = async (overrides: Partial<typeof agents.$inferInsert> = {}) => (await db.insert(agents).values({
     name: "Synthetic Preferred",
     ...verifiedDosFixture,
@@ -227,7 +228,7 @@ async function main() {
   const savedWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
   process.env.STRIPE_SECRET_KEY = "sk_test_synthetic_mock_only";
   process.env.STRIPE_WEBHOOK_SECRET = "whsec_synthetic_mock_only";
-  globals.__agreementTestSession = { user: { agentId: admin.id, email: admin.email, accountStatus: "active", isAdmin: true } };
+  globals.__agreementTestSession = { user: { agentId: admin.id, email: admin.email, loginEmail: admin.email, accountStatus: "active", isAdmin: true } };
   try {
     const { POST: approve } = await import("@/app/api/agents/[id]/approve/route");
     const { NextRequest } = await import("next/server");
@@ -258,7 +259,12 @@ async function main() {
     assert.equal((await fresh(legacy.id)).accountStatus, "pending", "Expiry proof does not bypass contract/profile eligibility");
 
     const { POST: webhook } = await import("@/app/api/stripe/webhook/route");
+    const currentInvoices = new Map<string, Stripe.Invoice>();
+    const currentSubscriptions = new Map<string, Stripe.Subscription>();
+    testMock.method(getStripe().invoices, "retrieve", async (id: string) => currentInvoices.get(id)!);
+    testMock.method(getStripe().subscriptions, "retrieve", async (id: string) => currentSubscriptions.get(id)!);
     const invoiceEvent = async (invoice: Stripe.Invoice, type: "invoice.payment_succeeded" | "invoice.payment_failed") => {
+      if (currentInvoices.get(invoice.id)?.status !== "paid") currentInvoices.set(invoice.id, invoice);
       const payload = JSON.stringify({ id: `evt_mock_${randomUUID()}`, type, data: { object: invoice } });
       const signature = getStripe().webhooks.generateTestHeaderString({ payload, secret: "whsec_synthetic_mock_only" });
       const response = await webhook(new Request("http://localhost/api/stripe/webhook", {
@@ -272,14 +278,17 @@ async function main() {
       const [order] = await db.insert(commerceOrders).values({ ...orderValues(agent),
         productKey: onboarding ? "elite_desk_fee" : "libor", billingMode: "subscription",
         amountCents: 367000, licenseTransferFeeCents: onboarding ? 2000 : 0, stripeSubscriptionId: subscriptionId }).returning();
+      currentSubscriptions.set(subscriptionId, { id: subscriptionId, status: "active",
+        metadata: withStripeAppMetadata({ orderId: String(order.id) }), cancel_at_period_end: false, cancel_at: null,
+      } as Stripe.Subscription);
       const paidInvoice = {
-        id: `in_mock_${randomUUID()}`, object: "invoice", amount_paid: 367000, amount_due: 367000, currency: "usd",
+        status: "paid", id: `in_mock_${randomUUID()}`, object: "invoice", amount_paid: 367000, amount_due: 367000, currency: "usd",
         billing_reason: "subscription_create", parent: { subscription_details: {
           subscription: subscriptionId, metadata: withStripeAppMetadata({ orderId: String(order.id) }),
         } }, status_transitions: { paid_at: 1789401600 }, period_start: 1789401600, period_end: 1820937600,
         lines: { data: [{ period: { start: 1789401600, end: 1820937600 }, description: "Synthetic invoice" }] },
       } as unknown as Stripe.Invoice;
-      const failedInvoice = { ...paidInvoice, amount_paid: 0, amount_due: 1, status_transitions: { paid_at: null } } as Stripe.Invoice;
+      const failedInvoice = { ...paidInvoice, status: "open", amount_paid: 0, amount_due: 1, status_transitions: { paid_at: null } } as Stripe.Invoice;
       const charge = async (id: string) => (await db.select().from(commerceCharges).where(eq(commerceCharges.stripeInvoiceId, id)))[0];
       const currentOrder = async () => (await db.select().from(commerceOrders).where(eq(commerceOrders.id, order.id)))[0];
       await invoiceEvent(paidInvoice, "invoice.payment_succeeded");
@@ -305,6 +314,7 @@ async function main() {
       }
 
       const laterFailure = { ...failedInvoice, id: `in_mock_${randomUUID()}`, billing_reason: "subscription_cycle" as const };
+      currentSubscriptions.set(subscriptionId, { ...currentSubscriptions.get(subscriptionId)!, status: "past_due" });
       await invoiceEvent(laterFailure, "invoice.payment_failed");
       assert.equal((await charge(laterFailure.id)).status, "failed");
       assert.equal((await currentOrder()).status, "past_due", "A different unpaid renewal invoice must still report failure");
@@ -321,4 +331,8 @@ async function main() {
   }
   console.log("PASS legacy approval uses bounded fresh Stripe reads, maps open/unavailable to 409, and preserves eligibility gates");
 }
-main().finally(closeDatabaseConnections).catch(error => { console.error(error); process.exitCode = 1; });
+main().finally(async () => {
+  const { closeStripeEventProcessingConnections } = await import("@/lib/commerce/stripe-event-processing");
+  await closeStripeEventProcessingConnections();
+  await closeDatabaseConnections();
+}).catch(error => { console.error(error); process.exitCode = 1; });

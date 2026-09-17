@@ -5,6 +5,7 @@ import { desc, eq } from "drizzle-orm";
 import { requireActiveAgentApi } from "@/lib/auth-guards";
 import { canViewDeal, canEditDeal } from "@/lib/visibility";
 import { logAudit } from "@/lib/audit";
+import { invoiceDeletionAllowed, InvoiceLifecycleError, INVOICE_DELETE_BLOCKED, lockInvoice } from "@/lib/invoice-lifecycle";
 
 export async function GET(
   _req: NextRequest,
@@ -51,7 +52,7 @@ export async function GET(
     .orderBy(desc(invoiceSendLog.id))
     .limit(50);
 
-  return NextResponse.json({ ...result, sendLog });
+  return NextResponse.json({ ...result, sendLog, canDelete: await invoiceDeletionAllowed(result.invoice) });
 }
 
 export async function DELETE(
@@ -62,6 +63,9 @@ export async function DELETE(
   if ("error" in authResult) return authResult.error;
 
   const { id } = await params;
+  if (!/^\d+$/.test(id) || !Number.isSafeInteger(Number(id)) || Number(id) <= 0 || Number(id) > 2147483647) {
+    return NextResponse.json({ error: "Invalid invoice id" }, { status: 400 });
+  }
   const invoice = await db.select().from(invoices).where(eq(invoices.id, Number(id))).then((rows) => rows[0]);
   if (!invoice) return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
   // Deleting a financial record requires EDIT rights, not just view — team-leader
@@ -76,7 +80,16 @@ export async function DELETE(
   ) {
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
-  await db.delete(invoices).where(eq(invoices.id, Number(id)));
+  try {
+    await db.transaction(async (tx) => {
+      const current = await lockInvoice(tx, invoice);
+      if (!(await invoiceDeletionAllowed(current, tx))) throw new InvoiceLifecycleError(INVOICE_DELETE_BLOCKED);
+      await tx.delete(invoices).where(eq(invoices.id, current.id));
+    });
+  } catch (error) {
+    if (error instanceof InvoiceLifecycleError) return NextResponse.json({ error: error.message }, { status: error.status });
+    throw error;
+  }
   await logAudit(
     authResult.session,
     "delete",

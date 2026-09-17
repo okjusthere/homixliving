@@ -2,6 +2,7 @@
 // Uses JWT cookies so auth can be checked without database session tables.
 import type { NextAuthConfig } from "next-auth";
 import { NextResponse } from "next/server";
+import { isConfiguredAdminEmail } from "@/lib/admin-emails";
 
 function isPathOrChild(pathname: string, prefix: string) {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
@@ -32,16 +33,18 @@ export const authConfig: NextAuthConfig = {
     async session({ session, token }) {
       session.user.id = String(token.agentId);
       session.user.agentId = (token.agentId as number | null) ?? null;
+      session.user.loginEmail = typeof token.loginEmail === "string" ? token.loginEmail : null;
       session.user.email =
         typeof token.email === "string" ? token.email : session.user.email;
       session.user.name =
         typeof token.name === "string" ? token.name : session.user.name;
-      session.user.isAdmin = Boolean(token.isAdmin);
       session.user.isTeamLeader = Boolean(token.isTeamLeader);
       session.user.accountStatus =
         token.accountStatus === "active" || token.accountStatus === "inactive"
           ? token.accountStatus
           : "pending";
+      session.user.isAdmin = Boolean(token.isAdmin) && session.user.accountStatus === "active"
+        && isConfiguredAdminEmail(session.user.loginEmail || "");
       session.user.isActive = session.user.accountStatus === "active";
       return session;
     },
