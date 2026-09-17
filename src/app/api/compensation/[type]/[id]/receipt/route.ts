@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { parsePaymentTime } from "@/lib/db-time";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { dealCompensationSnapshots } from "@/db/schema";
@@ -55,9 +56,8 @@ export async function POST(
       { status: 409 },
     );
   }
-  const receivedAt = typeof body.receivedAt === "string" && !Number.isNaN(Date.parse(body.receivedAt))
-    ? new Date(body.receivedAt).toISOString()
-    : new Date().toISOString();
+  const receivedAt = (typeof body.receivedAt === "string" ? parsePaymentTime(body.receivedAt) : null)
+    ?.toISOString() || new Date().toISOString();
   let receipt;
   try {
     receipt = await db.transaction(async (tx) => {

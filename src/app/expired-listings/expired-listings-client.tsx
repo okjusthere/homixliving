@@ -6,6 +6,7 @@ import { Btn, Card, Pill } from "@/components/homix/primitives";
 import { PageHeader } from "@/components/homix/page-kit";
 import { tone } from "@/components/homix/tokens";
 import { useLocale } from "@/lib/i18n-client";
+import { addCalendarDays, businessToday, formatBusinessDate } from "@/lib/db-time";
 import type {
   BrokerExpiredListing,
   BrokerExpiredListingsResponse,
@@ -79,22 +80,13 @@ type ExpiredFilters = {
   priceMax: string;
 };
 
-function localDateKey(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
 function defaultFilters(): ExpiredFilters {
-  const through = new Date();
-  const from = new Date();
-  from.setDate(from.getDate() - 29);
+  const through = businessToday();
   return {
     q: "",
     city: "",
-    dateFrom: localDateKey(from),
-    dateTo: localDateKey(through),
+    dateFrom: addCalendarDays(through, -29),
+    dateTo: through,
     priceMin: "",
     priceMax: "",
   };
@@ -119,13 +111,7 @@ function money(value?: number) {
 
 function displayDate(value: string | undefined, locale: "en" | "zh") {
   if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value.slice(0, 10);
-  return date.toLocaleDateString(locale === "zh" ? "zh-CN" : "en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+  return formatBusinessDate(value, locale === "zh" ? "zh-CN" : "en-US");
 }
 
 export default function ExpiredListingsClient() {

@@ -1,3 +1,4 @@
+import { businessToday } from "@/lib/db-time";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { invoices, buildings, settings } from "@/db/schema";
@@ -48,7 +49,7 @@ export async function GET(
 
   const pdfBuffer = await generateInvoicePDF({
     invoiceNumber: invoice.invoiceNumber,
-    date: invoice.createdAt || new Date().toISOString().split("T")[0],
+    date: invoice.createdAt || businessToday(),
     building,
     unit: invoice.unit,
     tenantName: invoice.tenantName,

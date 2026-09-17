@@ -1,5 +1,7 @@
 "use client";
 
+import { businessToday } from "@/lib/db-time";
+
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Btn, Card, EditorialInput, Icons, LabeledField, Pill } from "@/components/homix/primitives";
@@ -174,7 +176,7 @@ type ApplicationRow = {
   teamStatus: string | null;
 };
 
-const emptyTeam: TeamEdit = {
+const emptyTeam = (): TeamEdit => ({
   name: "",
   companyId: null,
   leaderAgentId: null,
@@ -182,8 +184,8 @@ const emptyTeam: TeamEdit = {
   defaultTeamSplitPct: 10,
   teamLeadSplitPct: 10,
   teamCapCents: null,
-  effectiveFrom: new Date().toISOString().slice(0, 10),
-};
+  effectiveFrom: businessToday(),
+});
 
 export default function TeamsConsole() {
   const [teams, setTeams] = useState<TeamRow[]>([]);
@@ -310,7 +312,7 @@ export default function TeamsConsole() {
         title={t.title}
         description={t.description}
         actions={<div className="flex flex-wrap gap-2">
-          <Btn variant="primary" icon={<Icons.Plus />} onClick={() => setEditTeam(emptyTeam)}>
+          <Btn variant="primary" icon={<Icons.Plus />} onClick={() => setEditTeam(emptyTeam())}>
             {t.addTeam}
           </Btn>
         </div>}
@@ -347,7 +349,7 @@ export default function TeamsConsole() {
             <div className="font-serif mb-2" style={{ fontSize: 24, color: tone.ink }}>
               {t.noTeams}
             </div>
-            <button className="text-[13px] underline" style={{ color: tone.accent }} onClick={() => setEditTeam(emptyTeam)}>
+            <button className="text-[13px] underline" style={{ color: tone.accent }} onClick={() => setEditTeam(emptyTeam())}>
               {t.createFirst}
             </button>
           </div>
@@ -405,7 +407,7 @@ export default function TeamsConsole() {
                             defaultTeamSplitPct: row.compensationConfig?.defaultTeamSplitPct ?? 10,
                             teamLeadSplitPct: row.compensationConfig?.teamLeadSplitPct ?? 10,
                             teamCapCents: row.compensationConfig?.teamCapCents ?? null,
-                            effectiveFrom: new Date().toISOString().slice(0, 10),
+                            effectiveFrom: businessToday(),
                           });
                         }}
                       >

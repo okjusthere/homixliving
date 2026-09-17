@@ -1,4 +1,5 @@
 import { computeCommission, type CommissionAgentInput } from "@/lib/commission";
+import { dbDatePart, dbMonthKey } from "@/lib/db-time";
 
 export type DealForReporting = {
   id: number;
@@ -24,7 +25,7 @@ export type AgentForReporting = {
 };
 
 export function getMonthKey(date = new Date()) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+  return dbMonthKey(date);
 }
 
 export function getReportDateRange(period: string) {
@@ -53,7 +54,7 @@ export function getReportDateRange(period: string) {
 }
 
 export function getDealDate(deal: Pick<DealForReporting, "dealDate" | "createdAt">) {
-  return deal.dealDate || deal.createdAt || "";
+  return dbDatePart(deal.dealDate || deal.createdAt);
 }
 
 export function dealInMonth(deal: Pick<DealForReporting, "dealDate" | "createdAt">, month: string) {

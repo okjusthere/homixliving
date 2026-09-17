@@ -1,5 +1,7 @@
 "use client";
 
+import { formatBusinessTimestamp } from "@/lib/db-time";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { RefreshCw, Search } from "lucide-react";
 import { Btn, Card } from "@/components/homix/primitives";
@@ -289,7 +291,7 @@ export default function MarketClient() {
           </Card>
 
           <div className="flex flex-col gap-1 text-[11px] sm:flex-row sm:items-center sm:justify-between" style={{ color: tone.ink50 }}>
-            <span>{t.asOf}: {new Date(data.asOf).toLocaleString(locale === "zh" ? "zh-CN" : "en-US")}</span>
+            <span>{t.asOf}: {formatBusinessTimestamp(data.asOf, locale === "zh" ? "zh-CN" : "en-US")}</span>
             <span>{t.scopeNote}</span>
           </div>
         </>

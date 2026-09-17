@@ -12,8 +12,8 @@ import {
 
 async function main() {
   // getMonthKey formats YYYY-MM with zero padding
-  assert.equal(getMonthKey(new Date(2026, 0, 15)), "2026-01");
-  assert.equal(getMonthKey(new Date(2026, 11, 1)), "2026-12");
+  assert.equal(getMonthKey(new Date("2026-01-15T12:00:00Z")), "2026-01");
+  assert.equal(getMonthKey(new Date("2026-12-01T12:00:00Z")), "2026-12");
 
   assert.deepEqual(getReportDateRange("2026-08"), {
     start: "2026-08-01",
@@ -35,7 +35,7 @@ async function main() {
 
   // getDealDate prefers dealDate, falls back to createdAt
   assert.equal(getDealDate({ dealDate: "2026-05-01", createdAt: "2026-06-09" }), "2026-05-01");
-  assert.equal(getDealDate({ dealDate: null, createdAt: "2026-06-09T10:00:00Z" }), "2026-06-09T10:00:00Z");
+  assert.equal(getDealDate({ dealDate: null, createdAt: "2026-06-09T10:00:00Z" }), "2026-06-09");
   assert.equal(getDealDate({ dealDate: null, createdAt: null }), "");
 
   // month / year membership is prefix-based

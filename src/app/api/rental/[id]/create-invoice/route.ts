@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { businessToday, dbDatePart } from "@/lib/db-time";
 import { db } from "@/db";
 import { agents, buildings, dealAgents, deals, invoices, type LineItem } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
@@ -61,15 +62,7 @@ export async function POST(
       amount: Number(deal.totalCommission || 0),
     },
   ];
-  const yearSource = deal.dealDate || new Date().toISOString();
-  // Read the year off a date-only string directly: `new Date("2026-01-01")`
-  // parses as UTC, so on any non-UTC server getFullYear() can be a year early.
-  const yearMatch = /^(\d{4})-\d{2}-\d{2}/.exec(yearSource.trim());
-  const year = yearMatch
-    ? Number(yearMatch[1])
-    : Number.isFinite(new Date(yearSource).getFullYear())
-    ? new Date(yearSource).getFullYear()
-    : new Date().getFullYear();
+  const year = Number((dbDatePart(deal.dealDate) || businessToday()).slice(0, 4));
   const invoiceNumber = generateInvoiceNumber(deal.unit, building, year);
   const fileName = generateFileName(deal.unit, building, deal.licensedCompany);
   const emailSubject = generateEmailSubject(deal.unit, building, deal.licensedCompany);

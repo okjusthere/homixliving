@@ -1,4 +1,6 @@
 "use client";
+
+import { formatBusinessDate, formatBusinessTimestamp } from "@/lib/db-time";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, LoaderCircle, Mail, Search } from "lucide-react";
 import { useLocale } from "@/lib/i18n-client";
@@ -400,7 +402,7 @@ export function EmailWorkspace() {
                       <p className="studio-note">
                         {t("Delivered", "已送达")} {c.stats.deliveredCount} /{" "}
                         {c.stats.targetCount} ·{" "}
-                        {new Date(c.updatedAt).toLocaleDateString()}
+                        {formatBusinessDate(c.updatedAt)}
                       </p>
                     </div>
                   </button>
@@ -678,7 +680,7 @@ export function EmailWorkspace() {
                 {t("Sender daily limit", "发件人每日上限")}:{" "}
                 {campaign.sender.dailyLimit}.{" "}
                 {campaign.sender.nextBatchAt
-                  ? `${t("Next available batch", "下一批时间")}: ${new Date(campaign.sender.nextBatchAt).toLocaleString()}`
+                  ? `${t("Next available batch", "下一批时间")}: ${formatBusinessTimestamp(campaign.sender.nextBatchAt)}`
                   : ""}
               </p>
               {campaign.sender.batchSize !== undefined && (

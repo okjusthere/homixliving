@@ -13,7 +13,7 @@ import {
   Circle,
 } from "@react-pdf/renderer";
 import type { LineItem, Building } from "@/db/schema";
-import { parseDbTime } from "@/lib/db-time";
+import { fmtDate as fmtDateShort, fmtLongDate as fmtDateLong } from "@/lib/db-time";
 
 // Register fonts. For reliability, we use Helvetica (built-in) as body/mono
 // and Inter Display (or Times) as a serif stand-in for Instrument Serif.
@@ -389,21 +389,6 @@ const styles = StyleSheet.create({
 
 function fmtMoney(n: number): string {
   return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-// Parse "YYYY-MM-DD" as LOCAL midnight so US-timezone servers/clients don't
-// render date-only fields (invoice date, dates on the PDF) one day early.
-function toLocalDate(s: string): Date {
-  return parseDbTime(s) ?? new Date(NaN);
-}
-function fmtDateShort(s: string): string {
-  const d = toLocalDate(s);
-  if (isNaN(d.getTime())) return s;
-  return `${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}/${d.getFullYear()}`;
-}
-function fmtDateLong(s: string): string {
-  const d = toLocalDate(s);
-  if (isNaN(d.getTime())) return s;
-  return d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 }
 
 type InvoicePDFProps = {

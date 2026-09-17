@@ -1,5 +1,7 @@
 "use client";
 
+import { formatBusinessTimestamp } from "@/lib/db-time";
+
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -613,7 +615,7 @@ export function SigningDetail({ id }: { id: string }) {
                     className="text-xs text-ink-50"
                     dateTime={event.createdAt}
                   >
-                    {new Date(event.createdAt).toLocaleString(
+                    {formatBusinessTimestamp(event.createdAt,
                       locale === "zh" ? "zh-CN" : "en-US",
                     )}
                   </time>

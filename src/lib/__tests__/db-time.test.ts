@@ -28,11 +28,12 @@ assert.equal(parseDbTime(""), null);
 assert.equal(parseDbTime("not a date"), null);
 assert.equal(dbTimeMs(undefined), null);
 
-// date-part / month-key work on every shape
-for (const shape of ["2026-07-28 01:14:31.123+00", "2026-07-28T01:14:31.123Z", "2026-07-28"]) {
-  assert.equal(dbDatePart(shape), "2026-07-28", shape);
+// Instants use New York's calendar, while DATE columns preserve their day.
+for (const shape of ["2026-07-28 01:14:31.123+00", "2026-07-28T01:14:31.123Z"]) {
+  assert.equal(dbDatePart(shape), "2026-07-27", shape);
   assert.equal(dbMonthKey(shape), "2026-07", shape);
 }
+assert.equal(dbDatePart("2026-07-28"), "2026-07-28");
 assert.equal(dbDatePart(null), "");
 assert.equal(dbMonthKey("junk"), "");
 

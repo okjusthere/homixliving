@@ -6,7 +6,7 @@ import { requireActiveAgentApi } from "@/lib/auth-guards";
 import { canEditDeal, canViewDeal } from "@/lib/visibility";
 import { summarizeInvoicePayment } from "@/lib/invoice-payment";
 import { logAudit } from "@/lib/audit";
-import { dateOrNull } from "@/lib/db-time";
+import { dateOrNull, businessToday } from "@/lib/db-time";
 import {
   buildCompensationEstimate,
   normalizeCompensationSource,
@@ -220,7 +220,7 @@ export async function PUT(
       return NextResponse.json({ error: result.error }, { status: result.status || 400 });
     }
 
-    const effectiveDate = result.data.dealDate || new Date().toISOString().slice(0, 10);
+    const effectiveDate = result.data.dealDate || businessToday();
     const outsideReferralAmount = result.data.referrerType === "percent"
       ? result.data.totalCommission * (Number(result.data.referrerAmount || 0) / 100)
       : Number(result.data.referrerAmount || 0);

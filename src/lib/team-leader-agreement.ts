@@ -1,3 +1,4 @@
+import { dbDatePart } from "@/lib/db-time";
 import { affiliationContractComplete } from "@/lib/onboarding-requirements";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
@@ -91,7 +92,7 @@ export async function activateFormingTeamAfterMemberAgreement(input: {
     )
       return null;
     const now = new Date().toISOString();
-    const today = now.slice(0, 10);
+    const today = dbDatePart(now);
     const [activatedTeam] = await tx
       .update(teams)
       .set({ status: "active" })

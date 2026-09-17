@@ -1,3 +1,4 @@
+import { dbDatePart } from "@/lib/db-time";
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 import { after } from "next/server";
@@ -438,9 +439,9 @@ async function upsertAgentFromGoogle(user: {
         splitPct: PLAN_SPLIT_PCT[initialPlan] ?? DEFAULT_AGENT_SPLIT_PCT,
         plan: initialPlan,
         onboardingSource: !admin ? entryContext?.source || "direct" : "direct",
-        planEffectiveFrom: now.slice(0, 10),
-        anniversaryStart: now.slice(0, 10),
-        joinedAt: now.slice(0, 10),
+        planEffectiveFrom: dbDatePart(now),
+        anniversaryStart: dbDatePart(now),
+        joinedAt: dbDatePart(now),
         createdAt: now,
         updatedAt: now,
       })

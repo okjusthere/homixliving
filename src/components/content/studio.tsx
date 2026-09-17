@@ -1,4 +1,6 @@
 "use client";
+
+import { formatBusinessDate } from "@/lib/db-time";
 import type { OfficeRequest } from "@/lib/content/office-types";
 import { EventEditor } from "./event-editor";
 import { contentEvents, newOpenHouseEvent } from "@/lib/content/events";
@@ -597,7 +599,7 @@ export function ContentStudio({ office }: { office?: {
                     </h3>
                     <p className="studio-note">
                       {status(g.status)} ·{" "}
-                      {new Date(g.createdAt).toLocaleDateString(locale)}
+                      {formatBusinessDate(g.createdAt, locale === "zh" ? "zh-CN" : "en-US")}
                     </p>
                     {g.error && (
                       <p className="studio-note">

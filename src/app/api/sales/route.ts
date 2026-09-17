@@ -5,7 +5,7 @@ import { agents, saleDealAgents, saleDeals } from "@/db/schema";
 import { requireActiveAgentApi } from "@/lib/auth-guards";
 import { saleDealsVisibleToSql } from "@/lib/visibility";
 import { logAudit } from "@/lib/audit";
-import { dateOrNull } from "@/lib/db-time";
+import { dateOrNull, dbDatePart } from "@/lib/db-time";
 import { MAX_MONEY_AMOUNT } from "@/lib/commission";
 import {
   buildCompensationEstimate,
@@ -197,7 +197,7 @@ export async function GET(req: NextRequest) {
 
   const filtered = saleRows.filter((saleDeal) => {
     const participantRows = participantsBySale.get(saleDeal.id) || [];
-    const date = (saleDeal.closingDate || saleDeal.contractDate || saleDeal.createdAt || "").slice(0, 10);
+    const date = dbDatePart(saleDeal.closingDate || saleDeal.contractDate || saleDeal.createdAt);
     if (status && status !== "all" && saleDeal.status !== status) return false;
     if (
       parsedAgentId &&
@@ -240,7 +240,7 @@ export async function POST(req: NextRequest) {
     }
 
     const now = new Date().toISOString();
-    const effectiveDate = result.data.closingDate || result.data.contractDate || now.slice(0, 10);
+    const effectiveDate = result.data.closingDate || result.data.contractDate || dbDatePart(now);
     const compensation = await buildCompensationEstimate({
       dealType: "sale",
       effectiveDate,

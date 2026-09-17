@@ -1,3 +1,4 @@
+import { businessToday } from "@/lib/db-time";
 import { NextRequest, NextResponse } from "next/server";
 import { and, desc, eq, inArray, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/db";
@@ -225,7 +226,7 @@ export async function POST(request: NextRequest) {
         .from(teamCompensationConfigs)
         .where(and(
           eq(teamCompensationConfigs.teamId, requestedTeamId),
-          lte(teamCompensationConfigs.effectiveFrom, new Date().toISOString().slice(0, 10)),
+          lte(teamCompensationConfigs.effectiveFrom, businessToday()),
         ))
         .orderBy(desc(teamCompensationConfigs.effectiveFrom), desc(teamCompensationConfigs.version))
         .limit(1)
