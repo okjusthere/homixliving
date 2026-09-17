@@ -14,6 +14,7 @@ const listingSchema = z.object({
   beds: z.string().max(240).optional(),
   baths: z.string().max(240).optional(),
   area: z.string().max(240).optional(),
+  lotArea: z.string().max(240).optional(),
   annualPropertyTax: z.string().max(240).optional(),
   monthlyMaintenanceFee: z.string().max(240).optional(),
   associationFee: z.string().max(240).optional(),

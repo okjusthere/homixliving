@@ -13,6 +13,7 @@ export type StudioListing = {
   baths: number;
   halfBaths?: number;
   sqft: number;
+  lotSqft?: number;
   description: string;
   photos: { url: string; alt?: string }[];
   annualPropertyTax?: string;

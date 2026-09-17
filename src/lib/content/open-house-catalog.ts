@@ -50,7 +50,7 @@ export async function companyOpenHouseCatalog(): Promise<{ items: CompanyOpenHou
       version: 1, templateId: template.id, agentId: item.agent?.id,
       listingId: item.listing.id, events: item.events, description: item.listing.description,
       address: item.listing.address.full, price: item.listing.askingPrice,
-      beds: item.listing.beds, baths: item.listing.baths, halfBaths: item.listing.halfBaths, sqft: item.listing.sqft,
+      beds: item.listing.beds, baths: item.listing.baths, halfBaths: item.listing.halfBaths, sqft: item.listing.sqft, lotSqft: item.listing.lotSqft,
       photo: item.listing.photos[0]?.url, portrait: item.agent?.photoUrl,
       annualPropertyTax: item.listing.annualPropertyTax, monthlyMaintenanceFee: item.listing.monthlyMaintenanceFee,
       associationFee: item.listing.associationFee, associationFeeFrequency: item.listing.associationFeeFrequency,

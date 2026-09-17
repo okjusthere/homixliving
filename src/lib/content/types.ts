@@ -40,6 +40,8 @@ export type ListingContext = {
   beds?: string;
   baths?: string;
   area?: string;
+  /** Lot area in square feet; distinct from interior living area. */
+  lotArea?: string;
   annualPropertyTax?: string;
   monthlyMaintenanceFee?: string;
   associationFee?: string;

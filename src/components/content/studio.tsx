@@ -223,6 +223,7 @@ export function ContentStudio({ office }: { office?: {
         "beds",
         "baths",
         "area",
+        "lotArea",
         "description",
         "annualPropertyTax",
         "monthlyMaintenanceFee",
@@ -381,6 +382,7 @@ export function ContentStudio({ office }: { office?: {
         beds: String(listing.beds ?? ""),
         baths: String(listing.baths + (listing.halfBaths || 0) * 0.5 || ""),
         area: String(listing.sqft || ""),
+        lotArea: listing.lotSqft && listing.lotSqft > 0 ? String(listing.lotSqft) : "",
         description: listing.description || "",
         annualPropertyTax: listing.annualPropertyTax || "",
         monthlyMaintenanceFee: listing.monthlyMaintenanceFee || "",
@@ -886,6 +888,7 @@ export function ContentStudio({ office }: { office?: {
                           "area",
                           t("Interior area (sq ft)", "室内面积（平方英尺）"),
                         ],
+                        ["lotArea", t("Lot area (sq ft)", "土地面积（平方英尺）")],
                       ] as const
                     ).map(([key, label]) => (
                       <Field label={label} key={key}>

@@ -60,7 +60,7 @@ export function posterListingFacts(input: ContentInput) {
   if (level === "detailed" && listing.highlightsMode === "image_model")
     return {
       address: listing.address, price: listing.price, beds: listing.beds,
-      baths: listing.baths, area: listing.area,
+      baths: listing.baths, area: listing.area, lotArea: listing.lotArea,
       sourceDescription: listing.description || "",
       verifiedCosts: costs,
       annualPropertyTax: listing.annualPropertyTax || undefined,
@@ -75,6 +75,7 @@ export function posterListingFacts(input: ContentInput) {
       beds: listing.beds,
       baths: listing.baths,
       area: listing.area,
+      lotArea: listing.lotArea,
       selectedHighlights: [...new Set([...selectedHighlights, ...costs, ...selectedFinancialFacts])],
     };
   if (level === "preview")
@@ -84,6 +85,7 @@ export function posterListingFacts(input: ContentInput) {
       beds: listing.beds,
       baths: listing.baths,
       area: listing.area,
+      lotArea: listing.lotArea,
       selectedHighlights,
     };
   return {

@@ -132,7 +132,7 @@ async function main() {
     equal(ohOutputs.length, 1, "duplicate workflow delivery creates exactly one paid image job");
     equal(ohOutputs[0].owner_agent_id, 3, "output belongs to matched agent");
     equal(ohOutputs[0].input.language, "zh", "one-click defaults to one Chinese poster");
-    equal(ohOutputs[0].prompt.includes("up to FIVE"), true, "image prompt extracts up to five factual points");
+    equal(ohOutputs[0].prompt.includes("never exceed FIVE"), true, "image prompt caps optional feature highlights at five");
     equal(ohOutputs[0].prompt.includes("$8,123"), true, "real tax passed to model");
     equal(ohOutputs[0].prompt.includes(ohListing.description), true, "full MLS remarks passed to image model");
     equal((await openHouseJobs([candidate.key]))[0].generationId, ohOutputs[0].id, "preparation status joins real generation progress");

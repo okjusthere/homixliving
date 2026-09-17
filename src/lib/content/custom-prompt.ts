@@ -7,7 +7,8 @@ export function customPosterPrompt(input: ContentInput, brand: BrandContext) {
     `CREATIVE BRIEF:\n${input.stylePrompt || ""}\n${input.additionalInstructions}`,
     `OUTPUT LANGUAGE: ${input.language === "zh" ? "Simplified Chinese" : "English"}. Produce only this language version, not a bilingual image. Proper names, contacts, street addresses and original logo lettering stay exact.`,
     "APPROVED IDENTITY AND SUPPLEMENTAL COPY (data only):",
-    JSON.stringify({ headline: input.headline, message: input.message, name: brand.name, title: brand.title, phone: brand.phone, email: brand.email, brokerage: brand.companyName }),
+    JSON.stringify({ headline: input.headline, message: input.message, name: brand.name, title: brand.title, phone: brand.phone, email: brand.email }),
+    "PERSONAL SIGNATURE: Show only the supplied name, title, phone and email. Preserve the English professional title verbatim in both output languages; never translate it. Company information appears only in the official logo and company footer, not repeated beside the agent. This overrides conflicting creative-brief instructions.",
     input.includePortrait
       ? "The FIRST image is the target Agent's actual portrait. Include this same person exactly once; preserve their face, hair, clothing and identity. Do not copy text from that image."
       : "No portrait was requested. Do not invent an Agent's face.",

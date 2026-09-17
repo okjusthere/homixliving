@@ -386,3 +386,35 @@ test("Chinese and English posters keep the complete saved Preferred name, includ
     }
   }
 });
+
+
+test("personal signatures preserve English titles and have exactly four contact fields in either language", () => {
+  const config = initialTemplates()[0].config;
+  const identity = { ...brand, title: "Licensed Associate Real Estate Broker" };
+  for (const language of ["zh", "en"] as const) {
+    const prompt = buildPosterPrompt(config, { ...input, language }, identity);
+    const facts = JSON.parse(prompt.split("\n\n").find((line) => line.startsWith("{"))!);
+    assert.deepEqual(facts.signature, { name: identity.name, title: identity.title, email: identity.email, phone: identity.phone });
+    assert.match(prompt, /title verbatim in English in BOTH/);
+    assert.doesNotMatch(prompt, /Chinese professional title|professional title into natural Chinese/);
+    assert.match(facts.companyFooter, /Homix Realty/);
+    const custom = buildPosterPrompt(config, { ...input, kind: "custom", language }, identity);
+    const customFacts = JSON.parse(custom.split("\n\n").find((line) => line.startsWith("{"))!);
+    assert.equal(customFacts.title, identity.title);
+    assert.equal(customFacts.brokerage, undefined);
+    assert.match(custom, /Preserve the English professional title verbatim/);
+  }
+});
+
+test("lot and interior area remain distinct through validation and detailed poster facts", () => {
+  for (const theme of ["just_listed", "open_house", "coming_soon"]) {
+    const parsed = inputSchema.parse({ ...input, theme, listing: { ...input.listing, area: "2400", lotArea: "6000", annualPropertyTax: "$9,876" } });
+    const facts = posterListingFacts(parsed)!;
+    assert.equal(facts.area, "2400");
+    assert.equal(facts.lotArea, "6000");
+    if (theme !== "coming_soon") assert.ok(facts.selectedHighlights?.includes("Property tax: $9,876 / year"));
+  }
+  const missing = posterListingFacts(input)!;
+  assert.equal(missing.lotArea, undefined);
+  assert.ok(!JSON.stringify(missing).includes("Property tax"));
+});

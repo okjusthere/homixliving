@@ -26,7 +26,7 @@ export function officeListingInput(detail: StudioListing, assetId: string, defau
     events: defaults.theme === "open_house" ? (events ?? listingEvents(detail)).filter((e) => e.selected !== false && e.date.trim()) : [],
     listing: { source: "mls", sourceKey: detail.id, address: detail.address.full,
       price: defaults.theme === "just_sold" ? "" : detail.askingPrice ? `$${detail.askingPrice.toLocaleString("en-US")}` : "",
-      beds: String(detail.beds ?? ""), baths: String(detail.baths + (detail.halfBaths || 0) * 0.5 || ""), area: String(detail.sqft || ""), description: detail.description || "",
+      beds: String(detail.beds ?? ""), baths: String(detail.baths + (detail.halfBaths || 0) * 0.5 || ""), area: String(detail.sqft || ""), lotArea: detail.lotSqft && detail.lotSqft > 0 ? String(detail.lotSqft) : "", description: detail.description || "",
       annualPropertyTax: detail.annualPropertyTax, monthlyMaintenanceFee: detail.monthlyMaintenanceFee, associationFee: detail.associationFee, associationFeeFrequency: detail.associationFeeFrequency,
       imageAssetIds: [assetId], fetchedAt: new Date().toISOString(), sourceStatus: detail.status },
   };

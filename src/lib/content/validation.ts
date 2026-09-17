@@ -53,6 +53,7 @@ const contentInputSchema = z
         beds: short.optional(),
         baths: short.optional(),
         area: short.optional(),
+        lotArea: short.optional(),
         annualPropertyTax: short.optional(),
         monthlyMaintenanceFee: short.optional(),
         associationFee: short.optional(),

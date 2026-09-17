@@ -168,6 +168,7 @@ export function contentValidationMessage(issues: Issue[]): string {
           "listing.beds": ["Beds", "卧室数"],
           "listing.baths": ["Baths", "卫浴数"],
           "listing.area": ["Interior area", "室内面积"],
+          "listing.lotArea": ["Lot area", "土地面积"],
           "listing.annualPropertyTax": ["Property tax / year", "年度地税"],
           "listing.monthlyMaintenanceFee": [
             "Monthly maintenance",
