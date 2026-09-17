@@ -1,3 +1,4 @@
+import { dbDatePart } from "@/lib/db-time";
 import { verifiedManualContract } from "@/lib/onboarding-requirements";
 import { onboardingAccessGrants } from "@/db/onboarding-schema";
 import { NextRequest, NextResponse } from "next/server";
@@ -292,8 +293,8 @@ export async function POST(
   const now = new Date().toISOString();
   const anniversaryStart =
     existing.accountStatus === "pending"
-      ? existing.affiliationPaidAt || now.slice(0, 10)
-      : existing.anniversaryStart || existing.joinedAt || now.slice(0, 10);
+      ? existing.affiliationPaidAt || dbDatePart(now)
+      : existing.anniversaryStart || existing.joinedAt || dbDatePart(now);
 
   let selectedProfile: PublicProfile | null = null;
   if (publicProfileId) {
@@ -395,8 +396,8 @@ export async function POST(
         splitPct: PLAN_SPLIT_PCT[effectivePlan],
         planEffectiveFrom:
           existing.accountStatus === "pending"
-            ? now.slice(0, 10)
-            : existing.planEffectiveFrom || now.slice(0, 10),
+            ? dbDatePart(now)
+            : existing.planEffectiveFrom || dbDatePart(now),
         anniversaryStart,
         teamTermsEffectiveFrom:
           effectivePlan === "team_member" ? anniversaryStart : null,

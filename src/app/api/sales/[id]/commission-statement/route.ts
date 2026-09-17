@@ -1,3 +1,4 @@
+import { businessToday } from "@/lib/db-time";
 import { NextRequest, NextResponse } from "next/server";
 import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
@@ -84,7 +85,7 @@ export async function GET(
   const pdf = await generateCommissionStatementPDF({
     companyName,
     companyAddress,
-    generatedAt: new Date().toISOString().slice(0, 10),
+    generatedAt: businessToday(),
     deal: {
       id: deal.id,
       propertyAddress: deal.propertyAddress,

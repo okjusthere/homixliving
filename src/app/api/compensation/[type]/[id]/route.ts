@@ -1,3 +1,4 @@
+import { businessToday, dbDatePart } from "@/lib/db-time";
 import { NextRequest, NextResponse } from "next/server";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
@@ -137,7 +138,7 @@ export async function POST(
       if (!deal) throw new Error("Rental not found");
       const participants = await tx.select().from(dealAgents).where(eq(dealAgents.dealId, dealId));
       await lockAgentLedgers(tx, participants.map((row) => row.agentId));
-      effectiveDate = deal.dealDate || deal.createdAt?.slice(0, 10) || new Date().toISOString().slice(0, 10);
+      effectiveDate = deal.dealDate || dbDatePart(deal.createdAt) || businessToday();
       const outsideReferralAmount = deal.referrerType === "percent"
         ? deal.totalCommission * (Number(deal.referrerAmount || 0) / 100)
         : Number(deal.referrerAmount || 0);
@@ -155,7 +156,7 @@ export async function POST(
       if (!deal) throw new Error("Sale not found");
       const participants = await tx.select().from(saleDealAgents).where(eq(saleDealAgents.saleDealId, dealId));
       await lockAgentLedgers(tx, participants.map((row) => row.agentId));
-      effectiveDate = deal.closingDate || deal.contractDate || deal.createdAt?.slice(0, 10) || new Date().toISOString().slice(0, 10);
+      effectiveDate = deal.closingDate || deal.contractDate || dbDatePart(deal.createdAt) || businessToday();
       result = await buildCompensationEstimate({
         dealType: "sale",
         effectiveDate,

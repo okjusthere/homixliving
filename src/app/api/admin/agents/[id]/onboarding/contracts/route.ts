@@ -1,3 +1,4 @@
+import { businessToday } from "@/lib/db-time";
 import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
 import { and, eq } from "drizzle-orm";
@@ -16,7 +17,7 @@ import { onboardingEventValues } from "@/lib/onboarding-events";
 
 const pastDate = z.iso
   .date()
-  .refine((v) => v <= new Date().toISOString().slice(0, 10));
+  .refine((v) => v <= businessToday());
 const input = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("upload"),

@@ -1,5 +1,7 @@
 "use client";
 
+import { formatBusinessDate } from "@/lib/db-time";
+
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -247,7 +249,7 @@ export function SigningWorkspace() {
                   </div>
                   <div className="flex justify-between gap-2 text-xs text-ink-50 sm:block sm:text-right">
                     <time dateTime={item.updatedAt}>
-                      {new Date(item.updatedAt).toLocaleDateString(
+                      {formatBusinessDate(item.updatedAt,
                         locale === "zh" ? "zh-CN" : "en-US",
                       )}
                     </time>

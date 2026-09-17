@@ -1,4 +1,4 @@
-import { parseDbTime } from "@/lib/db-time";
+export { fmtDate, fmtLongDate } from "@/lib/db-time";
 // Homix Invoice design tokens — warm editorial palette
 export const tone = {
   paper: "#F7F4EE",
@@ -28,26 +28,4 @@ export const tone = {
 
 export function fmtMoney(n: number): string {
   return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-// Parse a date-only string ("YYYY-MM-DD") as LOCAL midnight, not UTC. Passing
-// it to `new Date()` parses as UTC, so US-timezone users would see the previous
-// day (e.g. a "2026-08-01" lease-end renders "07/31/2026"). Full ISO timestamps
-// keep their normal `new Date` handling.
-function toLocalDate(s: string): Date {
-  return parseDbTime(s) ?? new Date(NaN);
-}
-
-export function fmtDate(s?: string | null): string {
-  if (!s) return "";
-  const d = toLocalDate(s);
-  if (isNaN(d.getTime())) return s;
-  return `${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}/${d.getFullYear()}`;
-}
-
-export function fmtLongDate(s?: string | null): string {
-  if (!s) return "";
-  const d = toLocalDate(s);
-  if (isNaN(d.getTime())) return s;
-  return d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 }

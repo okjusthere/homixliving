@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { parsePaymentTime } from "@/lib/db-time";
 import { db } from "@/db";
 import {
   dealAgents,
@@ -40,8 +41,8 @@ export async function POST(
   // persisting them; default to now when omitted.
   let paidAt = new Date().toISOString();
   if (typeof body.paidAt === "string" && body.paidAt.trim()) {
-    const parsed = new Date(body.paidAt);
-    if (isNaN(parsed.getTime())) {
+    const parsed = parsePaymentTime(body.paidAt);
+    if (!parsed) {
       return NextResponse.json({ error: "Invalid paidAt date." }, { status: 400 });
     }
     paidAt = parsed.toISOString();

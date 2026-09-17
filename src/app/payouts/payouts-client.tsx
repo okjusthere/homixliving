@@ -1,5 +1,7 @@
 "use client";
 
+import { businessToday } from "@/lib/db-time";
+
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Btn, Card, EditorialInput } from "@/components/homix/primitives";
@@ -191,7 +193,7 @@ export function PayoutsClient({
   // --- record form ---
   const [formAgent, setFormAgent] = useState("");
   const [amount, setAmount] = useState("");
-  const [paidAt, setPaidAt] = useState(() => new Date().toISOString().slice(0, 10));
+  const [paidAt, setPaidAt] = useState(() => businessToday());
   const [method, setMethod] = useState("ach");
   const [reference, setReference] = useState("");
   const [memo, setMemo] = useState("");

@@ -1,4 +1,5 @@
 "use client";
+import { BUSINESS_TIME_ZONE } from "@/lib/db-time";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -83,6 +84,7 @@ function formatViewDate(value: string | null | undefined, locale: "en" | "zh") {
   if (!date) return "—";
 
   return new Intl.DateTimeFormat(locale === "zh" ? "zh-CN" : "en-US", {
+    timeZone: BUSINESS_TIME_ZONE,
     year: "numeric",
     month: "short",
     day: "numeric",

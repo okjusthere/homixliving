@@ -1,5 +1,7 @@
 "use client";
 
+import { businessToday, dbDatePart } from "@/lib/db-time";
+
 import { Btn } from "@/components/homix/primitives";
 import { IconDownload } from "@/components/homix/icons";
 import { useLocale } from "@/lib/i18n-client";
@@ -33,7 +35,7 @@ export function FinanceExportButton({ rows }: { rows: FinanceExportRow[] }) {
     const header = "Date,Payer,Email,Product,Type,Status,Amount (USD)";
     const lines = rows.map((r) =>
       [
-        r.date.slice(0, 10),
+        dbDatePart(r.date),
         csvField(r.payerName),
         csvField(r.payerEmail),
         csvField(r.product),
@@ -46,7 +48,7 @@ export function FinanceExportButton({ rows }: { rows: FinanceExportRow[] }) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `homix-finance-ledger-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `homix-finance-ledger-${businessToday()}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }

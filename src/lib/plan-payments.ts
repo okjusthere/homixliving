@@ -1,3 +1,4 @@
+import { dbDatePart } from "@/lib/db-time";
 import { onboardingAccessGrants } from "@/db/onboarding-schema";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
@@ -100,7 +101,7 @@ export async function settlePlanPayment(
     { ...agent, plan },
     input.order.paymentChannel,
   );
-  const paidDate = input.earnedAt.slice(0, 10);
+  const paidDate = dbDatePart(input.earnedAt);
   await executor.update(agents).set({
     affiliationPaidAt: paidDate,
     affiliationTermMonths: termMonths,

@@ -1,5 +1,7 @@
 "use client";
 
+import { addCalendarDays, businessToday } from "@/lib/db-time";
+
 import { TeamAgreement } from "@/components/signing/team-agreement";
 
 import { useState } from "react";
@@ -289,7 +291,7 @@ const M = {
 } as const;
 
 function tomorrow() {
-  return new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+  return addCalendarDays(businessToday(), 1);
 }
 
 function capLabel(value: number | null, noCap: string) {
@@ -317,7 +319,7 @@ export function TeamWorkspaceClient({
     defaultTeamSplitPct: data.currentConfig?.defaultTeamSplitPct ?? 10,
     teamLeadSplitPct: data.currentConfig?.teamLeadSplitPct ?? 10,
     teamCapCents: data.currentConfig?.teamCapCents ?? null,
-    effectiveFrom: isAdmin ? new Date().toISOString().slice(0, 10) : tomorrow(),
+    effectiveFrom: isAdmin ? businessToday() : tomorrow(),
   });
   async function revokeInvitation(id: number) {
     const response = await fetch("/api/onboarding/invitations", {
@@ -573,7 +575,7 @@ export function TeamWorkspaceClient({
                 <div>
                   {t.requestedAt}:{" "}
                   <span className="font-mono" style={{ color: tone.ink70 }}>
-                    {fmtDate(request.requestedAt.slice(0, 10))}
+                    {fmtDate(request.requestedAt)}
                   </span>
                 </div>
                 {request.acceptedConfigVersion && (
@@ -659,7 +661,7 @@ export function TeamWorkspaceClient({
                 {t.createdAt}
                 <br />
                 <span className="font-mono" style={{ color: tone.ink70 }}>
-                  {fmtDate(invite.createdAt?.slice(0, 10))}
+                  {fmtDate(invite.createdAt)}
                 </span>
               </div>
               <div className="text-[12px]" style={{ color: tone.ink50 }}>

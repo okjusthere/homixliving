@@ -7,7 +7,7 @@ import { requireActiveAgentApi } from "@/lib/auth-guards";
 import { dealsVisibleToSql } from "@/lib/visibility";
 import { summarizeInvoicePayment } from "@/lib/invoice-payment";
 import { logAudit } from "@/lib/audit";
-import { dateOrNull } from "@/lib/db-time";
+import { dateOrNull, businessToday, dbDatePart } from "@/lib/db-time";
 import { MAX_MONEY_AMOUNT } from "@/lib/commission";
 import {
   buildCompensationEstimate,
@@ -139,7 +139,7 @@ async function cleanDealPayload(
       referrerAmount: parseNumber(body.referrerAmount),
       referrerPaymentInfo: stringOrNull(body.referrerPaymentInfo),
       status,
-      dealDate: dateOrNull(body.dealDate) || new Date().toISOString().slice(0, 10),
+      dealDate: dateOrNull(body.dealDate) || businessToday(),
       source: stringOrNull(body.source),
       compensationSource,
       clientRebate,
@@ -239,7 +239,7 @@ export async function POST(req: NextRequest) {
     }
 
     const now = new Date().toISOString();
-    const effectiveDate = result.data.dealDate || now.slice(0, 10);
+    const effectiveDate = result.data.dealDate || dbDatePart(now);
     const outsideReferralAmount = result.data.referrerType === "percent"
       ? result.data.totalCommission * (Number(result.data.referrerAmount || 0) / 100)
       : Number(result.data.referrerAmount || 0);

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { businessToday, dbDatePart } from "@/lib/db-time";
 import { db } from "@/db";
 import { agents, buildings, dealAgents, deals, invoices, type LineItem } from "@/db/schema";
 import { and, asc, eq } from "drizzle-orm";
@@ -59,14 +60,7 @@ export async function POST(
       unitPrice: Number(deal.totalCommission || 0),
       amount: Number(deal.totalCommission || 0),
     }];
-    const yearSource = deal.dealDate || new Date().toISOString();
-    // Read the year directly to avoid shifting date-only values into the prior year.
-    const yearMatch = /^(\d{4})-\d{2}-\d{2}/.exec(yearSource.trim());
-    const year = yearMatch
-      ? Number(yearMatch[1])
-      : Number.isFinite(new Date(yearSource).getFullYear())
-      ? new Date(yearSource).getFullYear()
-      : new Date().getFullYear();
+    const year = Number((dbDatePart(deal.dealDate) || businessToday()).slice(0, 4));
     const now = new Date().toISOString();
     const [invoice] = await tx.insert(invoices).values({
       buildingId: deal.buildingId,

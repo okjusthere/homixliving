@@ -608,7 +608,7 @@ export function ProfileClient({
           </p>
           <p className="text-[13px]" style={{ color: profile?.hasW9 ? tone.green : tone.ink50 }}>
             {profile?.hasW9
-              ? t.w9OnFile(profile.w9FileName || "W-9", fmtDate(profile.w9UploadedAt?.slice(0, 10)))
+              ? t.w9OnFile(profile.w9FileName || "W-9", fmtDate(profile.w9UploadedAt))
               : t.w9None}
             {profile?.hasW9 && (
               <a

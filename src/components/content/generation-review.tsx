@@ -1,4 +1,6 @@
 "use client";
+
+import { formatBusinessTimestamp } from "@/lib/db-time";
 import { useEffect, useState } from "react";
 import { useLocale } from "@/lib/i18n-client";
 import { ContentErrorDialog } from "./error-dialog";
@@ -69,7 +71,7 @@ export function GenerationReview() {
               {g.input.listing?.address || g.input.headline || g.input.theme}
               <small>
                 Agent #{g.ownerAgentId} · {g.status} ·{" "}
-                {new Date(g.createdAt).toLocaleString()}
+                {formatBusinessTimestamp(g.createdAt)}
               </small>
             </span>
           </button>

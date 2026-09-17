@@ -9,6 +9,7 @@ import { Btn, Card, EditorialInput, Icons, LabeledField, Pill, SoftField } from 
 import { PageHeader, CardHeader } from "@/components/homix/page-kit";
 import { fmtDate, fmtMoney, tone } from "@/components/homix/tokens";
 import { getMonthKey } from "@/lib/reporting";
+import { addCalendarDays } from "@/lib/db-time";
 import { DEFAULT_AGENT_SPLIT_PCT, splitLabel } from "@/lib/splits";
 import { useLocale } from "@/lib/i18n-client";
 import type { Agent, Deal, Team } from "@/db/schema";
@@ -139,9 +140,7 @@ type ReportPayload = {
 };
 
 function previousMonth(month: string) {
-  const [year, rawMonth] = month.split("-").map(Number);
-  const date = new Date(year, rawMonth - 2, 1);
-  return getMonthKey(date);
+  return addCalendarDays(`${month}-01`, -1).slice(0, 7);
 }
 
 export default function AgentDetailConsole() {

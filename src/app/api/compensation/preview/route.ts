@@ -1,3 +1,4 @@
+import { businessToday } from "@/lib/db-time";
 import { NextRequest, NextResponse } from "next/server";
 import { requireActiveAgentApi } from "@/lib/auth-guards";
 import {
@@ -37,7 +38,7 @@ export async function POST(req: NextRequest) {
       dealType,
       effectiveDate: /^\d{4}-\d{2}-\d{2}$/.test(String(body.effectiveDate || ""))
         ? String(body.effectiveDate)
-        : new Date().toISOString().slice(0, 10),
+        : businessToday(),
       grossCommission,
       source: normalizeCompensationSource(body.source, dealType),
       outsideReferralAmount: Math.max(0, Number(body.outsideReferralAmount || 0)),
