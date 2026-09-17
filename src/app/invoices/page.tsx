@@ -18,6 +18,7 @@ const M = {
   en: {
     eyebrow: "Documents",
     title: "Invoices",
+    backToRental: "Back to rental",
     newInvoice: "New Invoice",
     colInvoice: "Invoice",
     unit: "Unit",
@@ -40,6 +41,7 @@ const M = {
   zh: {
     eyebrow: "文档",
     title: "发票",
+    backToRental: "返回租赁",
     newInvoice: "新建发票",
     colInvoice: "发票",
     unit: "单元",
@@ -209,6 +211,9 @@ export default function InvoicesPage() {
 
   return (
     <div className="space-y-7">
+      <Link href="/rental" className="flex w-fit items-center gap-1.5 text-[12.5px]" style={{ color: tone.ink50 }}>
+        <Icons.Back /> {t.backToRental}
+      </Link>
       <PageHeader
         eyebrow={t.eyebrow}
         title={t.title}

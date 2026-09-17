@@ -42,7 +42,7 @@
     "test:training-categories": "tsx src/lib/__tests__/training-categories.test.ts",
     "test:company-w9-model": "tsx src/lib/__tests__/company-w9-model.test.ts",
     "test:email-sender": "tsx src/lib/__tests__/email-sender.test.ts",
-    "test:invoice-payment": "tsx src/lib/__tests__/invoice-payment.test.ts",
+    "test:invoice-payment": "tsx src/lib/__tests__/invoice-payment.test.ts && node --import ./scripts/test-server-only.mjs --import ./scripts/test-agreement-auth.mjs --import tsx src/lib/__tests__/rental-invoice-db.test.ts",
     "test:commerce": "tsx src/lib/__tests__/commerce-checkout.test.ts",
     "test:stripe-customer": "tsx src/lib/__tests__/stripe-customer.test.ts",
     "test:stripe-customer-schema": "tsx src/lib/__tests__/stripe-customer-schema.test.ts",
