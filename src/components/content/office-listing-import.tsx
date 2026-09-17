@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { ListingPicker } from "./listing-picker";
 import { contentFetch, Field } from "./ui";
 import { EventEditor } from "./event-editor";
@@ -16,6 +16,7 @@ export function OfficeListingImport({ subjectAgentId, agentName, zh, defaults, o
   const [selected, setSelected] = useState<StudioListing[]>([]);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState("");
+  const scheduleId = useId();
   const [overrideEvents, setOverrideEvents] = useState(false);
   const [events, setEvents] = useState([newOpenHouseEvent()]);
   const patch = (v: Partial<OfficeDefaults>) => onDefaults({ ...defaults, ...v });
@@ -64,9 +65,23 @@ export function OfficeListingImport({ subjectAgentId, agentName, zh, defaults, o
         <details><summary>{t("Style & size", "风格与画幅")} · {defaults.style === "editorial" ? t("Classic", "经典") : t("Minimal", "极简")} · {defaults.size}</summary><div className="office-batch-controls"><Field label={t("Style", "风格")}><select value={defaults.style} onChange={(e) => patch({ style: e.target.value as OfficeDefaults["style"] })}><option value="editorial">Homix {t("Classic", "经典")}</option><option value="modern">Homix {t("Minimal", "极简")}</option></select></Field><Field label={t("Size", "画幅")}><select value={defaults.size} onChange={(e) => patch({ size: e.target.value as OfficeDefaults["size"] })}><option value="1024x1280">{t("Portrait", "竖版")} · 4:5</option><option value="1024x1024">{t("Square", "方形")} · 1:1</option><option value="1152x2048">Story · 9:16</option></select></Field></div></details>
       </div>
       {defaults.theme === "open_house" && <div className="office-batch-events">
-        <p className="studio-note">{t("Each property imports its own MLS Open House dates and times, including multiple sessions. Missing schedules are flagged in drafts.", "自动带入每套房源自己的 MLS 公展日期和时间，支持多场；没有时间的房源会在草稿中提示补充。")}</p>
-        <label className="studio-row"><input type="checkbox" checked={overrideEvents} onChange={(e) => setOverrideEvents(e.target.checked)} />{t("Override schedules for this batch", "统一修改本批公展时间")}</label>
-        {overrideEvents && <EventEditor helpText={t("These sessions replace the MLS schedules of every selected property.", "以下场次将覆盖所选每套房源的 MLS 公展时间。新增场次默认下午 1–3 点。")} zh={zh} disabled={busy} events={events} onChange={setEvents} />}
+        <fieldset className="office-schedule" aria-describedby={`${scheduleId}-help`}>
+          <legend>{t("Open House times", "公展时间")}</legend>
+          <label className="office-schedule-option">
+            <input type="radio" name={scheduleId} checked={!overrideEvents} onChange={() => setOverrideEvents(false)} />
+            <span>{t("Use each property's MLS times", "使用各房源的 MLS 时间")}<small>{t("Default", "默认")}</small></span>
+          </label>
+          <label className="office-schedule-option">
+            <input type="radio" name={scheduleId} checked={overrideEvents} onChange={() => setOverrideEvents(true)} />
+            <span>{t("Set the same times for all selected properties", "为所有选中房源设置相同时间")}</span>
+          </label>
+          <p id={`${scheduleId}-help`} className="office-schedule-help">
+            {overrideEvents
+              ? t("The dates and times you enter below will apply to every property you select in this batch.", "下方填写的日期和时间，将用于本次选中的每一套房源。")
+              : t("Each property keeps its own MLS dates and times, including multiple sessions. If a schedule is missing, the next step will ask you to fill it in.", "每套房源自动带入自己的公展日期和时间，周六、周日多场也会一起带入。没有时间的房源，下一步会提示补填。")}
+          </p>
+        </fieldset>
+        {overrideEvents && <EventEditor helpText={t("Add one or more sessions below, using local time at the property. New sessions default to 1–3 PM.", "在下方添加一场或多场公展，按房源当地时间填写。新增场次默认下午 1–3 点。")} zh={zh} disabled={busy} events={events} onChange={setEvents} />}
       </div>}
     </fieldset>
     <h3>{t("2 · Select properties", "2 · 勾选房源")}</h3>

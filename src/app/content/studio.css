@@ -1084,6 +1084,16 @@
 .office-workbench .office-incomplete{color:#a04528;font-size:13px;margin:6px 0}
 .office-workbench .office-import .studio-note{font-size:13px;margin:10px 0}
 .office-workbench .office-batch-events{margin:12px 0;max-width:900px}
+.office-workbench .office-schedule{border:0;padding:0;margin:8px 0 18px;min-width:0;max-width:600px}
+.office-workbench .office-schedule legend{font-size:15px;font-weight:650;margin:0 0 8px}
+.office-workbench .office-schedule-option{display:flex;align-items:center;gap:10px;width:fit-content;max-width:100%;min-height:44px;padding:8px 12px;margin:4px 0;border:1px solid transparent;border-radius:8px;cursor:pointer;line-height:1.5;font-size:15px}
+.office-workbench .office-schedule-option:has(input:checked){background:#edf0e6;border-color:#d4dccc}
+.office-workbench .office-schedule-option:has(input:disabled){cursor:wait;opacity:.65}
+.office-workbench .office-schedule-option input[type="radio"]{flex:0 0 18px;width:18px;height:18px;margin:0;accent-color:#30483b}
+.office-workbench .office-schedule-option>span{min-width:0}
+.office-workbench .office-schedule-option small{display:inline-block;margin-left:10px;font-size:12px;color:#4c6046}
+.office-workbench .office-schedule-help{margin:10px 0 0;padding-left:12px;font-size:14px;line-height:1.7;color:#55584f}
+
 .office-workbench button:focus-visible{outline:3px solid #967e4e;outline-offset:3px}
 @media(max-width:1000px){.office-workbench .office-theme-grid button{flex-direction:column;align-items:flex-start;gap:2px}.office-workbench .office-import .studio-listing-grid{grid-template-columns:1fr}}
 @media(max-width:600px){.office-workbench .office-theme-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.office-workbench .office-subject-card{flex-wrap:wrap}.office-workbench .office-import .studio-listing-card{padding-left:32px;gap:8px}.office-workbench .office-import .studio-listing-card img,.office-workbench .office-import .studio-listing-no-photo{width:72px;height:72px}.office-workbench .office-import .office-listing-check{left:6px}.office-workbench .office-selection-bar{bottom:6px;padding:12px}.office-workbench .office-selection-bar>.studio-button{width:100%}.office-workbench .office-task{align-items:flex-start}.office-workbench .office-task>img{width:54px;height:54px}.office-workbench .office-defaults{gap:4px}}
