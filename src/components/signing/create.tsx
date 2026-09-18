@@ -7,6 +7,7 @@ import { X } from "lucide-react";
 import { useLocale } from "@/lib/i18n-client";
 import type { SigningPackage, SigningRequest } from "@/lib/signing-contract";
 import type { SigningCompanyIdentity } from "@/lib/signing-company-identity";
+import { SigningPackagePreview } from "./package-preview";
 import {
   errorText,
   SigningFetchError,
@@ -402,6 +403,11 @@ export function SigningCreate({
                       {selected.selectors[zh ? "usageZh" : "usageEn"]}
                     </p>
                   )}
+                  <SigningPackagePreview
+                    key={selected.id}
+                    item={selected}
+                    zh={zh}
+                  />
                   <p className="text-sm text-ink-50 sm:col-span-2">
                     {zh ? "所属公司：" : "Company: "}
                     {agentIdentity?.companyName ||

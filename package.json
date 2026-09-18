@@ -82,7 +82,7 @@
     "test:signing-access:db": "node --import ./scripts/test-server-only.mjs --import ./scripts/test-agreement-auth.mjs --import tsx src/lib/__tests__/signing-access-db.test.ts",
     "test:onboarding-requirements": "node --import tsx src/lib/__tests__/onboarding-requirements.test.ts",
     "test:onboarding-admin:db": "node --import ./scripts/test-server-only.mjs --import tsx src/lib/__tests__/onboarding-admin-db.test.ts",
-    "test:signing": "node --import tsx --test src/lib/__tests__/signing-company-identity.test.ts && node --import tsx src/lib/__tests__/signing-event-auth.test.ts && node --import tsx src/lib/__tests__/signing-hr-projection.test.ts",
+    "test:signing": "node --import ./scripts/test-server-only.mjs --import tsx --test src/lib/__tests__/signing-package-preview-http.test.ts && node --import tsx --test src/lib/__tests__/signing-company-identity.test.ts && node --import tsx src/lib/__tests__/signing-event-auth.test.ts && node --import tsx src/lib/__tests__/signing-hr-projection.test.ts",
     "signing:export-onboarding": "node --import tsx scripts/export-documenso-onboarding-packages.ts",
     "test:signing:native-http": "node --import ./scripts/test-server-only.mjs --import tsx src/lib/__tests__/signing-native-http.integration.ts",
     "predev": "node scripts/prepare-signing-pdf.mjs",
