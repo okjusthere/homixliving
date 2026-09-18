@@ -1,4 +1,9 @@
 import { validAgentName, websiteAgentName } from "@/lib/agent-names";
+import {
+  hasShareListingFilters,
+  serializeShareListingFilters,
+  type ShareListingFilters,
+} from "@/lib/share-listing-filters";
 
 /**
  * Server-to-server calls to the marketing site (www.homixny.com), which owns
@@ -47,6 +52,7 @@ export type ShareCatalogItem = {
   subtitle: string;
   image: string | null;
   eyebrow?: string | null;
+  price?: number | null;
 };
 
 export type ShareCatalogResult = {
@@ -92,6 +98,7 @@ export async function fetchShareCatalog(input: {
   query?: string;
   page?: number;
   pageSize?: number;
+  listingFilters?: ShareListingFilters;
 }): Promise<ShareCatalogResult | null> {
   if (!isHomixwebConfigured()) return null;
   const params = new URLSearchParams({
@@ -102,8 +109,14 @@ export async function fetchShareCatalog(input: {
   });
   if (input.listingScope) params.set("listingScope", input.listingScope);
   if (input.query?.trim()) params.set("q", input.query.trim());
+  if (input.kind === "listing" && input.listingFilters) {
+    serializeShareListingFilters(input.listingFilters).forEach((value, key) => {
+      params.set(key, value);
+    });
+  }
   try {
-    const cacheable = !input.query?.trim();
+    const cacheable = !input.query?.trim() &&
+      !(input.kind === "listing" && hasShareListingFilters(input.listingFilters));
     const response = await fetch(
       `${homixwebBase()}/api/share-catalog?${params.toString()}`,
       {
