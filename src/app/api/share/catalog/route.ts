@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireActiveAgentApi } from "@/lib/auth-guards";
 import { curatedShareCatalogItem, fetchShareCatalog } from "@/lib/homixweb";
 import { isShareKind, isShareLocale } from "@/lib/share-center";
+import { hasShareListingFilters, parseShareListingFilters } from "@/lib/share-listing-filters";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +18,13 @@ export async function GET(request: NextRequest) {
   if (!kind || !locale) {
     return NextResponse.json({ error: "Invalid filters" }, { status: 400 });
   }
+  const parsedFilters = kind === "listing"
+    ? parseShareListingFilters(request.nextUrl.searchParams)
+    : null;
+  if (parsedFilters && !parsedFilters.ok) {
+    return NextResponse.json({ error: parsedFilters.error }, { status: 400 });
+  }
+  const listingFilters = parsedFilters?.ok ? parsedFilters.filters : undefined;
   const listingScope =
     request.nextUrl.searchParams.get("listingScope") === "all"
       ? "all"
@@ -34,8 +42,9 @@ export async function GET(request: NextRequest) {
     query,
     page,
     pageSize: 12,
+    listingFilters,
   });
-  if (!result) {
+  if (!result || result.unavailable) {
     return NextResponse.json(
       { error: "Homix Web content is temporarily unavailable." },
       { status: 502 },
@@ -47,6 +56,7 @@ export async function GET(request: NextRequest) {
     listingScope === "homix" &&
     page === 1 &&
     !query.trim() &&
+    !hasShareListingFilters(listingFilters) &&
     openHouseItem
       ? {
           ...result,

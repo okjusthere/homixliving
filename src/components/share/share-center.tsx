@@ -36,6 +36,12 @@ import type {
 } from "@/lib/share-center";
 import { tone } from "@/components/homix/tokens";
 import { Card } from "@/components/homix/server-primitives";
+import { ListingFilters } from "@/components/share/listing-filters";
+import {
+  hasShareListingFilters,
+  serializeShareListingFilters,
+  type ShareListingFilters,
+} from "@/lib/share-listing-filters";
 
 type CatalogKind = ShareContentKind | "all";
 type ViewMode = "library" | "analytics";
@@ -47,7 +53,14 @@ const COPY = {
     library: "Content",
     analytics: "Analytics",
     search: "Search guides, neighborhoods, developments…",
-    listingSearch: "Search by address, ZIP code, or MLS number…",
+    listingSearch: "Search by address, city, ZIP code, or MLS number…",
+    clearSearch: "Clear search",
+    clearFilters: "Clear search & filters",
+    priceOnRequest: "Price on request",
+    listPrice: "List price",
+    listingResults: "listings",
+    onThisPage: "on this page",
+    listingEmpty: "No homes match these filters. Try a different city or a wider price range.",
     listingSource: "Listing source",
     allOneKey: "All OneKey listings",
     homixOnly: "Homix listings",
@@ -123,7 +136,14 @@ const COPY = {
     library: "内容库",
     analytics: "分享数据",
     search: "搜索指南、社区、楼盘或新闻…",
-    listingSearch: "按地址、邮编或 MLS 编号搜索…",
+    listingSearch: "按地址、城市、邮编或 MLS 编号搜索…",
+    clearSearch: "清除搜索",
+    clearFilters: "清除搜索和筛选",
+    priceOnRequest: "价格待询",
+    listPrice: "挂牌价",
+    listingResults: "套房源",
+    onThisPage: "本页",
+    listingEmpty: "没有符合条件的房源，请尝试其他城市或放宽价格范围。",
     listingSource: "房源范围",
     allOneKey: "全部 OneKey 房源",
     homixOnly: "Homix 房源",
@@ -241,6 +261,8 @@ function CatalogCard({
   canShare,
   createLabel,
   openLabel,
+  priceOnRequest,
+  listPriceLabel,
   onActivate,
 }: {
   item: ShareCatalogItem;
@@ -250,6 +272,8 @@ function CatalogCard({
   canShare: boolean;
   createLabel: string;
   openLabel: string;
+  priceOnRequest: string;
+  listPriceLabel: string;
   onActivate: () => void;
 }) {
   return (
@@ -281,6 +305,13 @@ function CatalogCard({
         </span>
       </div>
       <div className="flex min-w-0 flex-1 flex-col p-3 sm:p-4">
+        {item.kind === "listing" && item.path.startsWith("/listings/") && (
+          <p className="mb-1.5 text-[20px] font-semibold leading-tight tabular-nums sm:text-[24px]" style={{ color: tone.ink }}>
+            {typeof item.price === "number" && Number.isFinite(item.price) && item.price > 0
+              ? <>{new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(item.price)}<span className="ml-2 inline-block text-[10px] font-normal sm:text-[11px]" style={{ color: tone.ink50 }}>{listPriceLabel}</span></>
+              : priceOnRequest}
+          </p>
+        )}
         <h2
           className="line-clamp-2 font-serif text-[16px] leading-snug sm:text-[18px]"
           style={{ color: tone.ink }}
@@ -288,7 +319,7 @@ function CatalogCard({
           {item.title}
         </h2>
         <p
-          className="mt-1.5 line-clamp-2 text-[11.5px] leading-[1.45] sm:mt-2 sm:text-[12.5px] sm:leading-5"
+          className="mb-3 mt-1.5 line-clamp-2 text-[11.5px] leading-[1.45] sm:mt-2 sm:text-[12.5px] sm:leading-5"
           style={{ color: tone.ink50 }}
         >
           {item.subtitle}
@@ -336,9 +367,17 @@ export function ShareCenter({
   const [kind, setKind] = useState<CatalogKind>("all");
   const [contentLocale, setContentLocale] = useState<"en" | "zh">(locale);
   const [listingScope, setListingScope] = useState<ListingScope>("homix");
+  const [listingFilters, setListingFilters] = useState<ShareListingFilters>({});
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
-  const [page, setPage] = useState(1);
+  const filterQuery = kind === "listing" ? serializeShareListingFilters(listingFilters).toString() : "";
+  const catalogKey = JSON.stringify([kind, contentLocale, debouncedQuery, listingScope, filterQuery]);
+  const [pagination, setPagination] = useState({ key: "", page: 1 });
+  // Reset before effects run, including when returning to an earlier search.
+  if (pagination.key !== catalogKey) {
+    setPagination({ key: catalogKey, page: 1 });
+  }
+  const page = pagination.key === catalogKey ? pagination.page : 1;
   const [catalog, setCatalog] = useState<ShareCatalogResult | null>(null);
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [catalogError, setCatalogError] = useState("");
@@ -359,10 +398,6 @@ export function ShareCenter({
   }, [query]);
 
   useEffect(() => {
-    setPage(1);
-  }, [kind, contentLocale, debouncedQuery, listingScope]);
-
-  useEffect(() => {
     const controller = new AbortController();
     setCatalogLoading(true);
     setCatalogError("");
@@ -372,6 +407,7 @@ export function ShareCenter({
       page: String(page),
       listingScope,
     });
+    new URLSearchParams(filterQuery).forEach((value, key) => params.set(key, value));
     if (debouncedQuery) params.set("q", debouncedQuery);
     fetch(`/api/share/catalog?${params.toString()}`, {
       cache: "no-store",
@@ -381,18 +417,19 @@ export function ShareCenter({
         const body = (await response.json().catch(() => ({}))) as
           | ShareCatalogResult
           | { error?: string };
-        if (!response.ok) throw new Error(t.unavailable);
+        if (controller.signal.aborted) return;
+        if (!response.ok || ("unavailable" in body && body.unavailable)) throw new Error(t.unavailable);
         setCatalog(body as ShareCatalogResult);
       })
       .catch((error) => {
-        if (error instanceof DOMException && error.name === "AbortError") return;
+        if (controller.signal.aborted) return;
         setCatalogError(error instanceof Error ? error.message : t.unavailable);
       })
       .finally(() => {
         if (!controller.signal.aborted) setCatalogLoading(false);
       });
     return () => controller.abort();
-  }, [contentLocale, debouncedQuery, kind, listingScope, page, t.unavailable]);
+  }, [contentLocale, debouncedQuery, kind, listingScope, filterQuery, page, t.unavailable]);
 
   const loadLinks = useCallback(
     async (scope: LinkScope, includeAnalytics = false) => {
@@ -602,6 +639,8 @@ export function ShareCenter({
           canShare={canShare}
           createLabel={t.create}
           openLabel={t.openLink}
+          priceOnRequest={t.priceOnRequest}
+          listPriceLabel={t.listPrice}
           onActivate={() =>
             existing ? setModalLink(existing) : void createLink(item)
           }
@@ -756,6 +795,11 @@ export function ShareCenter({
                   aria-label={kind === "listing" ? t.listingSearch : t.search}
                   className="min-w-0 flex-1 bg-transparent text-[13px] outline-none"
                 />
+                {query && (
+                  <button type="button" aria-label={t.clearSearch} onClick={() => setQuery("")} className="inline-flex h-9 w-9 shrink-0 items-center justify-center" style={{ color: tone.ink50 }}>
+                    <X size={15} aria-hidden />
+                  </button>
+                )}
               </div>
               <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 sm:flex sm:gap-3">
                 <label className="relative min-w-0 md:hidden">
@@ -860,7 +904,32 @@ export function ShareCenter({
                 </div>
               </div>
             )}
+            {kind === "listing" && (
+              <ListingFilters
+                key={JSON.stringify(listingFilters)}
+                locale={locale}
+                value={listingFilters}
+                onChange={setListingFilters}
+              />
+            )}
           </div>
+
+          {kind === "listing" && (
+            <div className="flex flex-wrap items-center justify-between gap-2 text-[12px]" style={{ color: tone.ink50 }}>
+              <p role="status" aria-live="polite">
+                {!catalogLoading && !catalogError && catalog && (
+                  catalog.totalIsEstimate
+                    ? `${t.onThisPage} ${catalog.items.filter((item) => item.path.startsWith("/listings/")).length} ${t.listingResults}`
+                    : `${catalog.total.toLocaleString()} ${t.listingResults}`
+                )}
+              </p>
+              {(query || hasShareListingFilters(listingFilters)) && (
+                <button type="button" className="inline-flex min-h-9 items-center gap-1" onClick={() => { setQuery(""); setDebouncedQuery(""); setListingFilters({}); }}>
+                  <X size={13} aria-hidden />{t.clearFilters}
+                </button>
+              )}
+            </div>
+          )}
 
           {catalogLoading ? (
             <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
@@ -881,7 +950,7 @@ export function ShareCenter({
           ) : !catalog || catalog.items.length === 0 ? (
             <Card className="p-10 text-center">
               <p className="text-[14px]" style={{ color: tone.ink50 }}>
-                {t.empty}
+                {kind === "listing" ? t.listingEmpty : t.empty}
               </p>
             </Card>
           ) : (
@@ -941,7 +1010,7 @@ export function ShareCenter({
                   <button
                     type="button"
                     disabled={page <= 1}
-                    onClick={() => setPage((value) => Math.max(1, value - 1))}
+                    onClick={() => setPagination({ key: catalogKey, page: Math.max(1, page - 1) })}
                     className="inline-flex h-10 items-center gap-1 rounded-md px-3 text-[12.5px] disabled:opacity-35"
                     style={{ background: tone.card, border: `1px solid ${tone.line}` }}
                   >
@@ -954,7 +1023,7 @@ export function ShareCenter({
                   <button
                     type="button"
                     disabled={!canGoNext}
-                    onClick={() => setPage((value) => value + 1)}
+                    onClick={() => setPagination({ key: catalogKey, page: page + 1 })}
                     className="inline-flex h-10 items-center gap-1 rounded-md px-3 text-[12.5px] disabled:opacity-35"
                     style={{ background: tone.card, border: `1px solid ${tone.line}` }}
                   >
