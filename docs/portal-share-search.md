@@ -6,9 +6,12 @@ and sorting. Applied filters stay active when switching between Homix and all
 OneKey listings. Changing the search, filters, source or language resets the
 results to page one. Mobile users open the Filters panel to edit conditions.
 
-Listing cards show the MLS display price, with a localized “Price on request”
+Listing cards show the MLS asking price, labeled “List price”, with a localized “Price on request”
 fallback for missing prices. The open-house collection is not an individual
 property and has no price. It appears only on the first unfiltered Homix page.
+Sold listings also use their asking price so the displayed amount matches BBO's
+price filtering and sorting. A missing asking price on a sold listing stays
+unknown; its closing price is not substituted.
 
 ## Coordinated release
 

@@ -57,6 +57,7 @@ const COPY = {
     clearSearch: "Clear search",
     clearFilters: "Clear search & filters",
     priceOnRequest: "Price on request",
+    listPrice: "List price",
     listingResults: "listings",
     onThisPage: "on this page",
     listingEmpty: "No homes match these filters. Try a different city or a wider price range.",
@@ -139,6 +140,7 @@ const COPY = {
     clearSearch: "清除搜索",
     clearFilters: "清除搜索和筛选",
     priceOnRequest: "价格待询",
+    listPrice: "挂牌价",
     listingResults: "套房源",
     onThisPage: "本页",
     listingEmpty: "没有符合条件的房源，请尝试其他城市或放宽价格范围。",
@@ -260,6 +262,7 @@ function CatalogCard({
   createLabel,
   openLabel,
   priceOnRequest,
+  listPriceLabel,
   onActivate,
 }: {
   item: ShareCatalogItem;
@@ -270,6 +273,7 @@ function CatalogCard({
   createLabel: string;
   openLabel: string;
   priceOnRequest: string;
+  listPriceLabel: string;
   onActivate: () => void;
 }) {
   return (
@@ -304,7 +308,7 @@ function CatalogCard({
         {item.kind === "listing" && item.path.startsWith("/listings/") && (
           <p className="mb-1.5 text-[20px] font-semibold leading-tight tabular-nums sm:text-[24px]" style={{ color: tone.ink }}>
             {typeof item.price === "number" && Number.isFinite(item.price) && item.price > 0
-              ? new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(item.price)
+              ? <>{new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(item.price)}<span className="ml-2 inline-block text-[10px] font-normal sm:text-[11px]" style={{ color: tone.ink50 }}>{listPriceLabel}</span></>
               : priceOnRequest}
           </p>
         )}
@@ -636,6 +640,7 @@ export function ShareCenter({
           createLabel={t.create}
           openLabel={t.openLink}
           priceOnRequest={t.priceOnRequest}
+          listPriceLabel={t.listPrice}
           onActivate={() =>
             existing ? setModalLink(existing) : void createLink(item)
           }
