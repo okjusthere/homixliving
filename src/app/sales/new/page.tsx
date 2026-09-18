@@ -53,7 +53,7 @@ const M = {
     primaryAgent: "Primary agent *",
     agent: "Agent",
     selectAgent: "Select agent",
-    sharePct: "Share %",
+    sharePct: "Deal share %",
     primary: "Primary",
     remove: "Remove",
     addAgent: "Add agent",
@@ -93,8 +93,7 @@ const M = {
     closingSet: "Closing set",
     grossCommissionLabel: "Gross Commission",
     netSplitBase: "Net split base",
-    share: "share",
-    split: "split",
+    share: "deal share",
     errAddressRequired: "Property address is required",
     errAgentSelected: "Every sale agent must be selected",
     errAgentsUnique: "Sale agents must be unique",
@@ -135,7 +134,7 @@ const M = {
     primaryAgent: "主经纪人 *",
     agent: "经纪人",
     selectAgent: "选择经纪人",
-    sharePct: "分成 %",
+    sharePct: "本单合作份额 %",
     primary: "主经纪人",
     remove: "删除",
     addAgent: "添加经纪人",
@@ -175,8 +174,7 @@ const M = {
     closingSet: "过户已定",
     grossCommissionLabel: "总佣金",
     netSplitBase: "净分成基数",
-    share: "成交占比",
-    split: "经纪人分成",
+    share: "本单合作份额",
     errAddressRequired: "房产地址为必填项",
     errAgentSelected: "请为每位经纪人选择人选",
     errAgentsUnique: "交易经纪人不能重复",
@@ -727,7 +725,7 @@ export default function NewSalePage() {
                           {participant.agent!.name}
                         </div>
                         <div className="text-[11px]" style={{ color: tone.ink50 }}>
-                          {participant.sharePct}% {t.share} · {Number(participant.agent!.splitPct || 0)}% {t.split}
+                          {participant.sharePct}% {t.share}
                         </div>
                       </div>
                     </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { fmtMoney, tone } from "@/components/homix/tokens";
 import { useLocale } from "@/lib/i18n-client";
 import { PLAN_LABELS, type AgentPlan } from "@/lib/agent-plans";
@@ -8,7 +9,8 @@ import type { CompensationResult } from "@/lib/compensation-v31";
 
 const M = {
   en: {
-    title: "Automatic compensation preview",
+    title: "Your compensation preview",
+    privacyNotice: "Only your own compensation is shown here. Co-agents' plans and earnings are not displayed on the entry form.",
     loading: "Calculating plan, cap, team, fee, and sponsor rules…",
     unavailable: "Complete the commission and agent shares to see the preview.",
     company: "Homix Company Dollar",
@@ -18,7 +20,8 @@ const M = {
     net: "Agent net",
   },
   zh: {
-    title: "自动分佣预览",
+    title: "你的分佣预览",
+    privacyNotice: "此处仅展示你的个人分佣；合作经纪人的方案与实得不在录单页面展示。",
     loading: "正在计算方案、封顶、团队、交易费与 Sponsor 规则…",
     unavailable: "填写佣金并确保经纪人份额合计 100% 后即可预览。",
     company: "Homix Company Dollar",
@@ -31,6 +34,51 @@ const M = {
 
 type Participant = { agentId: number | null; name: string; sharePct: number };
 
+export function CompensationPreviewAllocations({
+  allocations,
+  participants,
+  viewerAgentId,
+  locale,
+}: {
+  allocations: CompensationResult["allocations"];
+  participants: Participant[];
+  viewerAgentId: number | null;
+  locale: "en" | "zh";
+}) {
+  const t = M[locale];
+  // The entry form is not the admin settlement screen. It shows only the
+  // signed-in agent's own economics, even when they can record others' deals.
+  const ownAllocations = viewerAgentId == null
+    ? []
+    : allocations.filter((row) => row.agentId === viewerAgentId);
+  return (
+    <div className="mt-3 space-y-3">
+      <p className="text-[12px] leading-relaxed" style={{ color: tone.ink50 }}>{t.privacyNotice}</p>
+      {ownAllocations.map((row) => {
+        const participant = participants.find((item) => item.agentId === row.agentId);
+        return (
+          <div key={row.agentId} className="rounded-md bg-white p-3" style={{ border: `1px solid ${tone.lineSoft}` }}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-[13px]" style={{ color: tone.ink }}>{participant?.name || `#${row.agentId}`}</div>
+                <div className="mt-0.5 text-[11px]" style={{ color: tone.ink50 }}>{PLAN_LABELS[locale][row.plan as AgentPlan]} · {row.sharePct}%</div>
+              </div>
+              <div className="font-mono text-[15px]" style={{ color: tone.green }}>${fmtMoney(row.agentNet)}</div>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]" style={{ color: tone.ink50 }}>
+              <span>{t.company}</span><span className="text-right font-mono">${fmtMoney(row.companyDollar)}</span>
+              <span>{t.team}</span><span className="text-right font-mono">${fmtMoney(row.teamLeaderAllocation)}</span>
+              <span>{t.fee}</span><span className="text-right font-mono">${fmtMoney(row.transactionFee)}</span>
+              <span>{t.rebate}</span><span className="text-right font-mono">${fmtMoney(row.rebateAmount)}</span>
+              <span className="font-medium" style={{ color: tone.ink }}>{t.net}</span><span className="text-right font-mono font-medium" style={{ color: tone.green }}>${fmtMoney(row.agentNet)}</span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function CompensationV31Preview(props: {
   dealType: "rental" | "sale";
   effectiveDate?: string;
@@ -40,6 +88,7 @@ export function CompensationV31Preview(props: {
   rebateAmount?: number;
   participants: Participant[];
 }) {
+  const { data: session } = useSession();
   const locale = useLocale();
   const t = M[locale];
   const [result, setResult] = useState<CompensationResult | null>(null);
@@ -95,29 +144,12 @@ export function CompensationV31Preview(props: {
       ) : !result ? (
         <p className="mt-3 text-[12px]" style={{ color: tone.ink50 }}>{t.unavailable}</p>
       ) : (
-        <div className="mt-3 space-y-3">
-          {result.allocations.map((row) => {
-            const participant = props.participants.find((item) => item.agentId === row.agentId);
-            return (
-              <div key={row.agentId} className="rounded-md bg-white p-3" style={{ border: `1px solid ${tone.lineSoft}` }}>
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-[13px]" style={{ color: tone.ink }}>{participant?.name || `#${row.agentId}`}</div>
-                    <div className="mt-0.5 text-[11px]" style={{ color: tone.ink50 }}>{PLAN_LABELS[locale][row.plan as AgentPlan]} · {row.sharePct}%</div>
-                  </div>
-                  <div className="font-mono text-[15px]" style={{ color: tone.green }}>${fmtMoney(row.agentNet)}</div>
-                </div>
-                <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]" style={{ color: tone.ink50 }}>
-                  <span>{t.company}</span><span className="text-right font-mono">${fmtMoney(row.companyDollar)}</span>
-                  <span>{t.team}</span><span className="text-right font-mono">${fmtMoney(row.teamLeaderAllocation)}</span>
-                  <span>{t.fee}</span><span className="text-right font-mono">${fmtMoney(row.transactionFee)}</span>
-                  <span>{t.rebate}</span><span className="text-right font-mono">${fmtMoney(row.rebateAmount)}</span>
-                  <span className="font-medium" style={{ color: tone.ink }}>{t.net}</span><span className="text-right font-mono font-medium" style={{ color: tone.green }}>${fmtMoney(row.agentNet)}</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        <CompensationPreviewAllocations
+          allocations={result.allocations}
+          participants={props.participants}
+          viewerAgentId={session?.user?.agentId ?? null}
+          locale={locale}
+        />
       )}
     </div>
   );

@@ -22,6 +22,9 @@ const M = {
     subject: "Subject",
     preview: "Preview",
     onePage: "Letter · 1 page",
+    attachments: "Attachments · 2 PDFs",
+    attachmentNotice: "The invoice and Company W-9 will be sent together as two PDF attachments. No separate upload is needed.",
+    companyW9: "Company W-9 · automatically included",
     specialRequirement: "Special requirement:",
     tracked: "Sent via Resend · tracked",
     cancel: "Cancel",
@@ -42,6 +45,9 @@ const M = {
     subject: "主题",
     preview: "预览",
     onePage: "Letter 纸 · 1 页",
+    attachments: "附件 · 2 份 PDF",
+    attachmentNotice: "Invoice 和 Company W-9 将作为两个 PDF 附件一并发送给收件人，无需另行添加。",
+    companyW9: "Company W-9 · 自动随附",
     specialRequirement: "特别要求：",
     tracked: "通过 Resend 发送并追踪",
     cancel: "取消",
@@ -51,6 +57,51 @@ const M = {
 } as const;
 
 type Settings = Record<string, string>;
+
+export function InvoiceEmailAttachments({
+  invoiceId,
+  fileName,
+  locale,
+}: {
+  invoiceId: number;
+  fileName: string;
+  locale: "en" | "zh";
+}) {
+  const t = M[locale];
+  return (
+    <section className="space-y-3" aria-label={t.attachments}>
+      <div>
+        <div className="text-[13px] font-medium" style={{ color: tone.ink }}>{t.attachments}</div>
+        <p className="mt-1 text-[12px] leading-relaxed" style={{ color: tone.ink70 }}>
+          {t.attachmentNotice}
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={() => window.open(`/api/invoices/${invoiceId}/pdf`, "_blank")}
+        className="flex items-center gap-3 px-4 py-3 rounded-lg w-full text-left hover:bg-[#FAF7F0] transition-colors"
+        style={{ border: `1px dashed ${tone.line}` }}
+      >
+        <div className="w-10 h-12 shrink-0 rounded flex items-center justify-center text-[10px] font-mono"
+          style={{ background: tone.ink, color: tone.paper }}>PDF</div>
+        <div className="flex-1 min-w-0">
+          <div className="text-[13px] truncate" style={{ color: tone.ink }}>{fileName}.pdf</div>
+          <div className="text-[11px] font-mono" style={{ color: tone.ink50 }}>{t.onePage}</div>
+        </div>
+        <span className="shrink-0 text-[12px]" style={{ color: tone.accent }}>{t.preview}</span>
+      </button>
+      <div className="flex items-center gap-3 px-4 py-3 rounded-lg"
+        style={{ border: `1px dashed ${tone.line}` }}>
+        <div className="w-10 h-12 shrink-0 rounded flex items-center justify-center text-[10px] font-mono"
+          style={{ background: tone.ink, color: tone.paper }}>PDF</div>
+        <div className="min-w-0">
+          <div className="text-[13px] break-words" style={{ color: tone.ink }}>Homix Living Inc W9.pdf</div>
+          <div className="text-[11px]" style={{ color: tone.ink50 }}>{t.companyW9}</div>
+        </div>
+      </div>
+    </section>
+  );
+}
 
 export function SendDialog({
   invoice,
@@ -245,7 +296,7 @@ export function SendDialog({
             }}
           >
             <p>Dear Property Management,</p>
-            <p>Please find the attached OP Invoice for:</p>
+            <p>Please find the attached OP Invoice and Company W-9 for:</p>
             <ul className="pl-4 space-y-1" style={{ listStyle: "disc" }}>
               <li>
                 Building: <span style={{ color: tone.ink }}>{building.name}</span>
@@ -261,31 +312,7 @@ export function SendDialog({
             <p style={{ color: tone.ink }}>— {settings.company_name || "Homix Living"}</p>
           </div>
 
-          {/* Attachment card */}
-          <button
-            type="button"
-            onClick={() => window.open(`/api/invoices/${invoice.id}/pdf`, "_blank")}
-            className="flex items-center gap-3 px-4 py-3 rounded-lg w-full text-left hover:bg-[#FAF7F0] transition-colors"
-            style={{ border: `1px dashed ${tone.line}` }}
-          >
-            <div
-              className="w-10 h-12 rounded flex items-center justify-center text-[10px] font-mono"
-              style={{ background: tone.ink, color: tone.paper }}
-            >
-              PDF
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-[13px] truncate" style={{ color: tone.ink }}>
-                {invoice.fileName}.pdf
-              </div>
-              <div className="text-[11px] font-mono" style={{ color: tone.ink50 }}>
-                {t.onePage}
-              </div>
-            </div>
-            <span className="text-[12px]" style={{ color: tone.accent }}>
-              {t.preview}
-            </span>
-          </button>
+          <InvoiceEmailAttachments invoiceId={invoice.id} fileName={invoice.fileName} locale={locale} />
 
           {building.specialNotes && (
             <div

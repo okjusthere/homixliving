@@ -53,6 +53,7 @@ const team = computeCompensationV31({
   }],
 });
 assert.equal(team.companyDollar, 1_000);
+assert.equal(team.sourceFee, 0, "self-sourced rentals must not incur the platform referral fee");
 assert.equal(team.teamAllocation, 900);
 assert.equal(team.sponsorAmount, 100);
 assert.equal(team.agentNetTotal, 8_100);
