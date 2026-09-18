@@ -11,7 +11,6 @@ import { CompensationV31Preview } from "@/components/homix/compensation-v31-prev
 import { fmtMoney, tone } from "@/components/homix/tokens";
 import { computeCommission } from "@/lib/commission";
 import { SOURCE_OPTIONS, type DealSource } from "@/lib/sources";
-import { companySplitPct, normalizeSplitPct, splitLabel } from "@/lib/splits";
 import { useLocale } from "@/lib/i18n-client";
 import type { Agent, Building, Deal } from "@/db/schema";
 import type { DealParticipantAgent } from "@/lib/deal-participant-agent";
@@ -66,12 +65,9 @@ const M = {
     primaryAgent: "Primary agent *",
     agent: "Agent",
     selectAgent: "Select agent",
-    sharePct: "Share %",
+    sharePct: "Deal share %",
     primary: "Primary",
     remove: "Remove",
-    split: "Split",
-    agentKeeps: "Agent keeps",
-    homixKeeps: "Homix keeps",
     addAgent: "Add agent",
     totalShare: "Total share",
     referral: "Referral",
@@ -89,7 +85,6 @@ const M = {
     referrer: "Referrer",
     homix: "Homix",
     agentDealShare: "deal share",
-    splitSuffix: "split",
     source: "Source",
     sourceSubtitle: "Where did this lead originate? This helps us understand channel performance.",
     economicsSource: "Compensation source",
@@ -104,7 +99,7 @@ const M = {
     selectBuildingPlaceholder: "Select building",
     unitWord: "Unit",
     tenantWord: "Tenant",
-    shareWord: "share",
+    shareWord: "deal share",
     totalCommissionSummary: "Total Commission",
     referralPill: "Referral",
     agentsPill: "agents",
@@ -175,12 +170,9 @@ const M = {
     primaryAgent: "主理经纪人 *",
     agent: "经纪人",
     selectAgent: "选择经纪人",
-    sharePct: "分成 %",
+    sharePct: "本单合作份额 %",
     primary: "主理",
     remove: "删除",
-    split: "分成",
-    agentKeeps: "经纪人所得",
-    homixKeeps: "Homix 所得",
     addAgent: "添加经纪人",
     totalShare: "分成合计",
     referral: "推荐",
@@ -198,7 +190,6 @@ const M = {
     referrer: "推荐人",
     homix: "Homix",
     agentDealShare: "交易分成",
-    splitSuffix: "分成",
     source: "来源",
     sourceSubtitle: "客源来自哪里？— 帮我们分析渠道转化",
     economicsSource: "分佣客源类型",
@@ -213,7 +204,7 @@ const M = {
     selectBuildingPlaceholder: "选择楼盘",
     unitWord: "单元",
     tenantWord: "租客",
-    shareWord: "分成",
+    shareWord: "本单合作份额",
     totalCommissionSummary: "总佣金",
     referralPill: "推荐",
     agentsPill: "位经纪人",
@@ -486,17 +477,11 @@ export function RentalDealFormPage({ mode = "new", dealId }: RentalDealFormPageP
         referrer: hasReferrer
           ? { type: referrerType, amount: Number(referrerAmount || 0) }
           : null,
-        agents: selectedParticipants
-          .filter((participant) => participant.agent)
-          .map((participant) => ({
-            agentId: participant.agent!.id,
-            name: participant.agent!.name,
-            sharePct: Number(participant.sharePct || 0),
-            splitPct: Number(participant.agent!.splitPct || 0),
-            isPrimary: participant.isPrimary,
-          })),
+        // Only the outside referral amount is needed here. Personal plan
+        // economics are calculated by the server, not from co-agent profiles.
+        agents: [],
       }),
-    [hasReferrer, referrerAmount, referrerType, selectedParticipants, totalCommission]
+    [hasReferrer, referrerAmount, referrerType, totalCommission]
   );
 
   const filteredBuildings = useMemo(() => {
@@ -721,10 +706,6 @@ export function RentalDealFormPage({ mode = "new", dealId }: RentalDealFormPageP
             <CardHeader title={t.agents} subtitle={t.agentsHint} />
             <div className="space-y-4 p-4 sm:p-6">
               {dealParticipants.map((participant, index) => (
-                (() => {
-                  const selectedAgent = selectedParticipants[index]?.agent || null;
-                  const agentSplit = normalizeSplitPct(selectedAgent?.splitPct);
-                  return (
                 <div
                   key={index}
                   className="rounded-xl p-4 space-y-4"
@@ -783,40 +764,7 @@ export function RentalDealFormPage({ mode = "new", dealId }: RentalDealFormPageP
                       )}
                     </div>
                   </div>
-                  {selectedAgent && (
-                    <div
-                      className="grid grid-cols-3 gap-3 rounded-lg p-3"
-                      style={{ background: tone.card, border: `1px solid ${tone.line}` }}
-                    >
-                      <div>
-                        <div className="text-[10px] uppercase tracking-[0.1em]" style={{ color: tone.ink50 }}>
-                          {t.split}
-                        </div>
-                        <div className="mt-1 font-serif" style={{ fontSize: 24, color: tone.ink }}>
-                          {splitLabel(agentSplit)}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-[10px] uppercase tracking-[0.1em]" style={{ color: tone.green }}>
-                          {t.agentKeeps}
-                        </div>
-                        <div className="mt-1 font-serif" style={{ fontSize: 24, color: tone.green }}>
-                          {agentSplit}%
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-[10px] uppercase tracking-[0.1em]" style={{ color: tone.ink50 }}>
-                          {t.homixKeeps}
-                        </div>
-                        <div className="mt-1 font-serif" style={{ fontSize: 24, color: tone.ink }}>
-                          {companySplitPct(agentSplit)}%
-                        </div>
-                      </div>
-                    </div>
-                  )}
                 </div>
-                  );
-                })()
               ))}
               <div className="flex items-center justify-between">
                 <Btn variant="outline" size="sm" icon={<Icons.Plus />} onClick={addParticipant}>
@@ -995,7 +943,7 @@ export function RentalDealFormPage({ mode = "new", dealId }: RentalDealFormPageP
                           {participant.agent!.name}
                         </div>
                         <div className="text-[11px]" style={{ color: tone.ink50 }}>
-                          {participant.sharePct}% {t.shareWord} · {splitLabel(participant.agent!.splitPct)} {t.splitSuffix}
+                          {participant.sharePct}% {t.shareWord}
                         </div>
                       </div>
                     </div>
