@@ -77,6 +77,57 @@ export async function GET(request: Request, context: Context) {
         ),
       });
     }
+    if (
+      path.length === 3 &&
+      path[0] === "packages" &&
+      uuid.test(path[1]) &&
+      path[2] === "files"
+    ) {
+      const index = z
+        .string()
+        .regex(/^\d{1,3}$/)
+        .transform(Number)
+        .pipe(z.number().max(100));
+      const partIndex = index.parse(query.get("partIndex"));
+      const fileIndex = index.parse(query.get("fileIndex"));
+      const [agent] = await db
+        .select(identityColumns)
+        .from(agents)
+        .where(eq(agents.id, actor.agentId))
+        .limit(1);
+      const identity = agent ? signingCompanyIdentity(agent) : null;
+      const catalog = await signingBridgeJson(
+        "/v1/packages",
+        actor,
+        z.object({ items: z.array(signingPackageSchema) }),
+      );
+      const item = catalog.items.find(
+        (p) =>
+          p.id === path[1] &&
+          ["buyer", "seller", "commercial", "company_file"].includes(
+            p.scenario,
+          ) &&
+          identity?.companyKey &&
+          signingPackageCompanies(p).includes(identity.companyKey),
+      );
+      if (!item?.definition[partIndex]?.files[fileIndex])
+        throw new SigningBridgeError("NOT_FOUND", 404);
+      const response = await signingBridgeFetch(
+        `/v1/packages/${item.id}/files?partIndex=${partIndex}&fileIndex=${fileIndex}`,
+        actor,
+      );
+      return new Response(response.body, {
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition":
+            response.headers.get("Content-Disposition") ||
+            'attachment; filename="company-document.pdf"',
+          "Cache-Control": "private, no-store",
+          "Referrer-Policy": "no-referrer",
+          "X-Content-Type-Options": "nosniff",
+        },
+      });
+    }
     if (path.join("/") === "connections")
       return Response.json(
         await signingBridgeJson(

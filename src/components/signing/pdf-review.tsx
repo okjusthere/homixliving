@@ -22,15 +22,20 @@ function fieldLabel(type: string, zh: boolean) {
 }
 export function SigningPdfReview({
   requestId,
+  sourceUrl,
   file,
   zh,
   onViewed,
 }: {
-  requestId: string;
+  requestId?: string;
+  sourceUrl?: string;
   file: SigningReviewFile;
   zh: boolean;
-  onViewed: (id: string) => void;
+  onViewed?: (id: string) => void;
 }) {
+  const url =
+    sourceUrl ||
+    `/api/signing/requests/${requestId}/parts/${file.partId}/files?kind=original&itemId=${encodeURIComponent(file.id)}`;
   const canvas = useRef<HTMLCanvasElement>(null);
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
   const [page, setPage] = useState(1),
@@ -38,6 +43,7 @@ export function SigningPdfReview({
   const [ready, setReady] = useState(false),
     [error, setError] = useState(false);
   const [dimensions, setDimensions] = useState({ width: 612, height: 792 });
+  const [retry, setRetry] = useState(0);
   const viewed = useRef(new Set<number>()),
     onViewedRef = useRef(onViewed);
   useEffect(() => {
@@ -49,6 +55,7 @@ export function SigningPdfReview({
     setError(false);
     setPdf(null);
     setPage(1);
+    setPages(0);
     setReady(false);
     viewed.current.clear();
     const moduleUrl = "/signing-pdf/pdf.min.mjs";
@@ -62,7 +69,7 @@ export function SigningPdfReview({
         if (disposed) return;
         lib.GlobalWorkerOptions.workerSrc = "/signing-pdf/pdf.worker.min.mjs";
         task = lib.getDocument({
-          url: `/api/signing/requests/${requestId}/parts/${file.partId}/files?kind=original&itemId=${encodeURIComponent(file.id)}`,
+          url,
           cMapUrl: "/signing-pdf/cmaps/",
           cMapPacked: true,
           standardFontDataUrl: "/signing-pdf/standard_fonts/",
@@ -85,7 +92,7 @@ export function SigningPdfReview({
       disposed = true;
       void task?.destroy();
     };
-  }, [requestId, file.id, file.partId]);
+  }, [url, retry]);
   useEffect(() => {
     if (!pdf || !canvas.current) return;
     let disposed = false;
@@ -115,7 +122,7 @@ export function SigningPdfReview({
           setReady(true);
           viewed.current.add(page);
           if (viewed.current.size === pdf.numPages)
-            onViewedRef.current(file.id);
+            onViewedRef.current?.(file.id);
         }
       })
       .catch((error) => {
@@ -157,9 +164,14 @@ export function SigningPdfReview({
       </div>
       {error && (
         <p role="alert" className="text-sm text-red-700">
-          {zh
-            ? "PDF 预览未能加载，请刷新后再确认发送。"
-            : "The PDF preview could not load. Refresh before confirming delivery."}
+          {zh ? "PDF 预览未能加载。" : "The PDF preview could not load."}{" "}
+          <button
+            type="button"
+            className={signingButton}
+            onClick={() => setRetry(retry + 1)}
+          >
+            {zh ? "重试" : "Retry"}
+          </button>
         </p>
       )}
       {!ready && !error && (
@@ -178,10 +190,11 @@ export function SigningPdfReview({
         >
           <canvas
             ref={canvas}
-            className="block h-auto w-full"
+            className={`block h-auto w-full ${!ready || error ? "invisible" : ""}`}
             aria-label={`${file.title} — ${zh ? "第" : "page"} ${page}`}
           />
           {ready &&
+            !error &&
             fields.map((field) => (
               <div
                 key={field.id}

@@ -35,3 +35,9 @@ Company File and independently reviewed document composition are described in
 [the September 15 implementation plan](plans/2026-09-15-independent-signing-packages.md).
 New buyer packages reference separate approved document versions and produce one
 native envelope with separate PDF items, instead of a physically merged source PDF.
+
+## 选择文件时预览
+
+在买家、Seller / Listing、商业及其他、Company File 中选择公司文件后，点击「预览文件」即可查看发布版本的原始 PDF，无需先填写客户、交易资料或创建草稿。多文件包可以逐份切换并翻页；下载链接也经过相同公司权限检查。这里显示尚未填写的公司模板，正式发出前仍要核对具体任务的预填资料和收件人。
+
+Portal 的 `GET /api/signing/packages/:id/files?partIndex=0&fileIndex=0` 验证在职经纪人和实际所属公司，Bridge 对应只读接口验证发布版本、公司模板归属、文件哈希及组合包中独立文件的启用状态。浏览器不会得到公司签署凭据或原生模板编辑权限；预览不会创建签署任务或发送邀请。
