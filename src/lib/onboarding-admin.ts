@@ -1,5 +1,5 @@
 import "server-only";
-import { dosConfirmed, DOS_REQUIRED, licenseNumberInput } from "@/lib/onboarding-license";
+import { dosConfirmed, licenseNumberInput } from "@/lib/onboarding-license";
 import { nyDate } from "@/lib/celebrations/calendar";
 import { createHash, randomUUID } from "node:crypto";
 import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
@@ -248,8 +248,8 @@ export async function runOnboardingCommand(
     const { agent, actor } = await lockedSubject(tx, agentId, actorId);
     const now = new Date().toISOString();
     if (command.action === "confirm_dos") {
-      if (agent.accountStatus !== "pending")
-        throw new OnboardingCommandError("DOS intake confirmation is only available for pending accounts");
+      if (!["pending", "active"].includes(agent.accountStatus))
+        throw new OnboardingCommandError("DOS confirmation is only available for pending or active accounts");
       if (agent.legalName?.trim() !== command.legalName ||
           agent.licenseNumber?.trim() !== command.licenseNumber ||
           agent.licensedCompanyId !== command.companyId)
@@ -426,7 +426,6 @@ export async function runOnboardingCommand(
       if (!rows.length)
         throw new OnboardingCommandError("The grant is no longer open");
     } else if (command.action === "existing_staff") {
-      if (!dosConfirmed(agent)) throw new OnboardingCommandError(DOS_REQUIRED);
       const manual = verifiedManualContract(agent);
       if (
         agent.accountStatus !== "pending" ||
@@ -723,7 +722,6 @@ export async function completeOnboarding(agentId: number, actorId: number, input
       throw new OnboardingCommandError("This account is not pending. Refresh its current status before recording another payment.");
     if (!agent.onboardingCompletedAt)
       throw new OnboardingCommandError("Complete the person's profile first");
-    if (!dosConfirmed(agent)) throw new OnboardingCommandError(DOS_REQUIRED);
     if (!onboardingAgreementAllowsPayment(agent))
       throw new OnboardingCommandError("The agent has not signed the affiliation agreement.");
     const [pendingTeam] = await tx.select({ id: teamJoinRequests.id }).from(teamJoinRequests)

@@ -18,7 +18,7 @@ export function onboardingWorkflow(
     | "teamId"
     | "teamTermsConfigId"
     | "teamTermsAcceptedAt"
-  > & ManualContractBasis & DosBasis & Partial<Pick<Agent, "affiliationTermMonths" | "licensedCompanyId" | "onboardingFeeAdjustment">>,
+  > & ManualContractBasis & DosBasis & Partial<Pick<Agent, "isAdmin" | "affiliationTermMonths" | "licensedCompanyId" | "onboardingFeeAdjustment">>,
   paymentChannel: string | null,
   pendingTeam = false,
 ) {
@@ -44,7 +44,7 @@ export function onboardingWorkflow(
     agent.accountStatus === "pending" &&
     profileReady &&
     signed &&
-    teamReady && dosReady;
+    teamReady;
   const waived = fullyWaivedOnboarding(agent);
   const canApprove = canComplete && (waived ||
     (agent.paymentStatus === "paid" && ["offline", "stripe"].includes(paymentChannel || "")));
@@ -54,7 +54,9 @@ export function onboardingWorkflow(
       : agent.accountStatus === "active"
         ? countersignPending
           ? "countersign"
-          : "complete"
+          : !dosReady && !agent.isAdmin
+            ? "dos"
+            : "complete"
         : !profileReady
           ? "profile"
           : pendingTeam
@@ -67,16 +69,14 @@ export function onboardingWorkflow(
                 : "signature"
               : !teamReady
                 ? "team"
-                : !dosReady
-                  ? "dos"
-                  : waived
+                : waived
                   ? "approval"
                   : agent.paymentStatus !== "paid"
                   ? "payment"
                   : paymentChannel === "offline"
                     ? "approval"
                     : paymentChannel === "stripe"
-                      ? "approval"
+                      ? "activation"
                       : "payment_issue";
   return {
     signed,
@@ -92,7 +92,7 @@ export function onboardingWorkflow(
 }
 
 export const ONBOARDING_NEXT = {
-  dos: ["待管理员核实 DOS 接收", "Admin: verify DOS affiliation"],
+  dos: ["已开通 · 待管理员核实 DOS 接收", "Active · admin DOS verification due"],
   profile: ["待本人完善资料", "Agent: complete profile"],
   team: ["待团队确认 / 条款确认", "Team decision / terms required"],
   signature: ["待本人签署", "Agent: sign agreement"],

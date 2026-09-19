@@ -46,10 +46,13 @@ export function onboardingTasks(
 ): OnboardingTaskSummary {
   const workflow = onboardingWorkflow(agent, channel, pendingTeam);
   const tasks = new Set<OnboardingTaskKey>();
+  // Access and license affiliation are independent. Keep DOS visible after
+  // activation until an administrator records valid proof; never fabricate it.
+  if (!agent.isAdmin && ["pending", "active"].includes(agent.accountStatus) && !workflow.dosReady)
+    tasks.add("dos");
   if (records.staleSettlements?.length) tasks.add("finance");
   if (agent.accountStatus === "active" && agent.onboardingWebsiteSync?.status === "pending") tasks.add("website");
   if (agent.accountStatus === "pending") {
-    if (!workflow.dosReady) tasks.add("dos");
     if (!workflow.profileReady) tasks.add("profile");
     if (!workflow.signed)
       tasks.add(
@@ -61,8 +64,8 @@ export function onboardingTasks(
       );
     if (!workflow.teamReady) tasks.add("team");
     if (agent.paymentStatus === "pending") tasks.add("payment");
-    if (workflow.canApprove) tasks.add("offline");
-    if (workflow.next === "payment_issue")
+    if (workflow.canApprove && workflow.next !== "activation") tasks.add("offline");
+    if (workflow.next === "payment_issue" || workflow.next === "activation")
       tasks.add("activation");
   }
   if (

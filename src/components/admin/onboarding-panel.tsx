@@ -167,7 +167,6 @@ export function OnboardingPanel({
     if (!detail.workflow.profileReady) approvalReasons.push(zh ? "本人资料尚未补齐。" : "The agent profile is incomplete.");
     if (!detail.workflow.signed) approvalReasons.push(zh ? "本人合同要求尚未完成。" : "The agent contract requirement is incomplete.");
     if (!detail.workflow.teamReady) approvalReasons.push(zh ? "团队归属或分佣条款尚未确认。" : "Team membership or compensation terms are not confirmed.");
-    if (!detail.workflow.dosReady) approvalReasons.push(zh ? "请先在上方确认 DOS 已正式接收该执照。" : "Confirm DOS affiliation in the license card above.");
     if (!fullyWaived && !(detail.agent.paymentStatus === "paid" && ["offline", "stripe"].includes(detail.payment?.channel || ""))) approvalReasons.push(zh ? "请先核验付款，或使用上方费用确认与开通流程。" : "Verify payment first, or use Confirm fee & activate above.");
     if (!detail.workflow.canApprove && !approvalReasons.length) approvalReasons.push(zh ? "服务端尚未确认可审批，请刷新状态。" : "Approval is not available yet. Refresh the current status.");
   }
@@ -374,8 +373,8 @@ export function OnboardingPanel({
                   zh ? "账号开通" : "Portal access",
                   detail.agent.accountStatus === "active",
                   detail.agent.accountStatus === "active" ? (zh ? "账号已开通，可以进入 Portal" : "Account active; Portal access is available") : zh
-                    ? "须先确认 DOS 接收，再确认费用并开通；已付款无需重付"
-                    : "Confirm DOS affiliation and fee settlement before activation; do not collect paid fees again",
+                    ? "本人签署并完成线上付款后自动开通；线下收款由管理员核验。DOS 单独跟进，已付款无需重付"
+                    : "Agent signature and verified online payment activate access automatically. Admins verify offline payments and follow up on DOS separately; do not collect paid fees again",
                 ],
               ].map(([label, done, help]) => (
                 <li key={String(label)} className="flex gap-3 p-4">
@@ -407,7 +406,6 @@ export function OnboardingPanel({
               profileReady={detail.workflow.profileReady}
               signed={detail.workflow.signed}
               teamReady={detail.workflow.teamReady}
-              dosReady={detail.workflow.dosReady}
               warning={detail.warning}
               loading={loading}
               busy={busy}
@@ -610,7 +608,6 @@ export function OnboardingPanel({
               agentId={agentId}
               company={detail.agent.licensedCompany}
               manual={detail.agent.manualContract}
-              dosReady={detail.workflow.dosReady}
               records={detail.records}
               onBusyChange={setBusy}
               onChanged={async () => {

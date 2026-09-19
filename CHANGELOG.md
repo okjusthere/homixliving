@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-09-18
+
+- New verified Google emails can start pending onboarding directly from login;
+  existing identities, email aliases and legacy claims are resolved first.
+- Complete profiles, agent signatures and verified online onboarding payments
+  automatically activate Portal access. DOS affiliation is a separate administrator
+  follow-up, not an activation requirement; offline payments and waivers still
+  require administrator verification.
+- DOS tasks remain visible after activation, with administrator-only confirmation
+  and audit history. License numbers and release declarations remain required.
+
 ## 2026-09-02
 
 - Pending users now pick up administrator approval on refresh and during the page's automatic checks, without signing out and signing in again.

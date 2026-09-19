@@ -69,7 +69,6 @@ export function onboardingActionError(error: unknown, zh: boolean) {
     "This account is not pending. Refresh its current status before recording another payment.": "账号已不在待开通状态，请先刷新，勿重复登记收款。",
     "The agent has not signed the affiliation agreement.": "本人尚未签署入职协议。",
     "A verified payment or an approved full waiver is required": "需要已核验的付款或已批准的全额减免。",
-    "Confirm in DOS that this license is affiliated with the selected company before activation": "请先在执照卡片确认 DOS 已将该执照正式关联至所选公司。",
     "The fee is already paid. Use the existing verified payment instead of recording another receipt.": "费用已支付，请使用现有核验记录，勿重复登记收款。",
     "A full waiver must cover the entire onboarding fee": "全额减免须覆盖全部入职费用。",
     "Enter a valid fee reduction and the reason for approval": "请填写有效的减免金额及批准依据。",
@@ -90,7 +89,7 @@ const dollars = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
 export function OnboardingCompletion({
   agentId, fee, accountStatus, paymentStatus, paymentChannel, canComplete,
-  profileReady, signed, teamReady, dosReady, warning, loading, busy: parentBusy,
+  profileReady, signed, teamReady, warning, loading, busy: parentBusy,
   receipts, onChanged, onBusyChange, onRecordOnly,
 }: {
   agentId: number;
@@ -102,7 +101,6 @@ export function OnboardingCompletion({
   profileReady: boolean;
   signed: boolean;
   teamReady: boolean;
-  dosReady: boolean;
   warning: boolean;
   loading: boolean;
   busy: boolean;
@@ -158,10 +156,9 @@ export function OnboardingCompletion({
   if (!profileReady) reasons.push(zh ? "本人资料尚未补齐。" : "The agent profile is incomplete.");
   if (!signed) reasons.push(zh ? "本人合同要求尚未完成。" : "The agent contract requirement is incomplete.");
   if (!teamReady) reasons.push(zh ? "团队归属或分佣条款尚未确认。" : "Team membership or compensation terms are not confirmed.");
-  if (!dosReady) reasons.push(zh ? "请先在执照卡片确认 DOS 已正式接收该执照。" : "Confirm DOS affiliation in the license card first.");
   if (warning) reasons.push(zh ? "请先刷新并核实签署状态。" : "Refresh and verify the signing status first.");
   if (!fee) reasons.push(zh ? "尚无有效费用报价，请刷新或补齐方案。" : "A fee quote is unavailable. Refresh or complete the plan details.");
-  if (!canComplete && accountStatus === "pending" && profileReady && signed && teamReady && dosReady) reasons.push(zh ? "服务端尚未确认可审批，请刷新状态。" : "The server has not confirmed approval readiness. Refresh the status.");
+  if (!canComplete && accountStatus === "pending" && profileReady && signed && teamReady) reasons.push(zh ? "服务端尚未确认可审批，请刷新状态。" : "The server has not confirmed approval readiness. Refresh the status.");
   if (!verified && paymentStatus === "paid") reasons.push(zh ? "费用已支付，请核对现有付款及自动开通结果，勿重复收款。" : "Payment is already recorded. Review that payment and automatic activation before proceeding.");
   if (!verified && (totalWaiver === null || totalWaiver < 0 || !fee || totalWaiver > fee.originalAmountCents || (!fullWaiver && due !== null && due <= 0))) reasons.push(zh ? "请核对减免金额；全额减免请选择「全额」。" : "Check the waiver amount. Choose Full for a full waiver.");
   if (!verified && fee?.adjustment && totalWaiver === 0) reasons.push(zh ? "请先核对已有减免；此流程不能直接清除已有减免。" : "Review the existing waiver first; this flow cannot clear a saved waiver.");
