@@ -47,9 +47,11 @@ person id:
    `sub`) to the Agent. Authentication resolves this before email.
 
 Apply `db/migrations/20260910-agent-identity-model.sql` before deploying code
-that reads these tables. Normal Google sign-in never creates a person. Creation
-is allowed only from an explicit `/join` context, a valid invitation, or the
-configured admin bootstrap. A signed-in Agent links an additional Google email
+that reads these tables. Verified Google sign-in resolves existing provider
+identities, login aliases and legacy claims first. An unknown identity may start
+a new **pending** application directly from `/login`, as well as from `/join`
+or an invitation; it never receives active access just by signing in. A
+configured administrator retains the separate admin bootstrap. A signed-in Agent links an additional Google email
 from My profile and proves ownership by completing Google OAuth with that
 address.
 

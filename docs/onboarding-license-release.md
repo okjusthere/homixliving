@@ -1,6 +1,6 @@
 # License release and DOS verification
 
-Scope: Portal intake data and activation eligibility only. No new eSign fields,
+Scope: Portal intake data and administrator follow-up. No new eSign fields,
 no document/template changes and no DOS automation.
 
 ## Flow
@@ -18,16 +18,26 @@ no document/template changes and no DOS automation.
   Applicant declarations never substitute for this proof. An administrator may
   independently verify DOS even when the applicant's declaration is missing or
   outdated. Confirm/unconfirm actions are audited; retries preserve the verifier.
-- Pending accounts cannot activate without current DOS proof (Stripe, manual
-  approval, waiver, existing-staff recognition). Signing and payment remain allowed.
-  If Stripe was paid first, use the same paid order after DOS confirmation; do not
-  create another receipt or charge. Company countersign remains a separate task.
+- Under the revised policy (2026-09-18), DOS proof is **not an activation gate**.
+  A complete profile, agent signature and verified Stripe settlement activate a
+  pending account automatically (applicable team approval/terms still apply).
+  `not_released` or `unknown` declarations do not prevent this. Offline receipts,
+  fee waivers and historical-staff recognition still need their existing admin
+  verification, but do not require a DOS checkbox first.
+- Missing/currently invalid DOS proof remains a task for pending **and active**
+  non-admin accounts. Admins can confirm/unconfirm it after activation. This never
+  changes account access, payment facts or signed documents. Independent admin
+  accounts are excluded from license tasks. Company countersign remains separate.
+- New verified Google emails can enter pending onboarding from ordinary login.
+  Existing identities/aliases/legacy claims resolve before any new account is
+  created. Signing in alone does not grant business access or publish a website
+  profile. Never merge people merely because their Google display names match.
 - Existing active accounts are not deactivated. Explicitly authorized historical
   backfills use `source: authorized_legacy_backfill`, a batch ID and authorization
   description, with `confirmedBy: null` (not an impersonated administrator).
   The admin UI labels this as historical confirmation, not a new live DOS lookup.
   This proof is valid only while the account is active and identity still matches;
-  it cannot approve a pending/re-entering applicant. New manual confirmations
+  it is not valid proof for a pending/re-entering applicant. New manual confirmations
   continue to record the authenticated administrator ID and server timestamp.
 
 ## Rollout
@@ -35,20 +45,40 @@ no document/template changes and no DOS automation.
 Apply `db/migrations/20260916-onboarding-license-release.sql` **before** the new
 application build. It adds two nullable JSONB columns only; it does not backfill
 account status, signing or payments. The schema bootstrap includes both columns.
-The previous application can run with the extra columns, but rolling it back also
-removes the new DOS activation gate. Do not drop populated records during rollback.
+The 2026-09-18 policy update needs **no database migration or proof backfill**.
+Rolling back to the 2026-09-16 build reinstates the old DOS activation gate; it
+does not revoke accounts already activated. Do not drop populated records.
+
+Payments already processed while the former gate was active are not replayed by
+this code change. Administrators can approve those existing verified payments
+without DOS confirmation and without collecting again; there is no bulk status
+rewrite in this change.
 
 No production statuses or DOS confirmations are changed by this feature's tests.
 
 ## Verification
 
-`npm run test:onboarding-license` checks validation, identity binding and gates.
+`npm run test:onboarding-license` checks validation, identity binding, activation
+without DOS and retained profile/signature/team restrictions.
+`npm run test:onboarding-entry` also runs the isolated actual-auth-function
+regression (mocked identity/database boundaries, not a live Google OAuth test).
 `npm run test:onboarding-license:db` runs only against a local database named
 `homix_onboarding_integration`, with an explicitly supplied `DATABASE_URL`.
 It tests authorization, origin checks, declaration updates after signing,
-confirmation auditing/retries/revocation, waiver/recognition gates, paid Stripe
-approval without duplicate collection, and existing-account preservation.
+confirmation auditing/retries/revocation, waiver and Stripe activation without
+DOS, post-activation confirmation through the admin route, payment replay safety,
+unchanged signing/access/payment facts, and existing-account preservation.
 Existing onboarding administrator/completion/Stripe race suites also apply.
+
+Local verification for the 2026-09-18 policy update: full `npm test`, TypeScript,
+production build, license integration, administrator integration and all three
+completion/activation/Stripe-race integration suites passed. The added regression
+covers both $308 Solo and $3,670 Solo Pro settlement with a `not_released`
+declaration and no DOS proof, followed by administrator-only DOS confirmation.
+ESLint reports no errors (one pre-existing generated workflow-file warning).
+Tests use an isolated local PostgreSQL database and synthetic provider inputs;
+no real Google OAuth login, live payment, production account change or deployment
+was performed as part of this verification.
 
 Local verification on 2026-09-16: TypeScript, production build, full `npm test`,
 new license unit/integration suite and existing onboarding admin/completion/

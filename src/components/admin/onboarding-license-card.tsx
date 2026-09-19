@@ -48,13 +48,13 @@ export function OnboardingLicenseCard({ agentId, agent, confirmed, busy, onBusy,
       <div><dt className="text-stone-500">{zh ? "本人申报的 release 状态" : "Applicant's release declaration"}</dt><dd>{release ? RELEASE_LABELS[release.status][zh ? 0 : 1] : (zh ? "尚未申报" : "Not declared")}</dd></div>
     </dl>
     {release && <p className="text-sm text-stone-600">{release.previousCompany || ""}{release.note ? ` · ${release.note}` : ""}<br />{zh ? "申报于 " : "Declared "}{fmtTimestamp(release.declaredAt)}</p>}
-    {agent.accountStatus === "pending" ? <>
+    {["pending", "active"].includes(agent.accountStatus) ? <>
       <label className="flex items-start gap-2 text-sm font-medium">
         <input type="checkbox" className="mt-1" checked={confirmed} disabled={busy || !hasIdentity} onChange={(event) => void save(event.target.checked)} />
         <span>{zh ? `我已在 DOS 核实：该执照已正式关联至 ${company || "上述公司"}。` : `I verified in DOS that this license is now affiliated with ${company || "the selected company"}.`}</span>
       </label>
       {!hasIdentity && <p className="text-sm text-amber-800">{zh ? "请先补齐法定姓名、执照号及拟加入公司，才能核实。" : "Complete the legal name, license number and target company first."}</p>}
-      <p className="text-xs text-stone-500">{zh ? "仅提交申请、等待 DOS 结果时不要勾选。未确认时可先签署和付款，但不能开通账号。" : "Do not check while a DOS request is only submitted or pending. Signing and payment may proceed, but access requires confirmation."}</p>
+      <p className="text-xs text-stone-500">{zh ? "仅提交申请、等待 DOS 结果时不要勾选。DOS 是管理员独立待办，不阻止签署、付款或开通 Portal；账号开通不代表 DOS 已接收。" : "Do not check while a DOS request is only submitted or pending. DOS is an administrator follow-up and does not block signing, payment or Portal access. An active account does not prove DOS affiliation."}</p>
     </> : <p className="text-xs text-stone-500">{confirmed ? (zh ? "DOS 接收已核实。" : "DOS affiliation verified.") : (zh ? "未登记 DOS 核实记录；存量账号权限保持不变。" : "No DOS verification recorded; existing account access is unchanged.")}</p>}
     {confirmed && agent.dosConfirmation && <p className="text-xs text-stone-500">{agent.dosConfirmation.source === "authorized_legacy_backfill"
       ? (zh ? "管理员授权的存量确认（历史回填，非本次 DOS 在线核验）" : "Administrator-authorized historical confirmation (not a new live DOS lookup)")

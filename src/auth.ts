@@ -392,11 +392,10 @@ async function upsertAgentFromGoogle(user: {
   const claimed = await resolveLegacyClaim();
   if (claimed) return claimed;
 
-  // Ordinary sign-in is not registration. A new person record may only be
-  // created by a configured admin, an invitation, or the explicit /join flow.
-  if (!admin && !hasInvitationContext && !entryContext) {
-    return null;
-  }
+  // A verified new Google identity may start onboarding directly from /login.
+  // Existing identities, aliases and legacy claims above must resolve first.
+  // Non-admin signups receive pending access only; signing and verified payment
+  // are still required before the account can become active.
 
   const created = await db.transaction(async (tx) => {
     const [newAgent] = await tx
@@ -466,7 +465,7 @@ async function upsertAgentFromGoogle(user: {
         await notify({
           recipientAgentIds: await adminAgentIds(),
           type: "agent_pending",
-          title: `新经纪人待审批：${user.name || email}`,
+          title: `新经纪人开始入职：${user.name || email}`,
           body: `${email} 刚通过 Google 登录注册，等待开通。来源：${entryContext?.source === "website" ? "Homix 官网" : hasInvitationContext ? "邀请链接" : "直接注册"}。`,
           href: "/agents",
           dedupeKey: `agent-pending:${email}`,

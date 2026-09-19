@@ -2,7 +2,6 @@ import { dbDatePart } from "@/lib/db-time";
 import { verifiedManualContract } from "@/lib/onboarding-requirements";
 import { onboardingAccessGrants } from "@/db/onboarding-schema";
 import { NextRequest, NextResponse } from "next/server";
-import { dosConfirmed, DOS_REQUIRED } from "@/lib/onboarding-license";
 import { db } from "@/db";
 import { agents, commerceOrders, teamJoinRequests, teams } from "@/db/schema";
 import { and, desc, eq, gt, inArray, sql } from "drizzle-orm";
@@ -78,7 +77,6 @@ export async function POST(
     );
   }
   if (existing.accountStatus === "pending") {
-    if (!dosConfirmed(existing)) return NextResponse.json({ error: DOS_REQUIRED }, { status: 409 });
     // Fresh provider proof only; never expire a live checkout, cancel a subscription or refund here.
     // The locked guard below rechecks for a reservation created after this preflight.
     try {
@@ -373,7 +371,6 @@ export async function POST(
         .limit(1);
       if (
         (!payment && !fullyWaivedOnboarding(fresh)) ||
-        !dosConfirmed(fresh) ||
         pendingTeam ||
         !onboardingAgreementAllowsPayment(fresh) ||
         (fresh.paymentStatus !== "paid" && !fullyWaivedOnboarding(fresh))

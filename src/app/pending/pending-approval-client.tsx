@@ -17,7 +17,7 @@ const M = {
     inactiveTitle: "Account inactive",
     pendingTitle: "Complete your onboarding",
     inactiveBody: "This account has been deactivated. Contact a Homix administrator if you believe this is a mistake.",
-    pendingBody: "Confirm your details and license release status, then sign and arrange payment. Access requires an administrator to confirm your DOS affiliation; signing and payment can proceed while this is checked.",
+    pendingBody: "Confirm your details and license release status, then sign and pay online to activate Portal access. DOS affiliation is a separate administrator follow-up and does not delay access.",
     inactiveHint: "Your historical deals and payment records remain retained by the company.",
     pendingHint: "Your progress is saved. This page checks automatically and opens your workspace when your access is ready.",
     checking: "Checking…",
@@ -84,7 +84,7 @@ const M = {
     agreementUnavailable: "eSign is not configured yet. An administrator can continue the current manual process.",
     payAnnualFee: "Pay affiliation fee",
     paymentReceived: "Payment received",
-    finalReview: "Payment received. No further payment is needed. Portal access will open after DOS affiliation and onboarding are confirmed.",
+    finalReview: "Payment received. No further payment is needed. Online onboarding activates automatically when your profile, signature and applicable team terms are complete. Offline payments require administrator verification. DOS is followed up separately.",
     offlineReview: "Your offline payment has been verified. An administrator will review and activate your account.",
     teamTermsTitle: "Team terms included in your agreement",
     standardTeamSplit: "Standard team split",
@@ -97,7 +97,7 @@ const M = {
     inactiveTitle: "账号已停用",
     pendingTitle: "办理入职",
     inactiveBody: "此账号已被停用。如有疑问，请联系 Homix 管理员。",
-    pendingBody: "确认资料和执照 release 状态，再签署和处理费用。开通前须由管理员确认 DOS 已接收；核实期间可先签署和付款。",
+    pendingBody: "确认资料和执照 release 状态，再签署并完成线上付款，即可自动开通 Portal。DOS 接收由管理员单独跟进，不影响账号开通。",
     inactiveHint: "公司仍会保留你的历史成交与付款记录。",
     pendingHint: "办理进度会保留。本页自动检查状态，开通后直接进入工作台。",
     checking: "正在检查…",
@@ -164,7 +164,7 @@ const M = {
     agreementUnavailable: "eSign 尚未配置，管理员仍可按现有人工流程处理。",
     payAnnualFee: "支付挂靠费用",
     paymentReceived: "费用已支付",
-    finalReview: "费用已收到，无需重复付款。DOS 接收和入职条件确认后即可开通 Portal。",
+    finalReview: "费用已收到，无需重复付款。资料、本人签署和适用的团队条款完成后，线上付款会自动开通账号；线下收款需管理员核验。DOS 由公司另行跟进。",
     offlineReview: "线下收款已核验，等待管理员审批开通账号。",
     teamTermsTitle: "协议中的团队分佣条款",
     standardTeamSplit: "一般团队分成",
@@ -863,7 +863,7 @@ export function PendingApprovalClient({
               )}
 
               {setupComplete && <section className="mt-5 space-y-3 rounded-lg border border-stone-200 p-4">
-                <p className="text-sm font-medium">{dosReady ? (lang === "zh" ? "公司已核实 DOS 接收" : "DOS affiliation confirmed by the company") : (lang === "zh" ? "待公司核实 DOS 接收；不影响先签署和付款" : "Awaiting company DOS verification; you may sign and pay meanwhile")}</p>
+                <p className="text-sm font-medium">{dosReady ? (lang === "zh" ? "公司已核实 DOS 接收" : "DOS affiliation confirmed by the company") : (lang === "zh" ? "待公司核实 DOS 接收；不影响签署、付款和开通 Portal" : "Awaiting company DOS verification; signing, payment and Portal activation may proceed")}</p>
                 <LicenseReleaseFields value={release} onChange={setRelease} zh={lang === "zh"} disabled={releaseSaving} />
                 <button type="button" className="admin-control" disabled={releaseSaving} onClick={async () => {
                   if (!licenseReleaseInput.safeParse(release).success) {

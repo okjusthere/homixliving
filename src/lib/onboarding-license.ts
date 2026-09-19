@@ -44,7 +44,7 @@ const normalized = (value: string | null | undefined) => value?.trim().replace(/
 export function dosConfirmed(agent: DosBasis): boolean {
   const proof = agent.dosConfirmation;
   // A historical authorization describes existing access, not a new DOS lookup.
-  // It must never be usable to approve a pending account (including re-entry).
+  // It is not current verification for a pending account (including re-entry).
   const authorized = proof?.source === "authorized_legacy_backfill"
     ? agent.accountStatus === "active" && proof.confirmedBy === null &&
       Boolean(proof.batchId?.trim() && proof.authorization?.trim())
@@ -57,5 +57,3 @@ export function dosConfirmed(agent: DosBasis): boolean {
     authorized &&
     Number.isFinite(Date.parse(proof.confirmedAt)));
 }
-
-export const DOS_REQUIRED = "Confirm in DOS that this license is affiliated with the selected company before activation";

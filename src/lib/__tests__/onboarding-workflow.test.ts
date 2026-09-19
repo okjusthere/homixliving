@@ -23,9 +23,10 @@ assert.equal(onboardingWorkflow(signed, null).canRecordPayment, true);
 const paid = { ...signed, paymentStatus: "paid" as const };
 assert.equal(onboardingWorkflow(paid, "offline").canApprove, true);
 assert.equal(onboardingWorkflow(paid, "stripe").canApprove, true);
-assert.equal(onboardingWorkflow(paid, "stripe").next, "approval");
-assert.equal(onboardingWorkflow({ ...paid, dosConfirmation: null }, "stripe").next, "dos");
-assert.equal(onboardingWorkflow({ ...paid, dosConfirmation: null }, "offline").canComplete, false);
+assert.equal(onboardingWorkflow(paid, "stripe").next, "activation");
+assert.equal(onboardingWorkflow({ ...paid, dosConfirmation: null }, "stripe").next, "activation");
+assert.equal(onboardingWorkflow({ ...paid, dosConfirmation: null }, "offline").canComplete, true);
+assert.equal(onboardingWorkflow({ ...signed, dosConfirmation: null }, null).next, "payment");
 assert.equal(onboardingWorkflow(paid, null).next, "payment_issue");
 assert.equal(onboardingWorkflow(paid, "offline", true).canApprove, false);
 for (const agreementStatus of [
